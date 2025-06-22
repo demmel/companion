@@ -1,0 +1,44 @@
+[project]
+name = "agent"
+version = "0.1.0"
+description = "CLI Agent with Llama 3.3 70B - A general-purpose AI assistant"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.2.1",
+    "ollama>=0.5.1",
+    "pydantic>=2.11.7",
+    "python-dotenv>=1.1.0",
+    "requests>=2.32.4",
+    "rich>=14.0.0",
+    "typing-extensions>=4.14.0",
+    "torch",
+    "torchvision",
+    "transformers>=4.40.0",
+    "accelerate>=0.20.0",
+    "bitsandbytes>=0.41.0",
+    "pytest>=8.4.1",
+    "black>=25.1.0",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+    { index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[project.scripts]
+agent = "main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
