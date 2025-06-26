@@ -17,6 +17,7 @@ from rich.text import Text
 from rich.live import Live
 from rich.spinner import Spinner
 from agent.core import Agent
+from agent.config import get_config
 from agent.presenters import get_presenter_for_config
 
 console = Console()
@@ -41,7 +42,8 @@ def main(model: str, verbose: bool, check: bool):
     )
 
     try:
-        agent = Agent(model=model, verbose=verbose)
+        config = get_config("roleplay")  # Default to roleplay config
+        agent = Agent(config=config, model=model, verbose=verbose)
 
         if check:
             console.print("Checking model availability...")

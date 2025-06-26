@@ -42,3 +42,8 @@ package-dir = {"" = "src"}
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=6.2.1",
+]

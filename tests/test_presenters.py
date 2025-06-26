@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from io import StringIO
 
 from agent.core import Agent
+from agent.config import get_config
 from agent.presenters import get_presenter_for_config
 from agent.presenters.roleplay import RoleplayPresenter
 from agent.presenters.generic import GenericPresenter
@@ -17,7 +18,8 @@ class TestPresenterSystem:
 
     def test_get_presenter_for_config(self):
         """Test that correct presenters are returned for different configs"""
-        agent = Agent(model="test-model", config_name="roleplay")
+        config = get_config("roleplay")
+        agent = Agent(config=config, model="test-model")
 
         # Test roleplay presenter
         presenter = get_presenter_for_config("roleplay", agent)
@@ -31,7 +33,8 @@ class TestPresenterSystem:
 
     def test_roleplay_presenter_initialization(self):
         """Test roleplay presenter initialization"""
-        agent = Agent(model="test-model", config_name="roleplay")
+        config = get_config("roleplay")
+        agent = Agent(config=config, model="test-model")
         presenter = RoleplayPresenter(agent)
 
         assert presenter.agent is agent
@@ -43,7 +46,8 @@ class TestPresenterSystem:
 
     def test_generic_presenter_initialization(self):
         """Test generic presenter initialization"""
-        agent = Agent(model="test-model", config_name="general")
+        config = get_config("general")
+        agent = Agent(config=config, model="test-model")
         presenter = GenericPresenter(agent)
 
         assert presenter.agent is agent
@@ -52,7 +56,8 @@ class TestPresenterSystem:
     @patch("rich.console.Console.print")
     def test_roleplay_presenter_character_header(self, mock_print):
         """Test that roleplay presenter shows character headers correctly"""
-        agent = Agent(model="test-model", config_name="roleplay")
+        config = get_config("roleplay")
+        agent = Agent(config=config, model="test-model")
         presenter = RoleplayPresenter(agent)
 
         # Mock agent state with character
@@ -95,7 +100,8 @@ class TestPresenterSystem:
     @patch("rich.console.Console.print")
     def test_roleplay_presenter_hidden_tools(self, mock_print):
         """Test that hidden tools don't show in roleplay presenter"""
-        agent = Agent(model="test-model", config_name="roleplay")
+        config = get_config("roleplay")
+        agent = Agent(config=config, model="test-model")
         presenter = RoleplayPresenter(agent)
 
         # Mock LLM response with hidden tool

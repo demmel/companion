@@ -18,6 +18,13 @@ class AgentEventType(Enum):
     ERROR = "error"
 
 
+class ToolResultType(Enum):
+    """Types of tool execution results"""
+    
+    SUCCESS = "success"
+    ERROR = "error"
+
+
 @dataclass
 class AgentTextEvent:
     """Text content from agent response"""
@@ -51,7 +58,8 @@ class ToolFinishedEvent:
     """Tool execution completed"""
 
     tool_id: str
-    result: str
+    result_type: ToolResultType
+    result: str  # actual result for success, error message for error
     type: AgentEventType = AgentEventType.TOOL_FINISHED
 
 

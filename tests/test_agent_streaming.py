@@ -6,11 +6,13 @@ import pytest
 from unittest.mock import Mock
 
 from agent.core import Agent
+from test_configs import create_simple_config, create_iteration_test_config
 from agent.agent_events import (
     AgentTextEvent,
     ToolStartedEvent,
     ToolProgressEvent,
     ToolFinishedEvent,
+    ToolResultType,
     AgentErrorEvent,
 )
 
@@ -21,7 +23,8 @@ class TestAgentStreaming:
     def test_tool_only_then_dialogue_flow(self):
         """Test that agent correctly handles tool-only response followed by dialogue"""
         # Create agent with mocked LLM
-        agent = Agent(model="test-model", verbose=False)
+        config = create_simple_config()
+        agent = Agent(config=config, model="test-model", verbose=False)
 
         # Mock the LLM client to return specific responses
         mock_llm = Mock()
@@ -29,10 +32,10 @@ class TestAgentStreaming:
 
         # First LLM call: tool-only response
         first_response = [
-            {"message": {"content": "TOOL_CALL: assume_character (call_1)\n"}},
+            {"message": {"content": "TOOL_CALL: mock_tool (call_1)\n"}},
             {
                 "message": {
-                    "content": '{"character_name": "Jim", "personality": "Gruff but caring"}'
+                    "content": '{"message": "Creating Jim character"}'
                 }
             },
         ]
@@ -48,7 +51,7 @@ class TestAgentStreaming:
         mock_llm.chat.side_effect = [iter(first_response), iter(second_response)]
 
         # Mock tool execution
-        agent.tools.execute = Mock(return_value="Character Jim created successfully")
+        agent.tools.execute = Mock(return_value="Mock result: Creating Jim character")
 
         # Collect all events from streaming
         events = list(agent.chat_stream("Hi, Jim"))
@@ -67,17 +70,17 @@ class TestAgentStreaming:
 
         # Verify tool started details
         tool_started = events[0]
-        assert tool_started.tool_name == "assume_character"
+        assert tool_started.tool_name == "mock_tool"
         assert tool_started.tool_id == "call_1"
         assert tool_started.parameters == {
-            "character_name": "Jim",
-            "personality": "Gruff but caring",
+            "message": "Creating Jim character"
         }
 
         # Verify tool finished
         tool_finished = events[1]
         assert tool_finished.tool_id == "call_1"
-        assert "Character Jim created" in tool_finished.result
+        assert tool_finished.result_type == ToolResultType.SUCCESS
+        assert "Mock result: Creating Jim character" in tool_finished.result
 
         # Verify dialogue text
         text_events = events[2:5]
@@ -96,7 +99,8 @@ class TestAgentStreaming:
 
     def test_no_tools_simple_response(self):
         """Test that simple responses without tools work correctly"""
-        agent = Agent(model="test-model", verbose=False)
+        config = create_simple_config()
+        agent = Agent(config=config, model="test-model", verbose=False)
 
         mock_llm = Mock()
         agent.llm = mock_llm
@@ -122,13 +126,12 @@ class TestAgentStreaming:
         # Should only call LLM once
         assert mock_llm.chat.call_count == 1
 
-    @pytest.mark.parametrize("max_iterations", [3, 5])
+    @pytest.mark.parametrize("max_iterations", [2, 3])
     def test_iteration_limit_enforced(self, max_iterations):
         """Test that agent respects the configured iteration limit"""
-        agent = Agent(model="test-model", verbose=False)
-
-        # Mock the config's max_iterations for this test
-        agent.config.max_iterations = max_iterations
+        config = create_iteration_test_config()
+        config.max_iterations = max_iterations  # Override for parameterized test
+        agent = Agent(config=config, model="test-model", verbose=False)
 
         mock_llm = Mock()
         agent.llm = mock_llm
@@ -160,7 +163,8 @@ class TestAgentStreaming:
 
     def test_no_tools_on_final_iteration(self):
         """Test that tools are not available on the final iteration"""
-        agent = Agent(model="test-model", verbose=False)
+        config = create_simple_config()
+        agent = Agent(config=config, model="test-model", verbose=False)
 
         # Set a known iteration count for this test
         test_max_iterations = 3
@@ -207,7 +211,8 @@ class TestAgentStreaming:
 
     def test_iteration_info_in_prompt(self):
         """Test that iteration information is included in the prompt"""
-        agent = Agent(model="test-model", verbose=False)
+        config = create_simple_config()
+        agent = Agent(config=config, model="test-model", verbose=False)
 
         mock_llm = Mock()
         agent.llm = mock_llm

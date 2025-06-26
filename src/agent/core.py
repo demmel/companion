@@ -3,18 +3,31 @@ Core agent implementation
 """
 
 from typing import List, Optional, Iterator
+from pydantic import BaseModel
 
 from .llm import LLMClient, Message
-from .tools import ToolRegistry
+from .tools import ToolRegistry, ToolExecutionError
 from .streaming import StreamingParser, TextEvent, ToolCallEvent, InvalidToolCallEvent
+from .config import AgentConfig
 from .agent_events import (
     AgentEvent,
     AgentTextEvent,
     ToolStartedEvent,
     ToolProgressEvent,
     ToolFinishedEvent,
+    ToolResultType,
     AgentErrorEvent,
 )
+
+
+class ContextInfo(BaseModel):
+    """Information about the agent's current context usage"""
+    message_count: int
+    conversation_messages: int
+    estimated_tokens: int
+    context_limit: int
+    usage_percentage: float
+    approaching_limit: bool
 
 
 class Agent:
@@ -22,18 +35,16 @@ class Agent:
 
     def __init__(
         self,
+        config: AgentConfig,
         model: str = "llama3.1:8b",
         verbose: bool = False,
-        config_name: str = "roleplay",
     ):
         self.llm = LLMClient(model=model)
         self.context_window = self.llm.context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
 
-        # Load configuration
-        from .config import get_config
-
-        self.config = get_config(config_name)
+        # Use provided configuration
+        self.config = config
 
         # Initialize tools based on configuration
         self.tools = ToolRegistry(self, self.config.tools)
@@ -57,7 +68,7 @@ class Agent:
         """Set a specific state value"""
         self.state[key] = value
 
-    def get_context_info(self) -> dict:
+    def get_context_info(self) -> ContextInfo:
         """Get information about current context usage"""
         # Build current message list
         current_system_prompt = self._build_system_prompt()
@@ -68,14 +79,14 @@ class Agent:
         total_chars = sum(len(msg.content) for msg in messages)
         estimated_tokens = total_chars // 4
 
-        return {
-            "message_count": len(messages),
-            "conversation_messages": len(self.conversation_history),
-            "estimated_tokens": estimated_tokens,
-            "context_limit": self.context_window,
-            "usage_percentage": (estimated_tokens / self.context_window) * 100,
-            "approaching_limit": estimated_tokens > self.auto_summarize_threshold,
-        }
+        return ContextInfo(
+            message_count=len(messages),
+            conversation_messages=len(self.conversation_history),
+            estimated_tokens=estimated_tokens,
+            context_limit=self.context_window,
+            usage_percentage=(estimated_tokens / self.context_window) * 100,
+            approaching_limit=estimated_tokens > self.auto_summarize_threshold,
+        )
 
     def _build_system_prompt(
         self, include_tools: bool = True, iteration_info: tuple = None
@@ -166,7 +177,19 @@ class Agent:
             # Execute tools and continue to next iteration
             tool_results = []
             for tool_event in tool_events:
-                # Signal tool execution starting
+                # Check if tool exists before emitting any events
+                if not self.tools.has_tool(tool_event.tool_name):
+                    # Agent made a mistake - inform it via tool_results for next iteration
+                    error_msg = f"Tool '{tool_event.tool_name}' not found"
+                    tool_results.append(f"{tool_event.tool_name} ({tool_event.id}): {error_msg}")
+                    yield AgentErrorEvent(
+                        message=error_msg,
+                        tool_name=tool_event.tool_name,
+                        tool_id=tool_event.id,
+                    )
+                    continue  # No tool events for nonexistent tools
+
+                # Tool exists - proceed with normal execution flow
                 yield ToolStartedEvent(
                     tool_name=tool_event.tool_name,
                     tool_id=tool_event.id,
@@ -174,7 +197,7 @@ class Agent:
                 )
 
                 try:
-                    # Execute tool - result could be success or failure message
+                    # Execute tool
                     result = self.tools.execute(
                         tool_event.tool_name, tool_event.parameters
                     )
@@ -182,15 +205,24 @@ class Agent:
                         f"{tool_event.tool_name} ({tool_event.id}): {result}"
                     )
 
-                    # Signal tool execution completed
-                    yield ToolFinishedEvent(tool_id=tool_event.id, result=result)
-                except Exception as e:
-                    # System-level error executing tool
-                    error_msg = (
-                        f"System error executing {tool_event.tool_name}: {str(e)}"
+                    # Signal successful tool execution
+                    yield ToolFinishedEvent(
+                        tool_id=tool_event.id,
+                        result_type=ToolResultType.SUCCESS,
+                        result=result
                     )
-                    tool_results.append(error_msg)
-
+                except ToolExecutionError as e:
+                    # Tool exists but failed during execution
+                    tool_results.append(f"{tool_event.tool_name} ({tool_event.id}): {str(e)}")
+                    yield ToolFinishedEvent(
+                        tool_id=tool_event.id,
+                        result_type=ToolResultType.ERROR,
+                        result=str(e)
+                    )
+                except Exception as e:
+                    # Unexpected system error
+                    error_msg = f"System error executing {tool_event.tool_name}: {str(e)}"
+                    tool_results.append(f"{tool_event.tool_name} ({tool_event.id}): {error_msg}")
                     yield AgentErrorEvent(
                         message=str(e),
                         tool_name=tool_event.tool_name,

@@ -3,6 +3,16 @@ from typing import Dict, Any, Callable, List, Type, Optional
 from pydantic import BaseModel
 
 
+class ToolNotFoundError(Exception):
+    """Raised when a requested tool doesn't exist"""
+    pass
+
+
+class ToolExecutionError(Exception):
+    """Raised when a tool exists but fails during execution"""
+    pass
+
+
 class ToolInput(BaseModel):
     """Base class for tool inputs"""
 
@@ -81,6 +91,10 @@ class ToolRegistry:
         """Get a specific tool"""
         return self.tools.get(name)
 
+    def has_tool(self, name: str) -> bool:
+        """Check if a tool exists"""
+        return name in self.tools
+
     def list_tools(self) -> List[str]:
         """List all available tools"""
         return list(self.tools.keys())
@@ -94,10 +108,11 @@ class ToolRegistry:
         return "\n\n".join(descriptions)
 
     def execute(self, tool_name: str, input_data: Dict[str, Any]) -> str:
-        """Execute a tool with validated input"""
+        """Execute a tool with validated input. Tool existence should be checked first with has_tool()"""
         tool = self.get_tool(tool_name)
         if not tool:
-            return f"Tool '{tool_name}' not found"
+            # This shouldn't happen if has_tool() was checked first
+            raise RuntimeError(f"Tool '{tool_name}' not found - check has_tool() first")
 
         try:
             # Validate input against schema
@@ -107,4 +122,4 @@ class ToolRegistry:
             result = tool.run(self.agent, validated_input)
             return str(result)
         except Exception as e:
-            return f"Error executing tool '{tool_name}': {str(e)}"
+            raise ToolExecutionError(f"Error executing tool '{tool_name}': {str(e)}")
