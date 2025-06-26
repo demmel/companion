@@ -119,7 +119,7 @@ class Agent:
                 )
 
             # Get streaming LLM response
-            stream = self.llm.chat(messages, stream=True)
+            stream = self.llm.chat(messages)
 
             # Initialize streaming parser
             parser = StreamingParser(debug=self.verbose)
