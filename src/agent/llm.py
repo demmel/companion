@@ -26,8 +26,8 @@ class LLMClient:
         self.context_window = context_window
         self.client = ollama.Client(host=host)
 
-    def chat(self, messages: List[Message], stream: bool = False) -> str:
-        """Send chat request to LLM"""
+    def chat(self, messages: List[Message]):
+        """Send streaming chat request to LLM"""
         try:
             # Convert messages to dict format
             message_dicts = [
@@ -37,7 +37,7 @@ class LLMClient:
             response = self.client.chat(
                 model=self.model,
                 messages=message_dicts,
-                stream=stream,
+                stream=True,
                 options={
                     "num_gpu": -1,  # Use all available GPU layers
                     "num_thread": 16,  # More CPU threads for large context processing
@@ -51,23 +51,41 @@ class LLMClient:
                 keep_alive="10m",  # Keep model loaded for 10 minutes
             )
 
-            if stream:
-                return response
-            else:
-                return response["message"]["content"]
+            return response
 
         except Exception as e:
             return f"Error communicating with LLM: {str(e)}"
 
-    def generate(self, prompt: str, system: Optional[str] = None) -> str:
-        """Generate response from prompt"""
+    def chat_complete(self, messages: List[Message]) -> str:
+        """Send non-streaming chat request for background operations like summarization"""
         try:
-            response = self.client.generate(
-                model=self.model, prompt=prompt, system=system
+            # Convert messages to dict format
+            message_dicts = [
+                {"role": msg.role, "content": msg.content} for msg in messages
+            ]
+
+            response = self.client.chat(
+                model=self.model,
+                messages=message_dicts,
+                stream=False,
+                options={
+                    "num_gpu": -1,  # Use all available GPU layers
+                    "num_thread": 16,  # More CPU threads for large context processing
+                    "num_ctx": self.context_window,  # Configurable context window
+                    "temperature": 0.3,  # Lower temp for better coherence
+                    "top_p": 0.8,  # Slightly more focused sampling
+                    "top_k": 40,  # Add top-k sampling for stability
+                    "repeat_penalty": 1.1,  # Prevent repetition
+                    "num_predict": 512,  # Allow longer responses
+                },
+                keep_alive="10m",  # Keep model loaded for 10 minutes
             )
-            return response["response"]
+
+            return response["message"]["content"]
+
         except Exception as e:
-            return f"Error generating response: {str(e)}"
+            return f"Error communicating with LLM: {str(e)}"
+
 
     def is_available(self) -> bool:
         """Check if the model is available"""
