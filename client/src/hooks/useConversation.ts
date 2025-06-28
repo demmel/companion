@@ -30,15 +30,16 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
     for (const event of events) {
       switch (event.type) {
         case 'text':
+          // If we have finished tool calls, finalize that message first
           if (toolCalls.size > 0) {
-            // If we have tool calls, we need to start a new response
-            if (currentAgentResponse) {
-              setBaseMessages(prev => [...prev, {
-                role: 'assistant',
-                content: currentAgentResponse.content,
-                tool_calls: Array.from(currentAgentResponse.toolCalls.values())
-              }]);
-            }
+            const finalToolMessage: AgentMessage = {
+              role: 'assistant',
+              content: agentContent,
+              tool_calls: Array.from(toolCalls.values())
+            };
+            setBaseMessages(prev => [...prev, finalToolMessage]);
+            
+            // Reset for new text-only response
             agentContent = '';
             toolCalls = new Map();
           }

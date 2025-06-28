@@ -1,24 +1,28 @@
-import { useRef, useMemo } from 'react';
+import { useMemo } from 'react';
 import { ConversationPresenterProps } from './types';
-import { AgentMessage, ToolCall } from '../types';
-import { RoleplayText } from '../components/RoleplayText';
-import { ToolDisplay } from '../components/ToolDisplay';
-import { RoleplayState, CharacterState } from '../types/roleplay';
+import { AgentMessage, UserMessage, ToolCall } from '@/types';
+import { RoleplayText } from '@/components/RoleplayText';
+import { RoleplayState, CharacterState } from '@/types/roleplay';
+import { css } from '@styled-system/css';
+// import { demoMessages } from './demoData'; // Available for testing
 
-const HIDDEN_TOOLS = new Set(['remember_detail', 'correct_detail']);
+const HIDDEN_TOOLS = new Set(['assume_character']);
+const SYSTEM_TOOLS = new Set(['scene_setting', 'correct_detail', 'remember_detail']);
+const AGENT_TOOLS = new Set(['set_mood', 'character_action', 'internal_thought']);
 
 const MOOD_EMOJIS: Record<string, string> = {
   happy: '😊', excited: '🤩', playful: '😈', flirtatious: '😘',
+  joyful: '😊', cheerful: '😊', elated: '🤩', ecstatic: '🤩',
   sad: '😢', angry: '😠', frustrated: '😤', annoyed: '🙄',
   nervous: '😰', shy: '😊', confident: '😎', mysterious: '😏',
   seductive: '😍', mischievous: '😋', gentle: '🥰', fierce: '🔥',
   neutral: '😐', curious: '🤔', surprised: '😯', worried: '😟'
 };
 
-const MOOD_COLORS: Record<string, string> = {
-  happy: 'text-yellow-500', excited: 'text-purple-500', playful: 'text-cyan-500',
-  sad: 'text-blue-500', angry: 'text-red-500', neutral: 'text-gray-500'
-};
+// const MOOD_COLORS: Record<string, string> = {
+//   happy: 'yellow.500', excited: 'purple.500', playful: 'cyan.500',
+//   sad: 'blue.500', angry: 'red.500', neutral: 'gray.500'
+// }; // Currently unused
 
 function createInitialRoleplayState(): RoleplayState {
   return {
@@ -33,9 +37,19 @@ interface MessageWithState {
   message: AgentMessage | UserMessage;
   index: number;
   stateAtMessage: RoleplayState;
+  stateBeforeMessage: RoleplayState;
   shouldShowHeader: boolean;
   currentCharacter: CharacterState | null;
   visibleToolCalls: ToolCall[];
+}
+
+interface MessageBubble {
+  role: 'user' | 'assistant' | 'system';
+  messages: MessageWithState[];
+  shouldShowHeader: boolean;
+  currentCharacter: CharacterState | null;
+  stateAtMessage: RoleplayState;
+  systemTools?: ToolCall[]; // For system-only bubbles
 }
 
 function buildMessagesWithState(
@@ -50,6 +64,9 @@ function buildMessagesWithState(
     if (message.role === 'user') {
       lastSpeakingCharacter = null;
     }
+    
+    // Store state before applying tool calls for this message
+    const stateBeforeMessage = currentState;
     
     // For agent messages, apply tool calls to evolve state
     if (message.role === 'assistant') {
@@ -87,6 +104,7 @@ function buildMessagesWithState(
       message,
       index,
       stateAtMessage: currentState,
+      stateBeforeMessage,
       shouldShowHeader,
       currentCharacter,
       visibleToolCalls
@@ -149,140 +167,290 @@ function applyToolCallToState(state: RoleplayState, toolCall: ToolCall): Rolepla
   return newState;
 }
 
-export function RoleplayPresenter({ messages, isStreamActive, agentState }: ConversationPresenterProps) {
-  // Build chronological state history with header logic
-  const messagesWithState = useMemo(() => {
-    return buildMessagesWithState(messages, agentState as RoleplayState);
-  }, [messages, agentState]);
+function groupMessagesIntoBubbles(messagesWithState: MessageWithState[]): MessageBubble[] {
+  const bubbles: MessageBubble[] = [];
+  let currentBubble: MessageBubble | null = null;
 
-  return (
-    <div className="space-y-2">
-      {messagesWithState.map((messageWithState) => {
-        const { message, index, shouldShowHeader, currentCharacter, visibleToolCalls, stateAtMessage } = messageWithState;
-        
-        if (message.role === 'user') {
-          return (
-            <div key={index} className="mb-4">
-              <div className="text-sm text-gray-600 mb-1">You</div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="whitespace-pre-wrap">{message.content}</div>
-              </div>
-            </div>
-          );
+  for (const messageWithState of messagesWithState) {
+    const { message, visibleToolCalls } = messageWithState;
+    
+    // Separate system tools from agent tools
+    const systemTools = visibleToolCalls.filter(tc => SYSTEM_TOOLS.has(tc.tool_name));
+    const agentTools = visibleToolCalls.filter(tc => AGENT_TOOLS.has(tc.tool_name));
+    
+    // Update messageWithState to only include agent tools
+    const agentMessageWithState = {
+      ...messageWithState,
+      visibleToolCalls: agentTools
+    };
+
+    // Handle agent/user message (if has content or agent tools)
+    if (message.content || agentTools.length > 0) {
+      // If this is a different role or we don't have a current bubble, start a new one
+      if (!currentBubble || currentBubble.role !== message.role) {
+        // Finalize previous bubble
+        if (currentBubble) {
+          bubbles.push(currentBubble);
         }
 
-        const agentMessage = message as AgentMessage;
+        // Start new bubble
+        currentBubble = {
+          role: message.role,
+          messages: [agentMessageWithState],
+          shouldShowHeader: messageWithState.shouldShowHeader,
+          currentCharacter: messageWithState.currentCharacter,
+          stateAtMessage: messageWithState.stateAtMessage
+        };
+      } else {
+        // Add to current bubble
+        currentBubble.messages.push(agentMessageWithState);
         
-
-        return (
-          <AgentMessageItem
-            key={index}
-            message={agentMessage}
-            shouldShowHeader={shouldShowHeader}
-            currentCharacter={currentCharacter}
-            stateAtMessage={stateAtMessage}
-            visibleToolCalls={visibleToolCalls}
-          />
-        );
-      })}
+        // Update bubble properties with latest message info
+        currentBubble.stateAtMessage = messageWithState.stateAtMessage;
+        
+        // Show header if any message in the bubble should show it
+        if (messageWithState.shouldShowHeader) {
+          currentBubble.shouldShowHeader = true;
+          currentBubble.currentCharacter = messageWithState.currentCharacter;
+        }
+      }
+    }
+    
+    // Handle system tools as separate system bubbles
+    if (systemTools.length > 0) {
+      // Finalize current bubble if it exists
+      if (currentBubble) {
+        bubbles.push(currentBubble);
+        currentBubble = null;
+      }
       
-      {isStreamActive && (
-        <div className="text-gray-500">
-          <span className="animate-pulse">▋</span>
+      // Create system bubble
+      bubbles.push({
+        role: 'system',
+        messages: [], // System bubbles don't have message content
+        shouldShowHeader: false,
+        currentCharacter: messageWithState.currentCharacter,
+        stateAtMessage: messageWithState.stateAtMessage,
+        systemTools
+      });
+    }
+  }
+
+  // Don't forget the last bubble
+  if (currentBubble) {
+    bubbles.push(currentBubble);
+  }
+
+  return bubbles;
+}
+
+function UserBubble({ bubble }: { bubble: MessageBubble }) {
+  return (
+    <div className={css({ mb: 4 })}>
+      {/* User header */}
+      <div className={css({ 
+        mb: 3,
+        display: 'flex',
+        justifyContent: 'flex-end'
+      })}>
+        <span className={css({ 
+          fontWeight: 'medium', 
+          color: 'gray.300',
+          fontSize: 'sm'
+        })}>You</span>
+      </div>
+      
+      <div className={css({ 
+        display: 'flex', 
+        justifyContent: 'flex-end' 
+      })}>
+        <div className={css({ 
+          maxWidth: { base: 'xs', lg: 'md' }
+        })}>
+          <div className={css({ 
+            bg: 'blue.600', 
+            color: 'white', 
+            rounded: '2xl',
+            roundedTopRight: 'sm',
+            px: 4, 
+            py: 2 
+          })}>
+            {bubble.messages.map((messageWithState, index) => (
+              <div key={index} className={css({ 
+                whiteSpace: 'pre-wrap', 
+                fontSize: 'sm',
+                '&:not(:last-child)': { mb: 2 }
+              })}>
+                {messageWithState.message.content}
+              </div>
+            ))}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-function AgentMessageItem({ 
-  message, 
-  shouldShowHeader, 
-  currentCharacter,
-  stateAtMessage,
-  visibleToolCalls
-}: { 
-  message: AgentMessage;
-  shouldShowHeader: boolean;
-  currentCharacter: CharacterState | null;
-  stateAtMessage: RoleplayState;
-  visibleToolCalls: ToolCall[];
-}) {
-  
-
+function AgentBubble({ bubble }: { bubble: MessageBubble }) {
   return (
-    <div className="mb-4">
+    <div className={css({ mb: 4 })}>
       {/* Character Header - only when character changes */}
-      {shouldShowHeader && currentCharacter && (
-        <CharacterHeader character={currentCharacter} stateAtMessage={stateAtMessage} />
-      )}
-      
-      {!currentCharacter && (
-        <div className="text-sm text-gray-600 mb-1">🤖 Agent</div>
+      {bubble.shouldShowHeader && bubble.currentCharacter && (
+        <CharacterHeader character={bubble.currentCharacter} stateAtMessage={bubble.stateAtMessage} />
       )}
       
       {/* Message content */}
-      {message.content && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2">
-          <RoleplayText content={message.content} />
+      <div>
+        <div className={css({ 
+          bg: 'gray.800', 
+          color: 'gray.100', 
+          rounded: '2xl',
+          roundedTopLeft: 'sm',
+          px: 4, 
+          py: 2, 
+          mb: 2 
+        })}>
+          {bubble.messages.map((messageWithState, index) => {
+            const { message, visibleToolCalls, stateAtMessage, stateBeforeMessage } = messageWithState;
+            const agentMessage = message as AgentMessage;
+            
+            return (
+              <div key={index}>
+                {agentMessage.content && (
+                  <div className={css({ 
+                    '&:not(:first-child)': { mt: 2 },
+                    '&:not(:last-child)': { mb: 2 }
+                  })}>
+                    <RoleplayText content={agentMessage.content} />
+                  </div>
+                )}
+                
+                {/* Tool presentations integrated within the same chat bubble */}
+                {visibleToolCalls.map((toolCall, toolIndex) => (
+                  <SpecialToolPresentation 
+                    key={`${toolCall.tool_id}-${toolIndex}`} 
+                    toolCall={toolCall} 
+                    stateAtMessage={stateAtMessage}
+                    stateBeforeMessage={stateBeforeMessage}
+                  />
+                ))}
+              </div>
+            );
+          })}
         </div>
-      )}
-      
-      {/* Tool presentations */}
-      {visibleToolCalls.map((toolCall, index) => (
-        <SpecialToolPresentation 
-          key={`${toolCall.tool_id}-${index}`} 
-          toolCall={toolCall} 
-          stateAtMessage={stateAtMessage}
-        />
-      ))}
+      </div>
     </div>
   );
 }
 
+export function RoleplayPresenter({ messages, isStreamActive, agentState }: ConversationPresenterProps) {
+  // Use demo data for development/testing, real messages for production
+  // To use demo data: change 'messages' to 'demoMessages' below
+  const messagesToUse = messages; // or demoMessages for testing
+  
+  // Build message bubbles by grouping consecutive messages
+  const messageBubbles = useMemo(() => {
+    const messagesWithState = buildMessagesWithState(messagesToUse, agentState as RoleplayState);
+    return groupMessagesIntoBubbles(messagesWithState);
+  }, [messagesToUse, agentState]);
+
+  return (
+    <div className={css({ 
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+      maxWidth: '3xl',
+      mx: 'auto'
+    })}>
+      {messageBubbles.map((bubble, bubbleIndex) => {
+        if (bubble.role === 'user') {
+          return (
+            <UserBubble key={bubbleIndex} bubble={bubble} />
+          );
+        } else if (bubble.role === 'assistant') {
+          return (
+            <AgentBubble key={bubbleIndex} bubble={bubble} />
+          );
+        } else {
+          return (
+            <SystemMessage key={bubbleIndex} bubble={bubble} />
+          );
+        }
+      })}
+      
+      {isStreamActive && (
+        <div className={css({ color: 'gray.500' })}>
+          <span className={css({ animation: 'pulse' })}>▋</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function CharacterHeader({ character, stateAtMessage }: { character: CharacterState; stateAtMessage: RoleplayState }) {
   const moodEmoji = MOOD_EMOJIS[character.mood] || '😐';
-  const moodColor = MOOD_COLORS[character.mood] || 'text-gray-500';
   
   return (
-    <div className="mb-2">
-      <div className={`text-sm font-medium ${moodColor} flex items-center gap-2`}>
-        <span>🎭</span>
-        <span className="font-bold">{character.name}</span>
-        <span className="text-lg">{moodEmoji}</span>
-        <span className="text-xs text-gray-500 italic">({character.mood} - {character.mood_intensity})</span>
+    <div className={css({ 
+      mb: 3
+    })}>
+      <div className={css({ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 2, 
+        fontSize: 'sm' 
+      })}>
+        <span className={css({ 
+          fontWeight: 'medium', 
+          color: 'gray.300' 
+        })}>{character.name}</span>
+        <span className={css({ 
+          fontSize: 'lg' 
+        })}>{moodEmoji}</span>
+        <span className={css({ 
+          color: 'gray.500', 
+          fontSize: 'xs' 
+        })}>
+          {character.mood} • {character.mood_intensity}
+        </span>
       </div>
       
       {/* Scene context */}
       {stateAtMessage.global_scene && (
-        <div className="text-xs text-gray-500 italic">
-          📍 {stateAtMessage.global_scene.location}
-          {stateAtMessage.global_scene.atmosphere && ` - ${stateAtMessage.global_scene.atmosphere}`}
+        <div className={css({ 
+          fontSize: 'xs', 
+          color: 'gray.500', 
+          mt: 1, 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1 
+        })}>
+          <span>📍</span>
+          <span>{stateAtMessage.global_scene.location}</span>
+          {stateAtMessage.global_scene.atmosphere && (
+            <>
+              <span>•</span>
+              <span>{stateAtMessage.global_scene.atmosphere}</span>
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function SpecialToolPresentation({ toolCall, stateAtMessage }: { toolCall: ToolCall; stateAtMessage: RoleplayState }) {
-  // Don't show assume_character - handled by header
-  if (toolCall.tool_name === 'assume_character') {
-    return null;
-  }
-  
-  // Special presentations for key roleplay tools
+function SpecialToolPresentation({ toolCall, stateBeforeMessage }: { toolCall: ToolCall; stateAtMessage: RoleplayState; stateBeforeMessage: RoleplayState }) {
+  // Only handle agent tools here
   switch (toolCall.tool_name) {
     case 'set_mood':
-      return <MoodTransition toolCall={toolCall} stateAtMessage={stateAtMessage} />;
+      return <MoodTransition toolCall={toolCall} stateBeforeMessage={stateBeforeMessage} />;
     case 'character_action':
       return <CharacterAction toolCall={toolCall} />;
     case 'internal_thought':
       return <InternalThought toolCall={toolCall} />;
-    case 'scene_setting':
-      return <SceneSetting toolCall={toolCall} />;
     default:
-      // Use generic tool display for everything else
-      return <ToolDisplay toolCall={toolCall} />;
+      return null;
   }
 }
 
@@ -291,32 +459,43 @@ function CharacterAction({ toolCall }: { toolCall: ToolCall }) {
   if (!action) return null;
   
   return (
-    <div className="text-blue-500 italic text-sm py-1">
+    <div className={css({ 
+      color: 'blue.300', 
+      fontStyle: 'italic', 
+      mt: 2 
+    })}>
       *{action}*
     </div>
   );
 }
 
-function MoodTransition({ toolCall, stateAtMessage }: { toolCall: ToolCall; stateAtMessage: RoleplayState }) {
+function MoodTransition({ toolCall, stateBeforeMessage }: { toolCall: ToolCall; stateBeforeMessage: RoleplayState }) {
   if (toolCall.type !== 'finished') return null;
   
   const newMood = toolCall.parameters.mood || 'neutral';
   
-  // Get the previous mood from the current character state before this tool executed
-  const currentCharacter = stateAtMessage.current_character_id 
-    ? stateAtMessage.characters[stateAtMessage.current_character_id] 
+  // Get the previous mood from the character state BEFORE this tool executed
+  const currentCharacter = stateBeforeMessage.current_character_id 
+    ? stateBeforeMessage.characters[stateBeforeMessage.current_character_id] 
     : null;
   const oldMood = currentCharacter?.mood || 'neutral';
   
   const oldEmoji = MOOD_EMOJIS[oldMood] || '😐';
   const newEmoji = MOOD_EMOJIS[newMood] || '😐';
-  const moodColor = MOOD_COLORS[newMood] || 'text-gray-500';
   
   return (
-    <div className={`text-sm ${moodColor} py-1`}>
-      {oldEmoji} → {newEmoji}
+    <div className={css({ 
+      display: 'flex', 
+      alignItems: 'center', 
+      gap: 2, 
+      color: 'gray.300', 
+      mt: 2 
+    })}>
+      <span>{oldEmoji}</span>
+      <span>→</span>
+      <span>{newEmoji}</span>
       {toolCall.parameters.flavor_text && (
-        <span className="ml-2 opacity-75">{toolCall.parameters.flavor_text}</span>
+        <span className={css({ fontStyle: 'italic' })}>{toolCall.parameters.flavor_text}</span>
       )}
     </div>
   );
@@ -327,8 +506,15 @@ function InternalThought({ toolCall }: { toolCall: ToolCall }) {
   if (!thought) return null;
   
   return (
-    <div className="text-yellow-600 opacity-75 text-sm py-1">
-      💭 {thought}
+    <div className={css({ 
+      display: 'flex', 
+      alignItems: 'flex-start', 
+      gap: 2, 
+      color: 'yellow.300', 
+      mt: 2 
+    })}>
+      <span>💭</span>
+      <span className={css({ fontStyle: 'italic' })}>{thought}</span>
     </div>
   );
 }
@@ -344,8 +530,62 @@ function SceneSetting({ toolCall }: { toolCall: ToolCall }) {
   if (parts.length === 0) return null;
   
   return (
-    <div className="text-purple-600 text-sm py-1 italic">
-      📍 {parts.join(' - ')}
+    <div className={css({ 
+      display: 'flex', 
+      alignItems: 'center', 
+      gap: 2, 
+      color: 'purple.300', 
+      mt: 2 
+    })}>
+      <span>📍</span>
+      <span>{parts.join(' • ')}</span>
     </div>
   );
+}
+
+function SystemMessage({ bubble }: { bubble: MessageBubble }) {
+  if (!bubble.systemTools || bubble.systemTools.length === 0) return null;
+  
+  return (
+    <div className={css({ 
+      mb: 4,
+      display: 'flex',
+      justifyContent: 'center'
+    })}>
+      <div className={css({ 
+        px: 4,
+        py: 2,
+        bg: 'gray.900',
+        border: '1px solid',
+        borderColor: 'gray.700',
+        rounded: 'md',
+        fontSize: 'sm',
+        color: 'gray.400',
+        fontStyle: 'italic',
+        maxWidth: 'lg',
+        textAlign: 'center'
+      })}>
+        {bubble.systemTools.map((toolCall, index) => (
+          <SystemToolPresentation 
+            key={`${toolCall.tool_id}-${index}`} 
+            toolCall={toolCall} 
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SystemToolPresentation({ toolCall }: { toolCall: ToolCall }) {
+  // Handle system tools
+  switch (toolCall.tool_name) {
+    case 'scene_setting':
+      return <SceneSetting toolCall={toolCall} />;
+    case 'remember_detail':
+      return <div>💾 Memory stored: {toolCall.parameters.detail || 'Detail saved'}</div>;
+    case 'correct_detail':
+      return <div>✏️ Memory updated: {toolCall.parameters.correction || 'Detail corrected'}</div>;
+    default:
+      return null;
+  }
 }

@@ -1,3 +1,5 @@
+import { css } from '@styled-system/css';
+
 interface TextSpan {
   content: string;
   style: 'default' | 'quote' | 'action' | 'thought';
@@ -10,7 +12,7 @@ interface RoleplayTextProps {
 
 export function parseRoleplayText(content: string): TextSpan[] {
   const spans: TextSpan[] = [];
-  let currentSpan = { content: '', style: 'default' as const };
+  let currentSpan: TextSpan = { content: '', style: 'default' };
   
   // State machine for formatting
   let inQuotes = false;
@@ -45,7 +47,7 @@ export function parseRoleplayText(content: string): TextSpan[] {
       if (currentSpan.content) {
         spans.push({ ...currentSpan });
       }
-      currentSpan = { content: '', style: charStyle as TextSpan['style'] };
+      currentSpan = { content: '', style: charStyle };
     }
     
     // Always append current character
@@ -60,28 +62,31 @@ export function parseRoleplayText(content: string): TextSpan[] {
   return spans;
 }
 
-function getSpanClassName(style: TextSpan['style']): string {
+function getSpanStyles(style: TextSpan['style']) {
   switch (style) {
     case 'quote':
-      return 'text-green-600 font-medium'; // bright_green equivalent
+      return css({ color: 'green.400', fontWeight: 'medium' });
     case 'action':
-      return 'text-blue-500 italic'; // italic bright_blue equivalent  
+      return css({ color: 'blue.400', fontStyle: 'italic' });  
     case 'thought':
-      return 'text-yellow-600 opacity-75'; // dim yellow equivalent
+      return css({ color: 'yellow.400', opacity: 0.75 });
     default:
-      return 'text-gray-900'; // default text color
+      return css({ color: 'gray.100' }); // default text color for dark theme
   }
 }
 
 export function RoleplayText({ content, className = '' }: RoleplayTextProps) {
   const spans = parseRoleplayText(content);
   
+  const baseClass = css({ whiteSpace: 'pre-wrap' });
+  const combinedClass = className ? `${baseClass} ${className}` : baseClass;
+  
   return (
-    <span className={`whitespace-pre-wrap ${className}`}>
+    <span className={combinedClass}>
       {spans.map((span, index) => (
         <span 
           key={index} 
-          className={getSpanClassName(span.style)}
+          className={getSpanStyles(span.style)}
         >
           {span.content}
         </span>

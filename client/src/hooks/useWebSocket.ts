@@ -28,7 +28,7 @@ export const useWebSocket = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectCountRef = useRef(0);
-  const reconnectTimeoutRef = useRef<number>();
+  const reconnectTimeoutRef = useRef<number | undefined>(undefined);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -63,7 +63,7 @@ export const useWebSocket = ({
         // Attempt to reconnect
         if (reconnectCountRef.current < reconnectAttempts) {
           reconnectCountRef.current++;
-          reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = window.setTimeout(() => {
             connect();
           }, reconnectDelay * reconnectCountRef.current);
         }

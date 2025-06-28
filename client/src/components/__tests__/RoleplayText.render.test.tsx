@@ -8,7 +8,7 @@ describe('RoleplayText rendering', () => {
     
     const element = screen.getByText('Hello world');
     expect(element).toBeInTheDocument();
-    expect(element).toHaveClass('text-gray-900'); // default style
+    expect(element).toHaveClass('c_gray.100'); // Panda CSS generated class
   });
 
   it('should render quoted text with correct styling', () => {
@@ -16,7 +16,7 @@ describe('RoleplayText rendering', () => {
     
     const element = screen.getByText('"Hello there"');
     expect(element).toBeInTheDocument();
-    expect(element).toHaveClass('text-green-600', 'font-medium');
+    expect(element).toHaveClass('c_green.400', 'fw_medium');
   });
 
   it('should render action text with correct styling', () => {
@@ -24,7 +24,7 @@ describe('RoleplayText rendering', () => {
     
     const element = screen.getByText('*waves hand*');
     expect(element).toBeInTheDocument();
-    expect(element).toHaveClass('text-blue-500', 'italic');
+    expect(element).toHaveClass('c_blue.400', 'font-style_italic');
   });
 
   it('should render thought text with correct styling', () => {
@@ -32,7 +32,7 @@ describe('RoleplayText rendering', () => {
     
     const element = screen.getByText('(thinking deeply)');
     expect(element).toBeInTheDocument();
-    expect(element).toHaveClass('text-yellow-600', 'opacity-75');
+    expect(element).toHaveClass('c_yellow.400', 'op_0.75');
   });
 
   it('should render mixed content with multiple spans', () => {
@@ -44,16 +44,16 @@ describe('RoleplayText rendering', () => {
     expect(screen.getByText(/and/)).toBeInTheDocument();
     expect(screen.getByText('*waved*')).toBeInTheDocument();
     
-    // Check styling
-    expect(screen.getByText('"Hello"')).toHaveClass('text-green-600');
-    expect(screen.getByText('*waved*')).toHaveClass('text-blue-500', 'italic');
+    // Check styling (Panda CSS classes)
+    expect(screen.getByText('"Hello"')).toHaveClass('c_green.400');
+    expect(screen.getByText('*waved*')).toHaveClass('c_blue.400', 'font-style_italic');
   });
 
   it('should preserve whitespace with whitespace-pre-wrap', () => {
     const { container } = render(<RoleplayText content="Line 1\nLine 2\t\tTabbed" />);
     
     const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper).toHaveClass('whitespace-pre-wrap');
+    expect(wrapper).toHaveClass('white-space_pre-wrap'); // Panda CSS generated class
   });
 
   it('should apply custom className', () => {
@@ -77,10 +77,10 @@ describe('RoleplayText rendering', () => {
     render(<RoleplayText content='Text "quoted *text*" more (thoughts) end' />);
     
     // Verify the quote section maintains quote styling throughout
-    expect(screen.getByText('"quoted *text*"')).toHaveClass('text-green-600');
+    expect(screen.getByText('"quoted *text*"')).toHaveClass('c_green.400');
     
     // Verify thoughts are styled correctly
-    expect(screen.getByText('(thoughts)')).toHaveClass('text-yellow-600');
+    expect(screen.getByText('(thoughts)')).toHaveClass('c_yellow.400');
     
     // Verify plain text using partial matches
     expect(screen.getByText(/Text/)).toBeInTheDocument();

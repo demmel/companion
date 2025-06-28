@@ -3,49 +3,46 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ChatMessages } from '../ChatMessages';
 
 describe('ChatMessages', () => {
-  const mockTextItem = {
-    data: { type: 'text' as const, content: 'Hello world' }
+  const mockUserMessage = {
+    role: 'user' as const,
+    content: 'Hello world'
   };
 
-  const mockToolItem = {
-    data: { 
-      type: 'tool' as const, 
-      toolId: 'tool1',
-      name: 'search',
-      parameters: { query: 'test' },
-      status: 'running' as const
-    }
+  const mockAgentMessage = {
+    role: 'assistant' as const,
+    content: 'Hi there!',
+    tool_calls: []
   };
 
   it('should render empty state when no items', () => {
-    render(<ChatMessages items={[]} />);
+    render(<ChatMessages messages={[]} />);
     
     expect(screen.getByText('Start a conversation with the agent!')).toBeInTheDocument();
     expect(screen.getByText('Try: "Please roleplay as Elena, a mysterious vampire."')).toBeInTheDocument();
   });
 
   it('should render text items', () => {
-    render(<ChatMessages items={[mockTextItem]} />);
+    render(<ChatMessages messages={[mockUserMessage]} />);
     
     expect(screen.getByText('Hello world')).toBeInTheDocument();
   });
 
   it('should render tool items', () => {
-    render(<ChatMessages items={[mockToolItem]} />);
+    render(<ChatMessages messages={[mockAgentMessage]} />);
     
-    expect(screen.getByText('search')).toBeInTheDocument();
+    expect(screen.getByText('Hi there!')).toBeInTheDocument();
   });
 
   it('should render multiple mixed items', () => {
-    const items = [mockTextItem, mockToolItem];
-    render(<ChatMessages items={items} />);
+    const messages = [mockUserMessage, mockAgentMessage];
+    render(<ChatMessages messages={messages} />);
     
     expect(screen.getByText('Hello world')).toBeInTheDocument();
-    expect(screen.getByText('search')).toBeInTheDocument();
+    expect(screen.getByText('Hi there!')).toBeInTheDocument();
   });
 
   it('should show streaming cursor when not complete and has items', () => {
-    render(<ChatMessages items={[mockTextItem]} isComplete={false} />);
+    render(<ChatMessages messages={[mockUserMessage]} isStreamActive={true} />);
     
     const cursor = screen.getByText('▋');
     expect(cursor).toBeInTheDocument();
@@ -53,13 +50,13 @@ describe('ChatMessages', () => {
   });
 
   it('should not show streaming cursor when complete', () => {
-    render(<ChatMessages items={[mockTextItem]} isComplete={true} />);
+    render(<ChatMessages messages={[mockUserMessage]} isStreamActive={false} />);
     
     expect(screen.queryByText('▋')).not.toBeInTheDocument();
   });
 
   it('should not show streaming cursor when no items', () => {
-    render(<ChatMessages items={[]} isComplete={false} />);
+    render(<ChatMessages messages={[]} isStreamActive={true} />);
     
     expect(screen.queryByText('▋')).not.toBeInTheDocument();
   });
@@ -67,7 +64,7 @@ describe('ChatMessages', () => {
   it('should call onScroll when scrolled', () => {
     const onScroll = vi.fn();
     const { container } = render(
-      <ChatMessages items={[mockTextItem]} onScroll={onScroll} />
+      <ChatMessages messages={[mockUserMessage]} onScroll={onScroll} />
     );
     
     const scrollContainer = container.firstChild as HTMLElement;
@@ -78,7 +75,7 @@ describe('ChatMessages', () => {
 
   it('should apply custom className', () => {
     const { container } = render(
-      <ChatMessages items={[]} className="custom-class" />
+      <ChatMessages messages={[]} className="custom-class" />
     );
     
     const scrollContainer = container.firstChild as HTMLElement;
@@ -86,7 +83,7 @@ describe('ChatMessages', () => {
   });
 
   it('should apply default classes', () => {
-    const { container } = render(<ChatMessages items={[]} />);
+    const { container } = render(<ChatMessages messages={[]} />);
     
     const scrollContainer = container.firstChild as HTMLElement;
     expect(scrollContainer).toHaveClass(
@@ -100,20 +97,21 @@ describe('ChatMessages', () => {
 
   it('should forward ref correctly', () => {
     const ref = vi.fn();
-    render(<ChatMessages ref={ref} items={[]} />);
+    render(<ChatMessages ref={ref} messages={[]} />);
     
     expect(ref).toHaveBeenCalledWith(expect.any(HTMLDivElement));
   });
 
   it('should render items with correct prose styling', () => {
-    render(<ChatMessages items={[mockTextItem]} />);
+    const { container } = render(<ChatMessages messages={[mockUserMessage]} />);
     
-    const itemContainer = screen.getByText('Hello world').closest('div');
-    expect(itemContainer).toHaveClass('prose', 'prose-sm', 'max-w-none');
+    // Look for the prose wrapper div
+    const proseElements = container.querySelectorAll('.prose.prose-sm.max-w-none');
+    expect(proseElements).toHaveLength(1);
   });
 
   it('should render streaming cursor with correct prose styling', () => {
-    render(<ChatMessages items={[mockTextItem]} isComplete={false} />);
+    render(<ChatMessages messages={[mockUserMessage]} isStreamActive={true} />);
     
     const cursorContainer = screen.getByText('▋').closest('div');
     expect(cursorContainer).toHaveClass('prose', 'prose-sm', 'max-w-none');

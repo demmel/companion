@@ -7,8 +7,8 @@ interface UseSmartScrollOptions {
 
 interface UseSmartScrollReturn {
   isUserAtBottom: boolean;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
-  messagesContainerRef: React.RefObject<HTMLDivElement>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  messagesContainerRef: React.RefObject<HTMLDivElement | null>;
   handleScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   scrollToBottom: () => void;
   setUserAtBottom: (atBottom: boolean) => void;

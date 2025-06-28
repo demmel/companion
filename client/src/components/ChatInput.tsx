@@ -1,4 +1,5 @@
 import { Send } from 'lucide-react';
+import { css } from '@styled-system/css';
 
 interface ChatInputProps {
   value: string;
@@ -32,36 +33,92 @@ export function ChatInput({
   };
 
   return (
-    <div className="bg-white border-t px-4 py-3">
-      <form onSubmit={handleSubmit} className="flex gap-2">
+    <div className={css({ 
+      bg: 'gray.800', 
+      borderTop: '1px solid', 
+      borderColor: 'gray.700', 
+      p: 4 
+    })}>
+      <form onSubmit={handleSubmit} className={css({ 
+        display: 'flex', 
+        gap: 3 
+      })}>
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+          className={css({ 
+            flex: 1, 
+            px: 4, 
+            py: 3, 
+            bg: 'gray.700', 
+            border: '1px solid', 
+            borderColor: 'gray.600', 
+            rounded: 'lg', 
+            color: 'white', 
+            _placeholder: { color: 'gray.400' },
+            _focus: { 
+              outline: 'none', 
+              borderColor: 'blue.500' 
+            },
+            _disabled: { 
+              bg: 'gray.800', 
+              color: 'gray.500' 
+            }
+          })}
         />
         <button
           type="submit"
           disabled={disabled || !value.trim()}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          className={css({ 
+            px: 4, 
+            py: 3, 
+            bg: 'blue.600', 
+            color: 'white', 
+            rounded: 'lg', 
+            _hover: { bg: 'blue.700' },
+            _focus: { outline: 'none' },
+            _disabled: { 
+              bg: 'gray.600', 
+              cursor: 'not-allowed' 
+            },
+            transition: 'colors'
+          })}
         >
           <Send size={16} />
         </button>
       </form>
       
-      <div className="flex justify-between items-center mt-2">
+      <div className={css({ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mt: 3 
+      })}>
         {onClear && (
           <button
             onClick={onClear}
             disabled={clearDisabled}
-            className="text-xs text-gray-500 hover:text-gray-700 underline disabled:text-gray-300 disabled:cursor-not-allowed disabled:no-underline"
+            className={css({ 
+              fontSize: 'xs', 
+              color: 'gray.400', 
+              _hover: { color: 'red.400' },
+              transition: 'colors',
+              _disabled: { 
+                color: 'gray.600', 
+                cursor: 'not-allowed' 
+              }
+            })}
           >
             Clear conversation
           </button>
         )}
-        <span className="text-xs text-gray-400">
+        <span className={css({ 
+          fontSize: 'xs', 
+          color: 'gray.500' 
+        })}>
           {itemCount} items • {scrollMode}
         </span>
       </div>

@@ -10,7 +10,7 @@ export interface UseStreamBatcherReturn {
 export function useStreamBatcher(batchInterval: number = 50): UseStreamBatcherReturn {
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const eventBufferRef = useRef<AgentEvent[]>([]);
-  const batchTimerRef = useRef<number>();
+  const batchTimerRef = useRef<number | undefined>(undefined);
 
   const processBatch = useCallback(() => {
     if (eventBufferRef.current.length === 0) return;
@@ -31,7 +31,7 @@ export function useStreamBatcher(batchInterval: number = 50): UseStreamBatcherRe
       // Process immediately
       processBatch();
     } else {
-      batchTimerRef.current = setTimeout(processBatch, batchInterval);
+      batchTimerRef.current = window.setTimeout(processBatch, batchInterval);
     }
   }, [processBatch, batchInterval]);
 

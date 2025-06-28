@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useWebSocket } from '../hooks/useWebSocket';
-import { useStreamBatcher } from '../hooks/useStreamBatcher';
-import { useConversation } from '../hooks/useConversation';
-import { useSmartScroll } from '../hooks/useSmartScroll';
-import { ChatHeader } from './ChatHeader';
-import { ChatInput } from './ChatInput';
-import { AgentEvent } from '../types';
-import { AgentClient } from '../client';
-import { getPresenterForConfig } from '../presenters';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useStreamBatcher } from '@/hooks/useStreamBatcher';
+import { useConversation } from '@/hooks/useConversation';
+import { useSmartScroll } from '@/hooks/useSmartScroll';
+import { ChatHeader } from '@/components/ChatHeader';
+import { ChatInput } from '@/components/ChatInput';
+import { AgentEvent } from '@/types';
+import { AgentClient } from '@/client';
+import { getPresenterForConfig } from '@/presenters';
+import { css } from '@styled-system/css';
 
 interface ChatInterfaceProps {
   client: AgentClient;
@@ -108,7 +109,12 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className={css({ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh', 
+      bg: 'gray.900' 
+    })}>
       <ChatHeader 
         isConnected={isConnected}
         isConnecting={isConnecting}
@@ -117,12 +123,60 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
       <div 
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4"
+        className={css({ 
+          flex: 1, 
+          overflowY: 'auto', 
+          px: 4, 
+          py: 4 
+        })}
       >
         {messages.length === 0 && (
-          <div className="text-center text-gray-500 mt-8">
-            <p>Start a conversation with the agent!</p>
-            <p className="text-sm mt-2">Try: "Please roleplay as Elena, a mysterious vampire."</p>
+          <div className={css({ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            height: 'full', 
+            textAlign: 'center' 
+          })}>
+            <div className={css({ maxWidth: 'md' })}>
+              <div className={css({ 
+                fontSize: '4xl', 
+                mb: 6, 
+                opacity: 0.5 
+              })}>💬</div>
+              <h2 className={css({ 
+                fontSize: 'xl', 
+                fontWeight: 'medium', 
+                color: 'gray.300', 
+                mb: 2 
+              })}>Start a conversation</h2>
+              <p className={css({ 
+                color: 'gray.500', 
+                fontSize: 'sm', 
+                mb: 6 
+              })}>Send a message to begin chatting with the agent</p>
+              <div className={css({ 
+                bg: 'gray.800', 
+                border: '1px solid', 
+                borderColor: 'gray.700', 
+                rounded: 'lg', 
+                p: 4, 
+                textAlign: 'left' 
+              })}>
+                <p className={css({ 
+                  fontSize: 'xs', 
+                  color: 'gray.400', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: 'wide', 
+                  mb: 2 
+                })}>Example</p>
+                <p className={css({ 
+                  color: 'gray.300', 
+                  fontSize: 'sm' 
+                })}>"Please roleplay as Elena, a mysterious vampire."</p>
+              </div>
+            </div>
           </div>
         )}
         
