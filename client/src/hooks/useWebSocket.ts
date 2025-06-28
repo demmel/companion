@@ -26,6 +26,7 @@ export const useWebSocket = ({
 }: UseWebSocketOptions): UseWebSocketReturn => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const currentId = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectCountRef = useRef(0);
   const reconnectTimeoutRef = useRef<number | undefined>(undefined);
@@ -49,8 +50,16 @@ export const useWebSocket = ({
 
       ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data) as AgentEvent;
-          onMessage?.(data);
+          const data = JSON.parse(event.data)
+          if (!data || typeof data !== 'object' || !data.type) {
+            console.warn('Received invalid WebSocket message:', data);
+            return;
+          }
+          const agent_event: AgentEvent = {
+            ...data,
+            id: currentId.current++,
+          };
+          onMessage?.(agent_event);
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
         }

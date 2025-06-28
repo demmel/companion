@@ -58,6 +58,7 @@ export type AgentEventType =
   | 'response_complete';
 
 export interface BaseAgentEvent {
+  id: number;
   type: AgentEventType;
 }
 

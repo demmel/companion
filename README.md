@@ -1,6 +1,6 @@
 # Agent Project - Modular AI Assistant
 
-A modular Python-based AI agent system built with pluggable configurations, tools, and LLM backends. The system supports different agent types (roleplay, coding, general) through a clean configuration system.
+A modular AI agent system with both Python CLI and React web interfaces. Built with pluggable configurations, tools, and LLM backends supporting different agent types (roleplay, coding, general) through a clean configuration system.
 
 ## Features
 
@@ -9,7 +9,8 @@ A modular Python-based AI agent system built with pluggable configurations, tool
 - **Configurable Context Management**: Smart context window tracking with auto-summarization
 - **Advanced Tool System**: Pydantic-based tools with automatic schema generation
 - **Multiple Agent Types**: Roleplay, coding, and general-purpose configurations
-- **Rich CLI Interface**: Beautiful command-line interface with real-time context display
+- **Dual Interfaces**: Rich CLI interface and modern React web client
+- **Real-time Streaming**: WebSocket-based streaming for both CLI and web clients
 
 ### Roleplay Agent
 - **Immersive Character Embodiment**: Full character consistency with personality, mood, and memory tracking

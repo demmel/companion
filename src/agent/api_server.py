@@ -11,7 +11,11 @@ from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+import os
+from pathlib import Path
 
 from agent.core import Agent
 from agent.config import get_config as get_agent_config, get_all_configs
@@ -64,6 +68,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static files configuration
+CLIENT_DIST_PATH = Path(__file__).parent.parent.parent / "client" / "dist"
+
+def setup_static_files():
+    """Setup static file serving for the React client"""
+    if CLIENT_DIST_PATH.exists():
+        print(f"✅ Serving React client from: {CLIENT_DIST_PATH}")
+        
+        # Mount static assets (JS, CSS, images, etc.)
+        app.mount("/assets", StaticFiles(directory=CLIENT_DIST_PATH / "assets"), name="assets")
+        
+        # Catch-all route for React SPA (must be last!)
+        @app.get("/{path:path}")
+        async def serve_spa(path: str):
+            """Serve React SPA, fallback to index.html for client-side routing"""
+            
+            # Try to serve specific file first
+            file_path = CLIENT_DIST_PATH / path
+            if file_path.is_file():
+                return FileResponse(file_path)
+            
+            # Fallback to index.html for SPA routing
+            index_path = CLIENT_DIST_PATH / "index.html"
+            if index_path.exists():
+                return FileResponse(index_path)
+            
+            return {"message": "React client not built. Run 'cd client && npm run build'"}
+        
+    else:
+        print(f"⚠️  React client not found at: {CLIENT_DIST_PATH}")
+        print("   Run 'cd client && npm run build' to build the client first")
+        
+        # Provide helpful message at root
+        @app.get("/")
+        async def no_client():
+            return {
+                "message": "Agent API Server", 
+                "client_status": "not_built",
+                "instructions": "Run 'cd client && npm run build' to enable web interface"
+            }
 
 
 def initialize_agent(config_name: str = "roleplay") -> Agent:
@@ -173,9 +218,10 @@ async def startup_event():
     """Initialize agent on startup"""
     logging.basicConfig(level=logging.INFO)
     initialize_agent()
+    setup_static_files()
 
 
-@app.get("/conversation", response_model=ConversationResponse)
+@app.get("/api/conversation", response_model=ConversationResponse)
 async def get_conversation():
     """Get current conversation history for client hydration"""
     if agent is None:
@@ -186,7 +232,7 @@ async def get_conversation():
     return ConversationResponse(messages=messages)
 
 
-@app.get("/state")
+@app.get("/api/state")
 async def get_state(path: Optional[str] = None):
     """Get agent state, optionally by dot notation path"""
     if agent is None:
@@ -203,7 +249,7 @@ async def get_state(path: Optional[str] = None):
     return state
 
 
-@app.put("/state")
+@app.put("/api/state")
 async def set_state(request: Request, path: Optional[str] = None):
     """Set agent state, optionally by dot notation path"""
     if agent is None:
@@ -232,7 +278,7 @@ async def set_state(request: Request, path: Optional[str] = None):
         return {"message": "State replaced successfully"}
 
 
-@app.get("/config", response_model=ConfigResponse)
+@app.get("/api/config", response_model=ConfigResponse)
 async def get_config():
     """Get current agent configuration info"""
     if agent is None:
@@ -246,7 +292,7 @@ async def get_config():
     )
 
 
-@app.get("/configs", response_model=ConfigsResponse)
+@app.get("/api/configs", response_model=ConfigsResponse)
 async def get_configs():
     """Get all available agent configurations"""
     configs = {}
@@ -256,7 +302,7 @@ async def get_configs():
     return ConfigsResponse(configs=configs)
 
 
-@app.post("/reset", response_model=ResetResponse)
+@app.post("/api/reset", response_model=ResetResponse)
 async def reset_agent(config: str = "roleplay"):
     """Reset agent with specified configuration"""
     global agent
@@ -278,7 +324,7 @@ async def reset_agent(config: str = "roleplay"):
     )
 
 
-@app.websocket("/chat")
+@app.websocket("/api/chat")
 async def websocket_chat(websocket: WebSocket):
     """WebSocket endpoint for streaming chat"""
     await websocket.accept()
@@ -323,7 +369,7 @@ async def websocket_chat(websocket: WebSocket):
         print(f"WebSocket error: {e}")
 
 
-@app.get("/health")
+@app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
     return {

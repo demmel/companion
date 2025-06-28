@@ -1,69 +1,94 @@
-# React + TypeScript + Vite
+# Agent Chat Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React-based web client for the Agent system with real-time streaming conversations and advanced roleplay features.
 
-Currently, two official plugins are available:
+## Development Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Prerequisites
+- Node.js (18+)
+- npm or yarn
+- Running Agent server (Python backend)
 
-## Expanding the ESLint configuration
+### Development Workflow
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. **Start the Agent server** (in separate terminal):
+   ```bash
+   cd /path/to/agent
+   python -m src.agent.api_server
+   ```
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+2. **Start the client development server**:
+   ```bash
+   cd client
+   npm install
+   npm run dev
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+3. **Open browser** to `http://localhost:5173`
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Configuration
+
+The client automatically configures itself based on the environment:
+
+- **Development**: Connects to `localhost:8000/api/` (configurable via `.env.development`)
+- **Production**: Connects to the same server that serves the client at `/api/`
+
+All API endpoints are prefixed with `/api/` to avoid conflicts with client routing.
+
+#### Environment Variables (Development Only)
+
+Create `.env.development` to customize the agent server connection:
+
+```env
+VITE_AGENT_HOST=localhost
+VITE_AGENT_PORT=8000
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Production Deployment
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1. **Build the client**:
+   ```bash
+   npm run build
+   ```
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+2. **Serve from Agent server**: The built files in `dist/` should be served by the Python API server
+
+3. **Single endpoint**: Users access the chat interface and API from the same URL
+
+## Architecture
+
+- **React 19** with TypeScript for modern development
+- **Panda CSS** for performant styling with build-time generation
+- **Presenter pattern** for extensible conversation types (roleplay, coding, general)
+- **Real-time streaming** via WebSocket with intelligent batching
+- **Comprehensive testing** with Vitest and React Testing Library
+
+## Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm test` - Run tests
+- `npm test:ui` - Run tests with UI
+- `npm run lint` - Lint code
+
+## Features
+
+### Chat Interface
+- Real-time streaming conversations
+- Smart scrolling that follows new messages
+- Message grouping for natural conversation flow
+- Connection status indicators
+
+### Roleplay Features
+- Character creation and switching
+- Mood tracking with emoji indicators
+- Internal thoughts and character actions
+- Scene setting and atmosphere
+- Multi-character conversations
+
+### Developer Features
+- Hot reload during development
+- Comprehensive TypeScript coverage
+- Component testing with React Testing Library
+- Performance optimizations with React.memo and batching

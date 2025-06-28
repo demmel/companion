@@ -20,9 +20,9 @@ describe('useStreamBatcher', () => {
   it('should batch events with default interval', () => {
     const { result } = renderHook(() => useStreamBatcher(50));
     
-    const event1: AgentEvent = { type: 'text', content: 'Hello' };
-    const event2: AgentEvent = { type: 'text', content: ' World' };
-    
+    const event1: AgentEvent = { id: 0, type: 'text', content: 'Hello' };
+    const event2: AgentEvent = { id: 1, type: 'text', content: ' World' };
+
     act(() => {
       result.current.queueEvent(event1);
       result.current.queueEvent(event2);
@@ -42,9 +42,9 @@ describe('useStreamBatcher', () => {
 
   it('should process events immediately with zero interval', () => {
     const { result } = renderHook(() => useStreamBatcher(0));
-    
-    const event: AgentEvent = { type: 'text', content: 'Immediate' };
-    
+
+    const event: AgentEvent = { id: 0, type: 'text', content: 'Immediate' };
+
     act(() => {
       result.current.queueEvent(event);
     });
@@ -55,10 +55,10 @@ describe('useStreamBatcher', () => {
 
   it('should reset timer on new events', () => {
     const { result } = renderHook(() => useStreamBatcher(100));
-    
-    const event1: AgentEvent = { type: 'text', content: 'First' };
-    const event2: AgentEvent = { type: 'text', content: 'Second' };
-    
+
+    const event1: AgentEvent = { id: 0, type: 'text', content: 'First' };
+    const event2: AgentEvent = { id: 1, type: 'text', content: 'Second' };
+
     act(() => {
       result.current.queueEvent(event1);
     });
@@ -92,9 +92,9 @@ describe('useStreamBatcher', () => {
 
   it('should clear events', () => {
     const { result } = renderHook(() => useStreamBatcher(0));
-    
-    const event: AgentEvent = { type: 'text', content: 'Test' };
-    
+
+    const event: AgentEvent = { id: 0, type: 'text', content: 'Test' };
+
     act(() => {
       result.current.queueEvent(event);
     });
@@ -110,10 +110,10 @@ describe('useStreamBatcher', () => {
 
   it('should handle multiple batches', () => {
     const { result } = renderHook(() => useStreamBatcher(50));
-    
-    const event1: AgentEvent = { type: 'text', content: 'Batch 1' };
-    const event2: AgentEvent = { type: 'text', content: 'Batch 2' };
-    
+
+    const event1: AgentEvent = { id: 0, type: 'text', content: 'Batch 1' };
+    const event2: AgentEvent = { id: 1, type: 'text', content: 'Batch 2' };
+
     // First batch
     act(() => {
       result.current.queueEvent(event1);
@@ -135,7 +135,7 @@ describe('useStreamBatcher', () => {
     const { result, unmount } = renderHook(() => useStreamBatcher(100));
     
     act(() => {
-      result.current.queueEvent({ type: 'text', content: 'Test' });
+      result.current.queueEvent({ id: 0, type: 'text', content: 'Test' });
     });
     
     // Unmount before timer fires

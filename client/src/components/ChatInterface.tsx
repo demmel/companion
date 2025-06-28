@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, use } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useStreamBatcher } from '@/hooks/useStreamBatcher';
 import { useConversation } from '@/hooks/useConversation';
@@ -9,6 +9,7 @@ import { AgentEvent } from '@/types';
 import { AgentClient } from '@/client';
 import { getPresenterForConfig } from '@/presenters';
 import { css } from '@styled-system/css';
+import { debug } from '@/utils/debug';
 
 interface ChatInterfaceProps {
   client: AgentClient;
@@ -23,13 +24,13 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   const { events, queueEvent, clearEvents } = useStreamBatcher(50);
 
   useMemo(() => {
-    console.log('Current events:', events);
+    debug.log('Events:', events);
   }, [events]);
 
   const { messages, isStreamActive, addUserMessage, loadConversation, clearConversation } = useConversation(events);
 
-  useMemo(() => {
-    console.log('Current messages:', messages);
+  useEffect(() => {
+    debug.log('Messages:', messages);
   }, [messages]);
 
   // Get the appropriate presenter component
@@ -196,7 +197,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleSubmit}
-        disabled={!isConnected}
+        disabled={!isConnected || isConnecting || isStreamActive}
         onClear={handleClear}
         clearDisabled={isStreamActive}
         itemCount={messages.length}

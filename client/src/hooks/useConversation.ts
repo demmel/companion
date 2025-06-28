@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { AgentEvent, Message, UserMessage, AgentMessage, ToolCall } from '../types';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { AgentEvent, Message, UserMessage, ToolCall, ToolCallFinished } from '../types';
+import { debug } from '@/utils/debug';
 
 export interface UseConversationReturn {
   messages: Message[];
@@ -18,91 +19,120 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
   const [currentAgentResponse, setCurrentAgentResponse] = useState<{
     content: string;
     toolCalls: Map<string, ToolCall>;
-    isComplete: boolean;
   } | null>(null);
+  const [isStreamActive, setIsStreamActive] = useState(false);
+  const lastProcessedEventId = useRef<number | null>(null);
+
+  useMemo(() => {
+    debug.log('Base messages:', baseMessages);
+  }, [baseMessages]);
+
+  useMemo(() => {
+    debug.log('Current agent response:', currentAgentResponse);
+  }, [currentAgentResponse]);
 
   // Process events into current agent response
   useEffect(() => {
-    let agentContent = '';
-    let toolCalls = new Map<string, ToolCall>();
+    if (events.length === 0) return;
+
+    let content = currentAgentResponse?.content || '';
+    const toolCalls = currentAgentResponse?.toolCalls || new Map<string, ToolCall>();
     let isComplete = false;
 
     for (const event of events) {
+      if (lastProcessedEventId.current !== null && event.id <= lastProcessedEventId.current) {
+        // Skip already processed events
+        continue;
+      }
+
+      lastProcessedEventId.current = event.id;
+
+      debug.log('Processing event:', event);
+
       switch (event.type) {
         case 'text':
-          // If we have finished tool calls, finalize that message first
           if (toolCalls.size > 0) {
-            const finalToolMessage: AgentMessage = {
-              role: 'assistant',
-              content: agentContent,
-              tool_calls: Array.from(toolCalls.values())
-            };
-            setBaseMessages(prev => [...prev, finalToolMessage]);
-            
-            // Reset for new text-only response
-            agentContent = '';
-            toolCalls = new Map();
+            // If we have tool calls, finalize the current response first
+            const contentToFinalize = content;
+            const toolCallsToFinalize = Array.from(toolCalls.values());
+            setBaseMessages(prev => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: contentToFinalize,
+                tool_calls: toolCallsToFinalize
+              }
+            ]);
+            content = '';
+            toolCalls.clear();
           }
-
-          agentContent += event.content;
+          content += event.content;
+          isComplete = false; // Still streaming
           break;
-
         case 'tool_started':
           toolCalls.set(event.tool_id, {
-            type: 'started',
-            tool_name: event.tool_name,
             tool_id: event.tool_id,
-            parameters: event.parameters
+            tool_name: event.tool_name,
+            type: 'started',
+            parameters: event.parameters,
           });
+          isComplete = false; // Still streaming
           break;
-
         case 'tool_finished':
-          const existingTool = toolCalls.get(event.tool_id);
-          if (existingTool && existingTool.type === 'started') {
-            toolCalls.set(event.tool_id, {
-              type: 'finished',
-              tool_name: existingTool.tool_name,
-              tool_id: event.tool_id,
-              parameters: existingTool.parameters,
-              result: {
+          if (toolCalls.has(event.tool_id)) {
+            let toolCall = toolCalls.get(event.tool_id);
+            if (toolCall) {
+              toolCall.type = 'finished';
+              toolCall = toolCall as ToolCallFinished;
+              toolCall.result = {
                 type: event.result_type,
                 content: event.result
               }
+            }
+          }
+          isComplete = false; // Still streaming
+          break;
+        case 'response_complete':
+          // Finalize the current agent respons
+          if (content || toolCalls.size > 0) {
+            const contentToFinalize = content;
+            const toolCallsToFinalize = Array.from(toolCalls.values());
+            setBaseMessages(prev => {
+              return [
+                ...prev,
+                {
+                  role: 'assistant',
+                  content: contentToFinalize,
+                  tool_calls: toolCallsToFinalize
+                }
+              ];
             });
           }
-          break;
-
-        case 'response_complete':
+          content = '';
+          toolCalls.clear();
           isComplete = true;
-          break;
       }
+
+      debug.log('Updated content:', content);
+      debug.log('Updated tool calls:', Array.from(toolCalls.values()));
     }
 
-    // Update current response (this makes it visible during streaming)
-    if (agentContent || toolCalls.size > 0) {
+    // Update the current agent response state
+    if (content || toolCalls.size > 0) {
       setCurrentAgentResponse({
-        content: agentContent,
-        toolCalls,
-        isComplete
+        content: content,
+        toolCalls: toolCalls
       });
-    }
-
-    // If stream is complete, move to base messages and clear current
-    if (isComplete && (agentContent || toolCalls.size > 0)) {
-      const finalMessage: AgentMessage = {
-        role: 'assistant',
-        content: agentContent,
-        tool_calls: Array.from(toolCalls.values())
-      };
-
-      setBaseMessages(prev => [...prev, finalMessage]);
+    } else {
       setCurrentAgentResponse(null);
     }
+
+    setIsStreamActive(!isComplete); // If we have a complete response, stop streaming
   }, [events]);
 
   // Only reconstruct messages array when baseMessages or currentAgentResponse actually change
   const messages = useMemo(() => {
-    if (!currentAgentResponse) {
+    if (!currentAgentResponse || currentAgentResponse.content === '' && currentAgentResponse.toolCalls.size === 0) {
       return baseMessages;
     }
     
@@ -123,19 +153,22 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
     };
     setBaseMessages(prev => [...prev, userMessage]);
     setCurrentAgentResponse(null);
+    setIsStreamActive(true); // Indicate that a new user message has been added
   }, []);
 
   const loadConversation = useCallback((conversationMessages: Message[]) => {
     setBaseMessages(conversationMessages);
     setCurrentAgentResponse(null);
+    setIsStreamActive(false); // Reset stream state when loading a conversation
+    lastProcessedEventId.current = null; // Reset event processing state
   }, []);
 
   const clearConversation = useCallback(() => {
     setBaseMessages([]);
     setCurrentAgentResponse(null);
+    setIsStreamActive(false); // Reset stream state when clearing conversation
+    lastProcessedEventId.current = null; // Reset event processing state
   }, []);
-
-  const isStreamActive = currentAgentResponse !== null && !currentAgentResponse.isComplete;
 
   return {
     messages,

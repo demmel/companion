@@ -24,8 +24,8 @@ describe('useConversation', () => {
 
   it('should show streaming agent response as it comes', () => {
     const events: AgentEvent[] = [
-      { type: 'text', content: 'Hello ' },
-      { type: 'text', content: 'there!' }
+      { id: 0, type: 'text', content: 'Hello ' },
+      { id: 1, type: 'text', content: 'there!' }
     ];
     
     const { result } = renderHook(() => useConversation(events));
@@ -38,14 +38,16 @@ describe('useConversation', () => {
 
   it('should handle tool calls during streaming', () => {
     const events: AgentEvent[] = [
-      { type: 'text', content: 'Let me help you. ' },
+      { id: 0, type: 'text', content: 'Let me help you. ' },
       { 
+        id: 1,
         type: 'tool_started', 
         tool_name: 'set_mood', 
         tool_id: 'call_1', 
         parameters: { mood: 'happy' } 
       },
       { 
+        id: 2,
         type: 'tool_finished', 
         tool_id: 'call_1', 
         result_type: 'success', 
@@ -78,6 +80,7 @@ describe('useConversation', () => {
   it('should show running tool calls before they finish', () => {
     const events: AgentEvent[] = [
       { 
+        id: 0,
         type: 'tool_started', 
         tool_name: 'slow_tool', 
         tool_id: 'call_1', 
@@ -106,7 +109,7 @@ describe('useConversation', () => {
 
   it('should finalize message on response_complete', () => {
     let events: AgentEvent[] = [
-      { type: 'text', content: 'Done!' }
+      { id: 0, type: 'text', content: 'Done!' }
     ];
     
     const { result, rerender } = renderHook((props) => useConversation(props.events), {
@@ -119,7 +122,7 @@ describe('useConversation', () => {
     // Add response_complete event
     events = [
       ...events,
-      { type: 'response_complete' }
+      { id: 1, type: 'response_complete' }
     ];
     
     rerender({ events });
@@ -159,26 +162,30 @@ describe('useConversation', () => {
 
   it('should handle multiple tool calls', () => {
     const events: AgentEvent[] = [
-      { type: 'text', content: 'Working on it. ' },
+      { id: 0, type: 'text', content: 'Working on it. ' },
       { 
+        id: 1,
         type: 'tool_started', 
         tool_name: 'tool_a', 
         tool_id: 'call_1', 
         parameters: { a: 1 } 
       },
       { 
+        id: 2,
         type: 'tool_started', 
         tool_name: 'tool_b', 
         tool_id: 'call_2', 
         parameters: { b: 2 } 
       },
       { 
+        id: 3,
         type: 'tool_finished', 
         tool_id: 'call_1', 
         result_type: 'success', 
         result: 'Result A' 
       },
       { 
+        id: 4,
         type: 'tool_finished', 
         tool_id: 'call_2', 
         result_type: 'error', 
@@ -209,5 +216,118 @@ describe('useConversation', () => {
       parameters: { b: 2 },
       result: { type: 'error', content: 'Error B' }
     });
+  });
+
+  it('should not duplicate messages', () => {
+    let events: AgentEvent[] = [
+      { id: 0, type: 'text', content: 'Hello' },
+      { id: 1, type: 'text', content: ' World' }
+    ];
+    
+    const { result, rerender } = renderHook(({ events }) => useConversation(events), {
+      initialProps: { events }
+    });
+    
+    expect(result.current.messages).toEqual([
+      { role: 'assistant', content: 'Hello World', tool_calls: [] }
+    ]);
+
+    // Add another event that should not duplicate
+    events = [
+      ...events,
+      { id: 2, type: 'text', content: '!' },
+      { id: 3, type: 'response_complete' }
+    ];
+
+    rerender({ events });
+
+    expect(result.current.messages).toEqual([
+      { role: 'assistant', content: 'Hello World!', tool_calls: [] }
+    ]);
+
+    // Add a new user message
+    act(() => {
+      result.current.addUserMessage('New message');
+    });
+
+    expect(result.current.messages).toEqual([
+      { role: 'assistant', content: 'Hello World!', tool_calls: [] },
+      { role: 'user', content: 'New message' }
+    ]);
+
+    // Add another agent message
+    events = [
+      ...events,
+      { id: 4, type: 'text', content: 'Another response' },
+      { id: 5, type: 'response_complete' }
+    ];
+
+    rerender({ events });
+
+    expect(result.current.messages).toEqual([
+      { role: 'assistant', content: 'Hello World!', tool_calls: [] },
+      { role: 'user', content: 'New message' },
+      { role: 'assistant', content: 'Another response', tool_calls: [] }
+    ]);
+
+    // Add a new user message again
+    act(() => {
+      result.current.addUserMessage('Another user message');
+    });
+
+    expect(result.current.messages).toEqual([
+      { role: 'assistant', content: 'Hello World!', tool_calls: [] },
+      { role: 'user', content: 'New message' },
+      { role: 'assistant', content: 'Another response', tool_calls: [] },
+      { role: 'user', content: 'Another user message' }
+    ]);
+
+    // Add tool calls
+    events = [
+      ...events,
+      { 
+        id: 6,
+        type: 'tool_started', 
+        tool_name: 'example_tool', 
+        tool_id: 'call_3', 
+        parameters: { param: 'value' } 
+      },
+      { 
+        id: 7,
+        type: 'tool_finished', 
+        tool_id: 'call_3', 
+        result_type: 'success', 
+        result: 'Tool call result' 
+      },
+      { id: 8, type: 'text', content: 'Final response' },
+      { id: 9, type: 'response_complete' }
+    ];
+
+    rerender({ events });
+
+    expect(result.current.messages).toEqual([
+      { role: 'assistant', content: 'Hello World!', tool_calls: [] },
+      { role: 'user', content: 'New message' },
+      { role: 'assistant', content: 'Another response', tool_calls: [] },
+      { role: 'user', content: 'Another user message' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            type: 'finished',
+            tool_name: 'example_tool',
+            tool_id: 'call_3',
+            parameters: { param: 'value' },
+            result: { type: 'success', content: 'Tool call result' }
+          }
+        ]
+      },
+      {
+        role: 'assistant',
+        content: 'Final response',
+        tool_calls: []
+      }
+    ]);
   });
 });

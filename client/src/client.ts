@@ -23,11 +23,11 @@ export class AgentClient {
   }
 
   get chatWsUrl(): string {
-    return `${this.wsBaseUrl}/chat`;
+    return `${this.wsBaseUrl}/api/chat`;
   }
 
   get resetUrl(): string {
-    return `${this.httpBaseUrl}/reset`;
+    return `${this.httpBaseUrl}/api/reset`;
   }
 
   async reset(): Promise<void> {
@@ -44,7 +44,7 @@ export class AgentClient {
   }
 
   async getConversation(): Promise<Message[]> {
-    const response = await fetch(`${this.httpBaseUrl}/conversation`);
+    const response = await fetch(`${this.httpBaseUrl}/api/conversation`);
     
     if (!response.ok) {
       throw new Error(`Failed to get conversation: ${response.statusText}`);
@@ -55,7 +55,7 @@ export class AgentClient {
   }
 
   async getConfig(): Promise<{ name: string; description: string; tools: string[] }> {
-    const response = await fetch(`${this.httpBaseUrl}/config`);
+    const response = await fetch(`${this.httpBaseUrl}/api/config`);
     
     if (!response.ok) {
       throw new Error(`Failed to get config: ${response.statusText}`);
@@ -65,7 +65,7 @@ export class AgentClient {
   }
 
   async getState(): Promise<Record<string, any>> {
-    const response = await fetch(`${this.httpBaseUrl}/state`);
+    const response = await fetch(`${this.httpBaseUrl}/api/state`);
     
     if (!response.ok) {
       throw new Error(`Failed to get state: ${response.statusText}`);
