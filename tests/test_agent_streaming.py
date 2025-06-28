@@ -91,11 +91,21 @@ class TestAgentStreaming:
         assert mock_llm.chat.call_count == 2
 
         # Verify conversation history has correct structure
-        assert len(agent.conversation_history) == 4
+        assert len(agent.conversation_history) == 3
         assert agent.conversation_history[0].content == "Hi, Jim"
-        assert "TOOL_CALL:" in agent.conversation_history[1].content
-        assert "Tool results:" in agent.conversation_history[2].content
-        assert "Hey there" in agent.conversation_history[3].content
+        
+        # First agent message should have clean content and tool call in structured format
+        first_agent_msg = agent.conversation_history[1]
+        # Content should be clean text only (no tool syntax)
+        assert "TOOL_CALL:" not in first_agent_msg.content
+        # Tool call should be in structured format
+        assert len(first_agent_msg.tool_calls) == 1
+        assert first_agent_msg.tool_calls[0].tool_name == "mock_tool"
+        
+        # Second agent message should have dialogue
+        second_agent_msg = agent.conversation_history[2]
+        assert "Hey there" in second_agent_msg.content
+        assert len(second_agent_msg.tool_calls) == 0
 
     def test_no_tools_simple_response(self):
         """Test that simple responses without tools work correctly"""

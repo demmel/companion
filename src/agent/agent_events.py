@@ -6,6 +6,8 @@ from typing import Dict, Any, Optional
 from enum import Enum
 from dataclasses import dataclass
 
+from pydantic import BaseModel
+
 
 class AgentEventType(Enum):
     """Types of agent streaming events"""
@@ -20,21 +22,19 @@ class AgentEventType(Enum):
 
 class ToolResultType(Enum):
     """Types of tool execution results"""
-    
+
     SUCCESS = "success"
     ERROR = "error"
 
 
-@dataclass
-class AgentTextEvent:
+class AgentTextEvent(BaseModel):
     """Text content from agent response"""
 
     content: str
     type: AgentEventType = AgentEventType.TEXT
 
 
-@dataclass
-class ToolStartedEvent:
+class ToolStartedEvent(BaseModel):
     """Tool execution started"""
 
     tool_name: str
@@ -43,8 +43,7 @@ class ToolStartedEvent:
     type: AgentEventType = AgentEventType.TOOL_STARTED
 
 
-@dataclass
-class ToolProgressEvent:
+class ToolProgressEvent(BaseModel):
     """Progress update from tool execution"""
 
     tool_id: str
@@ -53,8 +52,7 @@ class ToolProgressEvent:
     type: AgentEventType = AgentEventType.TOOL_PROGRESS
 
 
-@dataclass
-class ToolFinishedEvent:
+class ToolFinishedEvent(BaseModel):
     """Tool execution completed"""
 
     tool_id: str
@@ -63,16 +61,14 @@ class ToolFinishedEvent:
     type: AgentEventType = AgentEventType.TOOL_FINISHED
 
 
-@dataclass
-class UserInputRequestEvent:
+class UserInputRequestEvent(BaseModel):
     """Placeholder for interactive tools that need user input"""
 
     # TODO: Define structure when we implement interactive tools
     pass
 
 
-@dataclass
-class AgentErrorEvent:
+class AgentErrorEvent(BaseModel):
     """Error in agent processing"""
 
     message: str

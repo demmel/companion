@@ -2,18 +2,27 @@
 Core agent implementation
 """
 
+import json
 from typing import List, Optional, Iterator
 from pydantic import BaseModel
 
-from .llm import LLMClient, Message
+from .llm import LLMClient, Message as LLMMessage
 from .tools import ToolRegistry, ToolExecutionError
 from .streaming import StreamingParser, TextEvent, ToolCallEvent, InvalidToolCallEvent
 from .config import AgentConfig
+from .message import (
+    AgentMessage,
+    Message,
+    ToolCall,
+    ToolCallFinished,
+    ToolCallResult,
+    ToolCallResultType,
+    UserMessage,
+)
 from .agent_events import (
     AgentEvent,
     AgentTextEvent,
     ToolStartedEvent,
-    ToolProgressEvent,
     ToolFinishedEvent,
     ToolResultType,
     AgentErrorEvent,
@@ -22,6 +31,7 @@ from .agent_events import (
 
 class ContextInfo(BaseModel):
     """Information about the agent's current context usage"""
+
     message_count: int
     conversation_messages: int
     estimated_tokens: int
@@ -68,12 +78,36 @@ class Agent:
         """Set a specific state value"""
         self.state[key] = value
 
+    def get_conversation_history(self) -> List[Message]:
+        """Get the current conversation history"""
+        return self.conversation_history.copy()
+
+    def get_llm_conversation_history(
+        self,
+        include_tools: bool,
+        iteration_info: tuple,
+    ) -> List[LLMMessage]:
+        """Get the conversation history formatted for LLM"""
+        messages = [
+            LLMMessage(
+                role="system",
+                content=self._build_system_prompt(
+                    include_tools=include_tools,
+                    iteration_info=iteration_info,
+                ),
+            )
+        ]
+        for msg in self.conversation_history:
+            for llm_msg in message_to_llm_messages(msg):
+                messages.append(llm_msg)
+        return messages
+
     def get_context_info(self) -> ContextInfo:
         """Get information about current context usage"""
         # Build current message list
-        current_system_prompt = self._build_system_prompt()
-        messages = [Message(role="system", content=current_system_prompt)]
-        messages.extend(self.conversation_history)
+        messages = self.get_llm_conversation_history(
+            include_tools=True, iteration_info=(1, self.config.max_iterations)
+        )
 
         # Estimate token count (rough approximation: 1 token ≈ 4 characters)
         total_chars = sum(len(msg.content) for msg in messages)
@@ -88,30 +122,25 @@ class Agent:
             approaching_limit=estimated_tokens > self.auto_summarize_threshold,
         )
 
-    def _build_system_prompt(
-        self, include_tools: bool = True, iteration_info: tuple = None
-    ) -> str:
+    def _build_system_prompt(self, include_tools: bool, iteration_info: tuple) -> str:
         """Build the system prompt using configuration with current state"""
         tools_desc = self.tools.get_tools_description() if include_tools else ""
         return self.config.build_prompt(tools_desc, self.state, iteration_info)
 
-
     def chat_stream(self, user_input: str) -> Iterator[AgentEvent]:
         """Streaming chat interface that yields typed events"""
         # Add user message to history
-        self.conversation_history.append(Message(role="user", content=user_input))
+        self.conversation_history.append(UserMessage(content=user_input))
 
         # Continue generating responses with iteration limit
         max_iterations = self.config.max_iterations
         for iteration in range(1, max_iterations + 1):
             # Build system prompt based on iteration (no tools on final iteration)
             is_final_iteration = iteration == max_iterations
-            current_system_prompt = self._build_system_prompt(
+            messages = self.get_llm_conversation_history(
                 include_tools=not is_final_iteration,
                 iteration_info=(iteration, max_iterations),
             )
-            messages = [Message(role="system", content=current_system_prompt)]
-            messages.extend(self.conversation_history)
 
             if self.verbose:
                 print(
@@ -124,12 +153,11 @@ class Agent:
             # Initialize streaming parser
             parser = StreamingParser(debug=self.verbose)
             collected_response = ""
-            tool_events = []
+            tool_events: List[ToolCallEvent] = []
 
             # Process the stream
             for chunk in stream:
                 chunk_content = chunk["message"]["content"]
-                collected_response += chunk_content
 
                 # Debug: Show raw chunk content
                 if self.verbose and chunk_content:
@@ -140,6 +168,8 @@ class Agent:
 
                 for event in events:
                     if isinstance(event, TextEvent):
+                        # Only collect actual text content, not tool syntax
+                        collected_response += event.delta
                         yield AgentTextEvent(content=event.delta)
                     elif isinstance(event, ToolCallEvent):
                         # Store tool event for later execution (only if not final iteration)
@@ -157,6 +187,7 @@ class Agent:
             final_events = list(parser.finalize())
             for event in final_events:
                 if isinstance(event, TextEvent):
+                    collected_response += event.delta
                     yield AgentTextEvent(content=event.delta)
                 elif isinstance(event, InvalidToolCallEvent):
                     yield AgentErrorEvent(
@@ -165,23 +196,35 @@ class Agent:
                         tool_id=event.id,
                     )
 
-            # Add response to history
-            self.conversation_history.append(
-                Message(role="assistant", content=collected_response)
-            )
-
             # If no tools or final iteration, we're done
             if not tool_events or is_final_iteration:
+                self.conversation_history.append(AgentMessage(
+                    content=collected_response,
+                    tool_calls=[]
+                ))
                 break
 
             # Execute tools and continue to next iteration
             tool_results = []
+            finished_tool_calls = []
+            
             for tool_event in tool_events:
                 # Check if tool exists before emitting any events
                 if not self.tools.has_tool(tool_event.tool_name):
                     # Agent made a mistake - inform it via tool_results for next iteration
                     error_msg = f"Tool '{tool_event.tool_name}' not found"
                     tool_results.append(f"{tool_event.tool_name} ({tool_event.id}): {error_msg}")
+                    
+                    # Create error tool call
+                    finished_tool_calls.append(ToolCallFinished(
+                        tool_name=tool_event.tool_name,
+                        tool_id=tool_event.id,
+                        parameters=tool_event.parameters,
+                        result=ToolCallResult(
+                            type=ToolCallResultType.ERROR,
+                            content=error_msg
+                        )
+                    ))
                     yield AgentErrorEvent(
                         message=error_msg,
                         tool_name=tool_event.tool_name,
@@ -204,39 +247,77 @@ class Agent:
                     tool_results.append(
                         f"{tool_event.tool_name} ({tool_event.id}): {result}"
                     )
+                    
+                    # Create successful tool call
+                    finished_tool_calls.append(ToolCallFinished(
+                        tool_name=tool_event.tool_name,
+                        tool_id=tool_event.id,
+                        parameters=tool_event.parameters,
+                        result=ToolCallResult(
+                            type=ToolCallResultType.SUCCESS,
+                            content=result
+                        )
+                    ))
 
                     # Signal successful tool execution
                     yield ToolFinishedEvent(
                         tool_id=tool_event.id,
                         result_type=ToolResultType.SUCCESS,
-                        result=result
+                        result=result,
                     )
                 except ToolExecutionError as e:
                     # Tool exists but failed during execution
-                    tool_results.append(f"{tool_event.tool_name} ({tool_event.id}): {str(e)}")
+                    tool_results.append(
+                        f"{tool_event.tool_name} ({tool_event.id}): {str(e)}"
+                    )
+                    
+                    # Create error tool call
+                    finished_tool_calls.append(ToolCallFinished(
+                        tool_name=tool_event.tool_name,
+                        tool_id=tool_event.id,
+                        parameters=tool_event.parameters,
+                        result=ToolCallResult(
+                            type=ToolCallResultType.ERROR,
+                            content=str(e)
+                        )
+                    ))
+                    
                     yield ToolFinishedEvent(
                         tool_id=tool_event.id,
                         result_type=ToolResultType.ERROR,
-                        result=str(e)
+                        result=str(e),
                     )
                 except Exception as e:
                     # Unexpected system error
-                    error_msg = f"System error executing {tool_event.tool_name}: {str(e)}"
-                    tool_results.append(f"{tool_event.tool_name} ({tool_event.id}): {error_msg}")
+                    error_msg = (
+                        f"System error executing {tool_event.tool_name}: {str(e)}"
+                    )
+                    tool_results.append(
+                        f"{tool_event.tool_name} ({tool_event.id}): {error_msg}"
+                    )
+                    
+                    # Create system error tool call
+                    finished_tool_calls.append(ToolCallFinished(
+                        tool_name=tool_event.tool_name,
+                        tool_id=tool_event.id,
+                        parameters=tool_event.parameters,
+                        result=ToolCallResult(
+                            type=ToolCallResultType.ERROR,
+                            content=error_msg
+                        )
+                    ))
+                    
                     yield AgentErrorEvent(
                         message=str(e),
                         tool_name=tool_event.tool_name,
                         tool_id=tool_event.id,
                     )
 
-            # Add tool results to history for next iteration
-            combined_results = "; ".join(tool_results)
-            self.conversation_history.append(
-                Message(role="user", content=f"Tool results: {combined_results}")
-            )
-
-
-
+            # Store the agent message with tool calls
+            self.conversation_history.append(AgentMessage(
+                content=collected_response,
+                tool_calls=finished_tool_calls
+            ))
 
     def reset_conversation(self):
         """Reset the conversation history"""
@@ -279,3 +360,49 @@ class Agent:
             "messages_after": len(self.conversation_history),
             "summarized_count": len(old_messages),
         }
+
+
+def message_to_llm_messages(message: Message) -> Iterator[LLMMessage]:
+    """Convert internal Message to LLMMessage format"""
+
+    content = message.content
+    tool_results_str = ""
+
+    if isinstance(message, AgentMessage) and message.tool_calls:
+        # Add tool call information if available
+        tool_calls_str = format_tool_calls(message.tool_calls)
+        tool_results_str = format_tool_results(
+            [
+                tool_call
+                for tool_call in message.tool_calls
+                if isinstance(tool_call, ToolCallFinished)
+            ]
+        )
+
+        if tool_calls_str:
+            content += "\n\n" + tool_calls_str
+
+    yield LLMMessage(role=message.role, content=content)
+
+    if tool_results_str:
+        yield LLMMessage(role="user", content=tool_results_str)
+
+
+def format_tool_calls(tool_calls: List[ToolCall]) -> str:
+    """Format a list of tool calls into a string representation"""
+    formatted_calls = []
+    for tool_call in tool_calls:
+        formatted_calls.append(
+            f"TOOL_CALL: {tool_call.tool_name} ({tool_call.tool_id})\n{json.dumps(tool_call.parameters, indent=2)}"
+        )
+    return "\n\n".join(formatted_calls)
+
+
+def format_tool_results(tool_results: List[ToolCallFinished]) -> str:
+    """Format a list of tool call results into a string representation"""
+    formatted_results = []
+    for result in tool_results:
+        formatted_results.append(
+            f"TOOL_RESULT: {result.tool_name} ({result.tool_id})\n{result.model_dump_json(indent=2)}"
+        )
+    return "\n\n".join(formatted_results)

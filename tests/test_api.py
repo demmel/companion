@@ -32,7 +32,7 @@ def api_server() -> Generator[subprocess.Popen, None, None]:
             "uv",
             "run",
             "uvicorn",
-            "api_server:app",
+            "agent.api_server:app",
             "--host",
             "0.0.0.0",
             "--port",
@@ -187,12 +187,10 @@ class TestConversationEndpoint:
 
         # Check structure
         assert "messages" in data
-        assert "message_count" in data
 
         # Check empty state
         assert isinstance(data["messages"], list)
-        assert data["message_count"] == 0
-        assert len(data["messages"]) == data["message_count"]
+        assert len(data["messages"]) == 0
 
 
 class TestStateEndpoints:
@@ -403,9 +401,8 @@ class TestFullWorkflow:
         conversation = conv_resp.json()
 
         assert (
-            conversation["message_count"] >= 2
+            len(conversation["messages"]) >= 2
         )  # At least user message + assistant response
-        assert len(conversation["messages"]) == conversation["message_count"]
 
         # 4. Test state persistence across requests
         # Make another request and verify conversation continues
@@ -436,7 +433,7 @@ class TestFullWorkflow:
         final_conv_resp = requests.get(f"{BASE_URL}/conversation", timeout=5)
         final_conversation = final_conv_resp.json()
 
-        assert final_conversation["message_count"] >= 4  # Original + follow-up
+        assert len(final_conversation["messages"]) >= 4  # Original + follow-up
 
 
 if __name__ == "__main__":
