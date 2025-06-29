@@ -3,6 +3,7 @@ Core agent implementation
 """
 
 import json
+import time
 from typing import List, Optional, Iterator
 from pydantic import BaseModel
 
@@ -124,31 +125,52 @@ class Agent:
 
     def _build_system_prompt(self, include_tools: bool, iteration_info: tuple) -> str:
         """Build the system prompt using configuration with current state"""
-        tools_desc = self.tools.get_tools_description() if include_tools else ""
+        if include_tools:
+            tools_start = time.time()
+            tools_desc = self.tools.get_tools_description()
+            tools_time = time.time() - tools_start
+            if self.verbose:
+                print(f"[PERF] Tools description generation took: {tools_time:.3f}s")
+        else:
+            tools_desc = ""
+
         return self.config.build_prompt(tools_desc, self.state, iteration_info)
 
     def chat_stream(self, user_input: str) -> Iterator[AgentEvent]:
         """Streaming chat interface that yields typed events"""
+        start_time = time.time()
+
         # Add user message to history
         self.conversation_history.append(UserMessage(content=user_input))
 
         # Continue generating responses with iteration limit
         max_iterations = self.config.max_iterations
         for iteration in range(1, max_iterations + 1):
+            iteration_start = time.time()
+
             # Build system prompt based on iteration (no tools on final iteration)
             is_final_iteration = iteration == max_iterations
+
+            prompt_start = time.time()
             messages = self.get_llm_conversation_history(
                 include_tools=not is_final_iteration,
                 iteration_info=(iteration, max_iterations),
             )
+            prompt_time = time.time() - prompt_start
 
             if self.verbose:
                 print(
                     f"Sending {len(messages)} messages to LLM (iteration {iteration}/{max_iterations})"
                 )
+                print(f"[PERF] Prompt building took: {prompt_time:.3f}s")
 
             # Get streaming LLM response
+            llm_start = time.time()
             stream = self.llm.chat(messages)
+            llm_init_time = time.time() - llm_start
+
+            if self.verbose:
+                print(f"[PERF] LLM initialization took: {llm_init_time:.3f}s")
 
             # Initialize streaming parser
             parser = StreamingParser(debug=self.verbose)
@@ -156,12 +178,16 @@ class Agent:
             tool_events: List[ToolCallEvent] = []
 
             # Process the stream
-            for chunk in stream:
-                chunk_content = chunk["message"]["content"]
+            first_chunk = True
+            first_chunk_time = None
 
-                # Debug: Show raw chunk content
-                if self.verbose and chunk_content:
-                    print(f"[DEBUG] Raw chunk: {repr(chunk_content)}")
+            for chunk in stream:
+                if first_chunk:
+                    first_chunk_time = time.time() - llm_start
+                    if self.verbose:
+                        print(f"[PERF] Time to first chunk: {first_chunk_time:.3f}s")
+                    first_chunk = False
+                chunk_content = chunk["message"]["content"]
 
                 # Parse chunk for events
                 events = list(parser.parse_chunk(chunk_content))
@@ -198,33 +224,35 @@ class Agent:
 
             # If no tools or final iteration, we're done
             if not tool_events or is_final_iteration:
-                self.conversation_history.append(AgentMessage(
-                    content=collected_response,
-                    tool_calls=[]
-                ))
+                self.conversation_history.append(
+                    AgentMessage(content=collected_response, tool_calls=[])
+                )
                 break
 
             # Execute tools and continue to next iteration
             tool_results = []
             finished_tool_calls = []
-            
+
             for tool_event in tool_events:
                 # Check if tool exists before emitting any events
                 if not self.tools.has_tool(tool_event.tool_name):
                     # Agent made a mistake - inform it via tool_results for next iteration
                     error_msg = f"Tool '{tool_event.tool_name}' not found"
-                    tool_results.append(f"{tool_event.tool_name} ({tool_event.id}): {error_msg}")
-                    
+                    tool_results.append(
+                        f"{tool_event.tool_name} ({tool_event.id}): {error_msg}"
+                    )
+
                     # Create error tool call
-                    finished_tool_calls.append(ToolCallFinished(
-                        tool_name=tool_event.tool_name,
-                        tool_id=tool_event.id,
-                        parameters=tool_event.parameters,
-                        result=ToolCallResult(
-                            type=ToolCallResultType.ERROR,
-                            content=error_msg
+                    finished_tool_calls.append(
+                        ToolCallFinished(
+                            tool_name=tool_event.tool_name,
+                            tool_id=tool_event.id,
+                            parameters=tool_event.parameters,
+                            result=ToolCallResult(
+                                type=ToolCallResultType.ERROR, content=error_msg
+                            ),
                         )
-                    ))
+                    )
                     yield AgentErrorEvent(
                         message=error_msg,
                         tool_name=tool_event.tool_name,
@@ -247,17 +275,18 @@ class Agent:
                     tool_results.append(
                         f"{tool_event.tool_name} ({tool_event.id}): {result}"
                     )
-                    
+
                     # Create successful tool call
-                    finished_tool_calls.append(ToolCallFinished(
-                        tool_name=tool_event.tool_name,
-                        tool_id=tool_event.id,
-                        parameters=tool_event.parameters,
-                        result=ToolCallResult(
-                            type=ToolCallResultType.SUCCESS,
-                            content=result
+                    finished_tool_calls.append(
+                        ToolCallFinished(
+                            tool_name=tool_event.tool_name,
+                            tool_id=tool_event.id,
+                            parameters=tool_event.parameters,
+                            result=ToolCallResult(
+                                type=ToolCallResultType.SUCCESS, content=result
+                            ),
                         )
-                    ))
+                    )
 
                     # Signal successful tool execution
                     yield ToolFinishedEvent(
@@ -270,18 +299,19 @@ class Agent:
                     tool_results.append(
                         f"{tool_event.tool_name} ({tool_event.id}): {str(e)}"
                     )
-                    
+
                     # Create error tool call
-                    finished_tool_calls.append(ToolCallFinished(
-                        tool_name=tool_event.tool_name,
-                        tool_id=tool_event.id,
-                        parameters=tool_event.parameters,
-                        result=ToolCallResult(
-                            type=ToolCallResultType.ERROR,
-                            content=str(e)
+                    finished_tool_calls.append(
+                        ToolCallFinished(
+                            tool_name=tool_event.tool_name,
+                            tool_id=tool_event.id,
+                            parameters=tool_event.parameters,
+                            result=ToolCallResult(
+                                type=ToolCallResultType.ERROR, content=str(e)
+                            ),
                         )
-                    ))
-                    
+                    )
+
                     yield ToolFinishedEvent(
                         tool_id=tool_event.id,
                         result_type=ToolResultType.ERROR,
@@ -295,18 +325,19 @@ class Agent:
                     tool_results.append(
                         f"{tool_event.tool_name} ({tool_event.id}): {error_msg}"
                     )
-                    
+
                     # Create system error tool call
-                    finished_tool_calls.append(ToolCallFinished(
-                        tool_name=tool_event.tool_name,
-                        tool_id=tool_event.id,
-                        parameters=tool_event.parameters,
-                        result=ToolCallResult(
-                            type=ToolCallResultType.ERROR,
-                            content=error_msg
+                    finished_tool_calls.append(
+                        ToolCallFinished(
+                            tool_name=tool_event.tool_name,
+                            tool_id=tool_event.id,
+                            parameters=tool_event.parameters,
+                            result=ToolCallResult(
+                                type=ToolCallResultType.ERROR, content=error_msg
+                            ),
                         )
-                    ))
-                    
+                    )
+
                     yield AgentErrorEvent(
                         message=str(e),
                         tool_name=tool_event.tool_name,
@@ -314,10 +345,14 @@ class Agent:
                     )
 
             # Store the agent message with tool calls
-            self.conversation_history.append(AgentMessage(
-                content=collected_response,
-                tool_calls=finished_tool_calls
-            ))
+            self.conversation_history.append(
+                AgentMessage(content=collected_response, tool_calls=finished_tool_calls)
+            )
+
+        # Performance logging
+        total_time = time.time() - start_time
+        if self.verbose:
+            print(f"[PERF] Total chat_stream time: {total_time:.3f}s")
 
     def reset_conversation(self):
         """Reset the conversation history"""

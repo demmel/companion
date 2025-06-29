@@ -125,9 +125,6 @@ class StreamingParser:
 
             # Check if we have a complete match
             if self.prefix_buffer == matching_prefix:
-                if self.debug:
-                    print(f"[DEBUG] Complete prefix detected: {matching_prefix}")
-
                 # Call the appropriate handler
                 handler = self.prefixes[matching_prefix]
                 yield from handler()
@@ -254,11 +251,6 @@ class StreamingParser:
 
             # Check if we have a complete match
             if self.prefix_buffer == matching_prefix:
-                if self.debug:
-                    print(
-                        f"[DEBUG] Complete prefix detected in between_tools: {matching_prefix}"
-                    )
-
                 # Call the appropriate handler
                 handler = self.prefixes[matching_prefix]
                 yield from handler()
@@ -285,25 +277,13 @@ class StreamingParser:
 
     def finalize(self) -> Iterator[StreamEvent]:
         """Finalize parsing and emit any remaining content"""
-        if self.debug:
-            print(
-                f"[DEBUG] Finalize called - state: {self.state}, prefix_buffer: '{self.prefix_buffer}', tool_buffer: '{self.tool_buffer}', tool_name: '{self.current_tool_name}'"
-            )
 
         if self.state == ParsingState.NORMAL_TEXT and self.prefix_buffer:
-            if self.debug:
-                print(
-                    f"[DEBUG] Emitting remaining prefix as text: '{self.prefix_buffer}'"
-                )
             # Emit any remaining prefix buffer as text
             yield TextEvent(delta=self.prefix_buffer)
         elif self.state == ParsingState.TOOL_PARSING:
             # Incomplete tool call at end of stream
             if self.current_tool_name:
-                if self.debug:
-                    print(
-                        f"[DEBUG] Incomplete tool call with valid name: {self.current_tool_name}"
-                    )
                 yield InvalidToolCallEvent(
                     id=self.current_tool_id,
                     tool_name=self.current_tool_name,
@@ -311,8 +291,6 @@ class StreamingParser:
                     raw_content=self.tool_buffer,
                 )
             else:
-                if self.debug:
-                    print(f"[DEBUG] Incomplete tool header, no valid name found")
                 # Incomplete tool header
                 yield InvalidToolCallEvent(
                     id="unknown",
@@ -321,9 +299,5 @@ class StreamingParser:
                     raw_content=self.tool_buffer,
                 )
         elif self.state == ParsingState.BETWEEN_TOOLS and self.prefix_buffer:
-            if self.debug:
-                print(
-                    f"[DEBUG] Emitting remaining prefix from between_tools: '{self.prefix_buffer}'"
-                )
             # Emit any remaining prefix as text
             yield TextEvent(delta=self.prefix_buffer)

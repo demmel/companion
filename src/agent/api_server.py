@@ -117,7 +117,7 @@ def initialize_agent(config_name: str = "roleplay") -> Agent:
     config = get_agent_config(config_name)
     agent = Agent(
         config=config,
-        model="aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m",
+        model="huihui_ai/mistral-small-abliterated",
         verbose=False,
     )
     return agent

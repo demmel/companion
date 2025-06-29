@@ -4,6 +4,7 @@ import { AgentMessage, UserMessage, ToolCall } from '@/types';
 import { RoleplayText } from '@/components/RoleplayText';
 import { RoleplayState, CharacterState } from '@/types/roleplay';
 import { css } from '@styled-system/css';
+import { debug } from '@/utils/debug';
 // import { demoMessages } from './demoData'; // Available for testing
 
 const HIDDEN_TOOLS = new Set(['assume_character']);
@@ -296,7 +297,7 @@ function AgentBubble({ bubble }: { bubble: MessageBubble }) {
     <div className={css({ mb: 4 })}>
       {/* Character Header - only when character changes */}
       {bubble.shouldShowHeader && bubble.currentCharacter && (
-        <CharacterHeader character={bubble.currentCharacter} stateAtMessage={bubble.stateAtMessage} />
+        <CharacterHeader character={bubble.currentCharacter} />
       )}
       
       {/* Message content */}
@@ -311,7 +312,7 @@ function AgentBubble({ bubble }: { bubble: MessageBubble }) {
           mb: 2 
         })}>
           {bubble.messages.map((messageWithState, index) => {
-            const { message, visibleToolCalls, stateAtMessage, stateBeforeMessage } = messageWithState;
+            const { message, visibleToolCalls, stateBeforeMessage } = messageWithState;
             const agentMessage = message as AgentMessage;
             
             return (
@@ -330,7 +331,6 @@ function AgentBubble({ bubble }: { bubble: MessageBubble }) {
                   <SpecialToolPresentation 
                     key={`${toolCall.tool_id}-${toolIndex}`} 
                     toolCall={toolCall} 
-                    stateAtMessage={stateAtMessage}
                     stateBeforeMessage={stateBeforeMessage}
                   />
                 ))}
@@ -388,7 +388,7 @@ export function RoleplayPresenter({ messages, isStreamActive, agentState }: Conv
 }
 
 
-function CharacterHeader({ character, stateAtMessage }: { character: CharacterState; stateAtMessage: RoleplayState }) {
+function CharacterHeader({ character }: { character: CharacterState }) {
   const moodEmoji = MOOD_EMOJIS[character.mood] || '😐';
   
   return (
@@ -415,32 +415,11 @@ function CharacterHeader({ character, stateAtMessage }: { character: CharacterSt
           {character.mood} • {character.mood_intensity}
         </span>
       </div>
-      
-      {/* Scene context */}
-      {stateAtMessage.global_scene && (
-        <div className={css({ 
-          fontSize: 'xs', 
-          color: 'gray.500', 
-          mt: 1, 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 1 
-        })}>
-          <span>📍</span>
-          <span>{stateAtMessage.global_scene.location}</span>
-          {stateAtMessage.global_scene.atmosphere && (
-            <>
-              <span>•</span>
-              <span>{stateAtMessage.global_scene.atmosphere}</span>
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-function SpecialToolPresentation({ toolCall, stateBeforeMessage }: { toolCall: ToolCall; stateAtMessage: RoleplayState; stateBeforeMessage: RoleplayState }) {
+function SpecialToolPresentation({ toolCall, stateBeforeMessage }: { toolCall: ToolCall; stateBeforeMessage: RoleplayState }) {
   // Only handle agent tools here
   switch (toolCall.tool_name) {
     case 'set_mood':
@@ -482,6 +461,16 @@ function MoodTransition({ toolCall, stateBeforeMessage }: { toolCall: ToolCall; 
   
   const oldEmoji = MOOD_EMOJIS[oldMood] || '😐';
   const newEmoji = MOOD_EMOJIS[newMood] || '😐';
+  
+  debug.group('MoodTransition Debug');
+  debug.log('Tool parameters:', toolCall.parameters);
+  debug.log('New mood from tool:', newMood);
+  debug.log('Old mood from state:', oldMood);
+  debug.log('Old emoji lookup:', { mood: oldMood, emoji: oldEmoji });
+  debug.log('New emoji lookup:', { mood: newMood, emoji: newEmoji });
+  debug.log('Available mood emojis:', MOOD_EMOJIS);
+  debug.log('Character state before:', currentCharacter);
+  debug.groupEnd();
   
   return (
     <div className={css({ 
