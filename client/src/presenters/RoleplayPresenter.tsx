@@ -5,6 +5,7 @@ import { RoleplayText } from '@/components/RoleplayText';
 import { RoleplayState, CharacterState } from '@/types/roleplay';
 import { css } from '@styled-system/css';
 import { debug } from '@/utils/debug';
+import { UserBubble as UserBubbleComponent, AgentBubble as AgentBubbleComponent, SystemBubble as SystemBubbleComponent, StateHeader } from '@/components/chat';
 // import { demoMessages } from './demoData'; // Available for testing
 
 const HIDDEN_TOOLS = new Set(['assume_character']);
@@ -247,48 +248,17 @@ function groupMessagesIntoBubbles(messagesWithState: MessageWithState[]): Messag
 
 function UserBubble({ bubble }: { bubble: MessageBubble }) {
   return (
-    <div className={css({ mb: 4 })}>
-      {/* User header */}
-      <div className={css({ 
-        mb: 3,
-        display: 'flex',
-        justifyContent: 'flex-end'
-      })}>
-        <span className={css({ 
-          fontWeight: 'medium', 
-          color: 'gray.300',
-          fontSize: 'sm'
-        })}>You</span>
-      </div>
-      
-      <div className={css({ 
-        display: 'flex', 
-        justifyContent: 'flex-end' 
-      })}>
-        <div className={css({ 
-          maxWidth: { base: 'xs', lg: 'md' }
+    <UserBubbleComponent showHeader={true}>
+      {bubble.messages.map((messageWithState, index) => (
+        <div key={index} className={css({ 
+          whiteSpace: 'pre-wrap', 
+          fontSize: 'sm',
+          '&:not(:last-child)': { mb: 2 }
         })}>
-          <div className={css({ 
-            bg: 'blue.600', 
-            color: 'white', 
-            rounded: '2xl',
-            roundedTopRight: 'sm',
-            px: 4, 
-            py: 2 
-          })}>
-            {bubble.messages.map((messageWithState, index) => (
-              <div key={index} className={css({ 
-                whiteSpace: 'pre-wrap', 
-                fontSize: 'sm',
-                '&:not(:last-child)': { mb: 2 }
-              })}>
-                {messageWithState.message.content}
-              </div>
-            ))}
-          </div>
+          {messageWithState.message.content}
         </div>
-      </div>
-    </div>
+      ))}
+    </UserBubbleComponent>
   );
 }
 
@@ -301,15 +271,11 @@ function AgentBubble({ bubble }: { bubble: MessageBubble }) {
       )}
       
       {/* Message content */}
-      <div>
+      <AgentBubbleComponent>
         <div className={css({ 
-          bg: 'gray.800', 
           color: 'gray.100', 
           rounded: '2xl',
-          roundedTopLeft: 'sm',
-          px: 4, 
-          py: 2, 
-          mb: 2 
+          roundedTopLeft: 'sm'
         })}>
           {bubble.messages.map((messageWithState, index) => {
             const { message, visibleToolCalls, stateBeforeMessage } = messageWithState;
@@ -338,7 +304,7 @@ function AgentBubble({ bubble }: { bubble: MessageBubble }) {
             );
           })}
         </div>
-      </div>
+      </AgentBubbleComponent>
     </div>
   );
 }
@@ -392,30 +358,11 @@ function CharacterHeader({ character }: { character: CharacterState }) {
   const moodEmoji = MOOD_EMOJIS[character.mood] || '😐';
   
   return (
-    <div className={css({ 
-      mb: 3
-    })}>
-      <div className={css({ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 2, 
-        fontSize: 'sm' 
-      })}>
-        <span className={css({ 
-          fontWeight: 'medium', 
-          color: 'gray.300' 
-        })}>{character.name}</span>
-        <span className={css({ 
-          fontSize: 'lg' 
-        })}>{moodEmoji}</span>
-        <span className={css({ 
-          color: 'gray.500', 
-          fontSize: 'xs' 
-        })}>
-          {character.mood} • {character.mood_intensity}
-        </span>
-      </div>
-    </div>
+    <StateHeader 
+      primaryText={character.name}
+      icon={moodEmoji}
+      secondaryText={`${character.mood} • ${character.mood_intensity}`}
+    />
   );
 }
 
@@ -536,32 +483,14 @@ function SystemMessage({ bubble }: { bubble: MessageBubble }) {
   if (!bubble.systemTools || bubble.systemTools.length === 0) return null;
   
   return (
-    <div className={css({ 
-      mb: 4,
-      display: 'flex',
-      justifyContent: 'center'
-    })}>
-      <div className={css({ 
-        px: 4,
-        py: 2,
-        bg: 'gray.900',
-        border: '1px solid',
-        borderColor: 'gray.700',
-        rounded: 'md',
-        fontSize: 'sm',
-        color: 'gray.400',
-        fontStyle: 'italic',
-        maxWidth: 'lg',
-        textAlign: 'center'
-      })}>
-        {bubble.systemTools.map((toolCall, index) => (
-          <SystemToolPresentation 
-            key={`${toolCall.tool_id}-${index}`} 
-            toolCall={toolCall} 
-          />
-        ))}
-      </div>
-    </div>
+    <SystemBubbleComponent>
+      {bubble.systemTools.map((toolCall, index) => (
+        <SystemToolPresentation 
+          key={`${toolCall.tool_id}-${index}`} 
+          toolCall={toolCall} 
+        />
+      ))}
+    </SystemBubbleComponent>
   );
 }
 
