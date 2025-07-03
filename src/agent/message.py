@@ -54,4 +54,9 @@ class AgentMessage(BaseModel):
     tool_calls: List[ToolCall]
 
 
-Message = UserMessage | AgentMessage
+class SystemMessage(BaseModel):
+    role: Literal["system"] = "system"
+    content: str
+
+
+Message = UserMessage | AgentMessage | SystemMessage

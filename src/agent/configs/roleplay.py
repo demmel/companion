@@ -130,7 +130,7 @@ Start by asking what character or scenario to explore, then fully become that ch
                 "global_scene": None,
                 "global_memories": [],
             },
-            summarization_prompt="""Please provide a structured summary of this roleplay conversation, focusing on:
+            summarization_prompt="""Please provide a structured summary of the {message_count} messages above, focusing on:
 
 1. **ACTIVE CHARACTER**: Current character being played, their personality, background, and quirks
 2. **CHARACTER RELATIONSHIPS**: Relationship dynamics and feelings between characters and user
@@ -139,9 +139,6 @@ Start by asking what character or scenario to explore, then fully become that ch
 5. **EMOTIONAL STATE**: Character's current mood and emotional journey
 6. **PLOT DEVELOPMENTS**: Key story events, character actions, and narrative progression
 7. **IMPORTANT DETAILS**: Names, preferences, and facts that must be preserved
-
-**Conversation to summarize:**
-{conversation_text}
 
 **Format the summary to maintain character consistency and narrative continuity for seamless roleplay continuation.**""",
         )
@@ -236,6 +233,20 @@ Start by asking what character or scenario to explore, then fully become that ch
             )
 
         return formatted_response
+
+    def get_summarization_system_prompt(self) -> str:
+        """Get roleplay-specific summarization system prompt with state context"""
+        return """You are a roleplay conversation summarizer specialized in character-driven narratives. Your task is to create detailed summaries that preserve:
+
+1. Character personalities, backgrounds, and development
+2. Relationship dynamics and emotional connections  
+3. Character memories and learned details about the user
+4. Scene settings, atmosphere, and environmental details
+5. Emotional states and mood progressions
+6. Plot developments and narrative continuity
+7. Important roleplay facts and established details
+
+Focus on information that will help continue the roleplay seamlessly with full character consistency and narrative coherence."""
 
     def _get_mood_styling(self, character):
         """Get styling information based on character mood"""

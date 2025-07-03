@@ -25,6 +25,8 @@ from agent.agent_events import (
     ToolStartedEvent,
     ToolFinishedEvent,
     AgentErrorEvent,
+    SummarizationStartedEvent,
+    SummarizationFinishedEvent,
     ResponseCompleteEvent,
 )
 
@@ -208,6 +210,23 @@ def event_to_dict(event: AgentEvent) -> Dict[str, Any]:
                 "message": event.message,
                 "tool_name": event.tool_name,
                 "tool_id": event.tool_id,
+            }
+        )
+    elif isinstance(event, SummarizationStartedEvent):
+        base_dict.update(
+            {
+                "messages_to_summarize": event.messages_to_summarize,
+                "recent_messages_kept": event.recent_messages_kept,
+                "context_usage_before": event.context_usage_before,
+            }
+        )
+    elif isinstance(event, SummarizationFinishedEvent):
+        base_dict.update(
+            {
+                "summary": event.summary,
+                "messages_summarized": event.messages_summarized,
+                "messages_after": event.messages_after,
+                "context_usage_after": event.context_usage_after,
             }
         )
     elif isinstance(event, ResponseCompleteEvent):

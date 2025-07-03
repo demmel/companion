@@ -330,4 +330,161 @@ describe('useConversation', () => {
       }
     ]);
   });
+
+  it('should handle summarization events correctly', () => {
+    const events: AgentEvent[] = [
+      {
+        id: 0,
+        type: 'summarization_started',
+        messages_to_summarize: 10,
+        recent_messages_kept: 6,
+        context_usage_before: 85.5
+      },
+      {
+        id: 1,
+        type: 'summarization_finished',
+        summary: 'User and assistant discussed various topics including weather, food preferences, and travel plans.',
+        messages_summarized: 10,
+        messages_after: 7,
+        context_usage_after: 42.3
+      }
+    ];
+
+    const { result } = renderHook(() => useConversation(events));
+
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages[0].role).toBe('system');
+    
+    const content = result.current.messages[0].content;
+    expect(typeof content).toBe('object');
+    expect((content as any).type).toBe('summarization');
+    expect((content as any).title).toContain('✅ Summarized 10 messages');
+    expect((content as any).summary).toBe('User and assistant discussed various topics including weather, food preferences, and travel plans.');
+    expect((content as any).messages_summarized).toBe(10);
+    expect((content as any).context_usage_before).toBe(85.5);
+    expect((content as any).context_usage_after).toBe(42.3);
+  });
+
+  it('should show summarization progress during streaming', () => {
+    const events: AgentEvent[] = [
+      {
+        id: 0,
+        type: 'summarization_started',
+        messages_to_summarize: 8,
+        recent_messages_kept: 4,
+        context_usage_before: 78.2
+      }
+    ];
+
+    const { result } = renderHook(() => useConversation(events));
+
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages[0].role).toBe('system');
+    expect(result.current.messages[0].content).toBe('📝 Summarizing 8 older messages to manage context (78.2% usage)...');
+    expect(result.current.isStreamActive).toBe(true);
+  });
+
+  it('should complete summarization and stop streaming', () => {
+    let events: AgentEvent[] = [
+      {
+        id: 0,
+        type: 'summarization_started',
+        messages_to_summarize: 5,
+        recent_messages_kept: 3,
+        context_usage_before: 90.1
+      }
+    ];
+
+    const { result, rerender } = renderHook(({ events }) => useConversation(events), {
+      initialProps: { events }
+    });
+
+    expect(result.current.isStreamActive).toBe(true);
+
+    // Complete the summarization
+    events = [
+      ...events,
+      {
+        id: 1,
+        type: 'summarization_finished',
+        summary: 'Previous conversation about project planning and deadlines.',
+        messages_summarized: 5,
+        messages_after: 4,
+        context_usage_after: 35.7
+      }
+    ];
+
+    rerender({ events });
+
+    expect(result.current.isStreamActive).toBe(true); // Still streaming until response_complete
+    expect(result.current.messages).toHaveLength(1);
+    
+    const content = result.current.messages[0].content;
+    expect((content as any).type).toBe('summarization');
+    expect((content as any).context_usage_before).toBe(90.1);
+    expect((content as any).context_usage_after).toBe(35.7);
+  });
+
+  it('should handle summarization followed by regular response', () => {
+    const events: AgentEvent[] = [
+      {
+        id: 0,
+        type: 'summarization_started',
+        messages_to_summarize: 6,
+        recent_messages_kept: 4,
+        context_usage_before: 82.0
+      },
+      {
+        id: 1,
+        type: 'summarization_finished',
+        summary: 'Discussion about travel destinations and budget planning.',
+        messages_summarized: 6,
+        messages_after: 5,
+        context_usage_after: 38.5
+      },
+      { id: 2, type: 'text', content: 'Now I can continue helping you!' },
+      { id: 3, type: 'response_complete' }
+    ];
+
+    const { result } = renderHook(() => useConversation(events));
+
+    expect(result.current.messages).toHaveLength(2);
+    
+    // First message: summarization
+    expect(result.current.messages[0].role).toBe('system');
+    expect((result.current.messages[0].content as any).type).toBe('summarization');
+    
+    // Second message: regular assistant response
+    expect(result.current.messages[1].role).toBe('assistant');
+    expect(result.current.messages[1].content).toBe('Now I can continue helping you!');
+    expect(result.current.isStreamActive).toBe(false);
+  });
+
+  it('should maintain correct role for system messages through response_complete', () => {
+    const events: AgentEvent[] = [
+      {
+        id: 0,
+        type: 'summarization_started',
+        messages_to_summarize: 5,
+        recent_messages_kept: 3,
+        context_usage_before: 85.0
+      },
+      {
+        id: 1,
+        type: 'summarization_finished',
+        summary: 'Test summary content',
+        messages_summarized: 5,
+        messages_after: 4,
+        context_usage_after: 40.0
+      },
+      { id: 2, type: 'response_complete' }
+    ];
+
+    const { result } = renderHook(() => useConversation(events));
+
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages[0].role).toBe('system'); // This should NOT be 'assistant'
+    expect(result.current.messages[0].tool_calls).toEqual([]); // System messages should have empty tool_calls
+    expect(result.current.isStreamActive).toBe(false);
+  });
 });

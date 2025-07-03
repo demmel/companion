@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { AgentEvent, Message, UserMessage, ToolCall, ToolCallFinished } from '../types';
+import { AgentEvent, Message, UserMessage, SystemMessage, SystemContent, SummarizationContent, ToolCall, ToolCallFinished } from '../types';
 import { debug } from '@/utils/debug';
 
 export interface UseConversationReturn {
@@ -16,9 +16,17 @@ export interface UseConversationReturn {
  */
 export function useConversation(events: AgentEvent[]): UseConversationReturn {
   const [baseMessages, setBaseMessages] = useState<Message[]>([]);
-  const [currentAgentResponse, setCurrentAgentResponse] = useState<{
-    content: string;
+  const [currentResponse, setCurrentResponse] = useState<{
+    role: 'assistant' | 'system';
+    content: string | SystemContent;
     toolCalls: Map<string, ToolCall>;
+    summarizationData?: {
+      messages_to_summarize: number;
+      context_usage_before: number;
+      messages_summarized?: number;
+      context_usage_after?: number;
+      summary?: string;
+    };
   } | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const lastProcessedEventId = useRef<number | null>(null);
@@ -28,15 +36,17 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
   }, [baseMessages]);
 
   useMemo(() => {
-    debug.log('Current agent response:', currentAgentResponse);
-  }, [currentAgentResponse]);
+    debug.log('Current response:', currentResponse);
+  }, [currentResponse]);
 
   // Process events into current agent response
   useEffect(() => {
     if (events.length === 0) return;
 
-    let content = currentAgentResponse?.content || '';
-    const toolCalls = currentAgentResponse?.toolCalls || new Map<string, ToolCall>();
+    let content = currentResponse?.content || '';
+    let role: 'assistant' | 'system' = currentResponse?.role || 'assistant';
+    const toolCalls = currentResponse?.toolCalls || new Map<string, ToolCall>();
+    let summarizationData = currentResponse?.summarizationData;
     let isComplete = false;
 
     for (const event of events) {
@@ -51,21 +61,22 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
 
       switch (event.type) {
         case 'text':
-          if (toolCalls.size > 0) {
-            // If we have tool calls, finalize the current response first
+          if (toolCalls.size > 0 || (role === 'system' && content)) {
+            // If we have tool calls or a system message, finalize the current response first
             const contentToFinalize = content;
             const toolCallsToFinalize = Array.from(toolCalls.values());
             setBaseMessages(prev => [
               ...prev,
               {
-                role: 'assistant',
+                role: role,
                 content: contentToFinalize,
-                tool_calls: toolCallsToFinalize
-              }
+                tool_calls: role === 'assistant' ? toolCallsToFinalize : []
+              } as Message
             ]);
             content = '';
             toolCalls.clear();
           }
+          role = 'assistant'; // Text events are always assistant responses
           content += event.content;
           isComplete = false; // Still streaming
           break;
@@ -92,6 +103,35 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
           }
           isComplete = false; // Still streaming
           break;
+        case 'summarization_started':
+          // Start a new system message response
+          role = 'system';
+          content = `📝 Summarizing ${event.messages_to_summarize} older messages to manage context (${event.context_usage_before.toFixed(1)}% usage)...`;
+          toolCalls.clear();
+          summarizationData = {
+            messages_to_summarize: event.messages_to_summarize,
+            context_usage_before: event.context_usage_before,
+          };
+          isComplete = false;
+          break;
+        case 'summarization_finished':
+          // Update the system message with structured summarization content
+          if (summarizationData) {
+            summarizationData.messages_summarized = event.messages_summarized;
+            summarizationData.context_usage_after = event.context_usage_after;
+            summarizationData.summary = event.summary;
+            
+            content = {
+              type: 'summarization',
+              title: `✅ Summarized ${event.messages_summarized} messages. Context usage: ${summarizationData.context_usage_before.toFixed(1)}% → ${event.context_usage_after.toFixed(1)}%`,
+              summary: event.summary,
+              messages_summarized: event.messages_summarized,
+              context_usage_before: summarizationData.context_usage_before,
+              context_usage_after: event.context_usage_after,
+            } as SummarizationContent;
+          }
+          isComplete = false;
+          break;
         case 'response_complete':
           // Finalize the current agent respons
           if (content || toolCalls.size > 0) {
@@ -101,9 +141,9 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
               return [
                 ...prev,
                 {
-                  role: 'assistant',
+                  role: role,
                   content: contentToFinalize,
-                  tool_calls: toolCallsToFinalize
+                  tool_calls: role === 'assistant' ? toolCallsToFinalize : []
                 }
               ];
             });
@@ -117,34 +157,36 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
       debug.log('Updated tool calls:', Array.from(toolCalls.values()));
     }
 
-    // Update the current agent response state
+    // Update the current response state
     if (content || toolCalls.size > 0) {
-      setCurrentAgentResponse({
+      setCurrentResponse({
+        role: role,
         content: content,
-        toolCalls: toolCalls
+        toolCalls: toolCalls,
+        summarizationData: summarizationData
       });
     } else {
-      setCurrentAgentResponse(null);
+      setCurrentResponse(null);
     }
 
     setIsStreamActive(!isComplete); // If we have a complete response, stop streaming
   }, [events]);
 
-  // Only reconstruct messages array when baseMessages or currentAgentResponse actually change
+  // Only reconstruct messages array when baseMessages or currentResponse actually change
   const messages = useMemo(() => {
-    if (!currentAgentResponse || currentAgentResponse.content === '' && currentAgentResponse.toolCalls.size === 0) {
+    if (!currentResponse || (currentResponse.content === '' && currentResponse.toolCalls.size === 0)) {
       return baseMessages;
     }
     
     return [
       ...baseMessages,
       {
-        role: 'assistant' as const,
-        content: currentAgentResponse.content,
-        tool_calls: Array.from(currentAgentResponse.toolCalls.values())
-      }
+        role: currentResponse.role,
+        content: currentResponse.content,
+        tool_calls: currentResponse.role === 'assistant' ? Array.from(currentResponse.toolCalls.values()) : []
+      } as Message
     ];
-  }, [baseMessages, currentAgentResponse]);
+  }, [baseMessages, currentResponse]);
 
   const addUserMessage = useCallback((content: string) => {
     const userMessage: UserMessage = {
@@ -152,20 +194,20 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
       content
     };
     setBaseMessages(prev => [...prev, userMessage]);
-    setCurrentAgentResponse(null);
+    setCurrentResponse(null);
     setIsStreamActive(true); // Indicate that a new user message has been added
   }, []);
 
   const loadConversation = useCallback((conversationMessages: Message[]) => {
     setBaseMessages(conversationMessages);
-    setCurrentAgentResponse(null);
+    setCurrentResponse(null);
     setIsStreamActive(false); // Reset stream state when loading a conversation
     lastProcessedEventId.current = null; // Reset event processing state
   }, []);
 
   const clearConversation = useCallback(() => {
     setBaseMessages([]);
-    setCurrentAgentResponse(null);
+    setCurrentResponse(null);
     setIsStreamActive(false); // Reset stream state when clearing conversation
     lastProcessedEventId.current = null; // Reset event processing state
   }, []);

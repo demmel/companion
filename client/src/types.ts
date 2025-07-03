@@ -33,7 +33,28 @@ export interface AgentMessage {
   tool_calls: ToolCall[];
 }
 
-export type Message = UserMessage | AgentMessage;
+export interface SummarizationContent {
+  type: 'summarization';
+  title: string;
+  summary: string;
+  messages_summarized: number;
+  context_usage_before: number;
+  context_usage_after: number;
+}
+
+export interface TextContent {
+  type: 'text';
+  text: string;
+}
+
+export type SystemContent = SummarizationContent | TextContent | string; // string for backward compatibility
+
+export interface SystemMessage {
+  role: 'system';
+  content: SystemContent;
+}
+
+export type Message = UserMessage | AgentMessage | SystemMessage;
 
 export interface ConversationResponse {
   messages: Message[];
@@ -55,6 +76,8 @@ export type AgentEventType =
   | 'tool_started'
   | 'tool_finished'
   | 'error'
+  | 'summarization_started'
+  | 'summarization_finished'
   | 'response_complete';
 
 export interface BaseAgentEvent {
@@ -88,6 +111,21 @@ export interface AgentErrorEvent extends BaseAgentEvent {
   tool_id?: string;
 }
 
+export interface SummarizationStartedEvent extends BaseAgentEvent {
+  type: 'summarization_started';
+  messages_to_summarize: number;
+  recent_messages_kept: number;
+  context_usage_before: number;
+}
+
+export interface SummarizationFinishedEvent extends BaseAgentEvent {
+  type: 'summarization_finished';
+  summary: string;
+  messages_summarized: number;
+  messages_after: number;
+  context_usage_after: number;
+}
+
 export interface ResponseCompleteEvent extends BaseAgentEvent {
   type: 'response_complete';
 }
@@ -97,6 +135,8 @@ export type AgentEvent =
   | ToolStartedEvent 
   | ToolFinishedEvent 
   | AgentErrorEvent 
+  | SummarizationStartedEvent
+  | SummarizationFinishedEvent
   | ResponseCompleteEvent;
 
 // UI State Types

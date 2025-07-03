@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ConversationPresenterProps } from './types';
-import { AgentMessage, UserMessage, ToolCall } from '@/types';
+import { AgentMessage, UserMessage, SystemMessage, ToolCall, SystemContent, SummarizationContent } from '@/types';
 import { RoleplayText } from '@/components/RoleplayText';
 import { RoleplayState, CharacterState } from '@/types/roleplay';
 import { css } from '@styled-system/css';
@@ -36,7 +36,7 @@ function createInitialRoleplayState(): RoleplayState {
 }
 
 interface MessageWithState {
-  message: AgentMessage | UserMessage;
+  message: AgentMessage | UserMessage | SystemMessage;
   index: number;
   stateAtMessage: RoleplayState;
   stateBeforeMessage: RoleplayState;
@@ -55,7 +55,7 @@ interface MessageBubble {
 }
 
 export function buildMessagesWithState(
-  messages: (AgentMessage | UserMessage)[], 
+  messages: (AgentMessage | UserMessage | SystemMessage)[], 
   initialState?: RoleplayState
 ): MessageWithState[] {
   let currentState = initialState || createInitialRoleplayState();
@@ -78,10 +78,12 @@ export function buildMessagesWithState(
       }
     }
     
+    // System messages don't affect roleplay state or character flow
+    
     const currentCharacterId = currentState.current_character_id;
     const currentCharacter = currentCharacterId ? currentState.characters[currentCharacterId] : null;
     
-    // Calculate header visibility for agent messages
+    // Calculate header visibility and tool calls for agent messages
     let shouldShowHeader = false;
     let visibleToolCalls: ToolCall[] = [];
     
@@ -101,6 +103,7 @@ export function buildMessagesWithState(
         lastSpeakingCharacter = currentCharacterId;
       }
     }
+    // System messages never show character headers or have tool calls
     
     return {
       message,
@@ -186,34 +189,53 @@ export function groupMessagesIntoBubbles(messagesWithState: MessageWithState[]):
       visibleToolCalls: agentTools
     };
 
-    // Handle agent/user message (if has content or agent tools)
-    if (message.content || agentTools.length > 0) {
-      // If this is a different role or we don't have a current bubble, start a new one
-      if (!currentBubble || currentBubble.role !== message.role) {
-        // Finalize previous bubble
+    // Handle all message types (user, assistant, system)
+    if (message.role === 'system' || message.content || agentTools.length > 0) {
+      // System messages always create their own bubble
+      if (message.role === 'system') {
+        // Finalize current bubble if it exists
         if (currentBubble) {
           bubbles.push(currentBubble);
+          currentBubble = null;
         }
-
-        // Start new bubble
-        currentBubble = {
-          role: message.role,
+        
+        // Create system bubble
+        bubbles.push({
+          role: 'system',
           messages: [agentMessageWithState],
-          shouldShowHeader: messageWithState.shouldShowHeader,
+          shouldShowHeader: false,
           currentCharacter: messageWithState.currentCharacter,
           stateAtMessage: messageWithState.stateAtMessage
-        };
+        });
       } else {
-        // Add to current bubble
-        currentBubble.messages.push(agentMessageWithState);
-        
-        // Update bubble properties with latest message info
-        currentBubble.stateAtMessage = messageWithState.stateAtMessage;
-        
-        // Show header if any message in the bubble should show it
-        if (messageWithState.shouldShowHeader) {
-          currentBubble.shouldShowHeader = true;
-          currentBubble.currentCharacter = messageWithState.currentCharacter;
+        // Handle agent/user messages (existing logic)
+        // If this is a different role or we don't have a current bubble, start a new one
+        if (!currentBubble || currentBubble.role !== message.role) {
+          // Finalize previous bubble
+          if (currentBubble) {
+            bubbles.push(currentBubble);
+          }
+
+          // Start new bubble
+          currentBubble = {
+            role: message.role,
+            messages: [agentMessageWithState],
+            shouldShowHeader: messageWithState.shouldShowHeader,
+            currentCharacter: messageWithState.currentCharacter,
+            stateAtMessage: messageWithState.stateAtMessage
+          };
+        } else {
+          // Add to current bubble
+          currentBubble.messages.push(agentMessageWithState);
+          
+          // Update bubble properties with latest message info
+          currentBubble.stateAtMessage = messageWithState.stateAtMessage;
+          
+          // Show header if any message in the bubble should show it
+          if (messageWithState.shouldShowHeader) {
+            currentBubble.shouldShowHeader = true;
+            currentBubble.currentCharacter = messageWithState.currentCharacter;
+          }
         }
       }
     }
@@ -340,7 +362,7 @@ export function RoleplayPresenter({ messages, isStreamActive, agentState }: Conv
           );
         } else {
           return (
-            <SystemMessage key={bubbleIndex} bubble={bubble} />
+            <SystemMessageBubble key={bubbleIndex} bubble={bubble} />
           );
         }
       })}
@@ -480,18 +502,108 @@ function SceneSetting({ toolCall }: { toolCall: ToolCall }) {
   );
 }
 
-function SystemMessage({ bubble }: { bubble: MessageBubble }) {
-  if (!bubble.systemTools || bubble.systemTools.length === 0) return null;
+function SystemMessageBubble({ bubble }: { bubble: MessageBubble }) {
+  // Handle system tool bubbles (existing logic)
+  if (bubble.systemTools && bubble.systemTools.length > 0) {
+    return (
+      <SystemBubbleComponent>
+        {bubble.systemTools.map((toolCall, index) => (
+          <SystemToolPresentation 
+            key={`${toolCall.tool_id}-${index}`} 
+            toolCall={toolCall} 
+          />
+        ))}
+      </SystemBubbleComponent>
+    );
+  }
   
+  // Handle system message bubbles (new logic)
+  if (bubble.messages.length > 0) {
+    const systemMessage = bubble.messages[0].message as SystemMessage;
+    return <SystemContentBubble content={systemMessage.content} />;
+  }
+  
+  return null;
+}
+
+function SystemContentBubble({ content }: { content: SystemContent }) {
+  // Handle different content types
+  if (typeof content === 'object' && content.type === 'summarization') {
+    return <SummarizationBubble content={content} />;
+  }
+
+  // Handle text content or string (backward compatibility)
+  const textContent = typeof content === 'string' 
+    ? content 
+    : content.type === 'text' 
+      ? content.text 
+      : String(content);
+
   return (
     <SystemBubbleComponent>
-      {bubble.systemTools.map((toolCall, index) => (
-        <SystemToolPresentation 
-          key={`${toolCall.tool_id}-${index}`} 
-          toolCall={toolCall} 
-        />
-      ))}
+      {textContent}
     </SystemBubbleComponent>
+  );
+}
+
+function SummarizationBubble({ content }: { content: SummarizationContent }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className={css({ 
+      mb: 4,
+      display: 'flex',
+      justifyContent: 'center'
+    })}>
+      <div className={css({ 
+        px: 4,
+        py: 3,
+        bg: 'yellow.950',
+        border: '1px solid',
+        borderColor: 'yellow.800',
+        rounded: 'md',
+        fontSize: 'xl',
+        color: 'yellow.200',
+        maxWidth: '2xl',
+        width: 'full'
+      })}>
+        <div className={css({ 
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer'
+        })}
+        onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <span>{content.title}</span>
+          <span className={css({ 
+            ml: 2,
+            fontSize: 'sm',
+            color: 'yellow.400',
+            transition: 'transform 0.2s',
+            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
+          })}>
+            ▶
+          </span>
+        </div>
+        
+        {isExpanded && (
+          <div className={css({ 
+            mt: 3,
+            pt: 3,
+            borderTop: '1px solid',
+            borderTopColor: 'yellow.800',
+            fontSize: 'lg',
+            color: 'yellow.100',
+            textAlign: 'left',
+            fontStyle: 'normal',
+            whiteSpace: 'pre-wrap'
+          })}>
+            {content.summary}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

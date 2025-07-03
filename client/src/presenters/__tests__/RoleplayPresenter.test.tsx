@@ -318,4 +318,101 @@ describe('RoleplayPresenter', () => {
 
     expect(screen.getByText('▋')).toBeInTheDocument();
   });
+
+  it('should handle system messages with text content', () => {
+    const messages = [
+      { role: 'user' as const, content: 'Hello' },
+      { role: 'system' as const, content: 'System notification: Context updated' },
+      { role: 'assistant' as const, content: 'How can I help?', tool_calls: [] }
+    ];
+
+    render(<RoleplayPresenter messages={messages} isStreamActive={false} agentState={mockAgentState} />);
+    
+    expect(screen.getByText('Hello')).toBeInTheDocument();
+    expect(screen.getByText('System notification: Context updated')).toBeInTheDocument();
+    expect(screen.getByText('How can I help?')).toBeInTheDocument();
+  });
+
+  it('should handle system messages with structured content', () => {
+    const summarizationContent = {
+      type: 'summarization' as const,
+      title: '✅ Summarized 5 messages. Context usage: 80% → 40%',
+      summary: 'Previous conversation about weather and travel',
+      messages_summarized: 5,
+      context_usage_before: 80,
+      context_usage_after: 40
+    };
+
+    const messages = [
+      { role: 'user' as const, content: 'Can you help me?' },
+      { role: 'system' as const, content: summarizationContent },
+      { role: 'assistant' as const, content: 'Of course!', tool_calls: [] }
+    ];
+
+    render(<RoleplayPresenter messages={messages} isStreamActive={false} agentState={mockAgentState} />);
+    
+    expect(screen.getByText('Can you help me?')).toBeInTheDocument();
+    expect(screen.getByText('✅ Summarized 5 messages. Context usage: 80% → 40%')).toBeInTheDocument();
+    expect(screen.getByText('Of course!')).toBeInTheDocument();
+  });
+
+  it('should handle mixed system message content types', () => {
+    const textContent = {
+      type: 'text' as const,
+      text: 'This is structured text content'
+    };
+
+    const messages = [
+      { role: 'system' as const, content: 'Plain string content' },
+      { role: 'system' as const, content: textContent },
+      { role: 'assistant' as const, content: 'Response', tool_calls: [] }
+    ];
+
+    render(<RoleplayPresenter messages={messages} isStreamActive={false} agentState={mockAgentState} />);
+    
+    expect(screen.getByText('Plain string content')).toBeInTheDocument();
+    expect(screen.getByText('This is structured text content')).toBeInTheDocument();
+    expect(screen.getByText('Response')).toBeInTheDocument();
+  });
+
+  it('should handle system messages alongside character roleplay', () => {
+    const assumeAlice: ToolCallFinished = {
+      type: 'finished',
+      tool_name: 'assume_character',
+      tool_id: 'call_1',
+      parameters: {
+        character_name: 'Alice',
+        personality: 'cheerful'
+      },
+      result: { type: 'success', content: 'Character created' }
+    };
+
+    const setMood: ToolCallFinished = {
+      type: 'finished',
+      tool_name: 'set_mood',
+      tool_id: 'call_2',
+      parameters: { mood: 'happy' },
+      result: { type: 'success', content: 'Mood set' }
+    };
+
+    const messages = [
+      {
+        role: 'assistant',
+        content: "I'm Alice",
+        tool_calls: [assumeAlice]
+      } as AgentMessage,
+      { role: 'system' as const, content: 'Context saved automatically' },
+      {
+        role: 'assistant',
+        content: "Hello there!",
+        tool_calls: [setMood]
+      } as AgentMessage
+    ];
+
+    render(<RoleplayPresenter messages={messages} isStreamActive={false} agentState={mockAgentState} />);
+    
+    expect(screen.getByText('Context saved automatically')).toBeInTheDocument();
+    expect(screen.getByText("Hello there!")).toBeInTheDocument();
+    expect(screen.getByText("I'm Alice")).toBeInTheDocument();
+  });
 });

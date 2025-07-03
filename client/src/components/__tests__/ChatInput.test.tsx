@@ -104,7 +104,7 @@ describe('ChatInput', () => {
     const onClear = vi.fn();
     render(<ChatInput {...defaultProps} onClear={onClear} />);
     
-    expect(screen.getByText('Clear conversation')).toBeInTheDocument();
+    expect(screen.getByText('Clear')).toBeInTheDocument();
   });
 
   it('should call onClear when clear button is clicked', async () => {
@@ -113,7 +113,7 @@ describe('ChatInput', () => {
     
     render(<ChatInput {...defaultProps} onClear={onClear} />);
     
-    const clearButton = screen.getByText('Clear conversation');
+    const clearButton = screen.getByText('Clear');
     await user.click(clearButton);
     
     expect(onClear).toHaveBeenCalledTimes(1);

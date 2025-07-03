@@ -56,21 +56,26 @@ class AgentConfig:
         # Default implementation, can be overridden
         return str(response).strip()
 
-    def get_summarization_prompt(self, conversation_text: str) -> str:
-        """Get the summarization prompt for this agent type"""
+    def get_summarization_system_prompt(self) -> str:
+        """Get the system prompt for summarization that includes current state context"""
+        # Build a summarization system prompt that includes relevant state
+        base_prompt = "You are a conversation summarizer. Your task is to create concise, accurate summaries that preserve essential context."
+        
+        # This can be overridden by specific configs to include state-specific context
+        return base_prompt
+
+    def get_summarization_prompt(self, message_count: int) -> str:
+        """Get the user prompt for summarization request"""
         if self.summarization_prompt:
-            return self.summarization_prompt.format(conversation_text=conversation_text)
+            return self.summarization_prompt.format(message_count=message_count)
 
         # Default summarization prompt
-        return f"""Please provide a concise summary of this conversation, focusing on:
+        return f"""Please provide a concise summary of the {message_count} messages above, focusing on:
 1. Key information and context
 2. Important events and developments  
-3. Relevant details to remember
+3. Relevant details to remember for continuing the conversation
 
-Conversation to summarize:
-{conversation_text}
-
-Provide a structured summary that captures the essential information for continuing the conversation."""
+Provide a structured summary that captures the essential information."""
 
 
 def get_all_configs() -> Dict[str, AgentConfig]:

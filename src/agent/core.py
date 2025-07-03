@@ -14,6 +14,7 @@ from .config import AgentConfig
 from .message import (
     AgentMessage,
     Message,
+    SystemMessage,
     ToolCall,
     ToolCallFinished,
     ToolCallResult,
@@ -27,6 +28,8 @@ from .agent_events import (
     ToolFinishedEvent,
     ToolResultType,
     AgentErrorEvent,
+    SummarizationStartedEvent,
+    SummarizationFinishedEvent,
     ResponseCompleteEvent,
 )
 
@@ -61,7 +64,12 @@ class Agent:
         # Initialize tools based on configuration
         self.tools = ToolRegistry(self, self.config.tools)
         self.verbose = verbose
-        self.conversation_history: List[Message] = []
+
+        # Dual conversation histories
+        self.conversation_history: List[Message] = []  # Complete history for user view
+        self.llm_conversation_history: List[Message] = (
+            []
+        )  # Optimized history for LLM (with summaries)
 
         # Generic agent state - configurations can extend this
         self.state = (
@@ -99,7 +107,8 @@ class Agent:
                 ),
             )
         ]
-        for msg in self.conversation_history:
+        # Use the optimized LLM history (which may include summaries)
+        for msg in self.llm_conversation_history:
             for llm_msg in message_to_llm_messages(msg):
                 messages.append(llm_msg)
         return messages
@@ -117,7 +126,9 @@ class Agent:
 
         return ContextInfo(
             message_count=len(messages),
-            conversation_messages=len(self.conversation_history),
+            conversation_messages=len(
+                self.conversation_history
+            ),  # User-visible message count
             estimated_tokens=estimated_tokens,
             context_limit=self.context_window,
             usage_percentage=(estimated_tokens / self.context_window) * 100,
@@ -141,8 +152,21 @@ class Agent:
         """Streaming chat interface that yields typed events"""
         start_time = time.time()
 
-        # Add user message to history
-        self.conversation_history.append(UserMessage(content=user_input))
+        # Add user message to both histories
+        user_message = UserMessage(content=user_input)
+        self.conversation_history.append(user_message)
+        self.llm_conversation_history.append(user_message)
+
+        # Check if we need auto-summarization before processing
+        context_info = self.get_context_info()
+        keep_recent = 6  # Default retention size
+        if (
+            context_info.approaching_limit
+            and len(self.llm_conversation_history) > keep_recent
+        ):
+            # Perform auto-summarization with event emission
+            for event in self._auto_summarize_with_events(keep_recent):
+                yield event
 
         # Continue generating responses with iteration limit
         max_iterations = self.config.max_iterations
@@ -225,9 +249,9 @@ class Agent:
 
             # If no tools or final iteration, we're done
             if not tool_events or is_final_iteration:
-                self.conversation_history.append(
-                    AgentMessage(content=collected_response, tool_calls=[])
-                )
+                agent_message = AgentMessage(content=collected_response, tool_calls=[])
+                self.conversation_history.append(agent_message)
+                self.llm_conversation_history.append(agent_message)
                 break
 
             # Execute tools and continue to next iteration
@@ -345,10 +369,12 @@ class Agent:
                         tool_id=tool_event.id,
                     )
 
-            # Store the agent message with tool calls
-            self.conversation_history.append(
-                AgentMessage(content=collected_response, tool_calls=finished_tool_calls)
+            # Store the agent message with tool calls in both histories
+            agent_message = AgentMessage(
+                content=collected_response, tool_calls=finished_tool_calls
             )
+            self.conversation_history.append(agent_message)
+            self.llm_conversation_history.append(agent_message)
 
         # Emit response complete event with context info
         context_info = self.get_context_info()
@@ -367,8 +393,109 @@ class Agent:
             print(f"[PERF] Total chat_stream time: {total_time:.3f}s")
 
     def reset_conversation(self):
-        """Reset the conversation history"""
+        """Reset both conversation histories"""
         self.conversation_history = []
+        self.llm_conversation_history = []
+
+    def _auto_summarize_with_events(self, keep_recent: int = 6) -> Iterator[AgentEvent]:
+        """Auto-summarize with event emission for streaming clients"""
+        # Calculate what we're about to do - work on LLM history only
+        old_messages = self.llm_conversation_history[:-keep_recent]
+        recent_messages = self.llm_conversation_history[-keep_recent:]
+        context_before = self.get_context_info()
+
+        # Emit started event
+        yield SummarizationStartedEvent(
+            messages_to_summarize=len(old_messages),
+            recent_messages_kept=len(recent_messages),
+            context_usage_before=context_before.usage_percentage,
+        )
+
+        # Convert old messages to text format for summarization
+        conversation_text = ""
+        for msg in old_messages:
+            # Convert message to text representation
+            content = msg.content
+            if isinstance(msg, AgentMessage) and msg.tool_calls:
+                # Include tool calls in the text representation
+                tool_calls_str = format_tool_calls(msg.tool_calls)
+                if tool_calls_str:
+                    content += "\n\n" + tool_calls_str
+
+                # Include tool results if available
+                tool_results_str = format_tool_results(
+                    [
+                        tool_call
+                        for tool_call in msg.tool_calls
+                        if isinstance(tool_call, ToolCallFinished)
+                    ]
+                )
+                if tool_results_str:
+                    content += "\n\n" + tool_results_str
+
+            conversation_text += f"{msg.role.upper()}: {content}\n\n"
+
+        # Get config-specific summarization prompt with current state context
+        summary_system_prompt = self.config.get_summarization_system_prompt()
+
+        # Add current state context to system prompt (critical for roleplay)
+        state_context = self.config._build_state_info(self.state)
+        if state_context:
+            summary_system_prompt += f"\n\nCURRENT STATE CONTEXT:\n{state_context}"
+
+        # Build summarization request as single user message
+        summary_task = self.config.get_summarization_prompt(len(old_messages))
+        user_request = f"Please summarize the following conversation:\n\n{conversation_text}\n{summary_task}"
+
+        summary_request = [
+            LLMMessage(role="system", content=summary_system_prompt),
+            LLMMessage(role="user", content=user_request),
+        ]
+
+        summary_response = self.llm.chat_complete(summary_request)
+
+        # Create summary as agent message to maintain proper alternation
+
+        summary_message = AgentMessage(
+            content=f"[Summary of {len(old_messages)} previous messages: {summary_response}]",
+            tool_calls=[],
+        )
+
+        # Check recent messages for proper alternation
+        # If recent messages start with an agent message, we might break alternation
+        if recent_messages and recent_messages[0].role == "assistant":
+            # Insert a system message to maintain flow
+            separator_message = SystemMessage(
+                content="[Previous conversation summarized above]"
+            )
+            self.llm_conversation_history = [
+                summary_message,
+                separator_message,
+            ] + recent_messages
+        else:
+            # Safe to concatenate directly
+            self.llm_conversation_history = [summary_message] + recent_messages
+
+        # Add summarization notification to user history (they should see what happened)
+        # Find the position where summarization occurred in user history
+        user_summary_index = len(self.conversation_history) - len(recent_messages)
+        summary_notification = AgentMessage(
+            content=f"📝 [Summarized {len(old_messages)} older messages to manage context - conversation continues below]",
+            tool_calls=[],
+        )
+
+        # Insert notification at the right position to maintain chronological order
+        self.conversation_history.insert(user_summary_index, summary_notification)
+
+        context_after = self.get_context_info()
+
+        # Emit finished event
+        yield SummarizationFinishedEvent(
+            summary=summary_response,
+            messages_summarized=len(old_messages),
+            messages_after=len(self.llm_conversation_history),
+            context_usage_after=context_after.usage_percentage,
+        )
 
     def summarize_and_trim_context(self, keep_recent: int = 6) -> dict:
         """Summarize older conversation and keep only recent messages"""

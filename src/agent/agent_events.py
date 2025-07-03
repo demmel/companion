@@ -18,6 +18,8 @@ class AgentEventType(Enum):
     TOOL_FINISHED = "tool_finished"
     USER_INPUT_REQUEST = "user_input_request"  # Placeholder for future implementation
     ERROR = "error"
+    SUMMARIZATION_STARTED = "summarization_started"
+    SUMMARIZATION_FINISHED = "summarization_finished"
     RESPONSE_COMPLETE = "response_complete"
 
 
@@ -78,6 +80,25 @@ class AgentErrorEvent(BaseModel):
     type: AgentEventType = AgentEventType.ERROR
 
 
+class SummarizationStartedEvent(BaseModel):
+    """Auto-summarization process started"""
+
+    messages_to_summarize: int
+    recent_messages_kept: int
+    context_usage_before: float
+    type: AgentEventType = AgentEventType.SUMMARIZATION_STARTED
+
+
+class SummarizationFinishedEvent(BaseModel):
+    """Auto-summarization process completed"""
+
+    summary: str
+    messages_summarized: int
+    messages_after: int
+    context_usage_after: float
+    type: AgentEventType = AgentEventType.SUMMARIZATION_FINISHED
+
+
 class ResponseCompleteEvent(BaseModel):
     """Agent response completed with context information"""
 
@@ -98,5 +119,7 @@ AgentEvent = (
     | ToolFinishedEvent
     | UserInputRequestEvent
     | AgentErrorEvent
+    | SummarizationStartedEvent
+    | SummarizationFinishedEvent
     | ResponseCompleteEvent
 )
