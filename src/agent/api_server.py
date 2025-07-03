@@ -25,6 +25,7 @@ from agent.agent_events import (
     ToolStartedEvent,
     ToolFinishedEvent,
     AgentErrorEvent,
+    ResponseCompleteEvent,
 )
 
 
@@ -209,6 +210,17 @@ def event_to_dict(event: AgentEvent) -> Dict[str, Any]:
                 "tool_id": event.tool_id,
             }
         )
+    elif isinstance(event, ResponseCompleteEvent):
+        base_dict.update(
+            {
+                "message_count": event.message_count,
+                "conversation_messages": event.conversation_messages,
+                "estimated_tokens": event.estimated_tokens,
+                "context_limit": event.context_limit,
+                "usage_percentage": event.usage_percentage,
+                "approaching_limit": event.approaching_limit,
+            }
+        )
 
     return base_dict
 
@@ -230,6 +242,23 @@ async def get_conversation():
     # Return the structured conversation history
     messages = agent.get_conversation_history()
     return ConversationResponse(messages=messages)
+
+
+@app.get("/api/context")
+async def get_context_info():
+    """Get current context information"""
+    if agent is None:
+        initialize_agent()
+
+    context_info = agent.get_context_info()
+    return {
+        "message_count": context_info.message_count,
+        "conversation_messages": context_info.conversation_messages,
+        "estimated_tokens": context_info.estimated_tokens,
+        "context_limit": context_info.context_limit,
+        "usage_percentage": context_info.usage_percentage,
+        "approaching_limit": context_info.approaching_limit,
+    }
 
 
 @app.get("/api/state")
@@ -350,8 +379,7 @@ async def websocket_chat(websocket: WebSocket):
                     logger.debug(f"Sending event: {event_dict}")
                     await websocket.send_text(json.dumps(event_dict))
 
-                # Send end-of-response marker
-                await websocket.send_text(json.dumps({"type": "response_complete"}))
+                # Agent will emit ResponseCompleteEvent automatically
 
             except Exception as e:
                 # Send error event

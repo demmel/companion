@@ -27,6 +27,7 @@ from .agent_events import (
     ToolFinishedEvent,
     ToolResultType,
     AgentErrorEvent,
+    ResponseCompleteEvent,
 )
 
 
@@ -348,6 +349,17 @@ class Agent:
             self.conversation_history.append(
                 AgentMessage(content=collected_response, tool_calls=finished_tool_calls)
             )
+
+        # Emit response complete event with context info
+        context_info = self.get_context_info()
+        yield ResponseCompleteEvent(
+            message_count=context_info.message_count,
+            conversation_messages=context_info.conversation_messages,
+            estimated_tokens=context_info.estimated_tokens,
+            context_limit=context_info.context_limit,
+            usage_percentage=context_info.usage_percentage,
+            approaching_limit=context_info.approaching_limit,
+        )
 
         # Performance logging
         total_time = time.time() - start_time

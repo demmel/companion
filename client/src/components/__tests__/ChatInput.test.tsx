@@ -119,15 +119,39 @@ describe('ChatInput', () => {
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 
-  it('should display item count and scroll mode', () => {
-    render(<ChatInput {...defaultProps} itemCount={5} scrollMode="Manual scroll" />);
+  it('should display context info when provided', () => {
+    const contextInfo = {
+      estimated_tokens: 2840,
+      context_limit: 8192,
+      usage_percentage: 34.7,
+      conversation_messages: 12,
+      approaching_limit: false
+    };
     
-    expect(screen.getByText('5 items • Manual scroll')).toBeInTheDocument();
+    render(<ChatInput {...defaultProps} contextInfo={contextInfo} />);
+    
+    expect(screen.getByText('2.8k/8k tokens (35%) • 12 messages')).toBeInTheDocument();
   });
 
-  it('should display default values for item count and scroll mode', () => {
+  it('should display loading when no context info provided', () => {
     render(<ChatInput {...defaultProps} />);
     
-    expect(screen.getByText('0 items • Auto-scroll')).toBeInTheDocument();
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+  });
+
+  it('should display context info in yellow when approaching limit', () => {
+    const contextInfo = {
+      estimated_tokens: 6500,
+      context_limit: 8192,
+      usage_percentage: 79.3,
+      conversation_messages: 25,
+      approaching_limit: true
+    };
+    
+    render(<ChatInput {...defaultProps} contextInfo={contextInfo} />);
+    
+    const statusText = screen.getByText('6.5k/8k tokens (79%) • 25 messages');
+    expect(statusText).toBeInTheDocument();
+    // Note: We can't easily test CSS color in jsdom, but the logic is there
   });
 });

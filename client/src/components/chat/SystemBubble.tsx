@@ -18,7 +18,7 @@ export function SystemBubble({ children }: SystemBubbleProps) {
         border: '1px solid',
         borderColor: 'gray.700',
         rounded: 'md',
-        fontSize: 'sm',
+        fontSize: 'xl',
         color: 'gray.400',
         fontStyle: 'italic',
         maxWidth: 'lg',

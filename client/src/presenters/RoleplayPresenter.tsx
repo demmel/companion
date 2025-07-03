@@ -54,7 +54,7 @@ interface MessageBubble {
   systemTools?: ToolCall[]; // For system-only bubbles
 }
 
-function buildMessagesWithState(
+export function buildMessagesWithState(
   messages: (AgentMessage | UserMessage)[], 
   initialState?: RoleplayState
 ): MessageWithState[] {
@@ -169,7 +169,7 @@ function applyToolCallToState(state: RoleplayState, toolCall: ToolCall): Rolepla
   return newState;
 }
 
-function groupMessagesIntoBubbles(messagesWithState: MessageWithState[]): MessageBubble[] {
+export function groupMessagesIntoBubbles(messagesWithState: MessageWithState[]): MessageBubble[] {
   const bubbles: MessageBubble[] = [];
   let currentBubble: MessageBubble | null = null;
 
@@ -252,7 +252,7 @@ function UserBubble({ bubble }: { bubble: MessageBubble }) {
       {bubble.messages.map((messageWithState, index) => (
         <div key={index} className={css({ 
           whiteSpace: 'pre-wrap', 
-          fontSize: 'sm',
+          fontSize: 'xl',
           '&:not(:last-child)': { mb: 2 }
         })}>
           {messageWithState.message.content}
@@ -286,7 +286,8 @@ function AgentBubble({ bubble }: { bubble: MessageBubble }) {
                 {agentMessage.content && (
                   <div className={css({ 
                     '&:not(:first-child)': { mt: 2 },
-                    '&:not(:last-child)': { mb: 2 }
+                    '&:not(:last-child)': { mb: 2 },
+                    fontSize: 'xl'
                   })}>
                     <RoleplayText content={agentMessage.content} />
                   </div>

@@ -15,10 +15,19 @@ interface ChatInterfaceProps {
   client: AgentClient;
 }
 
+interface ContextInfo {
+  estimated_tokens: number;
+  context_limit: number;
+  usage_percentage: number;
+  conversation_messages: number;
+  approaching_limit: boolean;
+}
+
 export function ChatInterface({ client }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState('');
   const [configName, setConfigName] = useState<string>('general');
   const [agentState, setAgentState] = useState<Record<string, any>>({});
+  const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
   
   // New architecture: batch events then convert to structured messages
   const { events, queueEvent, clearEvents } = useStreamBatcher(50);
@@ -37,6 +46,17 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   const PresenterComponent = getPresenterForConfig(configName);
   
   const handleMessage = useCallback((event: AgentEvent) => {
+    // Handle response_complete events to update context info
+    if (event.type === 'response_complete') {
+      setContextInfo({
+        estimated_tokens: (event as any).estimated_tokens,
+        context_limit: (event as any).context_limit,
+        usage_percentage: (event as any).usage_percentage,
+        conversation_messages: (event as any).conversation_messages,
+        approaching_limit: (event as any).approaching_limit,
+      });
+    }
+    
     queueEvent(event);
   }, [queueEvent]);
 
@@ -51,7 +71,6 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   });
 
   const {
-    isUserAtBottom,
     messagesEndRef,
     messagesContainerRef,
     handleScroll,
@@ -76,15 +95,23 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Load config and state in parallel
-        const [config, state, conversationData] = await Promise.all([
+        // Load config, state, conversation, and context info in parallel
+        const [config, state, conversationData, contextData] = await Promise.all([
           client.getConfig(),
           client.getState(),
-          client.getConversation()
+          client.getConversation(),
+          client.getContextInfo()
         ]);
         
         setConfigName(config.name);
         setAgentState(state);
+        setContextInfo({
+          estimated_tokens: contextData.estimated_tokens,
+          context_limit: contextData.context_limit,
+          usage_percentage: contextData.usage_percentage,
+          conversation_messages: contextData.conversation_messages,
+          approaching_limit: contextData.approaching_limit,
+        });
         
         if (conversationData.length > 0) {
           loadConversation(conversationData);
@@ -106,6 +133,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     
     clearEvents();
     clearConversation();
+    setContextInfo(null);
     setUserAtBottom(true);
   };
 
@@ -154,7 +182,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
               })}>Start a conversation</h2>
               <p className={css({ 
                 color: 'gray.500', 
-                fontSize: 'sm', 
+                fontSize: 'xl', 
                 mb: 6 
               })}>Send a message to begin chatting with the agent</p>
               <div className={css({ 
@@ -174,7 +202,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
                 })}>Example</p>
                 <p className={css({ 
                   color: 'gray.300', 
-                  fontSize: 'sm' 
+                  fontSize: 'xl' 
                 })}>"Please roleplay as Elena, a mysterious vampire."</p>
               </div>
             </div>
@@ -200,8 +228,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         disabled={!isConnected || isConnecting || isStreamActive}
         onClear={handleClear}
         clearDisabled={isStreamActive}
-        itemCount={messages.length}
-        scrollMode={isUserAtBottom ? 'Auto-scroll' : 'Manual scroll'}
+        contextInfo={contextInfo}
       />
     </div>
   );

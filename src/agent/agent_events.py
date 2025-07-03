@@ -18,6 +18,7 @@ class AgentEventType(Enum):
     TOOL_FINISHED = "tool_finished"
     USER_INPUT_REQUEST = "user_input_request"  # Placeholder for future implementation
     ERROR = "error"
+    RESPONSE_COMPLETE = "response_complete"
 
 
 class ToolResultType(Enum):
@@ -77,6 +78,18 @@ class AgentErrorEvent(BaseModel):
     type: AgentEventType = AgentEventType.ERROR
 
 
+class ResponseCompleteEvent(BaseModel):
+    """Agent response completed with context information"""
+
+    message_count: int
+    conversation_messages: int
+    estimated_tokens: int
+    context_limit: int
+    usage_percentage: float
+    approaching_limit: bool
+    type: AgentEventType = AgentEventType.RESPONSE_COMPLETE
+
+
 # Union type for all agent events
 AgentEvent = (
     AgentTextEvent
@@ -85,4 +98,5 @@ AgentEvent = (
     | ToolFinishedEvent
     | UserInputRequestEvent
     | AgentErrorEvent
+    | ResponseCompleteEvent
 )

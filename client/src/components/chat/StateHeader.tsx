@@ -13,7 +13,7 @@ export function StateHeader({ primaryText, icon, secondaryText }: StateHeaderPro
         display: 'flex', 
         alignItems: 'center', 
         gap: 2, 
-        fontSize: 'sm' 
+        fontSize: 'xl' 
       })}>
         <span className={css({ 
           fontWeight: 'medium', 

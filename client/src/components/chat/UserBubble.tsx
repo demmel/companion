@@ -17,7 +17,7 @@ export function UserBubble({ children, showHeader = false }: UserBubbleProps) {
           <span className={css({ 
             fontWeight: 'medium', 
             color: 'gray.300',
-            fontSize: 'sm'
+            fontSize: 'xl'
           })}>
             You
           </span>

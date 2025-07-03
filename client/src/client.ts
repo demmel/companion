@@ -73,4 +73,21 @@ export class AgentClient {
     
     return response.json();
   }
+
+  async getContextInfo(): Promise<{
+    message_count: number;
+    conversation_messages: number;
+    estimated_tokens: number;
+    context_limit: number;
+    usage_percentage: number;
+    approaching_limit: boolean;
+  }> {
+    const response = await fetch(`${this.httpBaseUrl}/api/context`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get context info: ${response.statusText}`);
+    }
+    
+    return response.json();
+  }
 }
