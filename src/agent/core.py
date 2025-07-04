@@ -14,6 +14,7 @@ from .config import AgentConfig
 from .message import (
     AgentMessage,
     Message,
+    SummarizationContent,
     SystemMessage,
     ToolCall,
     ToolCallFinished,
@@ -476,18 +477,29 @@ class Agent:
             # Safe to concatenate directly
             self.llm_conversation_history = [summary_message] + recent_messages
 
-        # Add summarization notification to user history (they should see what happened)
-        # Find the position where summarization occurred in user history
+        context_after = self.get_context_info()
+        
+        # Add structured summarization notification to user history
+        # Find the position where summarization occurred in user history  
         user_summary_index = len(self.conversation_history) - len(recent_messages)
-        summary_notification = AgentMessage(
-            content=f"📝 [Summarized {len(old_messages)} older messages to manage context - conversation continues below]",
-            tool_calls=[],
+        
+        # Create structured summarization content that matches frontend expectations
+        summarization_content = SummarizationContent(
+            type="summarization",
+            title=f"✅ Summarized {len(old_messages)} messages. Context usage: {context_before.usage_percentage:.1f}% → {context_after.usage_percentage:.1f}%",
+            summary=summary_response,
+            messages_summarized=len(old_messages),
+            context_usage_before=context_before.usage_percentage,
+            context_usage_after=context_after.usage_percentage,
+        )
+        
+        summary_notification = SystemMessage(
+            role="system",
+            content=summarization_content,
         )
 
         # Insert notification at the right position to maintain chronological order
         self.conversation_history.insert(user_summary_index, summary_notification)
-
-        context_after = self.get_context_info()
 
         # Emit finished event
         yield SummarizationFinishedEvent(

@@ -11,7 +11,7 @@ from agent.config import AgentConfig
 from agent.message import UserMessage, AgentMessage, Message
 from agent.agent_events import SummarizationStartedEvent, SummarizationFinishedEvent, ResponseCompleteEvent
 from agent.llm import Message as LLMMessage
-from tests.test_configs import create_empty_config
+from test_configs import create_empty_config
 
 
 class MockLLMClient:
@@ -235,17 +235,26 @@ class TestAutoSummarization:
         
         list(agent.chat_stream("New message"))
         
-        # Should have notification inserted
-        notifications = [msg for msg in agent.conversation_history 
-                        if "Summarized" in msg.content and "📝" in msg.content]
-        assert len(notifications) == 1
+        # Should have system messages with structured summarization content
+        from agent.message import SystemMessage, SummarizationContent
+        system_messages = [msg for msg in agent.conversation_history 
+                          if isinstance(msg, SystemMessage) and 
+                          isinstance(msg.content, SummarizationContent)]
+        assert len(system_messages) == 1
+        
+        # Check the structured content
+        notification = system_messages[0]
+        assert isinstance(notification.content, SummarizationContent)
+        assert notification.content.type == "summarization"
+        assert "Summarized" in notification.content.title
+        assert notification.content.messages_summarized > 0
         
         # Notification should be in correct chronological position
-        notification_index = agent.conversation_history.index(notifications[0])
+        notification_index = agent.conversation_history.index(notification)
         assert 0 <= notification_index < len(agent.conversation_history)
     
-    def test_summarization_preserves_message_structure(self, agent_with_long_history):
-        """Test that original message structure is preserved in summarization request"""
+    def test_summarization_uses_single_message_approach(self, agent_with_long_history):
+        """Test that summarization uses single message concatenation approach"""
         agent = agent_with_long_history
         
         with patch.object(agent.llm, 'chat_complete') as mock_complete:
@@ -253,15 +262,19 @@ class TestAutoSummarization:
             
             list(agent.chat_stream("New message"))
             
-            # Check that messages were passed in structured format
+            # Check that the new single-message approach was used
             call_args = mock_complete.call_args[0][0]
             
-            # Should have system prompt, then structured messages, then user prompt
+            # Should have exactly 2 messages: system prompt + user request with conversation text
+            assert len(call_args) == 2
             assert call_args[0].role == "system"
-            assert call_args[-1].role == "user"
+            assert call_args[1].role == "user"
             
-            # Should have multiple messages in between (not concatenated text)
-            assert len(call_args) > 3
+            # User message should contain concatenated conversation text
+            user_message = call_args[1].content
+            assert "Please summarize the following conversation:" in user_message
+            assert "USER:" in user_message  # Should have conversation text
+            assert "ASSISTANT:" in user_message
 
 
 class TestSummarizationEdgeCases:

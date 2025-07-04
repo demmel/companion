@@ -54,9 +54,29 @@ class AgentMessage(BaseModel):
     tool_calls: List[ToolCall]
 
 
+class SummarizationContent(BaseModel):
+    """Structured content for summarization system messages"""
+    type: Literal["summarization"] = "summarization"
+    title: str
+    summary: str
+    messages_summarized: int
+    context_usage_before: float
+    context_usage_after: float
+
+
+class TextContent(BaseModel):
+    """Structured content for text system messages"""
+    type: Literal["text"] = "text"
+    text: str
+
+
+# Union type for system message content (can be structured or string for backward compatibility)
+SystemContent = SummarizationContent | TextContent | str
+
+
 class SystemMessage(BaseModel):
     role: Literal["system"] = "system"
-    content: str
+    content: SystemContent
 
 
 Message = UserMessage | AgentMessage | SystemMessage
