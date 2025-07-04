@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { AgentEvent, Message, UserMessage, SystemMessage, SystemContent, SummarizationContent, ToolCall, ToolCallFinished } from '../types';
+import { AgentEvent, Message, UserMessage, SystemContent, SummarizationContent, ToolCall, ToolCallFinished } from '../types';
 import { debug } from '@/utils/debug';
 
 export interface UseConversationReturn {
@@ -115,13 +115,13 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
           isComplete = false;
           break;
         case 'summarization_finished':
-          // Update the system message with structured summarization content
+          // Update and finalize the system message with structured summarization content
           if (summarizationData) {
             summarizationData.messages_summarized = event.messages_summarized;
             summarizationData.context_usage_after = event.context_usage_after;
             summarizationData.summary = event.summary;
             
-            content = {
+            const summaryContent = {
               type: 'summarization',
               title: `✅ Summarized ${event.messages_summarized} messages. Context usage: ${summarizationData.context_usage_before.toFixed(1)}% → ${event.context_usage_after.toFixed(1)}%`,
               summary: event.summary,
@@ -129,23 +129,51 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
               context_usage_before: summarizationData.context_usage_before,
               context_usage_after: event.context_usage_after,
             } as SummarizationContent;
+            
+            // Finalize the system message immediately
+            const systemMessage: SystemMessage = {
+              role: 'system',
+              content: summaryContent
+            };
+            
+            setBaseMessages(prev => [...prev, systemMessage]);
+            
+            // Reset state for next response
+            content = '';
+            toolCalls.clear();
+            summarizationData = undefined;
           }
-          isComplete = false;
+          isComplete = false; // More events may follow
           break;
         case 'response_complete':
-          // Finalize the current agent respons
+          // Finalize the current agent response
           if (content || toolCalls.size > 0) {
             const contentToFinalize = content;
             const toolCallsToFinalize = Array.from(toolCalls.values());
+            
+            let message: Message;
+            if (role === 'system') {
+              // System messages don't have tool_calls
+              message = {
+                role: 'system',
+                content: contentToFinalize as SystemContent
+              } as SystemMessage;
+            } else if (role === 'assistant') {
+              message = {
+                role: 'assistant',
+                content: contentToFinalize as string,
+                tool_calls: toolCallsToFinalize
+              } as AgentMessage;
+            } else {
+              // User messages
+              message = {
+                role: 'user',
+                content: contentToFinalize as string
+              } as UserMessage;
+            }
+            
             setBaseMessages(prev => {
-              return [
-                ...prev,
-                {
-                  role: role,
-                  content: contentToFinalize,
-                  tool_calls: role === 'assistant' ? toolCallsToFinalize : []
-                }
-              ];
+              return [...prev, message];
             });
           }
           content = '';
@@ -178,13 +206,31 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
       return baseMessages;
     }
     
+    // Create properly typed message based on role
+    let currentMessage: Message;
+    if (currentResponse.role === 'system') {
+      // System messages don't have tool_calls
+      currentMessage = {
+        role: 'system',
+        content: currentResponse.content as SystemContent
+      } as SystemMessage;
+    } else if (currentResponse.role === 'assistant') {
+      currentMessage = {
+        role: 'assistant',
+        content: currentResponse.content as string,
+        tool_calls: Array.from(currentResponse.toolCalls.values())
+      } as AgentMessage;
+    } else {
+      // User messages
+      currentMessage = {
+        role: 'user',
+        content: currentResponse.content as string
+      } as UserMessage;
+    }
+    
     return [
       ...baseMessages,
-      {
-        role: currentResponse.role,
-        content: currentResponse.content,
-        tool_calls: currentResponse.role === 'assistant' ? Array.from(currentResponse.toolCalls.values()) : []
-      } as Message
+      currentMessage
     ];
   }, [baseMessages, currentResponse]);
 

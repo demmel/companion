@@ -277,7 +277,7 @@ function UserBubble({ bubble }: { bubble: MessageBubble }) {
           fontSize: 'xl',
           '&:not(:last-child)': { mb: 2 }
         })}>
-          {messageWithState.message.content}
+          {messageWithState.message.content as string}
         </div>
       ))}
     </UserBubbleComponent>

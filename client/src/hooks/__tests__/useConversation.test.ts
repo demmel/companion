@@ -482,9 +482,65 @@ describe('useConversation', () => {
 
     const { result } = renderHook(() => useConversation(events));
 
+
     expect(result.current.messages).toHaveLength(1);
     expect(result.current.messages[0].role).toBe('system'); // This should NOT be 'assistant'
-    expect(result.current.messages[0].tool_calls).toEqual([]); // System messages should have empty tool_calls
+    expect(result.current.messages[0]).not.toHaveProperty('tool_calls');
+    expect(result.current.isStreamActive).toBe(false);
+  });
+
+  it('should not create AgentMessage with SummarizationContent when text events follow summarization', () => {
+    // This test covers the specific bug where text events after summarization_finished
+    // would reset role to 'assistant' but leave SummarizationContent as content,
+    // causing agentMessage.content.trim() to fail in RoleplayPresenter
+    const events: AgentEvent[] = [
+      {
+        id: 0,
+        type: 'summarization_started',
+        messages_to_summarize: 6,
+        recent_messages_kept: 4,
+        context_usage_before: 75.0
+      },
+      {
+        id: 1,
+        type: 'summarization_finished',
+        summary: 'Previous conversation about exploring nature and mushrooms.',
+        messages_summarized: 6,
+        messages_after: 8,
+        context_usage_after: 68.0
+      },
+      // Text events that follow summarization (this was causing the bug)
+      { id: 2, type: 'text', content: '*Eyes light up*' },
+      { id: 3, type: 'text', content: ' Amazing facts!' },
+      { id: 4, type: 'response_complete' }
+    ];
+
+    const { result } = renderHook(() => useConversation(events));
+
+    expect(result.current.messages).toHaveLength(2);
+    
+    // First message: properly created system message with SummarizationContent
+    const systemMessage = result.current.messages[0];
+    expect(systemMessage.role).toBe('system');
+    expect(typeof systemMessage.content).toBe('object');
+    expect((systemMessage.content as any).type).toBe('summarization');
+    expect((systemMessage.content as any).summary).toBe('Previous conversation about exploring nature and mushrooms.');
+    expect(systemMessage).not.toHaveProperty('tool_calls');
+    
+    // Second message: properly created assistant message with string content
+    const assistantMessage = result.current.messages[1];
+    expect(assistantMessage.role).toBe('assistant');
+    expect(typeof assistantMessage.content).toBe('string'); // This should be a string, NOT SummarizationContent
+    expect(assistantMessage.content).toBe('*Eyes light up* Amazing facts!');
+    expect(assistantMessage).toHaveProperty('tool_calls');
+    expect((assistantMessage as any).tool_calls).toEqual([]);
+    
+    // Verify the string content can be trimmed (this would fail with the bug)
+    expect(() => {
+      const content = assistantMessage.content as string;
+      return content.trim();
+    }).not.toThrow();
+    
     expect(result.current.isStreamActive).toBe(false);
   });
 });
