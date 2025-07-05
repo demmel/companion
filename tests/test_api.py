@@ -14,7 +14,7 @@ from typing import Generator, Dict, Any
 
 # Test configuration
 BASE_URL = "http://localhost:8000"
-WS_URL = "ws://localhost:8000/chat"
+WS_URL = "ws://localhost:8000/api/chat"
 SERVER_STARTUP_TIMEOUT = 15
 
 
@@ -49,7 +49,7 @@ def api_server() -> Generator[subprocess.Popen, None, None]:
     server_started = False
     for i in range(SERVER_STARTUP_TIMEOUT):
         try:
-            response = requests.get(f"{BASE_URL}/health", timeout=1)
+            response = requests.get(f"{BASE_URL}/api/health", timeout=1)
             if response.status_code == 200:
                 print(f"✅ Server started (took {i+1}s)")
                 server_started = True
@@ -75,6 +75,14 @@ def api_server() -> Generator[subprocess.Popen, None, None]:
         process.wait()
         print("✅ Server killed")
 
+    # Disaply server logs
+    print("\n📜 Server logs")
+    stdout, stderr = process.communicate()
+    if stdout:
+        print("\nSTDOUT:\n", stdout.decode())
+    if stderr:
+        print("\nSTDERR:\n", stderr.decode())
+
 
 @pytest.fixture
 def reset_agent(api_server):
@@ -89,7 +97,8 @@ class TestHealthEndpoint:
 
     def test_health_check(self, api_server):
         """Test basic health endpoint"""
-        response = requests.get(f"{BASE_URL}/health", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/health", timeout=5)
+        print(response.text)
 
         assert response.status_code == 200
         data = response.json()
@@ -111,7 +120,7 @@ class TestConfigEndpoints:
 
     def test_get_current_config(self, api_server, reset_agent):
         """Test getting current config"""
-        response = requests.get(f"{BASE_URL}/config", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/config", timeout=5)
 
         assert response.status_code == 200
         data = response.json()
@@ -128,7 +137,7 @@ class TestConfigEndpoints:
 
     def test_get_available_configs(self, api_server):
         """Test getting all available configs"""
-        response = requests.get(f"{BASE_URL}/configs", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/configs", timeout=5)
 
         assert response.status_code == 200
         data = response.json()
@@ -146,12 +155,14 @@ class TestConfigEndpoints:
     def test_reset_with_config_change(self, api_server, reset_agent):
         """Test resetting agent with different config"""
         # Get current config
-        current_resp = requests.get(f"{BASE_URL}/config", timeout=5)
+        current_resp = requests.get(f"{BASE_URL}/api/config", timeout=5)
         current_config = current_resp.json()["name"]
 
         # Reset to different config
         new_config = "coding" if current_config != "coding" else "general"
-        reset_resp = requests.post(f"{BASE_URL}/reset?config={new_config}", timeout=5)
+        reset_resp = requests.post(
+            f"{BASE_URL}/api/reset?config={new_config}", timeout=5
+        )
 
         assert reset_resp.status_code == 200
         reset_data = reset_resp.json()
@@ -160,14 +171,16 @@ class TestConfigEndpoints:
         assert reset_data["config"] == new_config
 
         # Verify config actually changed
-        new_resp = requests.get(f"{BASE_URL}/config", timeout=5)
+        new_resp = requests.get(f"{BASE_URL}/api/config", timeout=5)
         new_config_data = new_resp.json()
 
         assert new_config_data["name"] == new_config
 
     def test_reset_with_invalid_config(self, api_server):
         """Test reset with invalid config returns error"""
-        response = requests.post(f"{BASE_URL}/reset?config=invalid_config", timeout=5)
+        response = requests.post(
+            f"{BASE_URL}/api/reset?config=invalid_config", timeout=5
+        )
 
         assert response.status_code == 400
         data = response.json()
@@ -180,7 +193,7 @@ class TestConversationEndpoint:
 
     def test_get_empty_conversation(self, api_server, reset_agent):
         """Test getting conversation when empty"""
-        response = requests.get(f"{BASE_URL}/conversation", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/conversation", timeout=5)
 
         assert response.status_code == 200
         data = response.json()
@@ -198,7 +211,21 @@ class TestStateEndpoints:
 
     def test_get_full_state(self, api_server, reset_agent):
         """Test getting full agent state"""
-        response = requests.get(f"{BASE_URL}/state", timeout=5)
+        # Set some initial state
+        initial_state = {
+            "current_character_id": None,
+            "characters": {},
+            "global_scene": None,
+            "global_memories": [],
+        }
+        response = requests.put(
+            f"{BASE_URL}/api/state",
+            json=initial_state,
+            headers={"Content-Type": "application/json"},
+            timeout=5,
+        )
+
+        response = requests.get(f"{BASE_URL}/api/state", timeout=5)
 
         assert response.status_code == 200
         data = response.json()
@@ -218,13 +245,12 @@ class TestStateEndpoints:
 
     def test_get_state_by_path(self, api_server, reset_agent):
         """Test getting state by dot notation path"""
+        # Get specific path
         response = requests.get(
-            f"{BASE_URL}/state?path=current_character_id", timeout=5
+            f"{BASE_URL}/api/state?path=current_character_id", timeout=5
         )
 
-        assert response.status_code == 200
-        # Should return null for empty roleplay state
-        assert response.json() is None
+        assert response.status_code == 404
 
     def test_set_state_by_path(self, api_server, reset_agent):
         """Test setting state by dot notation path"""
@@ -232,7 +258,7 @@ class TestStateEndpoints:
 
         # Set value
         put_response = requests.put(
-            f"{BASE_URL}/state?path=current_character_id",
+            f"{BASE_URL}/api/state?path=current_character_id",
             json=test_value,
             headers={"Content-Type": "application/json"},
             timeout=5,
@@ -240,19 +266,18 @@ class TestStateEndpoints:
 
         assert put_response.status_code == 200
         put_data = put_response.json()
-        assert "message" in put_data
-        assert "current_character_id" in put_data["message"]
+        assert "current_character_id" in put_data
 
         # Verify value was set
         get_response = requests.get(
-            f"{BASE_URL}/state?path=current_character_id", timeout=5
+            f"{BASE_URL}/api/state?path=current_character_id", timeout=5
         )
         assert get_response.status_code == 200
         assert get_response.json() == test_value
 
     def test_get_invalid_state_path(self, api_server, reset_agent):
         """Test getting non-existent state path returns 404"""
-        response = requests.get(f"{BASE_URL}/state?path=nonexistent.key", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/state?path=nonexistent.key", timeout=5)
 
         assert response.status_code == 404
         data = response.json()
@@ -264,7 +289,7 @@ class TestStateEndpoints:
 
         # Set a deeply nested path that doesn't exist
         response = requests.put(
-            f"{BASE_URL}/state?path=new_section.subsection.key",
+            f"{BASE_URL}/api/state?path=new_section.subsection.key",
             json=test_value,
             headers={"Content-Type": "application/json"},
             timeout=5,
@@ -274,14 +299,14 @@ class TestStateEndpoints:
 
         # Verify the value was set and intermediates were created
         get_response = requests.get(
-            f"{BASE_URL}/state?path=new_section.subsection.key", timeout=5
+            f"{BASE_URL}/api/state?path=new_section.subsection.key", timeout=5
         )
         assert get_response.status_code == 200
         assert get_response.json() == test_value
 
         # Verify intermediate dict was created
         intermediate_response = requests.get(
-            f"{BASE_URL}/state?path=new_section", timeout=5
+            f"{BASE_URL}/api/state?path=new_section", timeout=5
         )
         assert intermediate_response.status_code == 200
         intermediate_data = intermediate_response.json()
@@ -360,8 +385,11 @@ class TestFullWorkflow:
     @pytest.mark.asyncio
     async def test_complete_roleplay_workflow(self, api_server, reset_agent):
         """Test a complete roleplay interaction workflow"""
+        # Reset the agent to ensure clean state
+        requests.post(f"{BASE_URL}/reset?config=roleplay", timeout=5)
+
         # 1. Verify initial state
-        state_resp = requests.get(f"{BASE_URL}/state", timeout=5)
+        state_resp = requests.get(f"{BASE_URL}/api/state", timeout=5)
         assert state_resp.status_code == 200
         initial_state = state_resp.json()
         assert initial_state["current_character_id"] is None
@@ -397,7 +425,7 @@ class TestFullWorkflow:
             assert response_complete, "Character creation did not complete"
 
         # 3. Verify conversation history has messages
-        conv_resp = requests.get(f"{BASE_URL}/conversation", timeout=5)
+        conv_resp = requests.get(f"{BASE_URL}/api/conversation", timeout=5)
         conversation = conv_resp.json()
 
         assert (
@@ -430,7 +458,7 @@ class TestFullWorkflow:
             assert response_complete, "Follow-up conversation did not complete"
 
         # 5. Verify conversation history grew
-        final_conv_resp = requests.get(f"{BASE_URL}/conversation", timeout=5)
+        final_conv_resp = requests.get(f"{BASE_URL}/api/conversation", timeout=5)
         final_conversation = final_conv_resp.json()
 
         assert len(final_conversation["messages"]) >= 4  # Original + follow-up

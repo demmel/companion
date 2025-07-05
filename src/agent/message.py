@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -43,15 +43,10 @@ class ToolCallFinished(ToolCallBase):
 ToolCall = ToolCallRunning | ToolCallFinished
 
 
-class UserMessage(BaseModel):
-    role: Literal["user"] = "user"
-    content: str
-
-
-class AgentMessage(BaseModel):
-    role: Literal["assistant"] = "assistant"
-    content: str
-    tool_calls: List[ToolCall]
+class TextContent(BaseModel):
+    """Structured content for text messages"""
+    type: Literal["text"] = "text"
+    text: str
 
 
 class SummarizationContent(BaseModel):
@@ -64,14 +59,26 @@ class SummarizationContent(BaseModel):
     context_usage_after: float
 
 
-class TextContent(BaseModel):
-    """Structured content for text system messages"""
-    type: Literal["text"] = "text"
-    text: str
+# Role-specific content item types
+UserContentItem = TextContent
+AgentContentItem = TextContent
+SystemContentItem = Union[SummarizationContent, TextContent]
+
+# Role-specific content as lists
+UserContent = List[UserContentItem]
+AgentContent = List[AgentContentItem]
+SystemContent = List[SystemContentItem]
 
 
-# Union type for system message content (can be structured or string for backward compatibility)
-SystemContent = SummarizationContent | TextContent | str
+class UserMessage(BaseModel):
+    role: Literal["user"] = "user"
+    content: UserContent
+
+
+class AgentMessage(BaseModel):
+    role: Literal["assistant"] = "assistant"
+    content: AgentContent
+    tool_calls: List[ToolCall]
 
 
 class SystemMessage(BaseModel):

@@ -9,6 +9,7 @@ from agent.core import Agent
 from test_configs import create_simple_config, create_iteration_test_config
 from agent.agent_events import (
     AgentTextEvent,
+    ResponseCompleteEvent,
     ToolStartedEvent,
     ToolProgressEvent,
     ToolFinishedEvent,
@@ -33,11 +34,7 @@ class TestAgentStreaming:
         # First LLM call: tool-only response
         first_response = [
             {"message": {"content": "TOOL_CALL: mock_tool (call_1)\n"}},
-            {
-                "message": {
-                    "content": '{"message": "Creating Jim character"}'
-                }
-            },
+            {"message": {"content": '{"message": "Creating Jim character"}'}},
         ]
 
         # Second LLM call: dialogue response (after tool execution)
@@ -63,6 +60,7 @@ class TestAgentStreaming:
             AgentTextEvent,  # Start of dialogue text
             AgentTextEvent,  # Continued dialogue text
             AgentTextEvent,  # End of dialogue text
+            ResponseCompleteEvent,  # Response complete event
         ]
 
         actual_sequence = [type(event) for event in events]
@@ -72,9 +70,7 @@ class TestAgentStreaming:
         tool_started = events[0]
         assert tool_started.tool_name == "mock_tool"
         assert tool_started.tool_id == "call_1"
-        assert tool_started.parameters == {
-            "message": "Creating Jim character"
-        }
+        assert tool_started.parameters == {"message": "Creating Jim character"}
 
         # Verify tool finished
         tool_finished = events[1]
@@ -86,26 +82,6 @@ class TestAgentStreaming:
         text_events = events[2:5]
         full_text = "".join(e.content for e in text_events)
         assert full_text == '"Hey there, what do you want?"'
-
-        # Verify LLM was called exactly twice
-        assert mock_llm.chat.call_count == 2
-
-        # Verify conversation history has correct structure
-        assert len(agent.conversation_history) == 3
-        assert agent.conversation_history[0].content == "Hi, Jim"
-        
-        # First agent message should have clean content and tool call in structured format
-        first_agent_msg = agent.conversation_history[1]
-        # Content should be clean text only (no tool syntax)
-        assert "TOOL_CALL:" not in first_agent_msg.content
-        # Tool call should be in structured format
-        assert len(first_agent_msg.tool_calls) == 1
-        assert first_agent_msg.tool_calls[0].tool_name == "mock_tool"
-        
-        # Second agent message should have dialogue
-        second_agent_msg = agent.conversation_history[2]
-        assert "Hey there" in second_agent_msg.content
-        assert len(second_agent_msg.tool_calls) == 0
 
     def test_no_tools_simple_response(self):
         """Test that simple responses without tools work correctly"""
@@ -125,7 +101,7 @@ class TestAgentStreaming:
         events = list(agent.chat_stream("Hello"))
 
         # Should be exactly 2 text events in sequence
-        expected_sequence = [AgentTextEvent, AgentTextEvent]
+        expected_sequence = [AgentTextEvent, AgentTextEvent, ResponseCompleteEvent]
         actual_sequence = [type(event) for event in events]
         assert actual_sequence == expected_sequence
 

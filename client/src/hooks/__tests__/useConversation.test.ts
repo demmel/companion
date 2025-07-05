@@ -18,7 +18,7 @@ describe('useConversation', () => {
     });
     
     expect(result.current.messages).toEqual([
-      { role: 'user', content: 'Hello' }
+      { role: 'user', content: [{ type: 'text', text: 'Hello' }] }
     ]);
   });
 
@@ -31,7 +31,7 @@ describe('useConversation', () => {
     const { result } = renderHook(() => useConversation(events));
     
     expect(result.current.messages).toEqual([
-      { role: 'assistant', content: 'Hello there!', tool_calls: [] }
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello there!' }], tool_calls: [] }
     ]);
     expect(result.current.isStreamActive).toBe(true);
   });
@@ -60,7 +60,7 @@ describe('useConversation', () => {
     expect(result.current.messages).toEqual([
       {
         role: 'assistant',
-        content: 'Let me help you. ',
+        content: [{ type: 'text', text: 'Let me help you. ' }],
         tool_calls: [
           {
             type: 'finished',
@@ -93,7 +93,7 @@ describe('useConversation', () => {
     expect(result.current.messages).toEqual([
       {
         role: 'assistant',
-        content: '',
+        content: [],
         tool_calls: [
           {
             type: 'started',
@@ -129,7 +129,7 @@ describe('useConversation', () => {
     
     expect(result.current.isStreamActive).toBe(false);
     expect(result.current.messages).toEqual([
-      { role: 'assistant', content: 'Done!', tool_calls: [] }
+      { role: 'assistant', content: [{ type: 'text', text: 'Done!' }], tool_calls: [] }
     ]);
   });
 
@@ -137,8 +137,8 @@ describe('useConversation', () => {
     const { result } = renderHook(() => useConversation([]));
     
     const conversationMessages: [UserMessage, AgentMessage] = [
-      { role: 'user', content: 'Hello' },
-      { role: 'assistant', content: 'Hi there!', tool_calls: [] }
+      { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'Hi there!' }], tool_calls: [] }
     ];
     
     act(() => {
@@ -229,7 +229,7 @@ describe('useConversation', () => {
     });
     
     expect(result.current.messages).toEqual([
-      { role: 'assistant', content: 'Hello World', tool_calls: [] }
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello World' }], tool_calls: [] }
     ]);
 
     // Add another event that should not duplicate
@@ -242,7 +242,7 @@ describe('useConversation', () => {
     rerender({ events });
 
     expect(result.current.messages).toEqual([
-      { role: 'assistant', content: 'Hello World!', tool_calls: [] }
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello World!' }], tool_calls: [] }
     ]);
 
     // Add a new user message
@@ -251,8 +251,8 @@ describe('useConversation', () => {
     });
 
     expect(result.current.messages).toEqual([
-      { role: 'assistant', content: 'Hello World!', tool_calls: [] },
-      { role: 'user', content: 'New message' }
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello World!' }], tool_calls: [] },
+      { role: 'user', content: [{ type: 'text', text: 'New message' }] }
     ]);
 
     // Add another agent message
@@ -265,9 +265,9 @@ describe('useConversation', () => {
     rerender({ events });
 
     expect(result.current.messages).toEqual([
-      { role: 'assistant', content: 'Hello World!', tool_calls: [] },
-      { role: 'user', content: 'New message' },
-      { role: 'assistant', content: 'Another response', tool_calls: [] }
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello World!' }], tool_calls: [] },
+      { role: 'user', content: [{ type: 'text', text: 'New message' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'Another response' }], tool_calls: [] }
     ]);
 
     // Add a new user message again
@@ -276,10 +276,10 @@ describe('useConversation', () => {
     });
 
     expect(result.current.messages).toEqual([
-      { role: 'assistant', content: 'Hello World!', tool_calls: [] },
-      { role: 'user', content: 'New message' },
-      { role: 'assistant', content: 'Another response', tool_calls: [] },
-      { role: 'user', content: 'Another user message' }
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello World!' }], tool_calls: [] },
+      { role: 'user', content: [{ type: 'text', text: 'New message' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'Another response' }], tool_calls: [] },
+      { role: 'user', content: [{ type: 'text', text: 'Another user message' }] }
     ]);
 
     // Add tool calls
@@ -306,13 +306,13 @@ describe('useConversation', () => {
     rerender({ events });
 
     expect(result.current.messages).toEqual([
-      { role: 'assistant', content: 'Hello World!', tool_calls: [] },
-      { role: 'user', content: 'New message' },
-      { role: 'assistant', content: 'Another response', tool_calls: [] },
-      { role: 'user', content: 'Another user message' },
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello World!' }], tool_calls: [] },
+      { role: 'user', content: [{ type: 'text', text: 'New message' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'Another response' }], tool_calls: [] },
+      { role: 'user', content: [{ type: 'text', text: 'Another user message' }] },
       {
         role: 'assistant',
-        content: '',
+        content: [],
         tool_calls: [
           {
             type: 'finished',
@@ -325,7 +325,7 @@ describe('useConversation', () => {
       },
       {
         role: 'assistant',
-        content: 'Final response',
+        content: [{ type: 'text', text: 'Final response' }],
         tool_calls: []
       }
     ]);
@@ -355,12 +355,11 @@ describe('useConversation', () => {
     expect(result.current.messages).toHaveLength(1);
     expect(result.current.messages[0].role).toBe('system');
     
-    const content = result.current.messages[0].content;
-    expect(typeof content).toBe('object');
-    expect((content as any).type).toBe('summarization');
-    expect((content as any).title).toContain('✅ Summarized 10 messages');
-    expect((content as any).summary).toBe('User and assistant discussed various topics including weather, food preferences, and travel plans.');
-    expect((content as any).messages_summarized).toBe(10);
+    const content = result.current.messages[0].content[0] as any;
+    expect(content.type).toBe('summarization');
+    expect(content.title).toContain('✅ Summarized 10 messages');
+    expect(content.summary).toBe('User and assistant discussed various topics including weather, food preferences, and travel plans.');
+    expect(content.messages_summarized).toBe(10);
     expect((content as any).context_usage_before).toBe(85.5);
     expect((content as any).context_usage_after).toBe(42.3);
   });
@@ -380,7 +379,7 @@ describe('useConversation', () => {
 
     expect(result.current.messages).toHaveLength(1);
     expect(result.current.messages[0].role).toBe('system');
-    expect(result.current.messages[0].content).toBe('📝 Summarizing 8 older messages to manage context (78.2% usage)...');
+    expect(result.current.messages[0].content).toEqual([{ type: 'text', text: '📝 Summarizing 8 older messages to manage context (78.2% usage)...' }]);
     expect(result.current.isStreamActive).toBe(true);
   });
 
@@ -419,10 +418,10 @@ describe('useConversation', () => {
     expect(result.current.isStreamActive).toBe(true); // Still streaming until response_complete
     expect(result.current.messages).toHaveLength(1);
     
-    const content = result.current.messages[0].content;
-    expect((content as any).type).toBe('summarization');
-    expect((content as any).context_usage_before).toBe(90.1);
-    expect((content as any).context_usage_after).toBe(35.7);
+    const content = result.current.messages[0].content[0] as any;
+    expect(content.type).toBe('summarization');
+    expect(content.context_usage_before).toBe(90.1);
+    expect(content.context_usage_after).toBe(35.7);
   });
 
   it('should handle summarization followed by regular response', () => {
@@ -452,11 +451,11 @@ describe('useConversation', () => {
     
     // First message: summarization
     expect(result.current.messages[0].role).toBe('system');
-    expect((result.current.messages[0].content as any).type).toBe('summarization');
+    expect((result.current.messages[0].content[0] as any).type).toBe('summarization');
     
     // Second message: regular assistant response
     expect(result.current.messages[1].role).toBe('assistant');
-    expect(result.current.messages[1].content).toBe('Now I can continue helping you!');
+    expect(result.current.messages[1].content).toEqual([{ type: 'text', text: 'Now I can continue helping you!' }]);
     expect(result.current.isStreamActive).toBe(false);
   });
 
@@ -522,24 +521,17 @@ describe('useConversation', () => {
     // First message: properly created system message with SummarizationContent
     const systemMessage = result.current.messages[0];
     expect(systemMessage.role).toBe('system');
-    expect(typeof systemMessage.content).toBe('object');
-    expect((systemMessage.content as any).type).toBe('summarization');
-    expect((systemMessage.content as any).summary).toBe('Previous conversation about exploring nature and mushrooms.');
+    const content = (systemMessage.content[0] as any);
+    expect(content.type).toBe('summarization');
+    expect(content.summary).toBe('Previous conversation about exploring nature and mushrooms.');
     expect(systemMessage).not.toHaveProperty('tool_calls');
     
     // Second message: properly created assistant message with string content
     const assistantMessage = result.current.messages[1];
     expect(assistantMessage.role).toBe('assistant');
-    expect(typeof assistantMessage.content).toBe('string'); // This should be a string, NOT SummarizationContent
-    expect(assistantMessage.content).toBe('*Eyes light up* Amazing facts!');
+    expect(assistantMessage.content).toEqual([{ type: 'text', text: '*Eyes light up* Amazing facts!' }]);
     expect(assistantMessage).toHaveProperty('tool_calls');
     expect((assistantMessage as any).tool_calls).toEqual([]);
-    
-    // Verify the string content can be trimmed (this would fail with the bug)
-    expect(() => {
-      const content = assistantMessage.content as string;
-      return content.trim();
-    }).not.toThrow();
     
     expect(result.current.isStreamActive).toBe(false);
   });

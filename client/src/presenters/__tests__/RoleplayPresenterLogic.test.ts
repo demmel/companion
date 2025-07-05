@@ -16,7 +16,7 @@ function createToolCall(toolName: string, parameters: any, toolId = '1'): ToolCa
 function createAgentMessage(content: string, toolCalls: ToolCall[] = []): AgentMessage {
   return {
     role: 'assistant',
-    content,
+    content: [{ type: 'text', text: content }],
     tool_calls: toolCalls
   };
 }
@@ -25,7 +25,7 @@ function createAgentMessage(content: string, toolCalls: ToolCall[] = []): AgentM
 function createUserMessage(content: string): UserMessage {
   return {
     role: 'user',
-    content
+    content: [{ type: 'text', text: content }]
   };
 }
 
@@ -43,7 +43,7 @@ describe('RoleplayPresenter Logic Functions', () => {
       ];
 
       const result = buildMessagesWithState(messages);
-      
+
       expect(result).toHaveLength(1);
       // "Hello there!" is spoken BEFORE Alice is established, so no header
       expect(result[0].shouldShowHeader).toBe(false);
@@ -64,12 +64,12 @@ describe('RoleplayPresenter Logic Functions', () => {
       ];
 
       const result = buildMessagesWithState(messages);
-      
+
       expect(result).toHaveLength(2);
       // First message: spoken before Alice established
       expect(result[0].shouldShowHeader).toBe(false);
       expect(result[0].stateAtMessage.current_character_id).toBe('char_Alice');
-      
+
       // Second message: Alice is now speaking (established in previous message)
       expect(result[1].shouldShowHeader).toBe(true);
       expect(result[1].currentCharacter?.name).toBe('Alice');
@@ -88,7 +88,7 @@ describe('RoleplayPresenter Logic Functions', () => {
         createAgentMessage("Alice responds again"),
         createAgentMessage("Now switching to Bob", [
           createToolCall('assume_character', {
-            character_name: 'Bob', 
+            character_name: 'Bob',
             personality: 'gruff'
           })
         ]),
@@ -96,28 +96,28 @@ describe('RoleplayPresenter Logic Functions', () => {
       ];
 
       const result = buildMessagesWithState(messages);
-      
+
       expect(result).toHaveLength(6);
-      
+
       // Message 0: Setup Alice (no header - spoken before Alice established)
       expect(result[0].shouldShowHeader).toBe(false);
       expect(result[0].stateAtMessage.current_character_id).toBe('char_Alice');
-      
+
       // Message 1: Alice speaking (show header - Alice was established)
       expect(result[1].shouldShowHeader).toBe(true);
       expect(result[1].currentCharacter?.name).toBe('Alice');
-      
+
       // Message 2: User message (no character state)
       expect(result[2].message.role).toBe('user');
-      
+
       // Message 3: Alice speaking again after user (show header - user reset speaking)
       expect(result[3].shouldShowHeader).toBe(true);
       expect(result[3].currentCharacter?.name).toBe('Alice');
-      
+
       // Message 4: Switch to Bob (no header - spoken while Alice active, establishes Bob)
       expect(result[4].shouldShowHeader).toBe(false);
       expect(result[4].stateAtMessage.current_character_id).toBe('char_Bob');
-      
+
       // Message 5: Bob speaking (show header - character changed from Alice to Bob)
       expect(result[5].shouldShowHeader).toBe(true);
       expect(result[5].currentCharacter?.name).toBe('Bob');
@@ -134,7 +134,7 @@ describe('RoleplayPresenter Logic Functions', () => {
       ];
 
       const result = buildMessagesWithState(messages);
-      
+
       expect(result).toHaveLength(4);
       expect(result[1].shouldShowHeader).toBe(true);  // Alice first speaks
       expect(result[3].shouldShowHeader).toBe(true);  // Alice speaks again after user
@@ -148,7 +148,7 @@ describe('RoleplayPresenter Logic Functions', () => {
       ];
 
       const result = buildMessagesWithState(messages);
-      
+
       expect(result[0].shouldShowHeader).toBe(false); // No visible content
       expect(result[0].stateAtMessage.current_character_id).toBe('char_Alice');
     });
@@ -164,7 +164,7 @@ describe('RoleplayPresenter Logic Functions', () => {
       ];
 
       const result = buildMessagesWithState(messages);
-      
+
       expect(result[1].shouldShowHeader).toBe(true); // set_mood is visible content
       expect(result[1].currentCharacter?.name).toBe('Alice');
     });
@@ -180,7 +180,7 @@ describe('RoleplayPresenter Logic Functions', () => {
       ];
 
       const result = buildMessagesWithState(messages);
-      
+
       expect(result[1].currentCharacter?.mood).toBe('happy');
       expect(result[1].currentCharacter?.mood_intensity).toBe('moderate');
     });
@@ -198,7 +198,7 @@ describe('RoleplayPresenter Logic Functions', () => {
 
       const messagesWithState = buildMessagesWithState(messages);
       const bubbles = groupMessagesIntoBubbles(messagesWithState);
-      
+
       expect(bubbles).toHaveLength(1);
       expect(bubbles[0].role).toBe('assistant');
       expect(bubbles[0].messages).toHaveLength(3);
@@ -216,7 +216,7 @@ describe('RoleplayPresenter Logic Functions', () => {
 
       const messagesWithState = buildMessagesWithState(messages);
       const bubbles = groupMessagesIntoBubbles(messagesWithState);
-      
+
       expect(bubbles).toHaveLength(2);
       expect(bubbles[0].role).toBe('user');
       expect(bubbles[0].messages).toHaveLength(2);
@@ -237,7 +237,7 @@ describe('RoleplayPresenter Logic Functions', () => {
 
       const messagesWithState = buildMessagesWithState(messages);
       const bubbles = groupMessagesIntoBubbles(messagesWithState);
-      
+
       expect(bubbles).toHaveLength(2);
       expect(bubbles[0].role).toBe('system');
       expect(bubbles[0].systemTools).toHaveLength(1);
@@ -257,14 +257,14 @@ describe('RoleplayPresenter Logic Functions', () => {
 
       const messagesWithState = buildMessagesWithState(messages);
       const bubbles = groupMessagesIntoBubbles(messagesWithState);
-      
+
       expect(bubbles).toHaveLength(2);
-      
+
       // First bubble: system tool (scene_setting)
       expect(bubbles[0].role).toBe('system');
       expect(bubbles[0].systemTools).toHaveLength(1);
       expect(bubbles[0].systemTools![0].tool_name).toBe('scene_setting');
-      
+
       // Second bubble: agent message with agent tools
       expect(bubbles[1].role).toBe('assistant');
       expect(bubbles[1].messages[0].visibleToolCalls).toHaveLength(2);
@@ -286,23 +286,23 @@ describe('RoleplayPresenter Logic Functions', () => {
 
       const messagesWithState = buildMessagesWithState(messages);
       const bubbles = groupMessagesIntoBubbles(messagesWithState);
-      
+
       expect(bubbles).toHaveLength(1);
-      
+
       // Check individual message states are computed correctly
       expect(messagesWithState[0].shouldShowHeader).toBe(false); // Setup Alice
       expect(messagesWithState[0].currentCharacter?.name).toBe('Alice');
-      
+
       expect(messagesWithState[1].shouldShowHeader).toBe(true);  // Alice speaking
       expect(messagesWithState[1].currentCharacter?.name).toBe('Alice');
-      
+
       expect(messagesWithState[2].shouldShowHeader).toBe(true);  // Bob speaking  
       expect(messagesWithState[2].currentCharacter?.name).toBe('Bob');
-      
+
       // But the bubble shows the last character that triggered a header
       expect(bubbles[0].shouldShowHeader).toBe(true);
       expect(bubbles[0].currentCharacter?.name).toBe('Bob'); // Last character wins
-      
+
       // This means Alice's "I'm Alice speaking" gets misattributed to Bob's header!
     });
 
@@ -316,7 +316,7 @@ describe('RoleplayPresenter Logic Functions', () => {
 
       const messagesWithState = buildMessagesWithState(messages);
       const bubbles = groupMessagesIntoBubbles(messagesWithState);
-      
+
       // First message has no content and only hidden tools, should still be included
       // because it might set up state for the next message
       expect(bubbles).toHaveLength(1);
@@ -338,7 +338,7 @@ describe('RoleplayPresenter Logic Functions', () => {
       ];
 
       const messagesWithState = buildMessagesWithState(messages);
-      
+
       // Check visible tool calls (should exclude assume_character)
       expect(messagesWithState[0].visibleToolCalls).toHaveLength(5);
       expect(messagesWithState[0].visibleToolCalls.map(tc => tc.tool_name))

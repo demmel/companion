@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ConversationPresenterProps } from './types';
-import { AgentMessage, UserMessage, SystemMessage, ToolCall, SystemContent, SummarizationContent } from '@/types';
+import { AgentMessage, SystemMessage, Message, ToolCall, SystemContent, SummarizationContent } from '@/types';
 import { RoleplayText } from '@/components/RoleplayText';
 import { RoleplayState, CharacterState } from '@/types/roleplay';
 import { css } from '@styled-system/css';
@@ -36,7 +36,7 @@ function createInitialRoleplayState(): RoleplayState {
 }
 
 interface MessageWithState {
-  message: AgentMessage | UserMessage | SystemMessage;
+  message: Message;
   index: number;
   stateAtMessage: RoleplayState;
   stateBeforeMessage: RoleplayState;
@@ -55,7 +55,7 @@ interface MessageBubble {
 }
 
 export function buildMessagesWithState(
-  messages: (AgentMessage | UserMessage | SystemMessage)[], 
+  messages: Message[], 
   initialState?: RoleplayState
 ): MessageWithState[] {
   let currentState = initialState || createInitialRoleplayState();
@@ -72,8 +72,7 @@ export function buildMessagesWithState(
     
     // For agent messages, apply tool calls to evolve state
     if (message.role === 'assistant') {
-      const agentMessage = message as AgentMessage;
-      for (const toolCall of agentMessage.tool_calls) {
+      for (const toolCall of message.tool_calls) {
         currentState = applyToolCallToState(currentState, toolCall);
       }
     }
@@ -88,9 +87,8 @@ export function buildMessagesWithState(
     let visibleToolCalls: ToolCall[] = [];
     
     if (message.role === 'assistant') {
-      const agentMessage = message as AgentMessage;
-      visibleToolCalls = agentMessage.tool_calls.filter(tc => !HIDDEN_TOOLS.has(tc.tool_name));
-      const hasVisibleContent = !!(agentMessage.content.trim() || 
+      visibleToolCalls = message.tool_calls.filter(tc => !HIDDEN_TOOLS.has(tc.tool_name));
+      const hasVisibleContent = !!(message.content.some(item => item.type === 'text' && item.text.trim()) || 
         visibleToolCalls.some(tc => tc.tool_name !== 'assume_character'));
       
       // Show header when character changes (including from null to character)
@@ -277,7 +275,13 @@ function UserBubble({ bubble }: { bubble: MessageBubble }) {
           fontSize: 'xl',
           '&:not(:last-child)': { mb: 2 }
         })}>
-          {messageWithState.message.content as string}
+          {messageWithState.message.content.map((item, itemIndex) => {
+            if (item.type === 'text') {
+              return <span key={itemIndex}>{item.text}</span>;
+            }
+            // Handle other content types if needed
+            return null;
+          })}
         </div>
       ))}
     </UserBubbleComponent>
@@ -311,7 +315,13 @@ function AgentBubble({ bubble }: { bubble: MessageBubble }) {
                     '&:not(:last-child)': { mb: 2 },
                     fontSize: 'xl'
                   })}>
-                    <RoleplayText content={agentMessage.content} />
+                    {agentMessage.content.map((item, itemIndex) => {
+                      if (item.type === 'text') {
+                        return <RoleplayText key={itemIndex} content={item.text} />;
+                      }
+                      // Handle other content types if needed
+                      return null;
+                    })}
                   </div>
                 )}
                 
@@ -527,21 +537,17 @@ function SystemMessageBubble({ bubble }: { bubble: MessageBubble }) {
 }
 
 function SystemContentBubble({ content }: { content: SystemContent }) {
-  // Handle different content types
-  if (typeof content === 'object' && content.type === 'summarization') {
-    return <SummarizationBubble content={content} />;
-  }
-
-  // Handle text content or string (backward compatibility)
-  const textContent = typeof content === 'string' 
-    ? content 
-    : content.type === 'text' 
-      ? content.text 
-      : String(content);
-
   return (
     <SystemBubbleComponent>
-      {textContent}
+      {content.map((item, index) => {
+        if (item.type === 'text') {
+          return <span key={index}>{item.text}</span>;
+        } else if (item.type === 'summarization') {
+          return <SummarizationBubble key={index} content={item as SummarizationContent } />;
+        }
+        // Handle other content types if needed
+        return null;
+      })}
     </SystemBubbleComponent>
   );
 }

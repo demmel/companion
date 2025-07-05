@@ -68,7 +68,7 @@ class UserInputRequestEvent(BaseModel):
     """Placeholder for interactive tools that need user input"""
 
     # TODO: Define structure when we implement interactive tools
-    pass
+    type: AgentEventType = AgentEventType.USER_INPUT_REQUEST
 
 
 class AgentErrorEvent(BaseModel):

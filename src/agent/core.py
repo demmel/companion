@@ -16,6 +16,7 @@ from .message import (
     Message,
     SummarizationContent,
     SystemMessage,
+    TextContent,
     ToolCall,
     ToolCallFinished,
     ToolCallResult,
@@ -80,14 +81,35 @@ class Agent:
         # System prompt will be built dynamically with current state
 
     def get_state(self, key: Optional[str] = None):
-        """Get agent state or specific state value"""
-        if key is None:
-            return self.state
-        return self.state.get(key)
+        """Get agent state"""
+        parts = key.split(".") if key else []
+        current_state = self.state
+        for part in parts:
+            if isinstance(current_state, dict) and part in current_state:
+                current_state = current_state[part]
+            else:
+                return None
+        return current_state
 
-    def set_state(self, key: str, value):
+    def set_state(self, key: Optional[str], value):
         """Set a specific state value"""
-        self.state[key] = value
+        if key is None:
+            # If no key is provided, set the entire state
+            self.state = value
+            return
+
+        parts = key.split(".")
+        current_state = self.state
+
+        # Navigate to the parent of the target
+        for part in parts[:-1]:
+            if part not in current_state:
+                current_state[part] = {}
+            current_state = current_state[part]
+
+        # Set the final value
+        final_key = parts[-1]
+        current_state[final_key] = value
 
     def get_conversation_history(self) -> List[Message]:
         """Get the current conversation history"""
@@ -154,7 +176,7 @@ class Agent:
         start_time = time.time()
 
         # Add user message to both histories
-        user_message = UserMessage(content=user_input)
+        user_message = UserMessage(content=[TextContent(text=user_input)])
         self.conversation_history.append(user_message)
         self.llm_conversation_history.append(user_message)
 
@@ -250,7 +272,9 @@ class Agent:
 
             # If no tools or final iteration, we're done
             if not tool_events or is_final_iteration:
-                agent_message = AgentMessage(content=collected_response, tool_calls=[])
+                agent_message = AgentMessage(
+                    content=[TextContent(text=collected_response)], tool_calls=[]
+                )
                 self.conversation_history.append(agent_message)
                 self.llm_conversation_history.append(agent_message)
                 break
@@ -372,7 +396,8 @@ class Agent:
 
             # Store the agent message with tool calls in both histories
             agent_message = AgentMessage(
-                content=collected_response, tool_calls=finished_tool_calls
+                content=[TextContent(text=collected_response)],
+                tool_calls=finished_tool_calls,
             )
             self.conversation_history.append(agent_message)
             self.llm_conversation_history.append(agent_message)
@@ -416,7 +441,14 @@ class Agent:
         conversation_text = ""
         for msg in old_messages:
             # Convert message to text representation
-            content = msg.content
+            content_parts = []
+            for item in msg.content:
+                if isinstance(item, TextContent):
+                    content_parts.append(item.text)
+                elif isinstance(item, SummarizationContent):
+                    content_parts.append(f"[Summary: {item.summary}]")
+            content = "\n".join(content_parts)
+
             if isinstance(msg, AgentMessage) and msg.tool_calls:
                 # Include tool calls in the text representation
                 tool_calls_str = format_tool_calls(msg.tool_calls)
@@ -445,8 +477,8 @@ class Agent:
             summary_system_prompt += f"\n\nCURRENT STATE CONTEXT:\n{state_context}"
 
         # Build summarization request as single user message
-        summary_task = self.config.get_summarization_prompt(len(old_messages))
-        user_request = f"Please summarize the following conversation:\n\n{conversation_text}\n{summary_task}"
+        summary_task = self.config.get_summarization_prompt()
+        user_request = f"{summary_task}\n\n{conversation_text.strip()}"
 
         summary_request = [
             LLMMessage(role="system", content=summary_system_prompt),
@@ -456,33 +488,27 @@ class Agent:
         summary_response = self.llm.chat_complete(summary_request)
 
         # Create summary as agent message to maintain proper alternation
-
-        summary_message = AgentMessage(
-            content=f"[Summary of {len(old_messages)} previous messages: {summary_response}]",
-            tool_calls=[],
+        summary_message = SystemMessage(
+            content=[
+                SummarizationContent(
+                    type="summarization",
+                    title=f"Conversation Summary ({len(old_messages)} messages)",
+                    summary=summary_response,
+                    messages_summarized=len(old_messages),
+                    context_usage_before=context_before.usage_percentage,
+                    context_usage_after=0.0,  # Will be updated later
+                )
+            ]
         )
 
-        # Check recent messages for proper alternation
-        # If recent messages start with an agent message, we might break alternation
-        if recent_messages and recent_messages[0].role == "assistant":
-            # Insert a system message to maintain flow
-            separator_message = SystemMessage(
-                content="[Previous conversation summarized above]"
-            )
-            self.llm_conversation_history = [
-                summary_message,
-                separator_message,
-            ] + recent_messages
-        else:
-            # Safe to concatenate directly
-            self.llm_conversation_history = [summary_message] + recent_messages
+        self.llm_conversation_history = [summary_message] + recent_messages
 
         context_after = self.get_context_info()
-        
+
         # Add structured summarization notification to user history
-        # Find the position where summarization occurred in user history  
+        # Find the position where summarization occurred in user history
         user_summary_index = len(self.conversation_history) - len(recent_messages)
-        
+
         # Create structured summarization content that matches frontend expectations
         summarization_content = SummarizationContent(
             type="summarization",
@@ -492,14 +518,14 @@ class Agent:
             context_usage_before=context_before.usage_percentage,
             context_usage_after=context_after.usage_percentage,
         )
-        
-        summary_notification = SystemMessage(
-            role="system",
-            content=summarization_content,
+
+        summary_message = SystemMessage(
+            content=[summarization_content],
         )
 
         # Insert notification at the right position to maintain chronological order
-        self.conversation_history.insert(user_summary_index, summary_notification)
+        self.conversation_history.insert(user_summary_index, summary_message)
+        self.llm_conversation_history = [summary_message] + recent_messages
 
         # Emit finished event
         yield SummarizationFinishedEvent(
@@ -509,49 +535,19 @@ class Agent:
             context_usage_after=context_after.usage_percentage,
         )
 
-    def summarize_and_trim_context(self, keep_recent: int = 6) -> dict:
-        """Summarize older conversation and keep only recent messages"""
-        # Split conversation into old (to summarize) and recent (to keep)
-        old_messages = self.conversation_history[:-keep_recent]
-        recent_messages = self.conversation_history[-keep_recent:]
-
-        # Create conversation text for summarization
-        conversation_text = ""
-        for msg in old_messages:
-            conversation_text += f"{msg.role.upper()}: {msg.content}\n\n"
-
-        # Request summarization from LLM using config-specific prompt
-        summary_prompt = self.config.get_summarization_prompt(conversation_text)
-
-        summary_response = self.llm.chat_complete(
-            [
-                Message(
-                    role="system",
-                    content="You are a conversation summarizer. Provide clear, structured summaries.",
-                ),
-                Message(role="user", content=summary_prompt),
-            ]
-        )
-
-        # Replace old conversation with summary
-        summary_message = Message(
-            role="system", content=f"CONVERSATION SUMMARY: {summary_response}"
-        )
-        self.conversation_history = [summary_message] + recent_messages
-
-        # System prompt will automatically include summary in next build
-
-        return {
-            "messages_before": len(old_messages) + len(recent_messages),
-            "messages_after": len(self.conversation_history),
-            "summarized_count": len(old_messages),
-        }
-
 
 def message_to_llm_messages(message: Message) -> Iterator[LLMMessage]:
     """Convert internal Message to LLMMessage format"""
 
-    content = message.content
+    # Extract text from content list
+    content_parts = []
+    for item in message.content:
+        if isinstance(item, TextContent):
+            content_parts.append(item.text)
+        elif isinstance(item, SummarizationContent):
+            content_parts.append(f"[Summary: {item.summary}]")
+
+    content = "\n".join(content_parts)
     tool_results_str = ""
 
     if isinstance(message, AgentMessage) and message.tool_calls:

@@ -5,12 +5,12 @@ import { ChatMessages } from '../ChatMessages';
 describe('ChatMessages', () => {
   const mockUserMessage = {
     role: 'user' as const,
-    content: 'Hello world'
+    content: [{ type: 'text' as const, text: 'Hello world' }],
   };
 
   const mockAgentMessage = {
     role: 'assistant' as const,
-    content: 'Hi there!',
+    content: [{ type: 'text' as const, text: 'Hi there!' }],
     tool_calls: []
   };
 

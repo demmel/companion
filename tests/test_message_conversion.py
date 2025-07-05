@@ -5,6 +5,7 @@ Tests for message conversion between structured format and LLM format
 import pytest
 from agent.core import message_to_llm_messages
 from agent.message import (
+    TextContent,
     UserMessage,
     AgentMessage,
     ToolCallFinished,
@@ -19,10 +20,10 @@ class TestMessageToLLMConversion:
 
     def test_user_message_conversion(self):
         """Test that user messages convert correctly"""
-        user_msg = UserMessage(content="Hello, how are you?")
-        
+        user_msg = UserMessage(content=[TextContent(text="Hello, how are you?")])
+
         llm_messages = list(message_to_llm_messages(user_msg))
-        
+
         assert len(llm_messages) == 1
         assert llm_messages[0].role == "user"
         assert llm_messages[0].content == "Hello, how are you?"
@@ -30,12 +31,11 @@ class TestMessageToLLMConversion:
     def test_agent_message_no_tools(self):
         """Test agent message without tool calls"""
         agent_msg = AgentMessage(
-            content="I'm doing well, thank you!",
-            tool_calls=[]
+            content=[TextContent(text="I'm doing well, thank you!")], tool_calls=[]
         )
-        
+
         llm_messages = list(message_to_llm_messages(agent_msg))
-        
+
         assert len(llm_messages) == 1
         assert llm_messages[0].role == "assistant"
         assert llm_messages[0].content == "I'm doing well, thank you!"
@@ -47,21 +47,20 @@ class TestMessageToLLMConversion:
             tool_id="call_123",
             parameters={"mood": "happy", "intensity": 8},
             result=ToolCallResult(
-                type=ToolCallResultType.SUCCESS,
-                content="Mood set to happy"
-            )
+                type=ToolCallResultType.SUCCESS, content="Mood set to happy"
+            ),
         )
-        
+
         agent_msg = AgentMessage(
-            content="Let me set your mood to happy.",
-            tool_calls=[tool_call]
+            content=[TextContent(text="Let me set your mood to happy.")],
+            tool_calls=[tool_call],
         )
-        
+
         llm_messages = list(message_to_llm_messages(agent_msg))
-        
+
         # Should generate 2 messages: agent message + tool results
         assert len(llm_messages) == 2
-        
+
         # First message: agent with tool call syntax
         agent_llm_msg = llm_messages[0]
         assert agent_llm_msg.role == "assistant"
@@ -69,7 +68,7 @@ class TestMessageToLLMConversion:
         assert "TOOL_CALL: set_mood (call_123)" in agent_llm_msg.content
         assert '"mood": "happy"' in agent_llm_msg.content
         assert '"intensity": 8' in agent_llm_msg.content
-        
+
         # Second message: tool results as user message
         results_llm_msg = llm_messages[1]
         assert results_llm_msg.role == "user"
@@ -82,36 +81,32 @@ class TestMessageToLLMConversion:
             tool_name="set_mood",
             tool_id="call_1",
             parameters={"mood": "happy"},
-            result=ToolCallResult(
-                type=ToolCallResultType.SUCCESS,
-                content="Mood set"
-            )
+            result=ToolCallResult(type=ToolCallResultType.SUCCESS, content="Mood set"),
         )
-        
+
         tool_call_2 = ToolCallFinished(
             tool_name="remember_detail",
-            tool_id="call_2", 
+            tool_id="call_2",
             parameters={"detail": "User likes coffee"},
             result=ToolCallResult(
-                type=ToolCallResultType.ERROR,
-                content="Memory storage failed"
-            )
+                type=ToolCallResultType.ERROR, content="Memory storage failed"
+            ),
         )
-        
+
         agent_msg = AgentMessage(
-            content="I'll set your mood and remember that.",
-            tool_calls=[tool_call_1, tool_call_2]
+            content=[TextContent(text="I'll set your mood and remember that.")],
+            tool_calls=[tool_call_1, tool_call_2],
         )
-        
+
         llm_messages = list(message_to_llm_messages(agent_msg))
-        
+
         assert len(llm_messages) == 2
-        
+
         # Agent message should include both tool calls
         agent_llm_msg = llm_messages[0]
         assert "TOOL_CALL: set_mood (call_1)" in agent_llm_msg.content
         assert "TOOL_CALL: remember_detail (call_2)" in agent_llm_msg.content
-        
+
         # Results message should include both results
         results_llm_msg = llm_messages[1]
         assert "TOOL_RESULT: set_mood (call_1)" in results_llm_msg.content
@@ -126,24 +121,20 @@ class TestMessageToLLMConversion:
             tool_id="call_abc",
             parameters={"name": "Alice", "personality": "cheerful"},
             result=ToolCallResult(
-                type=ToolCallResultType.SUCCESS,
-                content="Character Alice created"
-            )
+                type=ToolCallResultType.SUCCESS, content="Character Alice created"
+            ),
         )
-        
-        agent_msg = AgentMessage(
-            content="",  # No dialogue text
-            tool_calls=[tool_call]
-        )
-        
+
+        agent_msg = AgentMessage(content=[], tool_calls=[tool_call])  # No dialogue text
+
         llm_messages = list(message_to_llm_messages(agent_msg))
-        
+
         assert len(llm_messages) == 2
-        
+
         # Agent message should have tool call but minimal content
         agent_llm_msg = llm_messages[0]
         assert "TOOL_CALL: assume_character (call_abc)" in agent_llm_msg.content
-        
+
         # Results message should have tool result
         results_llm_msg = llm_messages[1]
         assert "Character Alice created" in results_llm_msg.content
@@ -151,37 +142,36 @@ class TestMessageToLLMConversion:
     def test_agent_message_with_tool_running_state(self):
         """Test that only finished tool calls generate results"""
         from agent.message import ToolCallRunning
-        
+
         running_tool = ToolCallRunning(
             tool_name="slow_tool",
             tool_id="call_running",
-            parameters={"task": "processing"}
+            parameters={"task": "processing"},
         )
-        
+
         finished_tool = ToolCallFinished(
-            tool_name="fast_tool", 
+            tool_name="fast_tool",
             tool_id="call_done",
             parameters={"task": "complete"},
             result=ToolCallResult(
-                type=ToolCallResultType.SUCCESS,
-                content="Task completed"
-            )
+                type=ToolCallResultType.SUCCESS, content="Task completed"
+            ),
         )
-        
+
         agent_msg = AgentMessage(
-            content="Working on your tasks...",
-            tool_calls=[running_tool, finished_tool]
+            content=[TextContent(text="Working on your tasks...")],
+            tool_calls=[running_tool, finished_tool],
         )
-        
+
         llm_messages = list(message_to_llm_messages(agent_msg))
-        
+
         assert len(llm_messages) == 2
-        
+
         # Agent message should include both tool calls
         agent_llm_msg = llm_messages[0]
         assert "TOOL_CALL: slow_tool (call_running)" in agent_llm_msg.content
         assert "TOOL_CALL: fast_tool (call_done)" in agent_llm_msg.content
-        
+
         # Results should only include finished tool
         results_llm_msg = llm_messages[1]
         assert "TOOL_RESULT: fast_tool (call_done)" in results_llm_msg.content

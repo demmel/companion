@@ -15,7 +15,7 @@ describe('SummarizationBubble', () => {
 
   const mockSystemMessage: SystemMessage = {
     role: 'system',
-    content: mockSummarizationContent
+    content: [mockSummarizationContent]
   };
 
   const defaultProps = {
@@ -91,7 +91,7 @@ describe('SummarizationBubble', () => {
 
     const systemMessage: SystemMessage = {
       role: 'system',
-      content: multilineSummary
+      content: [multilineSummary]
     };
 
     render(<RoleplayPresenter {...defaultProps} messages={[systemMessage]} />);
@@ -112,7 +112,7 @@ describe('SummarizationBubble', () => {
 
     const systemMessage: SystemMessage = {
       role: 'system',
-      content: emptySummary
+      content: [emptySummary]
     };
 
     render(<RoleplayPresenter {...defaultProps} messages={[systemMessage]} />);
@@ -136,7 +136,7 @@ describe('SummarizationBubble', () => {
 
     const systemMessage: SystemMessage = {
       role: 'system',
-      content: contextStats
+      content: [contextStats]
     };
 
     render(<RoleplayPresenter {...defaultProps} messages={[systemMessage]} />);
@@ -146,9 +146,9 @@ describe('SummarizationBubble', () => {
 
   it('should integrate properly with other message types', () => {
     const messages = [
-      { role: 'user' as const, content: 'Hello!' },
+      { role: 'user' as const, content: [{type: 'text' as const, text: 'Hello!' }] },
       mockSystemMessage,
-      { role: 'assistant' as const, content: 'How can I help?', tool_calls: [] }
+      { role: 'assistant' as const, content: [{type: 'text' as const, text: 'How can I help?'}], tool_calls: [] }
     ];
 
     render(<RoleplayPresenter {...defaultProps} messages={messages} />);

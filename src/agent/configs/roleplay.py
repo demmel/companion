@@ -130,17 +130,6 @@ Start by asking what character or scenario to explore, then fully become that ch
                 "global_scene": None,
                 "global_memories": [],
             },
-            summarization_prompt="""Please provide a structured summary of the {message_count} messages above, focusing on:
-
-1. **ACTIVE CHARACTER**: Current character being played, their personality, background, and quirks
-2. **CHARACTER RELATIONSHIPS**: Relationship dynamics and feelings between characters and user
-3. **CHARACTER MEMORIES**: Important details the character remembers about the user and conversation
-4. **SCENE & SETTING**: Current location, atmosphere, and time context
-5. **EMOTIONAL STATE**: Character's current mood and emotional journey
-6. **PLOT DEVELOPMENTS**: Key story events, character actions, and narrative progression
-7. **IMPORTANT DETAILS**: Names, preferences, and facts that must be preserved
-
-**Format the summary to maintain character consistency and narrative continuity for seamless roleplay continuation.**""",
         )
 
     def _get_roleplay_tools(self):

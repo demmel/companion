@@ -6,7 +6,7 @@ Tests that summarization produces actual summaries, not conversational responses
 import pytest
 from agent.core import Agent
 from agent.config import get_config
-from agent.message import UserMessage, AgentMessage
+from agent.message import TextContent, UserMessage, AgentMessage
 from agent.agent_events import SummarizationFinishedEvent
 from typing import List, Dict, Any
 
@@ -134,10 +134,14 @@ def test_summarization_produces_actual_summary():
     # Convert to proper message format and add to BOTH conversation histories
     for msg_data in test_messages:
         if msg_data["role"] == "user":
-            message = UserMessage(role="user", content=msg_data["content"])
+            message = UserMessage(
+                role="user", content=[TextContent(text=msg_data["content"])]
+            )
         else:  # assistant
             message = AgentMessage(
-                role="assistant", content=msg_data["content"], tool_calls=[]
+                role="assistant",
+                content=[TextContent(text=msg_data["content"])],
+                tool_calls=[],
             )
         agent.conversation_history.append(message)
         agent.llm_conversation_history.append(message)  # Add to LLM history too!
@@ -210,10 +214,14 @@ def test_summarization_covers_main_topics():
     # Add messages to agent
     for msg_data in topic_messages:
         if msg_data["role"] == "user":
-            message = UserMessage(role="user", content=msg_data["content"])
+            message = UserMessage(
+                role="user", content=[TextContent(text=msg_data["content"])]
+            )
         else:
             message = AgentMessage(
-                role="assistant", content=msg_data["content"], tool_calls=[]
+                role="assistant",
+                content=[TextContent(text=msg_data["content"])],
+                tool_calls=[],
             )
         agent.conversation_history.append(message)
         agent.llm_conversation_history.append(message)

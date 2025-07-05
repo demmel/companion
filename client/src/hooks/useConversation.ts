@@ -1,6 +1,29 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { AgentEvent, Message, UserMessage, SystemContent, SummarizationContent, ToolCall, ToolCallFinished } from '../types';
+import { AgentEvent, Message, UserMessage, UserContent, AgentContent, SystemContent, SummarizationContent, ToolCall, ToolCallFinished, SystemMessage } from '../types';
 import { debug } from '@/utils/debug';
+
+// Builder types - same structure as final messages but content can be empty during building
+interface UserMessageBuilder {
+  role: 'user';
+  content: UserContent; // Required but can be empty array []
+}
+
+interface AgentMessageBuilder {
+  role: 'assistant';
+  content: AgentContent; // Required but can be empty array []
+  tool_calls: ToolCall[]; // Always present, can be empty array
+}
+
+interface SystemMessageBuilder {
+  role: 'system';
+  content: SystemContent; // Required but can be empty array []
+  // No tool_calls field - system messages don't have them
+  summarizationStartData?: {
+    context_usage_before: number;
+  };
+}
+
+type MessageBuilder = UserMessageBuilder | AgentMessageBuilder | SystemMessageBuilder;
 
 export interface UseConversationReturn {
   messages: Message[];
@@ -16,18 +39,7 @@ export interface UseConversationReturn {
  */
 export function useConversation(events: AgentEvent[]): UseConversationReturn {
   const [baseMessages, setBaseMessages] = useState<Message[]>([]);
-  const [currentResponse, setCurrentResponse] = useState<{
-    role: 'assistant' | 'system';
-    content: string | SystemContent;
-    toolCalls: Map<string, ToolCall>;
-    summarizationData?: {
-      messages_to_summarize: number;
-      context_usage_before: number;
-      messages_summarized?: number;
-      context_usage_after?: number;
-      summary?: string;
-    };
-  } | null>(null);
+  const [currentResponse, setCurrentResponse] = useState<MessageBuilder | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const lastProcessedEventId = useRef<number | null>(null);
 
@@ -43,11 +55,13 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
   useEffect(() => {
     if (events.length === 0) return;
 
-    let content = currentResponse?.content || '';
-    let role: 'assistant' | 'system' = currentResponse?.role || 'assistant';
-    const toolCalls = currentResponse?.toolCalls || new Map<string, ToolCall>();
-    let summarizationData = currentResponse?.summarizationData;
+    let response: MessageBuilder | null = currentResponse;
     let isComplete = false;
+
+    // Helper to safely finalize a response and avoid closure bugs
+    const finalizeResponse = (response: MessageBuilder) => {
+      setBaseMessages(prev => [...prev, response as Message]);
+    };
 
     for (const event of events) {
       if (lastProcessedEventId.current !== null && event.id <= lastProcessedEventId.current) {
@@ -61,183 +75,173 @@ export function useConversation(events: AgentEvent[]): UseConversationReturn {
 
       switch (event.type) {
         case 'text':
-          if (toolCalls.size > 0 || (role === 'system' && content)) {
-            // If we have tool calls or a system message, finalize the current response first
-            const contentToFinalize = content;
-            const toolCallsToFinalize = Array.from(toolCalls.values());
-            setBaseMessages(prev => [
-              ...prev,
-              {
-                role: role,
-                content: contentToFinalize,
-                tool_calls: role === 'assistant' ? toolCallsToFinalize : []
-              } as Message
-            ]);
-            content = '';
-            toolCalls.clear();
+          if (response && (response.role !== 'assistant' || response.tool_calls.length > 0)) {
+            finalizeResponse(response);
+            response = null;
           }
-          role = 'assistant'; // Text events are always assistant responses
-          content += event.content;
-          isComplete = false; // Still streaming
+
+          if (!response) {
+            response = {
+              role: 'assistant',
+              content: [],
+              tool_calls: []
+            };
+          }
+
+          // Add text content (we know response.role === 'assistant')
+          const lastContent = response.content[response.content.length - 1];
+          if (lastContent && lastContent.type === 'text') {
+            // Append to existing text content
+            lastContent.text += event.content;
+          } else {
+            // Create new text content
+            response.content.push({ type: 'text', text: event.content });
+          }
+
+          isComplete = false;
           break;
         case 'tool_started':
-          toolCalls.set(event.tool_id, {
+          // Tool events are always assistant responses
+          // If we have a system response, finalize it first
+          if (response && response.role !== 'assistant') {
+            finalizeResponse(response);
+            response = null;
+          }
+
+          if (!response) {
+            response = {
+              role: 'assistant',
+              content: [],
+              tool_calls: []
+            };
+          }
+
+          // Add tool call (we know response.role === 'assistant')
+          response.tool_calls.push({
             tool_id: event.tool_id,
             tool_name: event.tool_name,
             type: 'started',
             parameters: event.parameters,
           });
-          isComplete = false; // Still streaming
+
+          isComplete = false;
           break;
         case 'tool_finished':
-          if (toolCalls.has(event.tool_id)) {
-            let toolCall = toolCalls.get(event.tool_id);
-            if (toolCall) {
-              toolCall.type = 'finished';
-              toolCall = toolCall as ToolCallFinished;
-              toolCall.result = {
-                type: event.result_type,
-                content: event.result
-              }
-            }
+          // Find by tool_id and replace with finished version
+          if (!response || response.role !== 'assistant') {
+            console.warn('Received tool_finished event but current response is not an assistant message. Ignoring.');
+            continue; // Ignore if current response is not an assistant message
           }
-          isComplete = false; // Still streaming
+
+          const toolIndex = response.tool_calls.findIndex(t => t.tool_id === event.tool_id);
+          if (toolIndex === -1) {
+            console.warn(`Tool finished event for unknown tool_id: ${event.tool_id}. Ignoring.`);
+            continue; // Ignore if tool_id not found
+          }
+
+          const tool = response.tool_calls[toolIndex];
+          response.tool_calls[toolIndex] = {
+            ...tool,
+            type: 'finished',
+            result: {
+              type: event.result_type,
+              content: event.result
+            }
+          } as ToolCallFinished;
+
+          isComplete = false;
           break;
         case 'summarization_started':
-          // Start a new system message response
-          role = 'system';
-          content = `📝 Summarizing ${event.messages_to_summarize} older messages to manage context (${event.context_usage_before.toFixed(1)}% usage)...`;
-          toolCalls.clear();
-          summarizationData = {
-            messages_to_summarize: event.messages_to_summarize,
-            context_usage_before: event.context_usage_before,
+          // Summarization events are always system responses
+          // Finalize any existing response first
+          if (response) {
+            finalizeResponse(response);
+            response = null;
+          }
+
+          response = {
+            role: 'system',
+            content: [{
+              type: 'text',
+              text: `📝 Summarizing ${event.messages_to_summarize} older messages to manage context (${event.context_usage_before.toFixed(1)}% usage)...`
+            }],
+            summarizationStartData: {
+              context_usage_before: event.context_usage_before
+            }
           };
+
           isComplete = false;
           break;
         case 'summarization_finished':
-          // Update and finalize the system message with structured summarization content
-          if (summarizationData) {
-            summarizationData.messages_summarized = event.messages_summarized;
-            summarizationData.context_usage_after = event.context_usage_after;
-            summarizationData.summary = event.summary;
-            
-            const summaryContent = {
-              type: 'summarization',
-              title: `✅ Summarized ${event.messages_summarized} messages. Context usage: ${summarizationData.context_usage_before.toFixed(1)}% → ${event.context_usage_after.toFixed(1)}%`,
-              summary: event.summary,
-              messages_summarized: event.messages_summarized,
-              context_usage_before: summarizationData.context_usage_before,
-              context_usage_after: event.context_usage_after,
-            } as SummarizationContent;
-            
-            // Finalize the system message immediately
-            const systemMessage: SystemMessage = {
-              role: 'system',
-              content: summaryContent
-            };
-            
-            setBaseMessages(prev => [...prev, systemMessage]);
-            
-            // Reset state for next response
-            content = '';
-            toolCalls.clear();
-            summarizationData = undefined;
+          // Replace the system response content with structured summarization
+          if (!response || response.role !== 'system') {
+            console.warn('Received summarization_finished event but current response is not a system message. Ignoring.');
+            continue; // Ignore if current response is not a system message
           }
+
+          const summarizationStartData = response.summarizationStartData;
+          if (!summarizationStartData) {
+            console.warn('Received summarization_finished event but no summarization start data found. Ignoring.');
+            continue; // Ignore if no summarization start data
+          }
+
+          const summaryContent = {
+            type: 'summarization',
+            title: `✅ Summarized ${event.messages_summarized} messages. Context usage: ${summarizationStartData.context_usage_before.toFixed(1)}% → ${event.context_usage_after.toFixed(1)}%`,
+            summary: event.summary,
+            messages_summarized: event.messages_summarized,
+            context_usage_before: summarizationStartData.context_usage_before,
+            context_usage_after: event.context_usage_after,
+          } as SummarizationContent;
+
+          // Remove the summarization data before finalizing (it's not part of the final message)
+          const finalResponse = {
+            role: response.role,
+            content: [summaryContent]
+          } as SystemMessage;
+
+          // Finalize the system message immediately
+          setBaseMessages(prev => [...prev, finalResponse]);
+          response = null;
+
           isComplete = false; // More events may follow
           break;
         case 'response_complete':
-          // Finalize the current agent response
-          if (content || toolCalls.size > 0) {
-            const contentToFinalize = content;
-            const toolCallsToFinalize = Array.from(toolCalls.values());
-            
-            let message: Message;
-            if (role === 'system') {
-              // System messages don't have tool_calls
-              message = {
-                role: 'system',
-                content: contentToFinalize as SystemContent
-              } as SystemMessage;
-            } else if (role === 'assistant') {
-              message = {
-                role: 'assistant',
-                content: contentToFinalize as string,
-                tool_calls: toolCallsToFinalize
-              } as AgentMessage;
-            } else {
-              // User messages
-              message = {
-                role: 'user',
-                content: contentToFinalize as string
-              } as UserMessage;
-            }
-            
-            setBaseMessages(prev => {
-              return [...prev, message];
-            });
+          // Finalize any remaining response
+          if (response) {
+            finalizeResponse(response);
+            response = null;
           }
-          content = '';
-          toolCalls.clear();
+
           isComplete = true;
       }
 
-      debug.log('Updated content:', content);
-      debug.log('Updated tool calls:', Array.from(toolCalls.values()));
+      debug.log('Updated response:', response);
     }
 
     // Update the current response state
-    if (content || toolCalls.size > 0) {
-      setCurrentResponse({
-        role: role,
-        content: content,
-        toolCalls: toolCalls,
-        summarizationData: summarizationData
-      });
-    } else {
-      setCurrentResponse(null);
-    }
-
+    setCurrentResponse(response);
     setIsStreamActive(!isComplete); // If we have a complete response, stop streaming
   }, [events]);
 
   // Only reconstruct messages array when baseMessages or currentResponse actually change
   const messages = useMemo(() => {
-    if (!currentResponse || (currentResponse.content === '' && currentResponse.toolCalls.size === 0)) {
+    if (!currentResponse || (currentResponse.content.length === 0 &&
+      (currentResponse.role !== 'assistant' || currentResponse.tool_calls.length === 0))) {
       return baseMessages;
     }
-    
-    // Create properly typed message based on role
-    let currentMessage: Message;
-    if (currentResponse.role === 'system') {
-      // System messages don't have tool_calls
-      currentMessage = {
-        role: 'system',
-        content: currentResponse.content as SystemContent
-      } as SystemMessage;
-    } else if (currentResponse.role === 'assistant') {
-      currentMessage = {
-        role: 'assistant',
-        content: currentResponse.content as string,
-        tool_calls: Array.from(currentResponse.toolCalls.values())
-      } as AgentMessage;
-    } else {
-      // User messages
-      currentMessage = {
-        role: 'user',
-        content: currentResponse.content as string
-      } as UserMessage;
-    }
-    
+
+    // currentResponse is already a valid Message, just cast it
     return [
       ...baseMessages,
-      currentMessage
+      currentResponse as Message
     ];
   }, [baseMessages, currentResponse]);
 
   const addUserMessage = useCallback((content: string) => {
     const userMessage: UserMessage = {
       role: 'user',
-      content
+      content: [{ type: 'text', text: content }]
     };
     setBaseMessages(prev => [...prev, userMessage]);
     setCurrentResponse(null);

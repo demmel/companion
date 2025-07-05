@@ -12,7 +12,9 @@ export function MessageItem({ message }: MessageItemProps) {
       <div className="mb-4">
         <div className="text-sm text-gray-600 mb-1">You</div>
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="whitespace-pre-wrap">{message.content}</div>
+          <div className="whitespace-pre-wrap">{message.content.map((item, _) => (
+            item.text
+          ))}</div>
         </div>
       </div>
     );
@@ -28,7 +30,9 @@ export function MessageItem({ message }: MessageItemProps) {
       {/* Message content */}
       {agentMessage.content && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2">
-          <RoleplayText content={agentMessage.content} />
+          {agentMessage.content.map((item, index) => (
+            <RoleplayText key={index} content={item.text} />
+          ))}
         </div>
       )}
       

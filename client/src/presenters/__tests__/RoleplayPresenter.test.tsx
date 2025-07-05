@@ -12,7 +12,7 @@ describe('RoleplayPresenter', () => {
 
   it('should show generic agent header when no character is active', () => {
     const messages: UserMessage[] = [
-      { role: 'user' as const, content: 'Hello' }
+      { role: 'user' as const, content: [{type: 'text' as const, text: 'Hello' }] }
     ];
 
     render(
@@ -43,16 +43,16 @@ describe('RoleplayPresenter', () => {
     };
 
     const messages: Message[] = [
-      { role: 'user' as const, content: 'Can you play as Bob?' },
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Can you play as Bob?' }] },
       {
         role: 'assistant',
-        content: '',
+        content: [],
         tool_calls: [assumeCharacterTool]
       } as AgentMessage,
-      { role: 'user' as const, content: 'Say hello' },
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Say hello' }] },
       {
         role: 'assistant',
-        content: 'Hello there!',
+        content: [{ type: 'text' as const, text: 'Hello there!' }],
         tool_calls: []
       } as AgentMessage
     ];
@@ -100,16 +100,16 @@ describe('RoleplayPresenter', () => {
     };
 
     const messages: Message[] = [
-      { role: 'user' as const, content: 'Play as Alice' },
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Play as Alice' }] },
       {
         role: 'assistant',
-        content: '',
+        content: [],
         tool_calls: [assumeTool]
       } as AgentMessage,
-      { role: 'user' as const, content: 'Be happy' },
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Be happy' }] },
       {
         role: 'assistant',
-        content: 'I feel great!',
+        content: [{ type: 'text' as const, text: 'I feel great!' }],
         tool_calls: [moodTool]
       } as AgentMessage
     ];
@@ -145,10 +145,10 @@ describe('RoleplayPresenter', () => {
     };
 
     const messages: Message[] = [
-      { role: 'user' as const, content: 'I like coffee' },
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'I like coffee' }] },
       {
         role: 'assistant',
-        content: 'Got it!',
+        content: [{ type: 'text' as const, text: 'Got it!' }],
         tool_calls: [hiddenTool]
       } as AgentMessage
     ];
@@ -191,10 +191,10 @@ describe('RoleplayPresenter', () => {
     };
 
     const messages: Message[] = [
-      { role: 'user' as const, content: 'Hello' },
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Hello' }] },
       {
         role: 'assistant',
-        content: 'Hi there!',
+        content: [{ type: 'text' as const, text: 'Hi there!' }],
         tool_calls: [actionTool, thoughtTool]
       } as AgentMessage
     ];
@@ -236,14 +236,14 @@ describe('RoleplayPresenter', () => {
     };
 
     const messages: Message[] = [
-      { role: 'user' as const, content: 'Play as Bob' },
-      { role: 'assistant', content: '', tool_calls: [assumeBob] } as AgentMessage,
-      { role: 'user' as const, content: 'Say hi' },
-      { role: 'assistant', content: 'Hello!', tool_calls: [] } as AgentMessage,
-      { role: 'user' as const, content: 'Now play as Alice' },
-      { role: 'assistant', content: '', tool_calls: [assumeAlice] } as AgentMessage,
-      { role: 'user' as const, content: 'Say something mysterious' },
-      { role: 'assistant', content: 'The shadows whisper secrets...', tool_calls: [] } as AgentMessage,
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Play as Bob' }] },
+      { role: 'assistant', content: [], tool_calls: [assumeBob] } as AgentMessage,
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Say hi' }] },
+      { role: 'assistant', content: [{ type: 'text' as const, text: 'Hello!' }], tool_calls: [] } as AgentMessage,
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Now play as Alice' }] },
+      { role: 'assistant', content: [], tool_calls: [assumeAlice] } as AgentMessage,
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Say something mysterious' }] },
+      { role: 'assistant', content: [{ type: 'text' as const, text: 'The shadows whisper secrets...' }], tool_calls: [] } as AgentMessage,
     ];
 
     render(
@@ -277,10 +277,10 @@ describe('RoleplayPresenter', () => {
     };
 
     const messages: Message[] = [
-      { role: 'user' as const, content: 'Set the scene' },
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Set the scene' }] },
       {
         role: 'assistant',
-        content: 'The scene is set.',
+        content: [{ type: 'text' as const, text: 'The scene is set.' }],
         tool_calls: [sceneTool]
       } as AgentMessage
     ];
@@ -304,8 +304,8 @@ describe('RoleplayPresenter', () => {
 
   it('should show streaming cursor when active', () => {
     const messages: Message[] = [
-      { role: 'user' as const, content: 'Hello' },
-      { role: 'assistant', content: 'Hi there!', tool_calls: [] } as AgentMessage
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Hello' }] },
+      { role: 'assistant', content: [{ type: 'text' as const, text: 'Hi there!' }], tool_calls: [] } as AgentMessage
     ];
 
     render(
@@ -321,9 +321,9 @@ describe('RoleplayPresenter', () => {
 
   it('should handle system messages with text content', () => {
     const messages = [
-      { role: 'user' as const, content: 'Hello' },
-      { role: 'system' as const, content: 'System notification: Context updated' },
-      { role: 'assistant' as const, content: 'How can I help?', tool_calls: [] }
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Hello' }] },
+      { role: 'system' as const, content: [{ type: 'text' as const, text: 'System notification: Context updated' }] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'How can I help?' }], tool_calls: [] }
     ];
 
     render(<RoleplayPresenter messages={messages} isStreamActive={false} agentState={mockAgentState} />);
@@ -344,9 +344,9 @@ describe('RoleplayPresenter', () => {
     };
 
     const messages = [
-      { role: 'user' as const, content: 'Can you help me?' },
-      { role: 'system' as const, content: summarizationContent },
-      { role: 'assistant' as const, content: 'Of course!', tool_calls: [] }
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Can you help me?' }] },
+      { role: 'system' as const, content: [summarizationContent] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'Of course!' }], tool_calls: [] }
     ];
 
     render(<RoleplayPresenter messages={messages} isStreamActive={false} agentState={mockAgentState} />);
@@ -363,9 +363,9 @@ describe('RoleplayPresenter', () => {
     };
 
     const messages = [
-      { role: 'system' as const, content: 'Plain string content' },
-      { role: 'system' as const, content: textContent },
-      { role: 'assistant' as const, content: 'Response', tool_calls: [] }
+      { role: 'system' as const, content: [{ type: 'text' as const, text: 'Plain string content' }] },
+      { role: 'system' as const, content: [textContent] },
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'Response' }], tool_calls: [] }
     ];
 
     render(<RoleplayPresenter messages={messages} isStreamActive={false} agentState={mockAgentState} />);
@@ -398,13 +398,13 @@ describe('RoleplayPresenter', () => {
     const messages = [
       {
         role: 'assistant',
-        content: "I'm Alice",
+        content: [{ type: 'text' as const, text: "I'm Alice" }],
         tool_calls: [assumeAlice]
       } as AgentMessage,
-      { role: 'system' as const, content: 'Context saved automatically' },
+      { role: 'system' as const, content: [{ type: 'text' as const, text: 'Context saved automatically' }] },
       {
         role: 'assistant',
-        content: "Hello there!",
+        content: [{ type: 'text' as const, text: "Hello there!" }],
         tool_calls: [setMood]
       } as AgentMessage
     ];

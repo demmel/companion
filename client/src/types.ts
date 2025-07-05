@@ -24,12 +24,12 @@ export type ToolCall = ToolCallRunning | ToolCallFinished;
 
 export interface UserMessage {
   role: 'user';
-  content: string;
+  content: UserContent;
 }
 
 export interface AgentMessage {
   role: 'assistant';
-  content: string;
+  content: AgentContent;
   tool_calls: ToolCall[];
 }
 
@@ -47,7 +47,15 @@ export interface TextContent {
   text: string;
 }
 
-export type SystemContent = SummarizationContent | TextContent | string; // string for backward compatibility
+// Role-specific content item types
+export type UserContentItem = TextContent;
+export type AgentContentItem = TextContent;
+export type SystemContentItem = SummarizationContent | TextContent;
+
+// Role-specific content as lists
+export type UserContent = UserContentItem[];
+export type AgentContent = AgentContentItem[];
+export type SystemContent = SystemContentItem[];
 
 export interface SystemMessage {
   role: 'system';
