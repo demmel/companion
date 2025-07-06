@@ -1,16 +1,18 @@
-import { ConversationPresenter } from './types';
-import { RoleplayPresenter } from './RoleplayPresenter';
-import { GenericPresenter } from './GenericPresenter';
+import { ConversationPresenter } from "./types";
+import { RoleplayPresenter } from "./RoleplayPresenter";
+import { GenericPresenter } from "./GenericPresenter";
 
-export function getPresenterForConfig(configName: string): ConversationPresenter {
+export function getPresenterForConfig(
+  configName: string,
+): ConversationPresenter {
   switch (configName) {
-    case 'roleplay':
+    case "roleplay":
       return RoleplayPresenter;
-    case 'coding':
-    case 'general':
+    case "coding":
+    case "general":
     default:
       return GenericPresenter;
   }
 }
 
-export * from './types';
+export * from "./types";

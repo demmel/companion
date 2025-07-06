@@ -1,4 +1,4 @@
-import { Message } from '../types';
+import { Message } from "../types";
 
 export interface ConversationPresenterProps {
   messages: Message[];
@@ -6,4 +6,5 @@ export interface ConversationPresenterProps {
   agentState?: Record<string, any>; // Agent state for character tracking
 }
 
-export type ConversationPresenter = React.ComponentType<ConversationPresenterProps>;
+export type ConversationPresenter =
+  React.ComponentType<ConversationPresenterProps>;

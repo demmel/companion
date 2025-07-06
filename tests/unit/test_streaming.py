@@ -2,14 +2,11 @@
 Tests for streaming parser with comprehensive edge case coverage
 """
 
-import pytest
-
 from agent.streaming import (
     StreamingParser,
     TextEvent,
     ToolCallEvent,
     InvalidToolCallEvent,
-    StreamEventType,
 )
 
 
@@ -168,10 +165,12 @@ class TestStreamingParser:
 
         events1 = list(parser.parse_chunk("Hello "))
         assert len(events1) == 1
+        assert isinstance(events1[0], TextEvent)
         assert events1[0].delta == "Hello "
 
         events2 = list(parser.parse_chunk("world"))
         assert len(events2) == 1
+        assert isinstance(events2[0], TextEvent)
         assert events2[0].delta == "world"
 
     def test_mixed_text_and_tools_in_chunk(self):
@@ -219,6 +218,7 @@ class TestStreamingParser:
 
         assert len(events1) == 0
         assert len(events2) == 1
+        assert isinstance(events2[0], TextEvent)
         assert events2[0].delta == "Hello"
         assert len(events3) == 0
 

@@ -2,19 +2,18 @@
 Tests for agent streaming with tool execution loops
 """
 
+import pprint
 import pytest
 from unittest.mock import Mock
 
 from agent.core import Agent
+from agent.types import TextToolContent, ToolCallSuccess
 from test_configs import create_simple_config, create_iteration_test_config
 from agent.agent_events import (
     AgentTextEvent,
     ResponseCompleteEvent,
     ToolStartedEvent,
-    ToolProgressEvent,
     ToolFinishedEvent,
-    ToolResultType,
-    AgentErrorEvent,
 )
 
 
@@ -48,7 +47,11 @@ class TestAgentStreaming:
         mock_llm.chat.side_effect = [iter(first_response), iter(second_response)]
 
         # Mock tool execution
-        agent.tools.execute = Mock(return_value="Mock result: Creating Jim character")
+        agent.tools.execute = Mock(
+            return_value=ToolCallSuccess(
+                content=TextToolContent(text="Mock result: Creating Jim character")
+            )
+        )
 
         # Collect all events from streaming
         events = list(agent.chat_stream("Hi, Jim"))
@@ -68,19 +71,26 @@ class TestAgentStreaming:
 
         # Verify tool started details
         tool_started = events[0]
+        assert isinstance(tool_started, ToolStartedEvent)
         assert tool_started.tool_name == "mock_tool"
         assert tool_started.tool_id == "call_1"
         assert tool_started.parameters == {"message": "Creating Jim character"}
 
         # Verify tool finished
         tool_finished = events[1]
+        assert isinstance(tool_finished, ToolFinishedEvent)
         assert tool_finished.tool_id == "call_1"
-        assert tool_finished.result_type == ToolResultType.SUCCESS
-        assert "Mock result: Creating Jim character" in tool_finished.result
+        assert tool_finished.result.type == "success"
+        assert tool_finished.result.content.type == "text"
+        assert (
+            "Mock result: Creating Jim character" in tool_finished.result.content.text
+        )
 
         # Verify dialogue text
         text_events = events[2:5]
-        full_text = "".join(e.content for e in text_events)
+        full_text = "".join(
+            e.content for e in text_events if isinstance(e, AgentTextEvent)
+        )
         assert full_text == '"Hey there, what do you want?"'
 
     def test_no_tools_simple_response(self):
@@ -106,7 +116,9 @@ class TestAgentStreaming:
         assert actual_sequence == expected_sequence
 
         # Verify content
+        assert isinstance(events[0], AgentTextEvent)
         assert events[0].content == "Hello! "
+        assert isinstance(events[1], AgentTextEvent)
         assert events[1].content == "How are you?"
 
         # Should only call LLM once

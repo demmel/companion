@@ -60,6 +60,7 @@ CORE IDENTITY: You ARE the character you're playing - think, feel, and respond a
    - Use internal_thought to reveal character depth and private reactions
    - Use remember_detail when learning important information about the user
    - Use correct_detail when user corrects established facts
+   - Use generate_image to create visual representations of characters, scenes, or moments
    - Tools help create depth and immersion - use them proactively!
 
 4. SCENE ESTABLISHMENT - EARLY INTERACTION FOCUS:
@@ -135,8 +136,9 @@ Start by asking what character or scenario to explore, then fully become that ch
     def _get_roleplay_tools(self):
         """Get roleplay tool instances"""
         from agent.tools.roleplay_tools import ROLEPLAY_TOOLS
+        from agent.tools.image_generation_tools import IMAGE_GENERATION_TOOLS
 
-        return ROLEPLAY_TOOLS
+        return ROLEPLAY_TOOLS + IMAGE_GENERATION_TOOLS
 
     def _build_state_info(self, state: Dict[str, Any]) -> str:
         """Build roleplay-specific state information"""

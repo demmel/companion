@@ -1,39 +1,44 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { AgentEvent } from '../types';
+import { useState, useRef, useCallback, useEffect } from "react";
+import { ClientAgentEvent } from "./useWebSocket";
 
 export interface UseStreamBatcherReturn {
-  events: AgentEvent[];
-  queueEvent: (event: AgentEvent) => void;
+  events: ClientAgentEvent[];
+  queueEvent: (event: ClientAgentEvent) => void;
   clearEvents: () => void;
 }
 
-export function useStreamBatcher(batchInterval: number = 50): UseStreamBatcherReturn {
-  const [events, setEvents] = useState<AgentEvent[]>([]);
-  const eventBufferRef = useRef<AgentEvent[]>([]);
+export function useStreamBatcher(
+  batchInterval: number = 50,
+): UseStreamBatcherReturn {
+  const [events, setEvents] = useState<ClientAgentEvent[]>([]);
+  const eventBufferRef = useRef<ClientAgentEvent[]>([]);
   const batchTimerRef = useRef<number | undefined>(undefined);
 
   const processBatch = useCallback(() => {
     if (eventBufferRef.current.length === 0) return;
-    
+
     const newEvents = eventBufferRef.current.splice(0); // Clear buffer
-    setEvents(prevEvents => [...prevEvents, ...newEvents]);
+    setEvents((prevEvents) => [...prevEvents, ...newEvents]);
   }, []);
 
-  const queueEvent = useCallback((event: AgentEvent) => {
-    eventBufferRef.current.push(event);
-    
-    // Reset batch timer
-    if (batchTimerRef.current) {
-      clearTimeout(batchTimerRef.current);
-    }
-    
-    if (batchInterval === 0) {
-      // Process immediately
-      processBatch();
-    } else {
-      batchTimerRef.current = window.setTimeout(processBatch, batchInterval);
-    }
-  }, [processBatch, batchInterval]);
+  const queueEvent = useCallback(
+    (event: ClientAgentEvent) => {
+      eventBufferRef.current.push(event);
+
+      // Reset batch timer
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current);
+      }
+
+      if (batchInterval === 0) {
+        // Process immediately
+        processBatch();
+      } else {
+        batchTimerRef.current = window.setTimeout(processBatch, batchInterval);
+      }
+    },
+    [processBatch, batchInterval],
+  );
 
   const clearEvents = useCallback(() => {
     eventBufferRef.current = [];
@@ -55,6 +60,6 @@ export function useStreamBatcher(batchInterval: number = 50): UseStreamBatcherRe
   return {
     events,
     queueEvent,
-    clearEvents
+    clearEvents,
   };
 }

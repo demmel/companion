@@ -4,8 +4,8 @@ FastAPI server for single-user agent system
 
 import json
 import logging
-from agent.message import Message
-from typing import Dict, Any, List, Optional
+from agent.types import Message
+from typing import Dict, List, Optional
 from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
@@ -13,10 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from pathlib import Path
 
 from agent.core import Agent
 from agent.config import get_config as get_agent_config, get_all_configs
+from agent.paths import agent_paths
 
 
 # Response Models
@@ -214,15 +214,24 @@ async def health_check():
     }
 
 
-# Static files configuration
-CLIENT_DIST_PATH = Path(__file__).parent.parent.parent / "client" / "dist"
+# Static files configuration using centralized paths
+client_dist_dir = agent_paths.get_client_dist_dir()
 
-if CLIENT_DIST_PATH.exists():
-    logger.info(f"✅ Serving React client from: {CLIENT_DIST_PATH}")
+if client_dist_dir.exists():
+    logger.info(f"✅ Serving React client from: {client_dist_dir}")
 
     # Mount static assets (JS, CSS, images, etc.)
     app.mount(
-        "/assets", StaticFiles(directory=CLIENT_DIST_PATH / "assets"), name="assets"
+        "/assets",
+        StaticFiles(directory=agent_paths.get_client_assets_dir()),
+        name="assets",
+    )
+
+    # Mount generated images directory
+    app.mount(
+        "/generated_images",
+        StaticFiles(directory=agent_paths.get_generated_images_dir()),
+        name="generated_images",
     )
 
     # Catch-all route for React SPA (must be last!)
@@ -233,19 +242,19 @@ if CLIENT_DIST_PATH.exists():
         logger.info(f"Serving SPA for path: {path}")
 
         # Try to serve specific file first
-        file_path = CLIENT_DIST_PATH / path
+        file_path = client_dist_dir / path
         if file_path.is_file():
             return FileResponse(file_path)
 
         # Fallback to index.html for SPA routing
-        index_path = CLIENT_DIST_PATH / "index.html"
-        if index_path.exists():
-            return FileResponse(index_path)
+        index_html_path = agent_paths.get_client_index_html()
+        if index_html_path.exists():
+            return FileResponse(index_html_path)
 
         return {"message": "React client not built. Run 'cd client && npm run build'"}
 
 else:
-    logger.warning(f"⚠️  React client not found at: {CLIENT_DIST_PATH}")
+    logger.warning(f"⚠️  React client not found at: {client_dist_dir}")
     logger.warning("   Run 'cd client && npm run build' to build the client first")
 
     # Provide helpful message at root

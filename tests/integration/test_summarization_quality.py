@@ -6,8 +6,8 @@ Tests that summarization produces actual summaries, not conversational responses
 import pytest
 from agent.core import Agent
 from agent.config import get_config
-from agent.message import TextContent, UserMessage, AgentMessage
-from agent.agent_events import SummarizationFinishedEvent
+from agent.types import TextContent, UserMessage, AgentMessage
+from agent.agent_events import AgentTextEvent, SummarizationFinishedEvent
 from typing import List, Dict, Any
 
 
@@ -104,7 +104,7 @@ Please respond with only "SUMMARY" or "CONVERSATION" based on what the text appe
         # Extract the text response
         evaluation_text = ""
         for event in response_events:
-            if hasattr(event, "content"):
+            if isinstance(event, AgentTextEvent):
                 evaluation_text += event.content
 
         evaluation = evaluation_text.strip().upper()

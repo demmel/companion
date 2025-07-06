@@ -1,158 +1,94 @@
-// API Types - Structured Message Format (matches server message.py)
-export interface ToolCallResult {
-  type: 'success' | 'error';
-  content: string;
+export interface TextToolContent {
+  type: "text";
+  text: string;
 }
 
+export interface ImageGenerationToolContent {
+  type: "image_generated";
+  prompt: string;
+  image_path: string;
+  image_url: string; // URL to access the generated image
+  width: number;
+  height: number;
+  num_inference_steps: number;
+  guidance_scale: number;
+  negative_prompt?: string;
+  seed?: number;
+}
+
+export type ToolContent = TextToolContent | ImageGenerationToolContent;
+
+export interface ToolCallSuccess {
+  type: "success";
+  content: ToolContent;
+}
+
+export interface ToolCallError {
+  type: "error";
+  error: string;
+}
+
+export type ToolResult = ToolCallSuccess | ToolCallError;
+
 export interface ToolCallBase {
+  /** Base class for tool call events */
   tool_name: string;
   tool_id: string;
   parameters: Record<string, any>;
 }
 
 export interface ToolCallRunning extends ToolCallBase {
-  type: 'started';
-  progress?: any;
+  /** Event when a tool call starts */
+  type: "started";
+  progress?: any; // Optional progress data
 }
 
 export interface ToolCallFinished extends ToolCallBase {
-  type: 'finished';
-  result: ToolCallResult;
+  /** Event when a tool call finishes */
+  type: "finished";
+  result: ToolResult;
 }
 
 export type ToolCall = ToolCallRunning | ToolCallFinished;
 
-export interface UserMessage {
-  role: 'user';
-  content: UserContent;
-}
-
-export interface AgentMessage {
-  role: 'assistant';
-  content: AgentContent;
-  tool_calls: ToolCall[];
-}
-
-export interface SummarizationContent {
-  type: 'summarization';
-  title: string;
-  summary: string;
-  messages_summarized: number;
-  context_usage_before: number;
-  context_usage_after: number;
-}
-
 export interface TextContent {
-  type: 'text';
+  /** Structured content for text messages */
+  type: "text";
   text: string;
 }
 
-// Role-specific content item types
+export interface SummarizationContent {
+  /** Structured content for summarization system messages */
+  type: "summarization";
+  title: string;
+  summary: string;
+}
+
 export type UserContentItem = TextContent;
 export type AgentContentItem = TextContent;
 export type SystemContentItem = SummarizationContent | TextContent;
 
-// Role-specific content as lists
 export type UserContent = UserContentItem[];
 export type AgentContent = AgentContentItem[];
 export type SystemContent = SystemContentItem[];
 
+export interface UserMessage {
+  /** Message from the user */
+  role: "user";
+  content: UserContent;
+}
+
+export interface AgentMessage {
+  /** Message from the agent */
+  role: "assistant";
+  content: AgentContent;
+  tool_calls: ToolCall[];
+}
+
 export interface SystemMessage {
-  role: 'system';
+  /** System message for summarization or other system-level content */
+  role: "system";
   content: SystemContent;
 }
 
 export type Message = UserMessage | AgentMessage | SystemMessage;
-
-export interface ConversationResponse {
-  messages: Message[];
-}
-
-export interface AgentConfig {
-  name: string;
-  description: string;
-  tools: string[];
-}
-
-export interface ConfigsResponse {
-  configs: { [key: string]: string };
-}
-
-// WebSocket Event Types
-export type AgentEventType = 
-  | 'text'
-  | 'tool_started'
-  | 'tool_finished'
-  | 'error'
-  | 'summarization_started'
-  | 'summarization_finished'
-  | 'response_complete';
-
-export interface BaseAgentEvent {
-  id: number;
-  type: AgentEventType;
-}
-
-export interface AgentTextEvent extends BaseAgentEvent {
-  type: 'text';
-  content: string;
-}
-
-export interface ToolStartedEvent extends BaseAgentEvent {
-  type: 'tool_started';
-  tool_name: string;
-  tool_id: string;
-  parameters: { [key: string]: any };
-}
-
-export interface ToolFinishedEvent extends BaseAgentEvent {
-  type: 'tool_finished';
-  tool_id: string;
-  result_type: 'success' | 'error';
-  result: string;
-}
-
-export interface AgentErrorEvent extends BaseAgentEvent {
-  type: 'error';
-  message: string;
-  tool_name?: string;
-  tool_id?: string;
-}
-
-export interface SummarizationStartedEvent extends BaseAgentEvent {
-  type: 'summarization_started';
-  messages_to_summarize: number;
-  recent_messages_kept: number;
-  context_usage_before: number;
-}
-
-export interface SummarizationFinishedEvent extends BaseAgentEvent {
-  type: 'summarization_finished';
-  summary: string;
-  messages_summarized: number;
-  messages_after: number;
-  context_usage_after: number;
-}
-
-export interface ResponseCompleteEvent extends BaseAgentEvent {
-  type: 'response_complete';
-}
-
-export type AgentEvent = 
-  | AgentTextEvent 
-  | ToolStartedEvent 
-  | ToolFinishedEvent 
-  | AgentErrorEvent 
-  | SummarizationStartedEvent
-  | SummarizationFinishedEvent
-  | ResponseCompleteEvent;
-
-// UI State Types
-export interface ToolExecution {
-  id: string;
-  name: string;
-  parameters: { [key: string]: any };
-  status: 'running' | 'completed' | 'error';
-  result?: string;
-  error?: string;
-}

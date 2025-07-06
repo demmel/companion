@@ -27,6 +27,7 @@ dependencies = [
     "uvicorn>=0.34.3",
     "websockets>=15.0.1",
     "pytest-asyncio>=1.0.0",
+    "diffusers>=0.34.0",
 ]
 
 [tool.uv.sources]
@@ -50,8 +51,14 @@ packages = ["src/agent"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+markers = [
+    "integration: mark test as part of integration suite",
+    "unit: mark test as part of unit suite",
+]
 
 [dependency-groups]
 dev = [
+    "pydantic-to-typescript>=2.0.0",
+    "pyright>=1.1.402",
     "pytest-cov>=6.2.1",
 ]

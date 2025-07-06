@@ -2,17 +2,16 @@
 Tests for message conversion between structured format and LLM format
 """
 
-import pytest
 from agent.core import message_to_llm_messages
-from agent.message import (
+from agent.types import (
     TextContent,
+    TextToolContent,
+    ToolCallError,
+    ToolCallSuccess,
     UserMessage,
     AgentMessage,
     ToolCallFinished,
-    ToolCallResult,
-    ToolCallResultType,
 )
-from agent.llm import Message as LLMMessage
 
 
 class TestMessageToLLMConversion:
@@ -46,9 +45,7 @@ class TestMessageToLLMConversion:
             tool_name="set_mood",
             tool_id="call_123",
             parameters={"mood": "happy", "intensity": 8},
-            result=ToolCallResult(
-                type=ToolCallResultType.SUCCESS, content="Mood set to happy"
-            ),
+            result=ToolCallSuccess(content=TextToolContent(text="Mood set to happy")),
         )
 
         agent_msg = AgentMessage(
@@ -81,16 +78,14 @@ class TestMessageToLLMConversion:
             tool_name="set_mood",
             tool_id="call_1",
             parameters={"mood": "happy"},
-            result=ToolCallResult(type=ToolCallResultType.SUCCESS, content="Mood set"),
+            result=ToolCallSuccess(content=TextToolContent(text="Mood set to happy")),
         )
 
         tool_call_2 = ToolCallFinished(
             tool_name="remember_detail",
             tool_id="call_2",
             parameters={"detail": "User likes coffee"},
-            result=ToolCallResult(
-                type=ToolCallResultType.ERROR, content="Memory storage failed"
-            ),
+            result=ToolCallError(error="Memory storage failed"),
         )
 
         agent_msg = AgentMessage(
@@ -120,8 +115,8 @@ class TestMessageToLLMConversion:
             tool_name="assume_character",
             tool_id="call_abc",
             parameters={"name": "Alice", "personality": "cheerful"},
-            result=ToolCallResult(
-                type=ToolCallResultType.SUCCESS, content="Character Alice created"
+            result=ToolCallSuccess(
+                content=TextToolContent(text="Character Alice created")
             ),
         )
 
@@ -141,7 +136,7 @@ class TestMessageToLLMConversion:
 
     def test_agent_message_with_tool_running_state(self):
         """Test that only finished tool calls generate results"""
-        from agent.message import ToolCallRunning
+        from agent.types import ToolCallRunning
 
         running_tool = ToolCallRunning(
             tool_name="slow_tool",
@@ -153,9 +148,7 @@ class TestMessageToLLMConversion:
             tool_name="fast_tool",
             tool_id="call_done",
             parameters={"task": "complete"},
-            result=ToolCallResult(
-                type=ToolCallResultType.SUCCESS, content="Task completed"
-            ),
+            result=ToolCallSuccess(content=TextToolContent(text="Task completed")),
         )
 
         agent_msg = AgentMessage(

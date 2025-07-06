@@ -1,4 +1,4 @@
-import { css } from '@styled-system/css';
+import { css } from "@styled-system/css";
 
 interface StateHeaderProps {
   primaryText: string;
@@ -6,33 +6,39 @@ interface StateHeaderProps {
   secondaryText?: string;
 }
 
-export function StateHeader({ primaryText, icon, secondaryText }: StateHeaderProps) {
+export function StateHeader({
+  primaryText,
+  icon,
+  secondaryText,
+}: StateHeaderProps) {
   return (
     <div className={css({ mb: 3 })}>
-      <div className={css({ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 2, 
-        fontSize: 'xl' 
-      })}>
-        <span className={css({ 
-          fontWeight: 'medium', 
-          color: 'gray.300' 
-        })}>
+      <div
+        className={css({
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+          fontSize: "xl",
+        })}
+      >
+        <span
+          className={css({
+            fontWeight: "medium",
+            color: "gray.300",
+          })}
+        >
           {primaryText}
         </span>
-        
-        {icon && (
-          <span className={css({ fontSize: 'lg' })}>
-            {icon}
-          </span>
-        )}
-        
+
+        {icon && <span className={css({ fontSize: "lg" })}>{icon}</span>}
+
         {secondaryText && (
-          <span className={css({ 
-            color: 'gray.500', 
-            fontSize: 'xs' 
-          })}>
+          <span
+            className={css({
+              color: "gray.500",
+              fontSize: "xs",
+            })}
+          >
             {secondaryText}
           </span>
         )}

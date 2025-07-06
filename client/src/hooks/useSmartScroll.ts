@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface UseSmartScrollOptions {
   items: any[]; // Array of items that trigger scroll updates
-  threshold?: number; // Distance from bottom to consider "at bottom" 
+  threshold?: number; // Distance from bottom to consider "at bottom"
 }
 
 interface UseSmartScrollReturn {
@@ -14,22 +14,25 @@ interface UseSmartScrollReturn {
   setUserAtBottom: (atBottom: boolean) => void;
 }
 
-export function useSmartScroll({ 
-  items, 
-  threshold = 100 
+export function useSmartScroll({
+  items,
+  threshold = 100,
 }: UseSmartScrollOptions): UseSmartScrollReturn {
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
-    const isAtBottom = scrollTop + clientHeight >= scrollHeight - threshold;
-    setIsUserAtBottom(isAtBottom);
-  }, [threshold]);
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - threshold;
+      setIsUserAtBottom(isAtBottom);
+    },
+    [threshold],
+  );
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   const setUserAtBottom = useCallback((atBottom: boolean) => {
@@ -49,6 +52,6 @@ export function useSmartScroll({
     messagesContainerRef,
     handleScroll,
     scrollToBottom,
-    setUserAtBottom
+    setUserAtBottom,
   };
 }

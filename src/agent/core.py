@@ -11,16 +11,16 @@ from .llm import LLMClient, Message as LLMMessage
 from .tools import ToolRegistry, ToolExecutionError
 from .streaming import StreamingParser, TextEvent, ToolCallEvent, InvalidToolCallEvent
 from .config import AgentConfig
-from .message import (
+from .types import (
     AgentMessage,
     Message,
     SummarizationContent,
     SystemMessage,
     TextContent,
     ToolCall,
+    ToolCallError,
     ToolCallFinished,
-    ToolCallResult,
-    ToolCallResultType,
+    ToolResult,
     UserMessage,
 )
 from .agent_events import (
@@ -28,7 +28,6 @@ from .agent_events import (
     AgentTextEvent,
     ToolStartedEvent,
     ToolFinishedEvent,
-    ToolResultType,
     AgentErrorEvent,
     SummarizationStartedEvent,
     SummarizationFinishedEvent,
@@ -298,9 +297,7 @@ class Agent:
                             tool_name=tool_event.tool_name,
                             tool_id=tool_event.id,
                             parameters=tool_event.parameters,
-                            result=ToolCallResult(
-                                type=ToolCallResultType.ERROR, content=error_msg
-                            ),
+                            result=ToolCallError(type="error", error=error_msg),
                         )
                     )
                     yield AgentErrorEvent(
@@ -318,9 +315,16 @@ class Agent:
                 )
 
                 try:
-                    # Execute tool
+                    # Execute tool with progress callback
+                    def progress_callback(data):
+                        # Send progress events for streaming
+                        pass  # For now, we can ignore progress in the core
+
                     result = self.tools.execute(
-                        tool_event.tool_name, tool_event.parameters
+                        tool_event.tool_name,
+                        tool_event.id,
+                        tool_event.parameters,
+                        progress_callback,
                     )
                     tool_results.append(
                         f"{tool_event.tool_name} ({tool_event.id}): {result}"
@@ -332,16 +336,13 @@ class Agent:
                             tool_name=tool_event.tool_name,
                             tool_id=tool_event.id,
                             parameters=tool_event.parameters,
-                            result=ToolCallResult(
-                                type=ToolCallResultType.SUCCESS, content=result
-                            ),
+                            result=result,
                         )
                     )
 
                     # Signal successful tool execution
                     yield ToolFinishedEvent(
                         tool_id=tool_event.id,
-                        result_type=ToolResultType.SUCCESS,
                         result=result,
                     )
                 except ToolExecutionError as e:
@@ -356,16 +357,12 @@ class Agent:
                             tool_name=tool_event.tool_name,
                             tool_id=tool_event.id,
                             parameters=tool_event.parameters,
-                            result=ToolCallResult(
-                                type=ToolCallResultType.ERROR, content=str(e)
-                            ),
+                            result=ToolCallError(type="error", error=str(e)),
                         )
                     )
 
                     yield ToolFinishedEvent(
-                        tool_id=tool_event.id,
-                        result_type=ToolResultType.ERROR,
-                        result=str(e),
+                        tool_id=tool_event.id, result=ToolCallError(error=str(e))
                     )
                 except Exception as e:
                     # Unexpected system error
@@ -382,9 +379,7 @@ class Agent:
                             tool_name=tool_event.tool_name,
                             tool_id=tool_event.id,
                             parameters=tool_event.parameters,
-                            result=ToolCallResult(
-                                type=ToolCallResultType.ERROR, content=error_msg
-                            ),
+                            result=ToolCallError(type="error", error=error_msg),
                         )
                     )
 

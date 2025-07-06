@@ -2,10 +2,19 @@
 Roleplay tools as proper tool classes
 """
 
-from typing import Type
+from typing import Type, Dict, Any, Callable
 from pydantic import Field
 
-from agent.tools import BaseTool, ToolInput
+from agent.tools import (
+    BaseTool,
+    ToolInput,
+)
+from agent.types import (
+    TextToolContent,
+    ToolCallError,
+    ToolCallSuccess,
+    ToolResult,
+)
 
 
 # ============================================================================
@@ -97,7 +106,13 @@ class AssumeCharacterTool(BaseTool):
     def input_schema(self) -> Type[ToolInput]:
         return AssumeCharacterInput
 
-    def run(self, agent, input_data: AssumeCharacterInput) -> str:
+    def run(
+        self,
+        agent,
+        input_data: AssumeCharacterInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
         from ..character_state import create_character_state
 
         # Check if character already exists
@@ -127,12 +142,18 @@ class AssumeCharacterTool(BaseTool):
             agent.set_state("current_character_id", char["id"])
             result = f"NEW CHARACTER CREATED: {input_data.character_name}"
 
-        return f"""{result}
+        content = f"""{result}
 PERSONALITY: {input_data.personality}
 BACKGROUND: {input_data.background}
 QUIRKS: {input_data.quirks}
 
 You are now roleplaying as {input_data.character_name}. Respond in character from now on."""
+
+        content = TextToolContent(
+            text=content,
+        )
+
+        return ToolCallSuccess(content=content)
 
 
 class SetMoodTool(BaseTool):
@@ -150,7 +171,13 @@ class SetMoodTool(BaseTool):
     def input_schema(self) -> Type[ToolInput]:
         return SetMoodInput
 
-    def run(self, agent, input_data: SetMoodInput) -> str:
+    def run(
+        self,
+        agent,
+        input_data: SetMoodInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
         from ..character_state import update_character_mood
 
         current_char_id = agent.get_state("current_character_id")
@@ -158,11 +185,17 @@ class SetMoodTool(BaseTool):
         current_char = characters.get(current_char_id) if current_char_id else None
 
         if not current_char:
-            return "Error: No character is currently active"
+            return ToolCallError(error="No character is currently active")
 
         update_character_mood(current_char, input_data.mood, input_data.intensity)
 
-        return f"CHARACTER MOOD SET: {input_data.mood} (intensity: {input_data.intensity}). Adjust your responses to reflect this emotional state."
+        content = f"CHARACTER MOOD SET: {input_data.mood} (intensity: {input_data.intensity}). Adjust your responses to reflect this emotional state."
+
+        content = TextToolContent(
+            text=content,
+        )
+
+        return ToolCallSuccess(content=content)
 
 
 class RememberDetailTool(BaseTool):
@@ -180,7 +213,13 @@ class RememberDetailTool(BaseTool):
     def input_schema(self) -> Type[ToolInput]:
         return RememberDetailInput
 
-    def run(self, agent, input_data: RememberDetailInput) -> str:
+    def run(
+        self,
+        agent,
+        input_data: RememberDetailInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
         from ..character_state import add_character_memory
 
         current_char_id = agent.get_state("current_character_id")
@@ -188,11 +227,15 @@ class RememberDetailTool(BaseTool):
         current_char = characters.get(current_char_id) if current_char_id else None
 
         if not current_char:
-            return "Error: No character is currently active"
+            return ToolCallError(error="No character is currently active")
 
         add_character_memory(current_char, input_data.detail, input_data.category)
 
-        return f"MEMORY STORED ({input_data.category}): {input_data.detail}. This detail will influence future interactions."
+        content = f"MEMORY STORED ({input_data.category}): {input_data.detail}. This detail will influence future interactions."
+        content = TextToolContent(
+            text=content,
+        )
+        return ToolCallSuccess(content=content)
 
 
 class InternalThoughtTool(BaseTool):
@@ -210,7 +253,13 @@ class InternalThoughtTool(BaseTool):
     def input_schema(self) -> Type[ToolInput]:
         return InternalThoughtInput
 
-    def run(self, agent, input_data: InternalThoughtInput) -> str:
+    def run(
+        self,
+        agent,
+        input_data: InternalThoughtInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
         from ..character_state import add_internal_thought
 
         current_char_id = agent.get_state("current_character_id")
@@ -218,11 +267,15 @@ class InternalThoughtTool(BaseTool):
         current_char = characters.get(current_char_id) if current_char_id else None
 
         if not current_char:
-            return "Error: No character is currently active"
+            return ToolCallError(error="No character is currently active")
 
         add_internal_thought(current_char, input_data.thought)
 
-        return f"INTERNAL THOUGHT: {input_data.thought}. This provides context for the character's behavior but isn't spoken aloud."
+        content = f"INTERNAL THOUGHT: {input_data.thought}. This provides context for the character's behavior but isn't spoken aloud."
+        content = TextToolContent(
+            text=content,
+        )
+        return ToolCallSuccess(content=content)
 
 
 class SceneSettingTool(BaseTool):
@@ -240,7 +293,13 @@ class SceneSettingTool(BaseTool):
     def input_schema(self) -> Type[ToolInput]:
         return SceneSettingInput
 
-    def run(self, agent, input_data: SceneSettingInput) -> str:
+    def run(
+        self,
+        agent,
+        input_data: SceneSettingInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
         # Scene is global, not per-character
         agent.set_state(
             "global_scene",
@@ -251,12 +310,15 @@ class SceneSettingTool(BaseTool):
             },
         )
 
-        scene_info = f"SCENE SET: {input_data.location}"
+        content = f"SCENE SET: {input_data.location}"
         if input_data.atmosphere:
-            scene_info += f"\nATMOSPHERE: {input_data.atmosphere}"
+            content += f"\nATMOSPHERE: {input_data.atmosphere}"
         if input_data.time:
-            scene_info += f"\nTIME: {input_data.time}"
-        return scene_info
+            content += f"\nTIME: {input_data.time}"
+        content = TextToolContent(
+            text=content,
+        )
+        return ToolCallSuccess(content=content)
 
 
 class CharacterActionTool(BaseTool):
@@ -274,7 +336,13 @@ class CharacterActionTool(BaseTool):
     def input_schema(self) -> Type[ToolInput]:
         return CharacterActionInput
 
-    def run(self, agent, input_data: CharacterActionInput) -> str:
+    def run(
+        self,
+        agent,
+        input_data: CharacterActionInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
         from ..character_state import add_character_action
 
         current_char_id = agent.get_state("current_character_id")
@@ -282,14 +350,19 @@ class CharacterActionTool(BaseTool):
         current_char = characters.get(current_char_id) if current_char_id else None
 
         if not current_char:
-            return "Error: No character is currently active"
+            return ToolCallError(error="No character is currently active")
 
         add_character_action(current_char, input_data.action, input_data.reason)
 
-        action_info = f"CHARACTER ACTION: {input_data.action}"
+        content = f"CHARACTER ACTION: {input_data.action}"
         if input_data.reason:
-            action_info += f"\nREASON: {input_data.reason}"
-        return action_info
+            content += f"\nREASON: {input_data.reason}"
+
+        content = TextToolContent(
+            text=content,
+        )
+
+        return ToolCallSuccess(content=content)
 
 
 class SwitchCharacterTool(BaseTool):
@@ -307,7 +380,13 @@ class SwitchCharacterTool(BaseTool):
     def input_schema(self) -> Type[ToolInput]:
         return SwitchCharacterInput
 
-    def run(self, agent, input_data: SwitchCharacterInput) -> str:
+    def run(
+        self,
+        agent,
+        input_data: SwitchCharacterInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
         characters = agent.get_state("characters") or {}
         current_char_id = agent.get_state("current_character_id")
 
@@ -320,7 +399,8 @@ class SwitchCharacterTool(BaseTool):
 
         if not target_char_id:
             available_chars = [char["name"] for char in characters.values()]
-            return f"Character '{input_data.character_name}' not found. Available characters: {', '.join(available_chars)}"
+            error_msg = f"Character '{input_data.character_name}' not found. Available characters: {', '.join(available_chars)}"
+            return ToolCallError(error=error_msg)
 
         # Switch to the character
         old_char = characters.get(current_char_id)
@@ -329,7 +409,11 @@ class SwitchCharacterTool(BaseTool):
         agent.set_state("current_character_id", target_char_id)
         new_char = characters[target_char_id]
 
-        return f"SWITCHED from {old_char_name} to {new_char['name']}. You are now roleplaying as {new_char['name']} ({new_char['personality']})."
+        content = f"SWITCHED from {old_char_name} to {new_char['name']}. You are now roleplaying as {new_char['name']} ({new_char['personality']})."
+        content = TextToolContent(
+            text=content,
+        )
+        return ToolCallSuccess(content=content)
 
 
 class CorrectDetailTool(BaseTool):
@@ -347,13 +431,19 @@ class CorrectDetailTool(BaseTool):
     def input_schema(self) -> Type[ToolInput]:
         return CorrectDetailInput
 
-    def run(self, agent, input_data: CorrectDetailInput) -> str:
+    def run(
+        self,
+        agent,
+        input_data: CorrectDetailInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
         current_char_id = agent.get_state("current_character_id")
         characters = agent.get_state("characters") or {}
         current_char = characters.get(current_char_id) if current_char_id else None
 
         if not current_char:
-            return "ERROR: No active character to correct details for"
+            return ToolCallError(error="No active character to correct details for")
 
         # Check if this is a character name change
         old_name = current_char.get("name", "")
@@ -417,7 +507,11 @@ class CorrectDetailTool(BaseTool):
         global_memories.append(input_data.new_detail)
         agent.set_state("global_memories", global_memories)
 
-        return f"{result_msg}. The character now knows and remembers the correct information."
+        content = f"{result_msg}. The character now knows and remembers the correct information."
+        content = TextToolContent(
+            text=content,
+        )
+        return ToolCallSuccess(content=content)
 
 
 # ============================================================================

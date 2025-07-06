@@ -1,15 +1,20 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Callable, List, Type, Optional
+from typing import Dict, Any, Callable, List, Type, Optional, Union, Literal
 from pydantic import BaseModel
+import functools
+
+from agent.types import ToolResult
 
 
 class ToolNotFoundError(Exception):
     """Raised when a requested tool doesn't exist"""
+
     pass
 
 
 class ToolExecutionError(Exception):
     """Raised when a tool exists but fails during execution"""
+
     pass
 
 
@@ -41,8 +46,32 @@ class BaseTool(ABC):
         pass
 
     @abstractmethod
-    def run(self, agent, input_data: ToolInput) -> str:
-        """Execute the tool with the given input"""
+    def run(
+        self,
+        agent,
+        input_data: ToolInput,
+        tool_id: str,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
+        """
+        Execute the tool with the given input.
+
+        Args:
+            agent: The agent instance
+            input_data: Validated input data
+            tool_id: Unique identifier for this tool execution
+            progress_callback: Function to call with progress updates (JSON-serializable data)
+
+        Returns:
+            ToolResult (tagged union of success/error)
+
+        Example:
+            progress_callback({"stage": "loading", "progress": 0.1})
+            progress_callback({"stage": "processing", "progress": 0.5})
+            return ToolSuccessResult(type="success", content="Operation completed")
+            # or
+            return ToolErrorResult(type="error", error="Something went wrong")
+        """
         pass
 
     def get_schema_description(self) -> str:
@@ -66,6 +95,9 @@ class BaseTool(ABC):
             params_text = ""
 
         return f"- {self.name}: {self.description}{params_text}"
+
+
+# Legacy decorator removed - updating tools directly to new callback interface
 
 
 class ToolRegistry:
@@ -107,8 +139,14 @@ class ToolRegistry:
 
         return "\n\n".join(descriptions)
 
-    def execute(self, tool_name: str, input_data: Dict[str, Any]) -> str:
-        """Execute a tool with validated input. Tool existence should be checked first with has_tool()"""
+    def execute(
+        self,
+        tool_name: str,
+        tool_id: str,
+        input_data: Dict[str, Any],
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
+        """Execute a tool with validated input and progress callback"""
         tool = self.get_tool(tool_name)
         if not tool:
             # This shouldn't happen if has_tool() was checked first
@@ -119,7 +157,6 @@ class ToolRegistry:
             validated_input = tool.input_schema(**input_data)
 
             # Execute tool with agent and validated data
-            result = tool.run(self.agent, validated_input)
-            return str(result)
+            return tool.run(self.agent, validated_input, tool_id, progress_callback)
         except Exception as e:
             raise ToolExecutionError(f"Error executing tool '{tool_name}': {str(e)}")

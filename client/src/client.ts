@@ -1,4 +1,4 @@
-import { Message } from './types';
+import { Message } from "./types";
 
 interface ClientConfig {
   host?: string;
@@ -9,7 +9,7 @@ export class AgentClient {
   private host: string;
   private port: number;
 
-  constructor({ host = 'localhost', port = 8000 }: ClientConfig = {}) {
+  constructor({ host = "localhost", port = 8000 }: ClientConfig = {}) {
     this.host = host;
     this.port = port;
   }
@@ -32,12 +32,12 @@ export class AgentClient {
 
   async reset(): Promise<void> {
     const response = await fetch(this.resetUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Reset failed: ${response.statusText}`);
     }
@@ -45,32 +45,36 @@ export class AgentClient {
 
   async getConversation(): Promise<Message[]> {
     const response = await fetch(`${this.httpBaseUrl}/api/conversation`);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to get conversation: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     return data.messages;
   }
 
-  async getConfig(): Promise<{ name: string; description: string; tools: string[] }> {
+  async getConfig(): Promise<{
+    name: string;
+    description: string;
+    tools: string[];
+  }> {
     const response = await fetch(`${this.httpBaseUrl}/api/config`);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to get config: ${response.statusText}`);
     }
-    
+
     return response.json();
   }
 
   async getState(): Promise<Record<string, any>> {
     const response = await fetch(`${this.httpBaseUrl}/api/state`);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to get state: ${response.statusText}`);
     }
-    
+
     return response.json();
   }
 
@@ -83,11 +87,11 @@ export class AgentClient {
     approaching_limit: boolean;
   }> {
     const response = await fetch(`${this.httpBaseUrl}/api/context`);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to get context info: ${response.statusText}`);
     }
-    
+
     return response.json();
   }
 }

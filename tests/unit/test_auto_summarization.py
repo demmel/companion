@@ -2,17 +2,18 @@
 Tests for auto-summarization functionality
 """
 
-from pprint import pprint
 import pytest
 from unittest.mock import patch
 from typing import List
 
 
 from agent.core import Agent
-from agent.message import (
+from agent.types import (
     SummarizationContent,
     SystemMessage,
     TextContent,
+    TextToolContent,
+    ToolCallSuccess,
     UserMessage,
     AgentMessage,
 )
@@ -20,11 +21,11 @@ from agent.agent_events import (
     SummarizationStartedEvent,
     SummarizationFinishedEvent,
 )
-from agent.llm import Message as LLMMessage
+from agent.llm import Message as LLMMessage, LLMClient
 from test_configs import create_empty_config
 
 
-class MockLLMClient:
+class MockLLMClient(LLMClient):
     """Mock LLM client for testing"""
 
     def __init__(self, mock_summary_response="Mock summary of conversation"):
@@ -260,7 +261,7 @@ class TestAutoSummarization:
         list(agent.chat_stream("New message"))
 
         # Should have system messages with structured summarization content
-        from agent.message import SystemMessage, SummarizationContent
+        from agent.types import SystemMessage, SummarizationContent
 
         system_messages = [
             msg
@@ -322,14 +323,14 @@ class TestSummarizationEdgeCases:
 
     def test_summarization_with_tool_calls(self, mock_agent):
         """Test summarization works with messages containing tool calls"""
-        from agent.message import ToolCallFinished, ToolCallResult, ToolCallResultType
+        from agent.types import ToolCallFinished
 
         # Add messages with tool calls
         tool_call = ToolCallFinished(
             tool_name="test_tool",
             tool_id="call_1",
             parameters={"param": "value"},
-            result=ToolCallResult(type=ToolCallResultType.SUCCESS, content="Success"),
+            result=ToolCallSuccess(content=TextToolContent(text="Success")),
         )
 
         for i in range(4):

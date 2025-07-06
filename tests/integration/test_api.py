@@ -10,7 +10,7 @@ import websockets
 import subprocess
 import time
 import os
-from typing import Generator, Dict, Any
+from typing import Generator
 
 # Test configuration
 BASE_URL = "http://localhost:8000"
@@ -95,6 +95,7 @@ def reset_agent(api_server):
 class TestHealthEndpoint:
     """Test health check functionality"""
 
+    @pytest.mark.integration
     def test_health_check(self, api_server):
         """Test basic health endpoint"""
         response = requests.get(f"{BASE_URL}/api/health", timeout=5)
@@ -118,6 +119,7 @@ class TestHealthEndpoint:
 class TestConfigEndpoints:
     """Test configuration management"""
 
+    @pytest.mark.integration
     def test_get_current_config(self, api_server, reset_agent):
         """Test getting current config"""
         response = requests.get(f"{BASE_URL}/api/config", timeout=5)
@@ -135,6 +137,7 @@ class TestConfigEndpoints:
         assert isinstance(data["description"], str)
         assert isinstance(data["tools"], list)
 
+    @pytest.mark.integration
     def test_get_available_configs(self, api_server):
         """Test getting all available configs"""
         response = requests.get(f"{BASE_URL}/api/configs", timeout=5)
@@ -152,6 +155,7 @@ class TestConfigEndpoints:
             assert config_name in data["configs"]
             assert isinstance(data["configs"][config_name], str)
 
+    @pytest.mark.integration
     def test_reset_with_config_change(self, api_server, reset_agent):
         """Test resetting agent with different config"""
         # Get current config
@@ -176,6 +180,7 @@ class TestConfigEndpoints:
 
         assert new_config_data["name"] == new_config
 
+    @pytest.mark.integration
     def test_reset_with_invalid_config(self, api_server):
         """Test reset with invalid config returns error"""
         response = requests.post(
@@ -191,6 +196,7 @@ class TestConfigEndpoints:
 class TestConversationEndpoint:
     """Test conversation history"""
 
+    @pytest.mark.integration
     def test_get_empty_conversation(self, api_server, reset_agent):
         """Test getting conversation when empty"""
         response = requests.get(f"{BASE_URL}/api/conversation", timeout=5)
@@ -209,6 +215,7 @@ class TestConversationEndpoint:
 class TestStateEndpoints:
     """Test state management"""
 
+    @pytest.mark.integration
     def test_get_full_state(self, api_server, reset_agent):
         """Test getting full agent state"""
         # Set some initial state
@@ -243,6 +250,7 @@ class TestStateEndpoints:
         for key in expected_keys:
             assert key in data
 
+    @pytest.mark.integration
     def test_get_state_by_path(self, api_server, reset_agent):
         """Test getting state by dot notation path"""
         # Get specific path
@@ -252,6 +260,7 @@ class TestStateEndpoints:
 
         assert response.status_code == 404
 
+    @pytest.mark.integration
     def test_set_state_by_path(self, api_server, reset_agent):
         """Test setting state by dot notation path"""
         test_value = "test_character_pytest"
@@ -275,6 +284,7 @@ class TestStateEndpoints:
         assert get_response.status_code == 200
         assert get_response.json() == test_value
 
+    @pytest.mark.integration
     def test_get_invalid_state_path(self, api_server, reset_agent):
         """Test getting non-existent state path returns 404"""
         response = requests.get(f"{BASE_URL}/api/state?path=nonexistent.key", timeout=5)
@@ -283,6 +293,7 @@ class TestStateEndpoints:
         data = response.json()
         assert "detail" in data
 
+    @pytest.mark.integration
     def test_set_nested_state_path_creates_intermediates(self, api_server, reset_agent):
         """Test setting nested state path creates intermediate dictionaries"""
         test_value = "deeply_nested_value"
@@ -314,10 +325,30 @@ class TestStateEndpoints:
         assert "subsection" in intermediate_data
 
 
+class TestGeneratedImageEndpoint:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_generated_image_endpoint(self, api_server, reset_agent):
+        images = requests.get(f"{BASE_URL}/api/generated_images", timeout=5)
+
+        assert images.status_code == 200
+        data = images.json()
+
+        # Check response structure
+        assert isinstance(data, list)
+        for item in data:
+            assert "image_url" in item
+            assert isinstance(item["image_url"], str)
+            assert item["image_url"].startswith("http://") or item[
+                "image_url"
+            ].startswith("https://")
+
+
 class TestWebSocketChat:
     """Test WebSocket streaming chat (single-user system)"""
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_websocket_simple_chat(self, api_server, reset_agent):
         """Test basic WebSocket chat functionality"""
         async with websockets.connect(WS_URL) as websocket:
@@ -360,6 +391,7 @@ class TestWebSocketChat:
             assert len(full_text.strip()) > 0, "Empty response text"
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_websocket_connection_lifecycle(self, api_server, reset_agent):
         """Test WebSocket connection opens and closes properly"""
         # Test single connection lifecycle
@@ -383,6 +415,7 @@ class TestFullWorkflow:
     """Test complete API workflow"""
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_complete_roleplay_workflow(self, api_server, reset_agent):
         """Test a complete roleplay interaction workflow"""
         # Reset the agent to ensure clean state

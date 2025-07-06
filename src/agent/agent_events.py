@@ -4,37 +4,18 @@ Agent-level streaming events for the chat_stream API
 
 from typing import Dict, Any, Optional
 from enum import Enum
-from dataclasses import dataclass
+from typing_extensions import Literal
 
 from pydantic import BaseModel
 
-
-class AgentEventType(Enum):
-    """Types of agent streaming events"""
-
-    TEXT = "text"
-    TOOL_STARTED = "tool_started"
-    TOOL_PROGRESS = "tool_progress"
-    TOOL_FINISHED = "tool_finished"
-    USER_INPUT_REQUEST = "user_input_request"  # Placeholder for future implementation
-    ERROR = "error"
-    SUMMARIZATION_STARTED = "summarization_started"
-    SUMMARIZATION_FINISHED = "summarization_finished"
-    RESPONSE_COMPLETE = "response_complete"
-
-
-class ToolResultType(Enum):
-    """Types of tool execution results"""
-
-    SUCCESS = "success"
-    ERROR = "error"
+from agent.types import ToolResult
 
 
 class AgentTextEvent(BaseModel):
     """Text content from agent response"""
 
     content: str
-    type: AgentEventType = AgentEventType.TEXT
+    type: Literal["text"] = "text"
 
 
 class ToolStartedEvent(BaseModel):
@@ -43,7 +24,7 @@ class ToolStartedEvent(BaseModel):
     tool_name: str
     tool_id: str
     parameters: Dict[str, Any]
-    type: AgentEventType = AgentEventType.TOOL_STARTED
+    type: Literal["tool_started"] = "tool_started"
 
 
 class ToolProgressEvent(BaseModel):
@@ -52,23 +33,22 @@ class ToolProgressEvent(BaseModel):
     tool_id: str
     data: str
     progress: Optional[float] = None  # 0.0 to 1.0
-    type: AgentEventType = AgentEventType.TOOL_PROGRESS
+    type: Literal["tool_progress"] = "tool_progress"
 
 
 class ToolFinishedEvent(BaseModel):
     """Tool execution completed"""
 
     tool_id: str
-    result_type: ToolResultType
-    result: str  # actual result for success, error message for error
-    type: AgentEventType = AgentEventType.TOOL_FINISHED
+    result: ToolResult
+    type: Literal["tool_finished"] = "tool_finished"
 
 
 class UserInputRequestEvent(BaseModel):
     """Placeholder for interactive tools that need user input"""
 
     # TODO: Define structure when we implement interactive tools
-    type: AgentEventType = AgentEventType.USER_INPUT_REQUEST
+    type: Literal["user_input_request"] = "user_input_request"
 
 
 class AgentErrorEvent(BaseModel):
@@ -77,7 +57,7 @@ class AgentErrorEvent(BaseModel):
     message: str
     tool_name: str = ""
     tool_id: str = ""
-    type: AgentEventType = AgentEventType.ERROR
+    type: Literal["error"] = "error"
 
 
 class SummarizationStartedEvent(BaseModel):
@@ -86,7 +66,7 @@ class SummarizationStartedEvent(BaseModel):
     messages_to_summarize: int
     recent_messages_kept: int
     context_usage_before: float
-    type: AgentEventType = AgentEventType.SUMMARIZATION_STARTED
+    type: Literal["summarization_started"] = "summarization_started"
 
 
 class SummarizationFinishedEvent(BaseModel):
@@ -96,7 +76,7 @@ class SummarizationFinishedEvent(BaseModel):
     messages_summarized: int
     messages_after: int
     context_usage_after: float
-    type: AgentEventType = AgentEventType.SUMMARIZATION_FINISHED
+    type: Literal["summarization_finished"] = "summarization_finished"
 
 
 class ResponseCompleteEvent(BaseModel):
@@ -108,7 +88,7 @@ class ResponseCompleteEvent(BaseModel):
     context_limit: int
     usage_percentage: float
     approaching_limit: bool
-    type: AgentEventType = AgentEventType.RESPONSE_COMPLETE
+    type: Literal["response_complete"] = "response_complete"
 
 
 # Union type for all agent events

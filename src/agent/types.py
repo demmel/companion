@@ -4,18 +4,50 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel
 
 
-class ToolCallResultType(str, Enum):
-    """Enum for tool call result types"""
+# Tool content types (similar to message content types)
+class TextToolContent(BaseModel):
+    """Text tool content"""
 
-    SUCCESS = "success"
-    ERROR = "error"
+    type: Literal["text"] = "text"
+    text: str
 
 
-class ToolCallResult(BaseModel):
-    """Result of a tool call"""
+class ImageGenerationToolContent(BaseModel):
+    """Image generation tool content"""
 
-    type: ToolCallResultType
-    content: str
+    type: Literal["image_generated"] = "image_generated"
+    prompt: str
+    image_path: str
+    image_url: str
+    width: int
+    height: int
+    num_inference_steps: int
+    guidance_scale: float
+    negative_prompt: Optional[str] = None
+    seed: Optional[int] = None
+
+
+# Union of all tool content types
+ToolContent = Union[TextToolContent, ImageGenerationToolContent]
+
+
+# Proper tagged union for tool call results
+class ToolCallSuccess(BaseModel):
+    """Successful tool execution result"""
+
+    type: Literal["success"] = "success"
+    content: ToolContent
+
+
+class ToolCallError(BaseModel):
+    """Failed tool execution result"""
+
+    type: Literal["error"] = "error"
+    error: str
+
+
+# Tagged union for tool results
+ToolResult = Union[ToolCallSuccess, ToolCallError]
 
 
 class ToolCallBase(BaseModel):
@@ -37,7 +69,7 @@ class ToolCallFinished(ToolCallBase):
     """Event when a tool call finishes"""
 
     type: Literal["finished"] = "finished"
-    result: ToolCallResult
+    result: ToolResult
 
 
 ToolCall = ToolCallRunning | ToolCallFinished
@@ -45,12 +77,14 @@ ToolCall = ToolCallRunning | ToolCallFinished
 
 class TextContent(BaseModel):
     """Structured content for text messages"""
+
     type: Literal["text"] = "text"
     text: str
 
 
 class SummarizationContent(BaseModel):
     """Structured content for summarization system messages"""
+
     type: Literal["summarization"] = "summarization"
     title: str
     summary: str
@@ -71,17 +105,23 @@ SystemContent = List[SystemContentItem]
 
 
 class UserMessage(BaseModel):
+    """Message from the user"""
+
     role: Literal["user"] = "user"
     content: UserContent
 
 
 class AgentMessage(BaseModel):
+    """Message from the agent"""
+
     role: Literal["assistant"] = "assistant"
     content: AgentContent
     tool_calls: List[ToolCall]
 
 
 class SystemMessage(BaseModel):
+    """System message for summarization or other system-level content"""
+
     role: Literal["system"] = "system"
     content: SystemContent
 

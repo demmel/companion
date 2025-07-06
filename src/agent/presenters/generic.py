@@ -38,7 +38,7 @@ class GenericPresenter(BasePresenter):
                 tool_name = self.active_tools.get(event.tool_id, "Unknown")
                 self.console.print(f"[dim green]✓ {tool_name} completed[/dim green]")
                 self.console.print(
-                    f"[dim blue]📋 {event.result[:100]}{'...' if len(event.result) > 100 else ''}[/dim blue]"
+                    f"[dim blue]📋 {event.result.model_dump_json(indent=2)}[/dim blue]"
                 )
 
             elif isinstance(event, AgentErrorEvent):

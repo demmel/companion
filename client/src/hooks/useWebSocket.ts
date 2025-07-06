@@ -1,9 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { AgentEvent } from '../types';
+import { AgentEvent } from "@/agent_events";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+export type ClientAgentEvent = {
+  id: number;
+} & AgentEvent;
 
 export interface UseWebSocketOptions {
   url: string;
-  onMessage?: (event: AgentEvent) => void;
+  onMessage?: (event: ClientAgentEvent) => void;
   onError?: (error: Event) => void;
   reconnectAttempts?: number;
   reconnectDelay?: number;
@@ -37,7 +41,7 @@ export const useWebSocket = ({
     }
 
     setIsConnecting(true);
-    
+
     try {
       const ws = new WebSocket(url);
       wsRef.current = ws;
@@ -50,25 +54,25 @@ export const useWebSocket = ({
 
       ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data)
-          if (!data || typeof data !== 'object' || !data.type) {
-            console.warn('Received invalid WebSocket message:', data);
+          const data = JSON.parse(event.data);
+          if (!data || typeof data !== "object" || !data.type) {
+            console.warn("Received invalid WebSocket message:", data);
             return;
           }
-          const agent_event: AgentEvent = {
+          const agent_event: ClientAgentEvent = {
             ...data,
             id: currentId.current++,
           };
           onMessage?.(agent_event);
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
+          console.error("Failed to parse WebSocket message:", error);
         }
       };
 
       ws.onclose = () => {
         setIsConnected(false);
         setIsConnecting(false);
-        
+
         // Attempt to reconnect
         if (reconnectCountRef.current < reconnectAttempts) {
           reconnectCountRef.current++;
@@ -84,7 +88,7 @@ export const useWebSocket = ({
       };
     } catch (error) {
       setIsConnecting(false);
-      console.error('Failed to create WebSocket connection:', error);
+      console.error("Failed to create WebSocket connection:", error);
     }
   }, [url, onMessage, onError, reconnectAttempts, reconnectDelay]);
 
@@ -92,12 +96,12 @@ export const useWebSocket = ({
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
-    
+
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-    
+
     setIsConnected(false);
     setIsConnecting(false);
     reconnectCountRef.current = 0;
@@ -107,7 +111,7 @@ export const useWebSocket = ({
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ message }));
     } else {
-      console.warn('WebSocket is not connected');
+      console.warn("WebSocket is not connected");
     }
   }, []);
 

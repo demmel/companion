@@ -4,18 +4,12 @@ CLI Agent with Llama 3.3 70B
 A general-purpose agent for various tasks.
 """
 
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import click
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.text import Text
-from rich.live import Live
-from rich.spinner import Spinner
 from agent.core import Agent
 from agent.config import get_config
 from agent.presenters import get_presenter_for_config

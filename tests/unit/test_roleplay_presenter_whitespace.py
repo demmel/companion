@@ -3,12 +3,16 @@ Tests for roleplay presenter whitespace and newline compression
 Focus on actual output behavior, not internal state
 """
 
-import pytest
 from unittest.mock import Mock
 from io import StringIO
 
 from agent.presenters.roleplay import RoleplayPresenter
-from agent.agent_events import AgentTextEvent, ToolStartedEvent, ToolFinishedEvent, ToolResultType
+from agent.agent_events import (
+    AgentTextEvent,
+    ToolStartedEvent,
+    ToolFinishedEvent,
+)
+from agent.types import TextToolContent, ToolCallSuccess
 
 
 class TestRoleplayPresenterWhitespace:
@@ -110,7 +114,10 @@ class TestRoleplayPresenterWhitespace:
                 tool_id="test1",
                 parameters={"action": "waves"},
             ),
-            ToolFinishedEvent(tool_id="test1", result_type=ToolResultType.SUCCESS, result="success"),
+            ToolFinishedEvent(
+                tool_id="test1",
+                result=ToolCallSuccess(content=TextToolContent(text="success")),
+            ),
             AgentTextEvent(content="More text"),
         ]
 
@@ -134,7 +141,10 @@ class TestRoleplayPresenterWhitespace:
                 tool_id="test1",
                 parameters={"action": "waves"},
             ),
-            ToolFinishedEvent(tool_id="test1", result_type=ToolResultType.SUCCESS, result="success"),
+            ToolFinishedEvent(
+                tool_id="test1",
+                result=ToolCallSuccess(content=TextToolContent(text="success")),
+            ),
             AgentTextEvent(content="More text"),
         ]
 
@@ -158,13 +168,19 @@ class TestRoleplayPresenterWhitespace:
                 tool_id="test1",
                 parameters={"action": "waves"},
             ),
-            ToolFinishedEvent(tool_id="test1", result_type=ToolResultType.SUCCESS, result="success"),
+            ToolFinishedEvent(
+                tool_id="test1",
+                result=ToolCallSuccess(content=TextToolContent(text="success")),
+            ),
             ToolStartedEvent(
                 tool_name="internal_thought",
                 tool_id="test2",
                 parameters={"thought": "thinking"},
             ),
-            ToolFinishedEvent(tool_id="test2", result_type=ToolResultType.SUCCESS, result="success"),
+            ToolFinishedEvent(
+                tool_id="test2",
+                result=ToolCallSuccess(content=TextToolContent(text="success")),
+            ),
             AgentTextEvent(content="More text"),
         ]
 
@@ -215,7 +231,10 @@ class TestRoleplayPresenterWhitespace:
                 tool_id="test1",
                 parameters={"detail": "info"},
             ),
-            ToolFinishedEvent(tool_id="test1", result_type=ToolResultType.SUCCESS, result="success"),
+            ToolFinishedEvent(
+                tool_id="test1",
+                result=ToolCallSuccess(content=TextToolContent(text="success")),
+            ),
             AgentTextEvent(content="More text"),
         ]
 
@@ -239,7 +258,10 @@ class TestRoleplayPresenterWhitespace:
                 tool_id="test1",
                 parameters={"location": "garden", "atmosphere": "peaceful"},
             ),
-            ToolFinishedEvent(tool_id="test1", result_type=ToolResultType.SUCCESS, result="success"),
+            ToolFinishedEvent(
+                tool_id="test1",
+                result=ToolCallSuccess(content=TextToolContent(text="success")),
+            ),
             AgentTextEvent(content="I continue"),
         ]
 
@@ -263,7 +285,10 @@ class TestRoleplayPresenterWhitespace:
             ToolStartedEvent(
                 tool_name="set_mood", tool_id="test1", parameters={"mood": "happy"}
             ),
-            ToolFinishedEvent(tool_id="test1", result_type=ToolResultType.SUCCESS, result="success"),
+            ToolFinishedEvent(
+                tool_id="test1",
+                result=ToolCallSuccess(content=TextToolContent(text="success")),
+            ),
             AgentTextEvent(content="Much better"),
         ]
 
