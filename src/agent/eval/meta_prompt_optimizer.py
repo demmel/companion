@@ -15,6 +15,7 @@ from typing import Dict, List, Any, Optional, Union
 from pathlib import Path
 from pydantic import BaseModel, Field
 
+from agent.eval.optimization_paths import OptimizationPathManager
 from agent.eval.structured_llm import structured_llm_call, StructuredLLMError
 from agent.eval.prompt_optimizer import (
     IntelligentPromptOptimizer,

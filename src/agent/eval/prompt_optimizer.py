@@ -15,13 +15,13 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field
 
 from agent.eval.structured_llm import structured_llm_call, StructuredLLMError
-from agent.eval.semantic_preferences_v2 import (
+from agent.eval.preferences import (
     SemanticPreferenceManager,
     OptimizationGuidance,
     AlignmentAssessment,
 )
-from agent.eval.feedback_learner_v2 import SmartFeedbackLearner
-from agent.eval.smart_interruption_v2 import (
+from agent.eval.feedback_learner import SmartFeedbackLearner
+from agent.eval.interruption import (
     IntelligentInterruptionSystem,
     OptimizationContext,
 )
