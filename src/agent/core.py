@@ -579,7 +579,14 @@ def format_tool_results(tool_results: List[ToolCallFinished]) -> str:
     """Format a list of tool call results into a string representation"""
     formatted_results = []
     for result in tool_results:
+        if result.result.type == "success":
+            # Use simple llm_feedback instead of full JSON
+            feedback = result.result.llm_feedback
+        else:
+            # For errors, include the error message
+            feedback = f"Error: {result.result.error}"
+        
         formatted_results.append(
-            f"TOOL_RESULT: {result.tool_name} ({result.tool_id})\n{result.model_dump_json(indent=2)}"
+            f"TOOL_RESULT: {result.tool_name} ({result.tool_id}): {feedback}"
         )
     return "\n\n".join(formatted_results)

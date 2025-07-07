@@ -248,7 +248,11 @@ class ImageGenerationTool(BaseTool):
             seed=input_data.seed,
         )
 
-        return ToolCallSuccess(type="success", content=image_content)
+        return ToolCallSuccess(
+            type="success", 
+            content=image_content,
+            llm_feedback=f"Image generated: {image_content.image_url}"
+        )
 
 
 # Tool instance for registration

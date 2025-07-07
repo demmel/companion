@@ -45,7 +45,7 @@ class TestMessageToLLMConversion:
             tool_name="set_mood",
             tool_id="call_123",
             parameters={"mood": "happy", "intensity": 8},
-            result=ToolCallSuccess(content=TextToolContent(text="Mood set to happy")),
+            result=ToolCallSuccess(content=TextToolContent(text="Mood set to happy"), llm_feedback="Success"),
         )
 
         agent_msg = AgentMessage(
@@ -70,7 +70,7 @@ class TestMessageToLLMConversion:
         results_llm_msg = llm_messages[1]
         assert results_llm_msg.role == "user"
         assert "TOOL_RESULT: set_mood (call_123)" in results_llm_msg.content
-        assert "Mood set to happy" in results_llm_msg.content
+        assert "Success" in results_llm_msg.content
 
     def test_agent_message_with_multiple_tool_calls(self):
         """Test agent message with multiple tool calls"""
@@ -78,7 +78,7 @@ class TestMessageToLLMConversion:
             tool_name="set_mood",
             tool_id="call_1",
             parameters={"mood": "happy"},
-            result=ToolCallSuccess(content=TextToolContent(text="Mood set to happy")),
+            result=ToolCallSuccess(content=TextToolContent(text="Mood set to happy"), llm_feedback="Success"),
         )
 
         tool_call_2 = ToolCallFinished(
@@ -106,7 +106,7 @@ class TestMessageToLLMConversion:
         results_llm_msg = llm_messages[1]
         assert "TOOL_RESULT: set_mood (call_1)" in results_llm_msg.content
         assert "TOOL_RESULT: remember_detail (call_2)" in results_llm_msg.content
-        assert "Mood set" in results_llm_msg.content
+        assert "Success" in results_llm_msg.content
         assert "Memory storage failed" in results_llm_msg.content
 
     def test_agent_message_no_text_only_tools(self):
@@ -116,7 +116,8 @@ class TestMessageToLLMConversion:
             tool_id="call_abc",
             parameters={"name": "Alice", "personality": "cheerful"},
             result=ToolCallSuccess(
-                content=TextToolContent(text="Character Alice created")
+                content=TextToolContent(text="Character Alice created"),
+                llm_feedback="Success"
             ),
         )
 
@@ -132,7 +133,7 @@ class TestMessageToLLMConversion:
 
         # Results message should have tool result
         results_llm_msg = llm_messages[1]
-        assert "Character Alice created" in results_llm_msg.content
+        assert "Success" in results_llm_msg.content
 
     def test_agent_message_with_tool_running_state(self):
         """Test that only finished tool calls generate results"""
@@ -148,7 +149,7 @@ class TestMessageToLLMConversion:
             tool_name="fast_tool",
             tool_id="call_done",
             parameters={"task": "complete"},
-            result=ToolCallSuccess(content=TextToolContent(text="Task completed")),
+            result=ToolCallSuccess(content=TextToolContent(text="Task completed"), llm_feedback="Success"),
         )
 
         agent_msg = AgentMessage(
@@ -168,5 +169,5 @@ class TestMessageToLLMConversion:
         # Results should only include finished tool
         results_llm_msg = llm_messages[1]
         assert "TOOL_RESULT: fast_tool (call_done)" in results_llm_msg.content
-        assert "Task completed" in results_llm_msg.content
+        assert "Success" in results_llm_msg.content
         assert "call_running" not in results_llm_msg.content

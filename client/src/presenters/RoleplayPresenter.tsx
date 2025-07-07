@@ -18,8 +18,7 @@ import {
   SystemBubble as SystemBubbleComponent,
   StateHeader,
 } from "@/components/chat";
-import { ToolDisplay } from "@/components/ToolDisplay";
-// import { demoMessages } from './demoData'; // Available for testing
+// import { demoMessages } from "./demoData"; // Available for testing
 
 const HIDDEN_TOOLS = new Set(["assume_character"]);
 const SYSTEM_TOOLS = new Set([
@@ -506,9 +505,17 @@ function CharacterAction({ toolCall }: { toolCall: ToolCall }) {
   return (
     <div
       className={css({
+        textAlign: "center",
+        my: 3,
+        py: 2,
+        px: 4,
         color: "blue.300",
         fontStyle: "italic",
-        mt: 2,
+        fontSize: "2xl",
+        bg: "blue.950",
+        borderRadius: "md",
+        border: "1px solid",
+        borderColor: "blue.800",
       })}
     >
       *{action}*
@@ -549,21 +556,47 @@ function MoodTransition({
   return (
     <div
       className={css({
-        display: "flex",
-        alignItems: "center",
-        gap: 2,
-        color: "gray.300",
-        mt: 2,
+        textAlign: "center",
+        my: 3,
+        py: 2,
+        px: 4,
+        bg: "gray.800",
+        borderRadius: "2xl",
+        border: "1px solid",
+        borderColor: "gray.600",
       })}
     >
-      <span>{oldEmoji}</span>
-      <span>→</span>
-      <span>{newEmoji}</span>
-      {toolCall.parameters.flavor_text && (
-        <span className={css({ fontStyle: "italic" })}>
-          {toolCall.parameters.flavor_text}
-        </span>
-      )}
+      {/* Emoji transition on its own centered row */}
+      <div
+        className={css({
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 3,
+          fontSize: "2xl",
+          mb: 2,
+        })}
+      >
+        <span>{oldEmoji}</span>
+        <span className={css({ color: "gray.400" })}>→</span>
+        <span>{newEmoji}</span>
+      </div>
+
+      {/* Mood text below */}
+      <div
+        className={css({
+          fontSize: "2xl",
+          color: "gray.300",
+          fontStyle: "italic",
+        })}
+      >
+        {oldMood} → {newMood}
+        {toolCall.parameters.flavor_text && (
+          <div className={css({ mt: 1, color: "gray.400", fontSize: "2xl" })}>
+            "{toolCall.parameters.flavor_text}"
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -575,15 +608,31 @@ function InternalThought({ toolCall }: { toolCall: ToolCall }) {
   return (
     <div
       className={css({
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 2,
-        color: "yellow.300",
-        mt: 2,
+        my: 3,
+        py: 3,
+        px: 4,
+        bg: "yellow.950",
+        borderRadius: "lg",
+        border: "1px solid",
+        borderColor: "yellow.800",
       })}
     >
-      <span>💭</span>
-      <span className={css({ fontStyle: "italic" })}>{thought}</span>
+      <div
+        className={css({
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+          gap: 2,
+          color: "yellow.200",
+          fontSize: "2xl",
+          mb: 2,
+        })}
+      >
+        <div>💭</div>
+        <div>{thought}</div>
+      </div>
     </div>
   );
 }
@@ -624,6 +673,18 @@ function GeneratedImage({ toolCall }: { toolCall: ToolCall }) {
           "{content.prompt}"
         </div>
       )}
+      {content.negative_prompt && (
+        <div
+          className={css({
+            fontSize: "sm",
+            color: "red.400",
+            mt: 1,
+            fontStyle: "italic",
+          })}
+        >
+          "{content.negative_prompt}"
+        </div>
+      )}
     </div>
   );
 }
@@ -631,25 +692,41 @@ function GeneratedImage({ toolCall }: { toolCall: ToolCall }) {
 function SceneSetting({ toolCall }: { toolCall: ToolCall }) {
   const { location, atmosphere, time } = toolCall.parameters;
 
-  const parts = [];
-  if (location) parts.push(location);
-  if (atmosphere) parts.push(atmosphere);
-  if (time) parts.push(`(${time})`);
-
-  if (parts.length === 0) return null;
+  if (!location && !atmosphere && !time) {
+    return null; // No scene setting provided
+  }
 
   return (
     <div
       className={css({
         display: "flex",
-        alignItems: "center",
         gap: 2,
         color: "purple.300",
         mt: 2,
+        fontSize: "xl",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
       })}
     >
-      <span>📍</span>
-      <span>{parts.join(" • ")}</span>
+      <div>📍</div>
+      {location && (
+        <span className={css({ fontStyle: "italic" })}>
+          <span className={css({ fontWeight: "bold" })}>Location:</span>{" "}
+          {location}
+        </span>
+      )}
+      {atmosphere && (
+        <span className={css({ fontStyle: "italic" })}>
+          <span className={css({ fontWeight: "bold" })}>Atmosphere:</span>{" "}
+          {atmosphere}
+        </span>
+      )}
+      {time && (
+        <span className={css({ fontStyle: "italic" })}>
+          <span className={css({ fontWeight: "bold" })}>Time:</span> {time}
+        </span>
+      )}
     </div>
   );
 }

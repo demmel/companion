@@ -1,8 +1,4 @@
-import {
-  ToolCall,
-  ToolCallFinished,
-  ImageGenerationToolContent,
-} from "../types";
+import { ToolCall, ToolCallFinished } from "../types";
 import { Wrench, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 interface ToolDisplayProps {

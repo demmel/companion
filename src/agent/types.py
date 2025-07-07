@@ -37,6 +37,7 @@ class ToolCallSuccess(BaseModel):
 
     type: Literal["success"] = "success"
     content: ToolContent
+    llm_feedback: str = "Tool executed successfully"  # Simple feedback for LLM iterations
 
 
 class ToolCallError(BaseModel):
