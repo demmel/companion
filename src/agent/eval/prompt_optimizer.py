@@ -145,9 +145,12 @@ class AgentPromptTarget(PromptOptimizationTarget):
     def evaluate_prompt(self, prompt: str) -> RichEvaluationFeedback:
         """Evaluate agent prompt with both automated evaluation and preference alignment"""
 
-        # Run actual agent evaluation
+        # Create a test domain config with the optimized prompt
+        test_domain_config = self._create_test_domain_config(prompt)
+
+        # Run actual agent evaluation with the test config
         evaluator = AgentEvaluator(
-            domain_eval_config=self.domain_eval_config,
+            domain_eval_config=test_domain_config,
             agent_model="huihui_ai/mistral-small-abliterated",
         )
 
@@ -194,6 +197,34 @@ class AgentPromptTarget(PromptOptimizationTarget):
             preference_alignment=alignment,
             evaluation_result=evaluation_results[0] if evaluation_results else None,
         )
+
+    def _create_test_domain_config(self, prompt: str):
+        """Create a test domain config with the optimized prompt"""
+        import copy
+        
+        # Create a wrapper class that modifies the agent config
+        class TestDomainConfig:
+            def __init__(self, base_config, test_prompt):
+                self.base_config = base_config
+                self.test_prompt = test_prompt
+            
+            def get_evaluation_config(self):
+                return self.base_config.get_evaluation_config()
+            
+            def extract_conversation_context(self, agent_state):
+                return self.base_config.extract_conversation_context(agent_state)
+            
+            def get_agent_config(self):
+                # Get the original config and create a copy with modified prompt
+                original_config = self.base_config.get_agent_config()
+                
+                # Create a new config with the test prompt
+                test_config = copy.copy(original_config)
+                test_config.prompt_template = self.test_prompt
+                
+                return test_config
+        
+        return TestDomainConfig(self.domain_eval_config, prompt)
 
     def _aggregate_evaluation_results(
         self, results: List[EvaluationResult]

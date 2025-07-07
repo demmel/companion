@@ -263,7 +263,7 @@ def meta_optimize(domain: str, max_iterations: int, optimization_dir: str, verbo
         console.print(f"Exploration Temperature: {best_strategy.exploration_temperature:.2f}")
         console.print(f"Feedback Frequency: {best_strategy.feedback_frequency}")
         
-        console.print(f"\n[bold green]💾 Best strategy saved to {history_dir}/best_optimization_strategy.json[/bold green]")
+        console.print(f"\n[bold green]💾 Best strategy saved to {path_manager.paths.best_strategy_file}[/bold green]")
         
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
@@ -279,7 +279,7 @@ def preferences(preferences_dir: str):
     console.print(f"\n[bold cyan]📊 User Preferences[/bold cyan]")
     
     try:
-        from agent.eval.semantic_preferences_v2 import SemanticPreferenceManager
+        from agent.eval.preferences import SemanticPreferenceManager
         
         prefs = SemanticPreferenceManager(preferences_dir)
         summary = prefs.get_summary()
@@ -353,8 +353,10 @@ def status(domain: str, history_dir: str):
         
         # Check Level 2 (PromptOptimizer)
         try:
-            from agent.eval.prompt_optimizer_v3 import IntelligentPromptOptimizer
-            optimizer = IntelligentPromptOptimizer(domain_config)
+            from agent.eval.prompt_optimizer import IntelligentPromptOptimizer
+            from agent.eval.optimization_paths import OptimizationPathManager
+            path_manager = OptimizationPathManager(base_dir="optimization_data", domain=domain)
+            optimizer = IntelligentPromptOptimizer(domain_config, path_manager)
             console.print("  ✅ Level 2 (PromptOptimizer): Available")
             console.print(f"    Optimization history: {len(optimizer.optimization_history)} runs")
         except Exception as e:
@@ -363,7 +365,9 @@ def status(domain: str, history_dir: str):
         # Check Level 3 (MetaOptimizer)
         try:
             from agent.eval.meta_prompt_optimizer import IntelligentMetaOptimizer
-            meta_optimizer = IntelligentMetaOptimizer(domain_config, history_dir)
+            from agent.eval.optimization_paths import OptimizationPathManager
+            path_manager = OptimizationPathManager(base_dir="optimization_data", domain=domain)
+            meta_optimizer = IntelligentMetaOptimizer(domain_config, path_manager)
             summary = meta_optimizer.get_meta_summary()
             console.print("  ✅ Level 3 (MetaOptimizer): Available")
             console.print(f"    Meta-iterations: {summary['total_meta_iterations']}")
@@ -373,7 +377,7 @@ def status(domain: str, history_dir: str):
         
         # Check preferences
         try:
-            from agent.eval.semantic_preferences_v2 import SemanticPreferenceManager
+            from agent.eval.preferences import SemanticPreferenceManager
             prefs = SemanticPreferenceManager()
             summary = prefs.get_summary()
             console.print("  ✅ Preference System: Available")
