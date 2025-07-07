@@ -201,29 +201,29 @@ class AgentPromptTarget(PromptOptimizationTarget):
     def _create_test_domain_config(self, prompt: str):
         """Create a test domain config with the optimized prompt"""
         import copy
-        
+
         # Create a wrapper class that modifies the agent config
-        class TestDomainConfig:
+        class TestDomainConfig(DomainEvaluationConfig):
             def __init__(self, base_config, test_prompt):
                 self.base_config = base_config
                 self.test_prompt = test_prompt
-            
+
             def get_evaluation_config(self):
                 return self.base_config.get_evaluation_config()
-            
+
             def extract_conversation_context(self, agent_state):
                 return self.base_config.extract_conversation_context(agent_state)
-            
+
             def get_agent_config(self):
                 # Get the original config and create a copy with modified prompt
                 original_config = self.base_config.get_agent_config()
-                
+
                 # Create a new config with the test prompt
                 test_config = copy.copy(original_config)
                 test_config.prompt_template = self.test_prompt
-                
+
                 return test_config
-        
+
         return TestDomainConfig(self.domain_eval_config, prompt)
 
     def _aggregate_evaluation_results(
@@ -852,6 +852,7 @@ class IntelligentPromptOptimizer:
         cooling_rate: float = 0.95,
         min_temperature: float = 0.01,
         max_iterations: int = 15,
+        test_scenarios: Optional[List[str]] = None,
     ) -> OptimizationRunResult:
         """Run complete intelligent prompt optimization"""
 
@@ -865,7 +866,7 @@ class IntelligentPromptOptimizer:
         )
 
         # Create optimization target
-        target = self._create_optimization_target(prompt_type)
+        target = self._create_optimization_target(prompt_type, test_scenarios)
 
         # Initialize run
         run_id = f"{prompt_type}_{int(time.time())}"
@@ -1098,11 +1099,13 @@ class IntelligentPromptOptimizer:
 
         return result
 
-    def _create_optimization_target(self, prompt_type: str) -> PromptOptimizationTarget:
+    def _create_optimization_target(
+        self, prompt_type: str, test_scenarios: Optional[List[str]] = None
+    ) -> PromptOptimizationTarget:
         """Create appropriate optimization target"""
         if prompt_type == "agent":
             return AgentPromptTarget(
-                self.domain_eval_config, self.prefs, self.path_manager
+                self.domain_eval_config, self.prefs, self.path_manager, test_scenarios
             )
         elif prompt_type == "simulation":
             return SimulationPromptTarget(

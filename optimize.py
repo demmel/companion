@@ -110,12 +110,14 @@ def evaluate(domain: str, model: str, scenario: str, verbose: bool):
 @cli.command()
 @click.option("--domain", default="roleplay", help="Domain to optimize (default: roleplay)")
 @click.option("--prompt-type", type=click.Choice(["agent", "simulation", "evaluation"]), default="simulation", help="Type of prompt to optimize")
+@click.option("--scenario", help="Specific scenario to optimize for (optional)")
+@click.option("--scenarios", help="Comma-separated list of scenarios to optimize for (optional)")
 @click.option("--max-iterations", default=10, help="Maximum optimization iterations")
 @click.option("--temperature", default=1.0, help="Initial temperature for simulated annealing")
 @click.option("--cooling-rate", default=0.95, help="Cooling rate for simulated annealing")
 @click.option("--optimization-dir", default="optimization_data", help="Base directory for optimization files")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
-def optimize(domain: str, prompt_type: str, max_iterations: int, temperature: float, 
+def optimize(domain: str, prompt_type: str, scenario: str, scenarios: str, max_iterations: int, temperature: float, 
              cooling_rate: float, optimization_dir: str, verbose: bool):
     """🎯 Level 2: Optimize prompts using intelligent optimization"""
     console.print(f"\n[bold cyan]Level 2: Intelligent Prompt Optimization[/bold cyan]")
@@ -138,6 +140,28 @@ def optimize(domain: str, prompt_type: str, max_iterations: int, temperature: fl
         # Create path manager
         path_manager = OptimizationPathManager(base_dir=optimization_dir, domain=domain)
         
+        # Parse scenario options
+        test_scenarios = None
+        if scenario:
+            test_scenarios = [scenario]
+            console.print(f"Optimizing for scenario: {scenario}")
+        elif scenarios:
+            test_scenarios = [s.strip() for s in scenarios.split(",")]
+            console.print(f"Optimizing for {len(test_scenarios)} scenarios")
+        else:
+            # Use default scenarios from domain config
+            eval_config = domain_config.get_evaluation_config()
+            test_scenarios = eval_config.test_scenarios[:2]  # First 2 as default
+            console.print(f"Using default scenarios (first 2 from domain)")
+        
+        # Show scenarios being used
+        if test_scenarios and len(test_scenarios) <= 3:
+            console.print(f"\n[bold blue]Test scenarios:[/bold blue]")
+            for i, s in enumerate(test_scenarios, 1):
+                console.print(f"  {i}. {s[:60]}{'...' if len(s) > 60 else ''}")
+        elif test_scenarios:
+            console.print(f"\n[bold blue]Using {len(test_scenarios)} test scenarios[/bold blue]")
+        
         optimizer = IntelligentPromptOptimizer(domain_config, path_manager)
         
         console.print(f"\nStarting optimization...")
@@ -147,7 +171,8 @@ def optimize(domain: str, prompt_type: str, max_iterations: int, temperature: fl
             prompt_type=prompt_type,
             initial_temperature=temperature,
             cooling_rate=cooling_rate,
-            max_iterations=max_iterations
+            max_iterations=max_iterations,
+            test_scenarios=test_scenarios
         )
         
         # Display results
