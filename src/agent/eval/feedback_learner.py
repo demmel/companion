@@ -22,16 +22,9 @@ class ComparisonChoice(Enum):
     BOTH_POOR = "both_poor"
 
 
-class ConversationComparison(BaseModel):
-    """User's comparative feedback on two conversations"""
+class ConversationComparisonFeedback(BaseModel):
+    """User's feedback on a conversation comparison"""
 
-    conversation_a: List[Dict[str, str]] = Field(
-        description="First conversation to compare"
-    )
-    conversation_b: List[Dict[str, str]] = Field(
-        description="Second conversation to compare"
-    )
-    scenario: str = Field(description="The scenario context for both conversations")
     choice: ComparisonChoice = Field(
         description="Which conversation the user preferred"
     )
@@ -44,6 +37,21 @@ class ConversationComparison(BaseModel):
     )
     improvement_suggestions: List[str] = Field(
         description="General suggestions for improvement"
+    )
+
+
+class ConversationComparison(BaseModel):
+    """User's comparative feedback on two conversations"""
+
+    conversation_a: List[Dict[str, str]] = Field(
+        description="First conversation to compare"
+    )
+    conversation_b: List[Dict[str, str]] = Field(
+        description="Second conversation to compare"
+    )
+    scenario: str = Field(description="The scenario context for both conversations")
+    feedback: ConversationComparisonFeedback = Field(
+        description="User's feedback on the comparison"
     )
 
 
@@ -62,6 +70,18 @@ class ComparisonAnalysis(BaseModel):
     confidence: float = Field(description="Confidence in the analysis", ge=0.0, le=1.0)
 
 
+class EvaluationComparisonFeedback(BaseModel):
+    """User's feedback on an evaluation comparison"""
+
+    choice: ComparisonChoice = Field(description="Which evaluation the user preferred")
+    reasoning: str = Field(
+        description="Why the user preferred one evaluation over the other"
+    )
+    quality_aspects: List[str] = Field(
+        description="What aspects make an evaluation good/bad"
+    )
+
+
 class EvaluationComparison(BaseModel):
     """User's comparative feedback on two evaluations of the same conversation"""
 
@@ -70,12 +90,8 @@ class EvaluationComparison(BaseModel):
     )
     evaluation_a: Dict[str, Any] = Field(description="First evaluation to compare")
     evaluation_b: Dict[str, Any] = Field(description="Second evaluation to compare")
-    choice: ComparisonChoice = Field(description="Which evaluation the user preferred")
-    reasoning: str = Field(
-        description="Why the user preferred one evaluation over the other"
-    )
-    quality_aspects: List[str] = Field(
-        description="What aspects make an evaluation good/bad"
+    feedback: EvaluationComparisonFeedback = Field(
+        description="User's feedback on the evaluation comparison"
     )
 
 
@@ -162,35 +178,28 @@ class SmartFeedbackLearner:
         self._display_conversation("CONVERSATION A", conversation_a)
         self._display_conversation("CONVERSATION B", conversation_b)
 
-        print(f"\n{'='*60}")
-        print("In a real system, user would choose which is better and explain why.")
-        print("For demo, simulating user choice...")
+        user_input = input("Which conversation is better (A or B) and why?: ")
+        feedback = structured_llm_call(
+            system_prompt="You should analyze the user's input and extract structured feedback.",
+            user_input=user_input,
+            response_model=ConversationComparisonFeedback,
+        )
 
         # Simulate user comparison (in real system, this would be interactive)
-        simulated_comparison = ConversationComparison(
+        comparison = ConversationComparison(
             conversation_a=conversation_a,
             conversation_b=conversation_b,
             scenario=scenario,
-            choice=ComparisonChoice.A_BETTER,
-            reasoning="Conversation A had better character consistency and more engaging dialogue",
-            specific_issues_a=[],
-            specific_issues_b=[
-                "Character seemed inconsistent",
-                "Dialogue was repetitive",
-            ],
-            improvement_suggestions=[
-                "Add more character depth",
-                "Vary dialogue patterns",
-            ],
+            feedback=feedback,
         )
 
         # Learn from this comparison using structured LLM analysis
-        self._learn_from_conversation_comparison(simulated_comparison)
+        self._learn_from_conversation_comparison(comparison)
 
         if self.current_session:
             self.current_session.feedback_count += 1
 
-        return simulated_comparison
+        return comparison
 
     def collect_evaluation_comparison(
         self,
@@ -214,12 +223,15 @@ class SmartFeedbackLearner:
         print(f"  Score: {evaluation_b.overall_score}/10")
         print(f"  Feedback: {evaluation_b.feedback}")
 
-        print(f"\n{'='*60}")
-        print("In a real system, user would choose which evaluation is more helpful.")
-        print("For demo, simulating user choice...")
+        user_input = input("Which evaluation is better (A or B) and why? ")
+        feedback = structured_llm_call(
+            system_prompt="You should analyze the user's input and extract structured feedback.",
+            user_input=user_input,
+            response_model=EvaluationComparisonFeedback,
+        )
 
         # Simulate user comparison
-        simulated_comparison = EvaluationComparison(
+        comparison = EvaluationComparison(
             conversation=conversation,
             evaluation_a={
                 "score": evaluation_a.overall_score,
@@ -229,22 +241,16 @@ class SmartFeedbackLearner:
                 "score": evaluation_b.overall_score,
                 "feedback": evaluation_b.feedback,
             },
-            choice=ComparisonChoice.B_BETTER,
-            reasoning="Evaluation B was more specific about what went wrong and gave actionable feedback",
-            quality_aspects=[
-                "Specific examples",
-                "Actionable suggestions",
-                "Clear reasoning",
-            ],
+            feedback=feedback,
         )
 
         # Learn from evaluation comparison
-        self._learn_from_evaluation_comparison(simulated_comparison)
+        self._learn_from_evaluation_comparison(comparison)
 
         if self.current_session:
             self.current_session.feedback_count += 1
 
-        return simulated_comparison
+        return comparison
 
     def collect_simple_feedback(
         self, content: str, context: Dict[str, Any], domain: str
@@ -253,22 +259,20 @@ class SmartFeedbackLearner:
         print(f"\n{'='*60}")
         print(f"SIMPLE FEEDBACK COLLECTION - {domain.upper()}")
         print(f"{'='*60}")
-        print(f"Content: {content[:200]}...")
+        print(f"Content: {content}")
 
-        print("In a real system, user would describe what they like/dislike.")
-        print("For demo, simulating user feedback...")
-
-        # Simulate user feedback
-        simulated_feedback = "This has good character consistency but could be more engaging. The tool usage seems appropriate but dialogue needs more variety."
+        user_input = input(
+            "Please provide your feedback on this content (e.g., what you liked, what could be improved): "
+        )
 
         # Use the semantic preference manager to extract preferences
-        self.prefs.add_feedback(simulated_feedback, context, domain)
+        self.prefs.add_feedback(user_input, context, domain)
 
         if self.current_session:
             self.current_session.feedback_count += 1
             self.current_session.insights_learned.append(f"Processed {domain} feedback")
 
-        return {"feedback": simulated_feedback, "context": context, "domain": domain}
+        return {"feedback": user_input, "context": context, "domain": domain}
 
     def _learn_from_conversation_comparison(self, comparison: ConversationComparison):
         """Extract learning insights from conversation comparison using structured LLM"""
@@ -287,14 +291,14 @@ class SmartFeedbackLearner:
             Be specific and actionable in your analysis."""
 
             comparison_context = {
-                "choice": comparison.choice.value,
-                "reasoning": comparison.reasoning,
+                "choice": comparison.feedback.choice.value,
+                "reasoning": comparison.feedback.reasoning,
                 "issues_with_worse": (
-                    comparison.specific_issues_b
-                    if comparison.choice == ComparisonChoice.A_BETTER
-                    else comparison.specific_issues_a
+                    comparison.feedback.specific_issues_b
+                    if comparison.feedback.choice == ComparisonChoice.A_BETTER
+                    else comparison.feedback.specific_issues_a
                 ),
-                "improvement_suggestions": comparison.improvement_suggestions,
+                "improvement_suggestions": comparison.feedback.improvement_suggestions,
                 "scenario": comparison.scenario,
             }
 
@@ -307,7 +311,7 @@ class SmartFeedbackLearner:
             )
 
             # Extract feedback text for preference learning
-            feedback_text = f"{comparison.reasoning}. Issues to avoid: {', '.join(comparison.specific_issues_b)}. Suggestions: {', '.join(comparison.improvement_suggestions)}"
+            feedback_text = f"{comparison.feedback.reasoning}. Issues to avoid: {', '.join(comparison.feedback.specific_issues_b)}. Suggestions: {', '.join(comparison.feedback.improvement_suggestions)}"
 
             # Add to preference manager
             self.prefs.add_feedback(
@@ -347,9 +351,9 @@ class SmartFeedbackLearner:
             Be specific about what makes evaluations useful."""
 
             comparison_context = {
-                "choice": comparison.choice.value,
-                "reasoning": comparison.reasoning,
-                "quality_aspects": comparison.quality_aspects,
+                "choice": comparison.feedback.choice.value,
+                "reasoning": comparison.feedback.reasoning,
+                "quality_aspects": comparison.feedback.quality_aspects,
                 "evaluation_a": comparison.evaluation_a,
                 "evaluation_b": comparison.evaluation_b,
             }
@@ -363,7 +367,7 @@ class SmartFeedbackLearner:
             )
 
             # Extract feedback for evaluation preferences
-            feedback_text = f"{comparison.reasoning}. Good evaluations should have: {', '.join(comparison.quality_aspects)}"
+            feedback_text = f"{comparison.feedback.reasoning}. Good evaluations should have: {', '.join(comparison.feedback.quality_aspects)}"
 
             self.prefs.add_feedback(
                 feedback_text, {"comparison_type": "evaluation"}, "evaluation"
