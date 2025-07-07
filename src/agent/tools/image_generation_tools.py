@@ -249,9 +249,9 @@ class ImageGenerationTool(BaseTool):
         )
 
         return ToolCallSuccess(
-            type="success", 
+            type="success",
             content=image_content,
-            llm_feedback=f"Image generated: {image_content.image_url}"
+            llm_feedback=f"Image generated: {image_content.image_url}",
         )
 
 

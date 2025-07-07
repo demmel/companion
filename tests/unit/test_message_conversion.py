@@ -45,7 +45,10 @@ class TestMessageToLLMConversion:
             tool_name="set_mood",
             tool_id="call_123",
             parameters={"mood": "happy", "intensity": 8},
-            result=ToolCallSuccess(content=TextToolContent(text="Mood set to happy"), llm_feedback="Success"),
+            result=ToolCallSuccess(
+                content=TextToolContent(text="Mood set to happy"),
+                llm_feedback="Success",
+            ),
         )
 
         agent_msg = AgentMessage(
@@ -78,7 +81,10 @@ class TestMessageToLLMConversion:
             tool_name="set_mood",
             tool_id="call_1",
             parameters={"mood": "happy"},
-            result=ToolCallSuccess(content=TextToolContent(text="Mood set to happy"), llm_feedback="Success"),
+            result=ToolCallSuccess(
+                content=TextToolContent(text="Mood set to happy"),
+                llm_feedback="Success",
+            ),
         )
 
         tool_call_2 = ToolCallFinished(
@@ -117,7 +123,7 @@ class TestMessageToLLMConversion:
             parameters={"name": "Alice", "personality": "cheerful"},
             result=ToolCallSuccess(
                 content=TextToolContent(text="Character Alice created"),
-                llm_feedback="Success"
+                llm_feedback="Success",
             ),
         )
 
@@ -149,7 +155,9 @@ class TestMessageToLLMConversion:
             tool_name="fast_tool",
             tool_id="call_done",
             parameters={"task": "complete"},
-            result=ToolCallSuccess(content=TextToolContent(text="Task completed"), llm_feedback="Success"),
+            result=ToolCallSuccess(
+                content=TextToolContent(text="Task completed"), llm_feedback="Success"
+            ),
         )
 
         agent_msg = AgentMessage(

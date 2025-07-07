@@ -585,7 +585,7 @@ def format_tool_results(tool_results: List[ToolCallFinished]) -> str:
         else:
             # For errors, include the error message
             feedback = f"Error: {result.result.error}"
-        
+
         formatted_results.append(
             f"TOOL_RESULT: {result.tool_name} ({result.tool_id}): {feedback}"
         )

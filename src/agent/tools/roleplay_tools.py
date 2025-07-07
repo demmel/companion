@@ -153,10 +153,7 @@ You are now roleplaying as {input_data.character_name}. Respond in character fro
             text=content,
         )
 
-        return ToolCallSuccess(
-            content=content,
-            llm_feedback="Success"
-        )
+        return ToolCallSuccess(content=content, llm_feedback="Success")
 
 
 class SetMoodTool(BaseTool):
@@ -198,10 +195,7 @@ class SetMoodTool(BaseTool):
             text=content,
         )
 
-        return ToolCallSuccess(
-            content=content,
-            llm_feedback="Success"
-        )
+        return ToolCallSuccess(content=content, llm_feedback="Success")
 
 
 class RememberDetailTool(BaseTool):
@@ -241,10 +235,7 @@ class RememberDetailTool(BaseTool):
         content = TextToolContent(
             text=content,
         )
-        return ToolCallSuccess(
-            content=content,
-            llm_feedback="Success"
-        )
+        return ToolCallSuccess(content=content, llm_feedback="Success")
 
 
 class InternalThoughtTool(BaseTool):
@@ -284,10 +275,7 @@ class InternalThoughtTool(BaseTool):
         content = TextToolContent(
             text=content,
         )
-        return ToolCallSuccess(
-            content=content,
-            llm_feedback="Success"
-        )
+        return ToolCallSuccess(content=content, llm_feedback="Success")
 
 
 class SceneSettingTool(BaseTool):
@@ -330,10 +318,7 @@ class SceneSettingTool(BaseTool):
         content = TextToolContent(
             text=content,
         )
-        return ToolCallSuccess(
-            content=content,
-            llm_feedback="Success"
-        )
+        return ToolCallSuccess(content=content, llm_feedback="Success")
 
 
 class CharacterActionTool(BaseTool):
@@ -377,10 +362,7 @@ class CharacterActionTool(BaseTool):
             text=content,
         )
 
-        return ToolCallSuccess(
-            content=content,
-            llm_feedback="Success"
-        )
+        return ToolCallSuccess(content=content, llm_feedback="Success")
 
 
 class SwitchCharacterTool(BaseTool):
