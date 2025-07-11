@@ -2,9 +2,12 @@
 LLM client for interfacing with Ollama
 """
 
+from ast import TypeVar
 import ollama
-from typing import Iterator, List
+from typing import Iterator, List, Dict, Any, Optional
 from pydantic import BaseModel
+from dataclasses import dataclass
+from enum import Enum
 
 
 class Message(BaseModel):
@@ -17,14 +20,13 @@ class LLMClient:
 
     def __init__(
         self,
-        model: str = "llama3.1:8b",
-        host: str = "localhost:11434",
+        client: ollama.Client,
+        model: str,
         context_window: int = 32768,
     ):
-        self.model = model
-        self.host = host
         self.context_window = context_window
-        self.client = ollama.Client(host=host)
+        self.client = client
+        self.model = model
 
     def chat(self, messages: List[Message]) -> Iterator[ollama.ChatResponse]:
         """Send streaming chat request to LLM"""
@@ -45,7 +47,7 @@ class LLMClient:
                 "repeat_penalty": 1.1,  # Prevent repetition
                 "num_predict": 512,  # Allow longer responses
             },
-            keep_alive="10m",  # Keep model loaded for 10 minutes
+            keep_alive="30m",  # Keep model loaded for 10 minutes
         )
 
         return response
@@ -92,3 +94,147 @@ class LLMClient:
         except Exception as e:
             print(f"Error pulling model: {e}")
             return False
+
+
+class SupportedModel(str, Enum):
+    """Supported models with backend-specific identifiers"""
+
+    LLAMA_8B = "llama3.1:8b"
+    GEMMA_27B = "aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m"
+    MISTRAL_SMALL = "huihui_ai/mistral-small-abliterated"
+
+
+@dataclass
+class ModelConfig:
+    """Configuration for a specific model"""
+
+    model: SupportedModel
+    keep_alive: str = "30m"
+    default_temperature: float = 0.3
+    default_top_p: float = 0.8
+    default_top_k: int = 40
+    default_repeat_penalty: float = 1.1
+    default_num_predict: int = 512
+    context_window: int = 32768
+
+
+class LLM:
+    """Centralized LLM management with model-specific configurations"""
+
+    def __init__(
+        self, client: ollama.Client, models: Dict[SupportedModel, ModelConfig]
+    ):
+        self.client = client
+        self.models = models
+
+    def chat(
+        self,
+        model: SupportedModel,
+        messages: List[Message],
+        stream: bool = False,
+        keep_alive: Optional[str] = None,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        repeat_penalty: Optional[float] = None,
+        num_predict: Optional[int] = None,
+        **kwargs,
+    ):
+        """Send chat request with model-specific defaults and overrides"""
+
+        if model not in self.models:
+            raise ValueError(
+                f"Model {model} not configured. Available models: {list(self.models.keys())}"
+            )
+
+        config = self.models[model]
+
+        # Apply model defaults with overrides
+        options = {
+            "num_gpu": -1,
+            "num_thread": 16,
+            "num_ctx": config.context_window,
+            "temperature": temperature or config.default_temperature,
+            "top_p": top_p or config.default_top_p,
+            "top_k": top_k or config.default_top_k,
+            "repeat_penalty": repeat_penalty or config.default_repeat_penalty,
+            "num_predict": num_predict or config.default_num_predict,
+            **kwargs,
+        }
+
+        # Convert Message objects to dict format for ollama
+        message_dicts = [{"role": msg.role, "content": msg.content} for msg in messages]
+
+        return self.client.chat(
+            model=model.value,  # Use the enum value for backend
+            messages=message_dicts,
+            stream=stream,
+            options=options,
+            keep_alive=keep_alive or config.keep_alive,
+        )
+
+    def chat_streaming(
+        self, model: SupportedModel, messages: List[Message], **kwargs
+    ) -> Iterator[ollama.ChatResponse]:
+        """Convenience method for streaming chat"""
+        return self.chat(model, messages, stream=True, **kwargs)  # type: ignore
+
+    def chat_complete(
+        self, model: SupportedModel, messages: List[Message], **kwargs
+    ) -> Optional[str]:
+        """Convenience method for non-streaming chat"""
+        response: ollama.ChatResponse = self.chat(
+            model, messages, stream=False, **kwargs
+        )  # type: ignore
+        return response["message"]["content"]
+
+    def is_model_available(self, model: SupportedModel) -> bool:
+        """Check if a model is available"""
+        try:
+            models = self.client.list()
+            model_names = [m["name"] for m in models["models"]]
+            return model.value in model_names
+        except:
+            return False
+
+    def pull_model(self, model: SupportedModel) -> bool:
+        """Pull a model if not available"""
+        try:
+            self.client.pull(model.value)
+            return True
+        except Exception as e:
+            print(f"Error pulling model {model}: {e}")
+            return False
+
+
+# Default model configurations
+DEFAULT_MODELS = {
+    SupportedModel.LLAMA_8B: ModelConfig(
+        model=SupportedModel.LLAMA_8B,
+        keep_alive="30m",
+        default_temperature=0.3,
+        context_window=32768,
+    ),
+    SupportedModel.GEMMA_27B: ModelConfig(
+        model=SupportedModel.GEMMA_27B,
+        keep_alive="30m",  # Larger model, keep loaded longer
+        default_temperature=0.3,
+        context_window=32768,
+    ),
+    SupportedModel.MISTRAL_SMALL: ModelConfig(
+        model=SupportedModel.MISTRAL_SMALL,
+        keep_alive="20m",
+        default_temperature=0.1,  # Lower temp for structured tasks
+        context_window=16384,
+    ),
+}
+
+
+def create_llm(
+    host: str = "localhost:11434",
+    models: Optional[Dict[SupportedModel, ModelConfig]] = None,
+) -> LLM:
+    """Create an LLM manager with shared client and model configurations"""
+    client = ollama.Client(host=host)
+    model_configs = models or DEFAULT_MODELS
+    return LLM(client, model_configs)

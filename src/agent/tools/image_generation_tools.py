@@ -6,8 +6,7 @@ from enum import Enum
 import time
 import uuid
 from typing import Type, Callable, Any, Optional, List
-from pathlib import Path
-import ollama
+
 from pydantic import BaseModel, Field
 
 from agent.core import Agent
@@ -38,8 +37,8 @@ class SDXLPromptOptimization(BaseModel):
 
     chunks: List[str] = Field(
         description="Strategic prompt chunks, each under 75 tokens, ordered by attention priority",
-        min_items=1,
-        max_items=4
+        min_length=1,
+        max_length=4,
     )
     negative_prompt: str = Field(
         description="Minimal negative prompt for critical quality issues", max_length=80
@@ -56,9 +55,7 @@ class SDXLPromptOptimization(BaseModel):
     chunk_strategy: str = Field(
         description="Explanation of how chunks were strategically divided"
     )
-    token_estimate: int = Field(
-        description="Estimated total tokens across all chunks"
-    )
+    token_estimate: int = Field(description="Estimated total tokens across all chunks")
     confidence: float = Field(
         description="Confidence in the optimization", ge=0.0, le=1.0
     )
@@ -80,7 +77,6 @@ class ImageGenerationTool(BaseTool):
     def __init__(self):
         self._pipeline = None
         self._model_loaded = False
-        self.llm_client = None  # Set by the agent when initialized
 
     @property
     def name(self) -> str:
@@ -170,13 +166,12 @@ class ImageGenerationTool(BaseTool):
         self,
         description: str,
         progress_callback: Callable[[Any], None],
-        model: str,
-        client: ollama.Client,
+        agent,
     ) -> SDXLPromptOptimization:
         """Convert natural description to SDXL-optimized prompts with camera positioning"""
 
         print(f"[DEBUG] Starting optimization for description: {description[:100]}...")
-        print(f"[DEBUG] Model: {model}, Client: {type(client)}")
+        print(f"[DEBUG] Model: {agent.model}")
         progress_callback({"stage": "optimizing_prompts", "progress": 0.1})
 
         system_prompt = """You are an expert at creating multi-chunk prompts for Stable Diffusion XL (SDXL) with strategic attention control.
@@ -271,7 +266,7 @@ Think like a director framing a shot - you have limited attention budget and mus
 Focus on MAXIMUM ATTENTION for critical elements through strategic first-position placement."""
 
         try:
-            print(f"[DEBUG] Calling structured_llm_call with model: {model}")
+            print(f"[DEBUG] Calling structured_llm_call with model: {agent.model}")
             print(f"[DEBUG] Response model: {SDXLPromptOptimization}")
             result = structured_llm_call(
                 system_prompt=system_prompt,
@@ -281,10 +276,12 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     "description_length": len(description),
                     "timestamp": time.time(),
                 },
-                model=model,
-                client=client,
+                model=agent.model,
+                llm=agent.llm,
             )
-            print(f"[DEBUG] LLM optimization successful, got {len(result.chunks)} chunks")
+            print(
+                f"[DEBUG] LLM optimization successful, got {len(result.chunks)} chunks"
+            )
 
             progress_callback(
                 {
@@ -327,23 +324,27 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         """Encode multiple prompt chunks using SDXL's dual text encoders"""
         try:
             import torch
-            
-            print(f"[DEBUG] Encoding {len(chunks)} chunks with SDXL dual encoders: {chunks}")
+
+            print(
+                f"[DEBUG] Encoding {len(chunks)} chunks with SDXL dual encoders: {chunks}"
+            )
             print(f"[DEBUG] Negative prompt: {negative_prompt}")
             progress_callback({"stage": "encoding_chunks", "progress": 0.1})
-            
+
             # Encode each chunk separately with both encoders (respecting 77 token limit)
             chunk_embeds_1 = []
             chunk_embeds_2 = []
-            
+
             for i, chunk in enumerate(chunks):
-                progress_callback({
-                    "stage": "encoding_chunk", 
-                    "progress": 0.1 + (0.3 * i / len(chunks)),
-                    "chunk": i + 1,
-                    "total_chunks": len(chunks)
-                })
-                
+                progress_callback(
+                    {
+                        "stage": "encoding_chunk",
+                        "progress": 0.1 + (0.3 * i / len(chunks)),
+                        "chunk": i + 1,
+                        "total_chunks": len(chunks),
+                    }
+                )
+
                 with torch.no_grad():
                     # Tokenize chunk for both encoders (max 75 tokens each)
                     tokens_1 = self._pipeline.tokenizer(
@@ -351,36 +352,42 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                         max_length=75,
                         padding="max_length",
                         truncation=True,
-                        return_tensors="pt"
+                        return_tensors="pt",
                     )
                     tokens_2 = self._pipeline.tokenizer_2(
                         chunk,
                         max_length=75,
-                        padding="max_length", 
+                        padding="max_length",
                         truncation=True,
-                        return_tensors="pt"
+                        return_tensors="pt",
                     )
-                    
+
                     # Encode with both text encoders
-                    embeds_1 = self._pipeline.text_encoder(tokens_1.input_ids, output_hidden_states=True)
-                    embeds_2 = self._pipeline.text_encoder_2(tokens_2.input_ids, output_hidden_states=True)
-                    
+                    embeds_1 = self._pipeline.text_encoder(
+                        tokens_1.input_ids, output_hidden_states=True
+                    )
+                    embeds_2 = self._pipeline.text_encoder_2(
+                        tokens_2.input_ids, output_hidden_states=True
+                    )
+
                     # Get hidden states (penultimate layer)
                     chunk_embed_1 = embeds_1.hidden_states[-2]
                     chunk_embed_2 = embeds_2.hidden_states[-2]
-                    
+
                     chunk_embeds_1.append(chunk_embed_1)
                     chunk_embeds_2.append(chunk_embed_2)
-                    
-                    print(f"[DEBUG] Chunk {i+1} - Encoder 1: {chunk_embed_1.shape}, Encoder 2: {chunk_embed_2.shape}")
-            
+
+                    print(
+                        f"[DEBUG] Chunk {i+1} - Encoder 1: {chunk_embed_1.shape}, Encoder 2: {chunk_embed_2.shape}"
+                    )
+
             # Concatenate chunks along sequence dimension
             concat_embeds_1 = torch.cat(chunk_embeds_1, dim=1)
             concat_embeds_2 = torch.cat(chunk_embeds_2, dim=1)
-            
+
             # Combine embeddings from both encoders along feature dimension
             positive_embeds = torch.cat([concat_embeds_1, concat_embeds_2], dim=-1)
-            
+
             # Get pooled embeddings from the combined text
             combined_text = " ".join(chunks)
             with torch.no_grad():
@@ -389,16 +396,18 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     max_length=75,  # Truncate to fit
                     padding="max_length",
                     truncation=True,
-                    return_tensors="pt"
+                    return_tensors="pt",
                 )
-                pooled_output = self._pipeline.text_encoder_2(pooled_tokens.input_ids, output_hidden_states=True)
+                pooled_output = self._pipeline.text_encoder_2(
+                    pooled_tokens.input_ids, output_hidden_states=True
+                )
                 pooled_prompt_embeds = pooled_output[0]  # pooled output
-                
+
             print(f"[DEBUG] Concatenated encoder 1: {concat_embeds_1.shape}")
             print(f"[DEBUG] Concatenated encoder 2: {concat_embeds_2.shape}")
             print(f"[DEBUG] Combined positive embeds: {positive_embeds.shape}")
             print(f"[DEBUG] Pooled positive embeds: {pooled_prompt_embeds.shape}")
-            
+
             # Encode negative prompt with both encoders (respecting 77 token limit)
             with torch.no_grad():
                 neg_tokens_1 = self._pipeline.tokenizer(
@@ -406,49 +415,69 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     max_length=75,  # Respect 77 token limit
                     padding="max_length",
                     truncation=True,
-                    return_tensors="pt"
+                    return_tensors="pt",
                 )
                 neg_tokens_2 = self._pipeline.tokenizer_2(
                     negative_prompt,
                     max_length=75,  # Respect 77 token limit
                     padding="max_length",
                     truncation=True,
-                    return_tensors="pt"
+                    return_tensors="pt",
                 )
-                
-                neg_embeds_1 = self._pipeline.text_encoder(neg_tokens_1.input_ids, output_hidden_states=True)
-                neg_embeds_2 = self._pipeline.text_encoder_2(neg_tokens_2.input_ids, output_hidden_states=True)
-                
+
+                neg_embeds_1 = self._pipeline.text_encoder(
+                    neg_tokens_1.input_ids, output_hidden_states=True
+                )
+                neg_embeds_2 = self._pipeline.text_encoder_2(
+                    neg_tokens_2.input_ids, output_hidden_states=True
+                )
+
                 negative_embeds_1 = neg_embeds_1.hidden_states[-2]
                 negative_embeds_2 = neg_embeds_2.hidden_states[-2]
                 pooled_negative_embeds = neg_embeds_2[0]
-                
+
                 # Pad negative embeddings to match positive embeddings shape
                 pos_seq_length = positive_embeds.shape[1]
                 neg_seq_length = negative_embeds_1.shape[1]
-                
+
                 if pos_seq_length > neg_seq_length:
                     # Pad negative embeddings to match positive
                     pad_length = pos_seq_length - neg_seq_length
-                    padding_1 = torch.zeros(negative_embeds_1.shape[0], pad_length, negative_embeds_1.shape[2])
-                    padding_2 = torch.zeros(negative_embeds_2.shape[0], pad_length, negative_embeds_2.shape[2])
-                    
+                    padding_1 = torch.zeros(
+                        negative_embeds_1.shape[0],
+                        pad_length,
+                        negative_embeds_1.shape[2],
+                    )
+                    padding_2 = torch.zeros(
+                        negative_embeds_2.shape[0],
+                        pad_length,
+                        negative_embeds_2.shape[2],
+                    )
+
                     negative_embeds_1 = torch.cat([negative_embeds_1, padding_1], dim=1)
                     negative_embeds_2 = torch.cat([negative_embeds_2, padding_2], dim=1)
-                
+
                 # Concatenate negative embeddings
-                negative_embeds = torch.cat([negative_embeds_1, negative_embeds_2], dim=-1)
-                
+                negative_embeds = torch.cat(
+                    [negative_embeds_1, negative_embeds_2], dim=-1
+                )
+
                 print(f"[DEBUG] Combined negative embeds: {negative_embeds.shape}")
                 print(f"[DEBUG] Pooled negative embeds: {pooled_negative_embeds.shape}")
-            
+
             progress_callback({"stage": "chunks_encoded", "progress": 0.5})
-            
-            return positive_embeds, negative_embeds, pooled_prompt_embeds, pooled_negative_embeds
-            
+
+            return (
+                positive_embeds,
+                negative_embeds,
+                pooled_prompt_embeds,
+                pooled_negative_embeds,
+            )
+
         except Exception as e:
             print(f"[DEBUG] Error during chunk encoding: {e}")
             import traceback
+
             traceback.print_exc()
             progress_callback({"stage": "encoding_error", "error": str(e)})
             return None, None
@@ -466,20 +495,27 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             import torch
 
             print(f"[DEBUG] Starting image generation with {len(chunks)} chunks")
-            
+
             # Set random seed if provided
             if seed is not None:
                 torch.manual_seed(seed)
                 progress_callback({"stage": "seed_set", "progress": 0.1, "seed": seed})
 
             # Encode chunks to embeddings with pooled embeddings
-            result = self._encode_chunked_prompts(chunks, negative_prompt, progress_callback)
-            
+            result = self._encode_chunked_prompts(
+                chunks, negative_prompt, progress_callback
+            )
+
             if result is None or len(result) != 4:
                 print(f"[DEBUG] Failed to encode chunks, returning None")
                 return None
-                
-            positive_embeds, negative_embeds, pooled_positive_embeds, pooled_negative_embeds = result
+
+            (
+                positive_embeds,
+                negative_embeds,
+                pooled_positive_embeds,
+                pooled_negative_embeds,
+            ) = result
 
             progress_callback({"stage": "generating", "progress": 0.6})
 
@@ -536,7 +572,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
 
             # Combine chunks for display
             combined_prompt = ", ".join(chunks)
-            
+
             image_content = ImageGenerationToolContent(
                 prompt=combined_prompt,
                 image_path=str(image_path),
@@ -554,6 +590,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         except Exception as e:
             print(f"[DEBUG] Error during image generation: {e}")
             import traceback
+
             traceback.print_exc()
             progress_callback(
                 {
@@ -574,14 +611,14 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
 
         print(f"[DEBUG] ImageGenerationTool.run called with:")
         print(f"[DEBUG]   Description: {input_data.description}")
-        print(f"[DEBUG]   Agent model: {agent.llm.model}")
+        print(f"[DEBUG]   Agent model: {agent.model}")
         print(f"[DEBUG]   Tool ID: {tool_id}")
 
         # Step 1: Optimize description to SDXL prompts
         progress_callback({"stage": "starting_optimization", "progress": 0.0})
 
         optimization = self._optimize_description_for_sdxl(
-            input_data.description, progress_callback, agent.llm.model, agent.llm.client
+            input_data.description, progress_callback, agent
         )
 
         # Step 2: Load model if not already loaded

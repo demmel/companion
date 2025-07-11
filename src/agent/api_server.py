@@ -4,7 +4,9 @@ FastAPI server for single-user agent system
 
 import json
 import logging
+
 from agent.types import Message
+from agent.llm import create_llm, SupportedModel
 from typing import Dict, List, Optional
 from datetime import datetime
 
@@ -48,9 +50,11 @@ logging.basicConfig(level=logging.INFO)
 def initialize_agent(config_name: str = "roleplay") -> Agent:
     """Initialize the global agent instance"""
     config = get_agent_config(config_name)
+    llm = create_llm()
     agent = Agent(
         config=config,
-        model="huihui_ai/mistral-small-abliterated",
+        model=SupportedModel.MISTRAL_SMALL,
+        llm=llm,
         verbose=False,
     )
     return agent

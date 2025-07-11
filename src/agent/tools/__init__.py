@@ -85,9 +85,31 @@ class BaseTool(ABC):
             param_type = param_info.get("type", "string")
             param_desc = param_info.get("description", "")
             is_required = "required" if param_name in required else "optional"
-            param_descriptions.append(
+            enum_values = param_info.get("enum", None)
+            max_length = param_info.get("maxLength", None)
+            min_length = param_info.get("minLength", None)
+            max_items = param_info.get("maxItems", None)
+            min_items = param_info.get("minItems", None)
+
+            param_description = (
                 f"  - {param_name} ({param_type}) ({is_required}): {param_desc}"
             )
+            if enum_values:
+                enum_str = ", ".join(
+                    f'"{value}"' if isinstance(value, str) else str(value)
+                    for value in enum_values
+                )
+                param_description += f" (allowed values: {enum_str})"
+            if max_length is not None:
+                param_description += f" (max length: {max_length})"
+            if min_length is not None:
+                param_description += f" (min length: {min_length})"
+            if max_items is not None:
+                param_description += f" (max items: {max_items})"
+            if min_items is not None:
+                param_description += f" (min items: {min_items})"
+
+            param_descriptions.append(param_description)
 
         if param_descriptions:
             params_text = "\n" + "\n".join(param_descriptions)
@@ -137,7 +159,28 @@ class ToolRegistry:
         for tool in self.tools.values():
             descriptions.append(tool.get_schema_description())
 
-        return "\n\n".join(descriptions)
+        tool_call_instructions = """
+You may call tools using the following syntax:
+
+EXACT SYNTAX (always include call IDs):
+TOOL_CALL: tool_name (call_1)
+{
+"parameter": "value"
+}
+
+For multiple tools:
+TOOL_CALL: tool_name_1 (call_1)
+{
+"parameter": "value"
+}
+TOOL_CALL: tool_name_2 (call_2)
+{
+"parameter": "value"
+}
+"""
+
+        tool_descriptions = "\n\n".join(descriptions)
+        return tool_descriptions + "\n\n" + tool_call_instructions
 
     def execute(
         self,

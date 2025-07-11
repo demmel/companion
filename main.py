@@ -13,6 +13,7 @@ from rich.text import Text
 from agent.core import Agent
 from agent.config import get_config
 from agent.presenters import get_presenter_for_config
+from agent.llm import create_llm, SupportedModel
 
 console = Console()
 
@@ -20,8 +21,8 @@ console = Console()
 @click.command()
 @click.option(
     "--model",
-    default="aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m",
-    help="Model to use (default: aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m)",
+    default="gemma-27b",
+    help="Model to use (gemma-27b, llama-8b, mistral-small)",
 )
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--check", is_flag=True, help="Check if model is available")
@@ -36,21 +37,48 @@ def main(model: str, verbose: bool, check: bool):
     )
 
     try:
+        # Convert string to SupportedModel enum
+        model_map = {
+            "gemma-27b": SupportedModel.GEMMA_27B,
+            "llama-8b": SupportedModel.LLAMA_8B,
+            "mistral-small": SupportedModel.MISTRAL_SMALL,
+        }
+
+        if model not in model_map:
+            console.print(
+                f"[red]Error: Unknown model '{model}'. Available: {list(model_map.keys())}[/red]"
+            )
+            return
+
+        supported_model = model_map[model]
+        llm = create_llm()
+
         config = get_config("roleplay")  # Default to roleplay config
-        agent = Agent(config=config, model=model, verbose=verbose)
+        agent = Agent(
+            config=config,
+            model=supported_model,
+            llm=llm,
+            verbose=verbose,
+        )
 
         if check:
             console.print("Checking model availability...")
-            if agent.llm.is_available():
-                console.print(f"[green]✓ Model {model} is available[/green]")
+            if agent.llm.is_model_available(supported_model):
+                console.print(
+                    f"[green]✓ Model {supported_model.value} is available[/green]"
+                )
             else:
                 console.print(
-                    f"[yellow]⚠ Model {model} not found. Attempting to pull...[/yellow]"
+                    f"[yellow]⚠ Model {supported_model.value} not found. Attempting to pull...[/yellow]"
                 )
-                if agent.llm.pull_model():
-                    console.print(f"[green]✓ Successfully pulled {model}[/green]")
+                if agent.llm.pull_model(supported_model):
+                    console.print(
+                        f"[green]✓ Successfully pulled {supported_model.value}[/green]"
+                    )
                 else:
-                    console.print(f"[red]✗ Failed to pull {model}[/red]")
+                    console.print(
+                        f"[red]✗ Failed to pull {supported_model.value}[/red]"
+                    )
                     return
 
         console.print("\n[green]Agent ready![/green]")

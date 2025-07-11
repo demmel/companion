@@ -7,7 +7,7 @@ import time
 from typing import List, Optional, Iterator
 from pydantic import BaseModel
 
-from .llm import LLMClient, Message as LLMMessage
+from .llm import LLM, SupportedModel, Message as LLMMessage
 from .tools import ToolRegistry, ToolExecutionError
 from .streaming import StreamingParser, TextEvent, ToolCallEvent, InvalidToolCallEvent
 from .config import AgentConfig
@@ -33,6 +33,9 @@ from .agent_events import (
     SummarizationFinishedEvent,
     ResponseCompleteEvent,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ContextInfo(BaseModel):
@@ -52,11 +55,13 @@ class Agent:
     def __init__(
         self,
         config: AgentConfig,
-        model: str = "llama3.1:8b",
+        model: SupportedModel,
+        llm: LLM,
         verbose: bool = False,
     ):
-        self.llm = LLMClient(model=model)
-        self.context_window = self.llm.context_window
+        self.llm = llm
+        self.model = model
+        self.context_window = llm.models[model].context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
 
         # Use provided configuration
@@ -203,6 +208,9 @@ class Agent:
                 include_tools=not is_final_iteration,
                 iteration_info=(iteration, max_iterations),
             )
+            # logger.info(
+            #     f"System prompt for iteration {iteration}/{max_iterations}:\n{messages[0].content}"
+            # )
             prompt_time = time.time() - prompt_start
 
             if self.verbose:
@@ -213,7 +221,7 @@ class Agent:
 
             # Get streaming LLM response
             llm_start = time.time()
-            stream = self.llm.chat(messages)
+            stream = self.llm.chat_streaming(self.model, messages)
             llm_init_time = time.time() - llm_start
 
             if self.verbose:
@@ -250,6 +258,10 @@ class Agent:
                             tool_events.append(event)
                     elif isinstance(event, InvalidToolCallEvent):
                         # System-level error (malformed tool call)
+                        logger.error(
+                            f"Invalid tool call detected: {event.error} in {event.tool_name} ({event.id})"
+                        )
+                        logger.error(f"Tool call content: {event.raw_content}")
                         yield AgentErrorEvent(
                             message=f"Invalid tool call: {event.error}",
                             tool_name=event.tool_name,
@@ -263,6 +275,10 @@ class Agent:
                     collected_response += event.delta
                     yield AgentTextEvent(content=event.delta)
                 elif isinstance(event, InvalidToolCallEvent):
+                    logger.error(
+                        f"Invalid tool call detected: {event.error} in {event.tool_name} ({event.id})"
+                    )
+                    logger.error(f"Tool call content: {event.raw_content}")
                     yield AgentErrorEvent(
                         message=f"Invalid tool call: {event.error}",
                         tool_name=event.tool_name,
@@ -314,12 +330,21 @@ class Agent:
                     parameters=tool_event.parameters,
                 )
 
+            for tool_event in tool_events:
                 try:
+                    # Check if tool exists again (in case of previous errors)
+                    if not self.tools.has_tool(tool_event.tool_name):
+                        # If tool was not found, skip execution
+                        continue
+
                     # Execute tool with progress callback
                     def progress_callback(data):
                         # Send progress events for streaming
                         pass  # For now, we can ignore progress in the core
 
+                    logger.info(
+                        f"Executing tool {tool_event.tool_name} with ID {tool_event.id}\n{json.dumps(tool_event.parameters, indent=2)}"
+                    )
                     result = self.tools.execute(
                         tool_event.tool_name,
                         tool_event.id,
@@ -346,6 +371,10 @@ class Agent:
                         result=result,
                     )
                 except ToolExecutionError as e:
+                    logger.error(
+                        f"Error executing tool {tool_event.tool_name} ({tool_event.id}): {str(e)}"
+                    )
+
                     # Tool exists but failed during execution
                     tool_results.append(
                         f"{tool_event.tool_name} ({tool_event.id}): {str(e)}"
@@ -365,6 +394,10 @@ class Agent:
                         tool_id=tool_event.id, result=ToolCallError(error=str(e))
                     )
                 except Exception as e:
+                    logger.error(
+                        f"Unexpected error executing tool {tool_event.tool_name} ({tool_event.id}): {str(e)}"
+                    )
+
                     # Unexpected system error
                     error_msg = (
                         f"System error executing {tool_event.tool_name}: {str(e)}"
@@ -480,7 +513,8 @@ class Agent:
             LLMMessage(role="user", content=user_request),
         ]
 
-        summary_response = self.llm.chat_complete(summary_request)
+        summary_response = self.llm.chat_complete(self.model, summary_request)
+        assert summary_response, "LLM response is empty"
 
         # Create summary as agent message to maintain proper alternation
         summary_message = SystemMessage(
