@@ -13,11 +13,11 @@ class TextToolContent(BaseModel):
 
 
 class ImageGenerationToolContent(BaseModel):
-    """Image generation tool content"""
+    """Image generation tool content with LLM optimization metadata"""
 
     type: Literal["image_generated"] = "image_generated"
-    prompt: str
-    image_path: str
+    prompt: str  # Final optimized prompt used
+    image_path: str  # File system path to the generated image
     image_url: str
     width: int
     height: int
@@ -25,6 +25,13 @@ class ImageGenerationToolContent(BaseModel):
     guidance_scale: float
     negative_prompt: Optional[str] = None
     seed: Optional[int] = None
+
+    # New optimization metadata
+    original_description: Optional[str] = None  # Original natural description
+    optimization_confidence: Optional[float] = None  # LLM confidence in optimization
+    camera_angle: Optional[str] = None  # Camera angle chosen
+    viewpoint: Optional[str] = None  # Viewpoint chosen
+    optimization_notes: Optional[str] = None  # Notes about optimization choices
 
 
 # Union of all tool content types

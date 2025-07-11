@@ -651,7 +651,7 @@ function GeneratedImage({ toolCall }: { toolCall: ToolCall }) {
     <div className={css({ mt: 2 })}>
       <img
         src={content.image_url}
-        alt={content.prompt}
+        alt={content.original_description || content.prompt}
         className={css({
           maxWidth: "100%",
           height: "auto",
@@ -661,7 +661,20 @@ function GeneratedImage({ toolCall }: { toolCall: ToolCall }) {
         })}
         style={{ maxHeight: "300px" }}
       />
-      {content.prompt && (
+      
+      {/* Show original description if available, otherwise show optimized prompt */}
+      {content.original_description ? (
+        <div
+          className={css({
+            fontSize: "sm",
+            color: "gray.400",
+            mt: 1,
+            fontStyle: "italic",
+          })}
+        >
+          "{content.original_description}"
+        </div>
+      ) : (
         <div
           className={css({
             fontSize: "sm",
@@ -673,18 +686,33 @@ function GeneratedImage({ toolCall }: { toolCall: ToolCall }) {
           "{content.prompt}"
         </div>
       )}
-      {content.negative_prompt && (
-        <div
-          className={css({
-            fontSize: "sm",
-            color: "red.400",
-            mt: 1,
-            fontStyle: "italic",
-          })}
-        >
-          "{content.negative_prompt}"
+
+      {/* Collapsible SDXL details */}
+      <details className={css({ fontSize: "xs", color: "gray.500", mt: 1, cursor: "pointer" })}>
+        <summary className={css({ "&:hover": { color: "gray.400" } })}>
+          SDXL Details
+        </summary>
+        <div className={css({ mt: 1, pl: 2, borderLeft: "1px solid", borderColor: "gray.700" })}>
+          <div className={css({ mb: 1 })}>
+            <span className={css({ color: "green.400" })}>Positive:</span> "{content.prompt}"
+          </div>
+          {content.negative_prompt && (
+            <div className={css({ mb: 1 })}>
+              <span className={css({ color: "red.400" })}>Negative:</span> "{content.negative_prompt}"
+            </div>
+          )}
+          {content.camera_angle && content.viewpoint && (
+            <div className={css({ mb: 1 })}>
+              <span className={css({ color: "blue.400" })}>Camera:</span> {content.camera_angle}, {content.viewpoint}
+            </div>
+          )}
+          {content.optimization_confidence && (
+            <div>
+              <span className={css({ color: "purple.400" })}>Confidence:</span> {Math.round(content.optimization_confidence * 100)}%
+            </div>
+          )}
         </div>
-      )}
+      </details>
     </div>
   );
 }

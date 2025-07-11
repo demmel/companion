@@ -2,12 +2,15 @@
 Image generation tools using diffusers and Civitai models
 """
 
+from enum import Enum
 import time
 import uuid
-from typing import Type, Callable, Any, Optional
+from typing import Type, Callable, Any, Optional, List
 from pathlib import Path
-from pydantic import Field
+import ollama
+from pydantic import BaseModel, Field
 
+from agent.core import Agent
 from agent.tools import (
     BaseTool,
     ToolInput,
@@ -18,25 +21,53 @@ from agent.types import (
     ToolCallError,
     ImageGenerationToolContent,
 )
+from agent.structured_llm import structured_llm_call, StructuredLLMError
 from agent.paths import agent_paths
 
 
-class ImageGenerationInput(ToolInput):
-    prompt: str = Field(description="Text prompt describing the image to generate")
+class ImageLayout(str, Enum):
+    """Enum for image layout options"""
+
+    PORTRAIT = "portrait"
+    LANDSCAPE = "landscape"
+    SQUARE = "square"
+
+
+class SDXLPromptOptimization(BaseModel):
+    """Multi-chunk optimized prompts for SDXL with strategic attention control"""
+
+    chunks: List[str] = Field(
+        description="Strategic prompt chunks, each under 75 tokens, ordered by attention priority",
+        min_items=1,
+        max_items=4
+    )
     negative_prompt: str = Field(
-        default="", description="Negative prompt (what to avoid)"
+        description="Minimal negative prompt for critical quality issues", max_length=80
     )
-    width: int = Field(
-        default=512, description="Image width in pixels", ge=256, le=1024
+    layout: ImageLayout = Field(
+        description="Most appropriate layout based on description and camera angle"
     )
-    height: int = Field(
-        default=512, description="Image height in pixels", ge=256, le=1024
+    camera_angle: str = Field(
+        description="Primary camera angle chosen (close-up, medium shot, wide shot, etc.)"
     )
-    num_inference_steps: int = Field(
-        default=20, description="Number of denoising steps", ge=10, le=50
+    viewpoint: str = Field(
+        description="Viewing perspective (eye level, low angle, high angle, etc.)"
     )
-    guidance_scale: float = Field(
-        default=7.5, description="How closely to follow the prompt", ge=1.0, le=20.0
+    chunk_strategy: str = Field(
+        description="Explanation of how chunks were strategically divided"
+    )
+    token_estimate: int = Field(
+        description="Estimated total tokens across all chunks"
+    )
+    confidence: float = Field(
+        description="Confidence in the optimization", ge=0.0, le=1.0
+    )
+
+
+class ImageGenerationInput(ToolInput):
+    description: str = Field(
+        description="Natural description of what you want to see. Be detailed about mood, setting, character appearance, style, and any specific viewpoint or camera angle you want. Example: 'Elena is a mysterious vampire standing in her gothic castle. She has long dark hair, pale skin, and is wearing an elegant dark dress. The scene should be atmospheric with candlelight and stone architecture, viewed from a low angle to make her appear imposing.'",
+        max_length=1000,
     )
     seed: Optional[int] = Field(
         default=None, description="Random seed for reproducibility"
@@ -49,6 +80,7 @@ class ImageGenerationTool(BaseTool):
     def __init__(self):
         self._pipeline = None
         self._model_loaded = False
+        self.llm_client = None  # Set by the agent when initialized
 
     @property
     def name(self) -> str:
@@ -134,32 +166,348 @@ class ImageGenerationTool(BaseTool):
             )
             return False
 
+    def _optimize_description_for_sdxl(
+        self,
+        description: str,
+        progress_callback: Callable[[Any], None],
+        model: str,
+        client: ollama.Client,
+    ) -> SDXLPromptOptimization:
+        """Convert natural description to SDXL-optimized prompts with camera positioning"""
+
+        print(f"[DEBUG] Starting optimization for description: {description[:100]}...")
+        print(f"[DEBUG] Model: {model}, Client: {type(client)}")
+        progress_callback({"stage": "optimizing_prompts", "progress": 0.1})
+
+        system_prompt = """You are an expert at creating multi-chunk prompts for Stable Diffusion XL (SDXL) with strategic attention control.
+
+CRITICAL RESEARCH FINDINGS:
+- FIRST TOKENS DICTATE GLOBAL COMPOSITION: "The first keyword dictates the global composition"
+- EARLY POSITION = MAXIMUM ATTENTION: "Tokens at the beginning have greater weight than tokens at the end"
+- STRONG EARLY TOKENS DOMINATE: "A strong token at the beginning can completely determine the outcome"
+- Each chunk can be up to 75 tokens, but early tokens within each chunk get exponentially higher attention
+
+ATTENTION-BASED OPTIMIZATION STRATEGY:
+
+**CHUNK ALLOCATION STRATEGY:**
+1. **Use chunks strategically** - you have up to 4 chunks available, use them to avoid overcrowding
+2. **Don't artificially limit to fewer chunks** - strategic distribution is better than cramming
+3. **Most important elements MUST be in Chunk 1** - this gets highest attention overall  
+4. **Within each chunk: most critical concept comes FIRST** - lead with the main idea, don't bury it
+5. **Use comma separation** - structure chunks as "main concept, supporting detail, additional detail" not run-on sentences
+6. **Each chunk should focus cleanly** - avoid overpacking that buries important elements
+
+**ATTENTION CHOREOGRAPHY PRINCIPLES:**
+
+Think like a director framing a shot - you have limited attention budget and must allocate it strategically.
+
+**1. ATTENTION IS FINITE:**
+- The AI can only focus on so much - every token competes for attention
+- High-attention positions (early tokens, Chunk 1) are premium real estate
+- More description doesn't equal better results if attention is diluted
+
+**2. USER EMPHASIS = DIRECTOR'S NOTES:**
+- When users say "most striking feature," that element MUST go in Chunk 1 for maximum attention
+- User emphasis signals ("prominent," "draws attention," "most important") override default categorization
+- Your job is directing AI attention to match user intent, not describing everything equally
+- Ask: "Does my structure make the emphasized element the clear focus in the highest attention position?"
+
+**3. STRATEGIC DISTRIBUTION FOR CLARITY:**
+- Use your 4 available chunks to give important elements breathing room
+- Don't cram everything into 2 chunks when you could distribute strategically across 4
+- Each chunk should have a clear focus - avoid overpacking that buries key elements
+- Better to use more chunks cleanly than fewer chunks overcrowded
+
+**4. BINDING AND STRUCTURE STRATEGY:**
+- Keep multi-part objects together using compound descriptors: "blue-gemmed hair clip" NOT "hair clip, blue gemstone"
+- Use "featuring" for complex objects: "hair clip featuring ornate gold flower"
+- Avoid floating components - components must be clearly attached to their parent object
+- Lead each chunk with its most important concept
+- Structure chunks with comma separation: "primary concept, supporting detail, additional context"
+- Avoid run-on sentences that bury important elements
+
+**CHUNK STRUCTURE:**
+**CHUNK 1** (Maximum Attention - 75 tokens max):
+- **CAMERA/VIEWPOINT FIRST** (if specified): "behind view", "close-up", "over shoulder" - MUST be first tokens
+- Character identity and key features
+- Most emphasized accessories/details (user's "striking features")
+- Other important visual elements
+
+**CHUNK 2+** (Lower Attention - only if Chunk 1 overflows):
+- Secondary details in order of importance
+- Environment and setting
+- Atmospheric effects and quality modifiers
+
+**ATTENTION CHOREOGRAPHY EXAMPLES:**
+
+**Finite Attention Budget:**
+❌ Trying to describe every detail equally → attention diluted, nothing stands out
+✅ Prioritizing user's emphasized elements → clear focal hierarchy
+
+**Director's Notes Response:**
+❌ User emphasizes element → you put it in lower chunk with full description
+✅ User emphasizes element → you allocate premium Chunk 1 space for clear focus
+
+**Strategic Distribution:**
+❌ Cramming everything into 2 overpacked chunks → important elements buried
+✅ Using 4 chunks strategically → each chunk has clear focus, nothing buried
+
+**Chunk Structure and Separation:**
+❌ "behind view character dancing seductively curvaceous clothing emphasized item details" (run-on, everything buried)
+✅ Chunk 1: "behind view, character dancing, emphasized element with details" (comma-separated hierarchy)
+✅ Chunk 2: "character features, appearance details" (clear focus)
+✅ Chunk 3: "clothing item, style details" (outfit focus)
+✅ Chunk 4: "environment setting, atmospheric details" (context)
+
+**PROCESS:**
+1. **CAMERA/VIEWPOINT FIRST** - if user specifies viewing angle, this MUST be the very first tokens
+2. Identify the MOST important visual element (often what user emphasizes)
+3. Put that element early in Chunk 1 (after camera angle)
+4. Add critical modifiers in order of importance
+5. Check for dangerous adjacencies (color + hair, etc.)
+6. Only create additional chunks if Chunk 1 exceeds 75 tokens
+7. Preserve ALL user-mentioned details
+
+Focus on MAXIMUM ATTENTION for critical elements through strategic first-position placement."""
+
+        try:
+            print(f"[DEBUG] Calling structured_llm_call with model: {model}")
+            print(f"[DEBUG] Response model: {SDXLPromptOptimization}")
+            result = structured_llm_call(
+                system_prompt=system_prompt,
+                user_input=f"Analyze this scene and create SDXL prompts with optimal camera positioning: {description}",
+                response_model=SDXLPromptOptimization,
+                context={
+                    "description_length": len(description),
+                    "timestamp": time.time(),
+                },
+                model=model,
+                client=client,
+            )
+            print(f"[DEBUG] LLM optimization successful, got {len(result.chunks)} chunks")
+
+            progress_callback(
+                {
+                    "stage": "chunks_optimized",
+                    "progress": 0.3,
+                    "camera_angle": result.camera_angle,
+                    "viewpoint": result.viewpoint,
+                    "chunks": result.chunks,
+                    "chunk_count": len(result.chunks),
+                    "negative_prompt": result.negative_prompt,
+                    "layout": result.layout.value,
+                }
+            )
+
+            return result
+
+        except StructuredLLMError as e:
+            print(f"[DEBUG] StructuredLLMError during optimization: {e}")
+            progress_callback({"stage": "optimization_failed", "error": str(e)})
+
+            # Simple fallback without manual analysis
+            print(f"[DEBUG] Using fallback optimization")
+            return SDXLPromptOptimization(
+                chunks=[f"medium shot, {description[:180]}, masterpiece"],
+                negative_prompt="blurry, low quality",
+                layout=ImageLayout.SQUARE,
+                camera_angle="medium shot",
+                viewpoint="eye level",
+                chunk_strategy="Fallback single chunk with default camera angle",
+                token_estimate=20,
+                confidence=0.3,
+            )
+
+    def _encode_chunked_prompts(
+        self,
+        chunks: List[str],
+        negative_prompt: str,
+        progress_callback: Callable[[Any], None],
+    ):
+        """Encode multiple prompt chunks using SDXL's dual text encoders"""
+        try:
+            import torch
+            
+            print(f"[DEBUG] Encoding {len(chunks)} chunks with SDXL dual encoders: {chunks}")
+            print(f"[DEBUG] Negative prompt: {negative_prompt}")
+            progress_callback({"stage": "encoding_chunks", "progress": 0.1})
+            
+            # Encode each chunk separately with both encoders (respecting 77 token limit)
+            chunk_embeds_1 = []
+            chunk_embeds_2 = []
+            
+            for i, chunk in enumerate(chunks):
+                progress_callback({
+                    "stage": "encoding_chunk", 
+                    "progress": 0.1 + (0.3 * i / len(chunks)),
+                    "chunk": i + 1,
+                    "total_chunks": len(chunks)
+                })
+                
+                with torch.no_grad():
+                    # Tokenize chunk for both encoders (max 75 tokens each)
+                    tokens_1 = self._pipeline.tokenizer(
+                        chunk,
+                        max_length=75,
+                        padding="max_length",
+                        truncation=True,
+                        return_tensors="pt"
+                    )
+                    tokens_2 = self._pipeline.tokenizer_2(
+                        chunk,
+                        max_length=75,
+                        padding="max_length", 
+                        truncation=True,
+                        return_tensors="pt"
+                    )
+                    
+                    # Encode with both text encoders
+                    embeds_1 = self._pipeline.text_encoder(tokens_1.input_ids, output_hidden_states=True)
+                    embeds_2 = self._pipeline.text_encoder_2(tokens_2.input_ids, output_hidden_states=True)
+                    
+                    # Get hidden states (penultimate layer)
+                    chunk_embed_1 = embeds_1.hidden_states[-2]
+                    chunk_embed_2 = embeds_2.hidden_states[-2]
+                    
+                    chunk_embeds_1.append(chunk_embed_1)
+                    chunk_embeds_2.append(chunk_embed_2)
+                    
+                    print(f"[DEBUG] Chunk {i+1} - Encoder 1: {chunk_embed_1.shape}, Encoder 2: {chunk_embed_2.shape}")
+            
+            # Concatenate chunks along sequence dimension
+            concat_embeds_1 = torch.cat(chunk_embeds_1, dim=1)
+            concat_embeds_2 = torch.cat(chunk_embeds_2, dim=1)
+            
+            # Combine embeddings from both encoders along feature dimension
+            positive_embeds = torch.cat([concat_embeds_1, concat_embeds_2], dim=-1)
+            
+            # Get pooled embeddings from the combined text
+            combined_text = " ".join(chunks)
+            with torch.no_grad():
+                pooled_tokens = self._pipeline.tokenizer_2(
+                    combined_text,
+                    max_length=75,  # Truncate to fit
+                    padding="max_length",
+                    truncation=True,
+                    return_tensors="pt"
+                )
+                pooled_output = self._pipeline.text_encoder_2(pooled_tokens.input_ids, output_hidden_states=True)
+                pooled_prompt_embeds = pooled_output[0]  # pooled output
+                
+            print(f"[DEBUG] Concatenated encoder 1: {concat_embeds_1.shape}")
+            print(f"[DEBUG] Concatenated encoder 2: {concat_embeds_2.shape}")
+            print(f"[DEBUG] Combined positive embeds: {positive_embeds.shape}")
+            print(f"[DEBUG] Pooled positive embeds: {pooled_prompt_embeds.shape}")
+            
+            # Encode negative prompt with both encoders (respecting 77 token limit)
+            with torch.no_grad():
+                neg_tokens_1 = self._pipeline.tokenizer(
+                    negative_prompt,
+                    max_length=75,  # Respect 77 token limit
+                    padding="max_length",
+                    truncation=True,
+                    return_tensors="pt"
+                )
+                neg_tokens_2 = self._pipeline.tokenizer_2(
+                    negative_prompt,
+                    max_length=75,  # Respect 77 token limit
+                    padding="max_length",
+                    truncation=True,
+                    return_tensors="pt"
+                )
+                
+                neg_embeds_1 = self._pipeline.text_encoder(neg_tokens_1.input_ids, output_hidden_states=True)
+                neg_embeds_2 = self._pipeline.text_encoder_2(neg_tokens_2.input_ids, output_hidden_states=True)
+                
+                negative_embeds_1 = neg_embeds_1.hidden_states[-2]
+                negative_embeds_2 = neg_embeds_2.hidden_states[-2]
+                pooled_negative_embeds = neg_embeds_2[0]
+                
+                # Pad negative embeddings to match positive embeddings shape
+                pos_seq_length = positive_embeds.shape[1]
+                neg_seq_length = negative_embeds_1.shape[1]
+                
+                if pos_seq_length > neg_seq_length:
+                    # Pad negative embeddings to match positive
+                    pad_length = pos_seq_length - neg_seq_length
+                    padding_1 = torch.zeros(negative_embeds_1.shape[0], pad_length, negative_embeds_1.shape[2])
+                    padding_2 = torch.zeros(negative_embeds_2.shape[0], pad_length, negative_embeds_2.shape[2])
+                    
+                    negative_embeds_1 = torch.cat([negative_embeds_1, padding_1], dim=1)
+                    negative_embeds_2 = torch.cat([negative_embeds_2, padding_2], dim=1)
+                
+                # Concatenate negative embeddings
+                negative_embeds = torch.cat([negative_embeds_1, negative_embeds_2], dim=-1)
+                
+                print(f"[DEBUG] Combined negative embeds: {negative_embeds.shape}")
+                print(f"[DEBUG] Pooled negative embeds: {pooled_negative_embeds.shape}")
+            
+            progress_callback({"stage": "chunks_encoded", "progress": 0.5})
+            
+            return positive_embeds, negative_embeds, pooled_prompt_embeds, pooled_negative_embeds
+            
+        except Exception as e:
+            print(f"[DEBUG] Error during chunk encoding: {e}")
+            import traceback
+            traceback.print_exc()
+            progress_callback({"stage": "encoding_error", "error": str(e)})
+            return None, None
+
     def _generate_image(
-        self, input_data: ImageGenerationInput, progress_callback: Callable[[Any], None]
-    ) -> Optional[str]:
+        self,
+        chunks: List[str],
+        negative_prompt: str,
+        layout: ImageLayout,
+        seed: Optional[int],
+        progress_callback: Callable[[Any], None],
+    ) -> Optional[ImageGenerationToolContent]:
         """Generate image and return the file path"""
         try:
             import torch
 
+            print(f"[DEBUG] Starting image generation with {len(chunks)} chunks")
+            
             # Set random seed if provided
-            if input_data.seed is not None:
-                torch.manual_seed(input_data.seed)
-                progress_callback(
-                    {"stage": "seed_set", "progress": 0.1, "seed": input_data.seed}
-                )
+            if seed is not None:
+                torch.manual_seed(seed)
+                progress_callback({"stage": "seed_set", "progress": 0.1, "seed": seed})
 
-            progress_callback({"stage": "generating", "progress": 0.2})
+            # Encode chunks to embeddings with pooled embeddings
+            result = self._encode_chunked_prompts(chunks, negative_prompt, progress_callback)
+            
+            if result is None or len(result) != 4:
+                print(f"[DEBUG] Failed to encode chunks, returning None")
+                return None
+                
+            positive_embeds, negative_embeds, pooled_positive_embeds, pooled_negative_embeds = result
 
-            # Generate the image
+            progress_callback({"stage": "generating", "progress": 0.6})
+
+            if layout == ImageLayout.PORTRAIT:
+                width = 768
+                height = 1344
+            elif layout == ImageLayout.LANDSCAPE:
+                width = 1344
+                height = 768
+            else:  # SQUARE
+                width = 1024
+                height = 1024
+
+            # Generate the image using embeddings and pooled embeddings
+            print(f"[DEBUG] Generating image with dimensions: {width}x{height}")
+            print(f"[DEBUG] Pipeline type: {type(self._pipeline)}")
             with torch.inference_mode():
                 result = self._pipeline(
-                    prompt=input_data.prompt,
-                    negative_prompt=input_data.negative_prompt or None,
-                    width=input_data.width,
-                    height=input_data.height,
-                    num_inference_steps=input_data.num_inference_steps,
-                    guidance_scale=input_data.guidance_scale,
+                    prompt_embeds=positive_embeds,
+                    negative_prompt_embeds=negative_embeds,
+                    pooled_prompt_embeds=pooled_positive_embeds,
+                    negative_pooled_prompt_embeds=pooled_negative_embeds,
+                    width=width,
+                    height=height,
+                    num_inference_steps=30,
+                    guidance_scale=5.0,
                 )
+                print(f"[DEBUG] Image generation completed successfully")
 
             progress_callback({"stage": "image_generated", "progress": 0.8})
 
@@ -186,9 +534,27 @@ class ImageGenerationTool(BaseTool):
                 }
             )
 
-            return str(image_path)
+            # Combine chunks for display
+            combined_prompt = ", ".join(chunks)
+            
+            image_content = ImageGenerationToolContent(
+                prompt=combined_prompt,
+                image_path=str(image_path),
+                image_url=f"/generated_images/{image_path.name}",
+                width=width,
+                height=height,
+                num_inference_steps=30,
+                guidance_scale=5.0,
+                negative_prompt=negative_prompt if negative_prompt else None,
+                seed=seed,
+            )
+
+            return image_content
 
         except Exception as e:
+            print(f"[DEBUG] Error during image generation: {e}")
+            import traceback
+            traceback.print_exc()
             progress_callback(
                 {
                     "stage": "generation_error",
@@ -199,16 +565,28 @@ class ImageGenerationTool(BaseTool):
 
     def run(
         self,
-        agent,
+        agent: Agent,
         input_data: ImageGenerationInput,
         tool_id: str,
         progress_callback: Callable[[Any], None],
     ) -> ToolResult:
-        """Generate an image from the given prompt"""
+        """Generate an image from natural description with LLM optimization"""
 
-        # Load model if not already loaded
+        print(f"[DEBUG] ImageGenerationTool.run called with:")
+        print(f"[DEBUG]   Description: {input_data.description}")
+        print(f"[DEBUG]   Agent model: {agent.llm.model}")
+        print(f"[DEBUG]   Tool ID: {tool_id}")
+
+        # Step 1: Optimize description to SDXL prompts
+        progress_callback({"stage": "starting_optimization", "progress": 0.0})
+
+        optimization = self._optimize_description_for_sdxl(
+            input_data.description, progress_callback, agent.llm.model, agent.llm.client
+        )
+
+        # Step 2: Load model if not already loaded
         if not self._model_loaded:
-            progress_callback({"stage": "initializing", "progress": 0.0})
+            progress_callback({"stage": "loading_model", "progress": 0.4})
 
             if not self._load_model(progress_callback):
                 models_dir = agent_paths.get_models_dir()
@@ -221,37 +599,40 @@ class ImageGenerationTool(BaseTool):
 
                 return ToolCallError(error=error_msg)
 
-        # Generate the image
-        progress_callback({"stage": "starting_generation", "progress": 0.0})
+        # Step 3: Generate with optimized chunks
+        combined_chunks = " | ".join(optimization.chunks)
+        progress_callback(
+            {
+                "stage": "generating_with_optimized_chunks",
+                "progress": 0.6,
+                "chunks": optimization.chunks,
+                "chunk_count": len(optimization.chunks),
+                "optimized_negative": optimization.negative_prompt,
+            }
+        )
 
-        image_path = self._generate_image(input_data, progress_callback)
+        image_content = self._generate_image(
+            optimization.chunks,
+            optimization.negative_prompt,
+            optimization.layout,
+            input_data.seed,
+            progress_callback,
+        )
 
-        if image_path is None:
+        if image_content is None:
             return ToolCallError(error="Image generation failed")
 
-        # Prepare success response with structured content
-        relative_path = agent_paths.get_relative_to_base(Path(image_path))
-
-        # Create structured ImageGenerationToolContent
-        image_content = ImageGenerationToolContent(
-            type="image_generated",
-            prompt=input_data.prompt,
-            image_path=str(relative_path),
-            image_url=f"/generated_images/{Path(image_path).name}",
-            width=input_data.width,
-            height=input_data.height,
-            num_inference_steps=input_data.num_inference_steps,
-            guidance_scale=input_data.guidance_scale,
-            negative_prompt=(
-                input_data.negative_prompt if input_data.negative_prompt else None
-            ),
-            seed=input_data.seed,
-        )
+        # Add optimization metadata to result
+        image_content.original_description = input_data.description
+        image_content.optimization_confidence = optimization.confidence
+        image_content.camera_angle = optimization.camera_angle
+        image_content.viewpoint = optimization.viewpoint
+        image_content.optimization_notes = optimization.chunk_strategy
 
         return ToolCallSuccess(
             type="success",
             content=image_content,
-            llm_feedback=f"Image generated: {image_content.image_url}",
+            llm_feedback=f"Generated image from: '{input_data.description}' → {len(optimization.chunks)} chunks: {combined_chunks} (Camera: {optimization.camera_angle}, {optimization.viewpoint})",
         )
 
 

@@ -5,7 +5,7 @@ export interface TextToolContent {
 
 export interface ImageGenerationToolContent {
   type: "image_generated";
-  prompt: string;
+  prompt: string; // Final optimized SDXL prompt used
   image_path: string;
   image_url: string; // URL to access the generated image
   width: number;
@@ -14,6 +14,13 @@ export interface ImageGenerationToolContent {
   guidance_scale: number;
   negative_prompt?: string;
   seed?: number;
+  
+  // New optimization metadata
+  original_description?: string; // Original natural description from agent
+  optimization_confidence?: number; // LLM confidence in optimization
+  camera_angle?: string; // Camera angle chosen
+  viewpoint?: string; // Viewpoint chosen
+  optimization_notes?: string; // Notes about optimization choices
 }
 
 export type ToolContent = TextToolContent | ImageGenerationToolContent;
