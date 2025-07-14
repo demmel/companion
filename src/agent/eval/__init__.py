@@ -7,12 +7,12 @@ Hierarchical evaluation and optimization system:
 - Level 3: MutationPromptOptimizer (optimizes the mutation prompts)
 """
 
-from .agent_evaluator import AgentEvaluator
+from .conversation_generator import ConversationGenerator
 from .base import EvaluationResult, EvaluationConfig, DomainEvaluationConfig
 from .domains import RoleplayEvaluationConfig
 
 __all__ = [
-    "AgentEvaluator",
+    "ConversationGenerator",
     "EvaluationResult",
     "EvaluationConfig",
     "DomainEvaluationConfig",

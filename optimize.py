@@ -102,115 +102,6 @@ def cli():
 
 @cli.command()
 @click.option(
-    "--domain", default="roleplay", help="Domain to evaluate (default: roleplay)"
-)
-@click.option(
-    "--model",
-    type=click.Choice(MODEL_CHOICES),
-    default=MODEL_CHOICES[0],
-    help="Model to use for agent",
-)
-@click.option("--scenario", help="Specific scenario to test (optional)")
-def evaluate(domain: str, model: str, scenario: str):
-    """🧪 Level 1: Run agent evaluation for a domain"""
-    console.print(f"\n[bold cyan]Level 1: Agent Evaluation[/bold cyan]")
-    console.print(f"Domain: {domain}")
-    console.print(f"Model: {model}")
-
-    try:
-        # Import evaluation components
-        from agent.eval.agent_evaluator import AgentEvaluator
-
-        if domain == "roleplay":
-            from agent.eval.domains.roleplay import RoleplayEvaluationConfig
-
-            domain_config = RoleplayEvaluationConfig()
-        else:
-            console.print(f"[red]Unknown domain: {domain}[/red]")
-            console.print("Available domains: roleplay")
-            return
-
-        llm = create_llm()
-        supported_model = MODEL_MAP[model]
-
-        # Get scenarios
-        eval_config = domain_config.get_evaluation_config()
-        scenarios = (
-            [scenario] if scenario else eval_config.test_scenarios[:3]
-        )  # Test first 3
-
-        console.print(f"Testing {len(scenarios)} scenarios...")
-
-        # Set up progress reporting
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            console=console,
-        ) as rich_progress:
-
-            # Create progress reporter for evaluator
-            progress_reporter = RichProgressReporter(rich_progress)
-            evaluator = AgentEvaluator(
-                domain_eval_config=domain_config,
-                model=supported_model,
-                llm=llm,
-                progress=progress_reporter,
-            )
-
-            with progress_reporter.task(
-                f"Evaluating {len(scenarios)} scenarios", total=len(scenarios)
-            ) as eval_task:
-
-                for i, test_scenario in enumerate(scenarios, 1):
-                    eval_task.update(
-                        (i - 1) / len(scenarios),
-                        f"Scenario {i}/{len(scenarios)}: {test_scenario[:50]}...",
-                    )
-
-                    try:
-                        result = evaluator.run_evaluation(test_scenario)
-
-                        console.print(
-                            f"\n[bold green]✅ Scenario {i} Results:[/bold green]"
-                        )
-                        console.print(
-                            f"Overall Score: [bold]{result.overall_score:.1f}/10[/bold]"
-                        )
-                        console.print(f"Feedback: {result.feedback}")
-
-                        if result.scores:
-                            table = Table(title="Detailed Scores")
-                            table.add_column("Criterion", style="cyan")
-                            table.add_column("Score", style="green", justify="right")
-
-                            for criterion, score in result.scores.items():
-                                table.add_row(criterion, f"{score:.1f}/10")
-                            console.print(table)
-
-                        if result.suggested_improvements:
-                            console.print(
-                                "[bold yellow]Suggested Improvements:[/bold yellow]"
-                            )
-                            for improvement in result.suggested_improvements:
-                                console.print(f"  • {improvement}")
-
-                    except Exception as e:
-                        console.print(f"[red]❌ Scenario {i} failed: {e}[/red]")
-                        logging.getLogger(__name__).error(
-                            f"Scenario {i} failed", exc_info=True
-                        )
-
-        console.print(f"\n[bold green]✅ Evaluation complete![/bold green]")
-
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        logging.getLogger(__name__).error("Evaluation failed", exc_info=True)
-
-
-@cli.command()
-@click.option(
     "--domain", default="roleplay", help="Domain to optimize (default: roleplay)"
 )
 @click.option("--scenario", help="Specific scenario to optimize for (required)")
@@ -859,7 +750,7 @@ def status(domain: str, optimization_dir: str):
 
         # Check Level 1 (AgentEvaluator)
         try:
-            from agent.eval.agent_evaluator import AgentEvaluator
+            from agent.eval.conversation_generator import ConversationGenerator
 
             console.print("  ✅ Level 1 (AgentEvaluator): Available")
         except Exception as e:

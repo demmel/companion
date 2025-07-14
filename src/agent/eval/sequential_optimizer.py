@@ -24,7 +24,7 @@ from agent.llm import LLM, SupportedModel
 from agent.structured_llm import structured_llm_call, StructuredLLMError, ResponseFormat
 from agent.eval.feedback_learner import SmartFeedbackLearner
 from agent.eval.preferences import SemanticPreferenceManager
-from agent.eval.agent_evaluator import AgentEvaluator
+from agent.eval.conversation_generator import ConversationGenerator
 from agent.eval.base import DomainEvaluationConfig
 from agent.eval.interruption import IntelligentInterruptionSystem, OptimizationContext
 from agent.eval.prompt_versioning import PromptVersionManager
@@ -406,14 +406,14 @@ Please provide an improved version of the evaluator prompt that better aligns wi
         eval_config.simulation_prompt_template = sim_prompt
 
         try:
-            evaluator = AgentEvaluator(
+            evaluator = ConversationGenerator(
                 domain_eval_config=self.domain_config,
                 model=self.model,
                 llm=self.llm,
                 progress=self.progress,
             )
 
-            conversation = evaluator.run_conversation(scenario)
+            conversation = evaluator.generate_conversation(scenario)
             return conversation
 
         finally:
