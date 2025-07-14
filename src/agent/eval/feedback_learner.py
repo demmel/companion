@@ -9,10 +9,15 @@ import time
 from typing import Dict, List, Any, Optional
 from enum import Enum
 from pydantic import BaseModel, Field
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
 
-from agent.eval.structured_llm import structured_llm_call, StructuredLLMError
+from agent.llm import LLM, SupportedModel
+from agent.structured_llm import structured_llm_call, StructuredLLMError, ResponseFormat
 from agent.eval.preferences import SemanticPreferenceManager
 from agent.eval.base import EvaluationResult
+from agent.progress import ProgressReporter
 
 
 class ComparisonChoice(Enum):
@@ -133,12 +138,17 @@ class SmartFeedbackLearner:
     def __init__(
         self,
         preference_manager: SemanticPreferenceManager,
-        model: str = "huihui_ai/mistral-small-abliterated",
+        llm: LLM,
+        model: SupportedModel,
+        progress_reporter: ProgressReporter,
     ):
         self.prefs = preference_manager
+        self.llm = llm
         self.model = model
+        self.progress_reporter = progress_reporter
         self.feedback_sessions: List[FeedbackSession] = []
         self.current_session: Optional[FeedbackSession] = None
+        self.console = Console()
 
     def start_feedback_session(self, session_type: str) -> str:
         """Start a new feedback collection session"""
@@ -151,14 +161,16 @@ class SmartFeedbackLearner:
             patterns_updated=[],
             timestamp=time.time(),
         )
-        print(f"\n🎯 Starting {session_type} feedback session...")
+        self.progress_reporter.print(
+            f"\n🎯 Starting {session_type} feedback session..."
+        )
         return session_id
 
     def end_feedback_session(self):
         """End current feedback session and save insights"""
         if self.current_session:
             self.feedback_sessions.append(self.current_session)
-            print(
+            self.progress_reporter.print(
                 f"📝 Session complete: {len(self.current_session.insights_learned)} insights learned"
             )
             self.current_session = None
@@ -169,20 +181,28 @@ class SmartFeedbackLearner:
         conversation_b: List[Dict[str, str]],
         scenario: str,
     ) -> ConversationComparison:
-        """Collect comparative feedback on two conversations (simulated for demo)"""
-        print(f"\n{'='*60}")
-        print(f"CONVERSATION COMPARISON")
-        print(f"{'='*60}")
-        print(f"Scenario: {scenario}")
+        """Collect comparative feedback on two conversations"""
+        self.progress_reporter.print(f"\n{'='*80}")
+        self.progress_reporter.print(f"CONVERSATION COMPARISON")
+        self.progress_reporter.print(f"{'='*80}")
+        self.progress_reporter.print(f"Scenario: {scenario}")
+        self.progress_reporter.print()
 
-        self._display_conversation("CONVERSATION A", conversation_a)
-        self._display_conversation("CONVERSATION B", conversation_b)
+        # Display conversations side-by-side with rich formatting
+        self._display_side_by_side_conversations(conversation_a, conversation_b)
 
-        user_input = input("Which conversation is better (A or B) and why?: ")
+        self.progress_reporter.print(f"\n{'-'*80}")
+        user_input = self.progress_reporter.input(
+            "Which conversation do you prefer and why? Please explain what makes one better than the other:\n> "
+        )
+
         feedback = structured_llm_call(
-            system_prompt="You should analyze the user's input and extract structured feedback.",
+            system_prompt="Extract structured feedback from the user's comparison. Determine which conversation they preferred (left/right/similar/both_poor) and extract their reasoning, specific issues, and suggestions.",
             user_input=user_input,
             response_model=ConversationComparisonFeedback,
+            model=self.model,
+            llm=self.llm,
+            format=ResponseFormat.CUSTOM,
         )
 
         # Simulate user comparison (in real system, this would be interactive)
@@ -208,26 +228,31 @@ class SmartFeedbackLearner:
         evaluation_b: EvaluationResult,
     ) -> EvaluationComparison:
         """Collect comparative feedback on two evaluations"""
-        print(f"\n{'='*60}")
-        print(f"EVALUATION COMPARISON")
-        print(f"{'='*60}")
+        self.progress_reporter.print(f"\n{'='*60}")
+        self.progress_reporter.print(f"EVALUATION COMPARISON")
+        self.progress_reporter.print(f"{'='*60}")
 
-        print("CONVERSATION:")
+        self.progress_reporter.print("CONVERSATION:")
         self._display_conversation("", conversation)
 
-        print(f"\nEVALUATION A:")
-        print(f"  Score: {evaluation_a.overall_score}/10")
-        print(f"  Feedback: {evaluation_a.feedback}")
+        self.progress_reporter.print(f"\nEVALUATION A:")
+        self.progress_reporter.print(f"  Score: {evaluation_a.overall_score}/10")
+        self.progress_reporter.print(f"  Feedback: {evaluation_a.feedback}")
 
-        print(f"\nEVALUATION B:")
-        print(f"  Score: {evaluation_b.overall_score}/10")
-        print(f"  Feedback: {evaluation_b.feedback}")
+        self.progress_reporter.print(f"\nEVALUATION B:")
+        self.progress_reporter.print(f"  Score: {evaluation_b.overall_score}/10")
+        self.progress_reporter.print(f"  Feedback: {evaluation_b.feedback}")
 
-        user_input = input("Which evaluation is better (A or B) and why? ")
+        user_input = self.progress_reporter.input(
+            "Which evaluation is better (A or B) and why? "
+        )
         feedback = structured_llm_call(
             system_prompt="You should analyze the user's input and extract structured feedback.",
             user_input=user_input,
             response_model=EvaluationComparisonFeedback,
+            model=self.model,
+            llm=self.llm,
+            format=ResponseFormat.CUSTOM,
         )
 
         # Simulate user comparison
@@ -256,12 +281,12 @@ class SmartFeedbackLearner:
         self, content: str, context: Dict[str, Any], domain: str
     ) -> Dict[str, Any]:
         """Collect simple descriptive feedback on content"""
-        print(f"\n{'='*60}")
-        print(f"SIMPLE FEEDBACK COLLECTION - {domain.upper()}")
-        print(f"{'='*60}")
-        print(f"Content: {content}")
+        self.progress_reporter.print(f"\n{'='*60}")
+        self.progress_reporter.print(f"SIMPLE FEEDBACK COLLECTION - {domain.upper()}")
+        self.progress_reporter.print(f"{'='*60}")
+        self.progress_reporter.print(f"Content: {content}")
 
-        user_input = input(
+        user_input = self.progress_reporter.input(
             "Please provide your feedback on this content (e.g., what you liked, what could be improved): "
         )
 
@@ -276,7 +301,9 @@ class SmartFeedbackLearner:
 
     def _learn_from_conversation_comparison(self, comparison: ConversationComparison):
         """Extract learning insights from conversation comparison using structured LLM"""
-        print(f"🧠 Analyzing conversation comparison for learning insights...")
+        self.progress_reporter.print(
+            f"🧠 Analyzing conversation comparison for learning insights..."
+        )
 
         try:
             system_prompt = """You are an expert at understanding user preferences from comparative feedback.
@@ -308,6 +335,8 @@ class SmartFeedbackLearner:
                 response_model=ComparisonAnalysis,
                 context=comparison_context,
                 model=self.model,
+                llm=self.llm,
+                format=ResponseFormat.CUSTOM,
             )
 
             # Extract feedback text for preference learning
@@ -326,17 +355,19 @@ class SmartFeedbackLearner:
                 )
                 self.current_session.patterns_updated.extend(analysis.quality_patterns)
 
-            print(
+            self.progress_reporter.print(
                 f"   ✅ Extracted {len(analysis.preference_insights)} preference insights"
             )
-            print(f"   Confidence: {analysis.confidence:.2f}")
+            self.progress_reporter.print(f"   Confidence: {analysis.confidence:.2f}")
 
         except StructuredLLMError as e:
-            print(f"   ❌ Failed to analyze comparison: {e}")
+            self.progress_reporter.print(f"   ❌ Failed to analyze comparison: {e}")
 
     def _learn_from_evaluation_comparison(self, comparison: EvaluationComparison):
         """Extract learning insights from evaluation comparison"""
-        print(f"🧠 Analyzing evaluation comparison for quality patterns...")
+        self.progress_reporter.print(
+            f"🧠 Analyzing evaluation comparison for quality patterns..."
+        )
 
         try:
             system_prompt = """You are an expert at understanding what makes evaluations helpful and accurate.
@@ -364,6 +395,8 @@ class SmartFeedbackLearner:
                 response_model=EvaluationQualityAnalysis,
                 context=comparison_context,
                 model=self.model,
+                llm=self.llm,
+                format=ResponseFormat.CUSTOM,
             )
 
             # Extract feedback for evaluation preferences
@@ -379,24 +412,58 @@ class SmartFeedbackLearner:
                     analysis.evaluation_patterns
                 )
 
-            print(f"   ✅ Extracted {len(analysis.quality_criteria)} quality criteria")
-            print(f"   Confidence: {analysis.confidence:.2f}")
+            self.progress_reporter.print(
+                f"   ✅ Extracted {len(analysis.quality_criteria)} quality criteria"
+            )
+            self.progress_reporter.print(f"   Confidence: {analysis.confidence:.2f}")
 
         except StructuredLLMError as e:
-            print(f"   ❌ Failed to analyze evaluation comparison: {e}")
+            self.progress_reporter.print(
+                f"   ❌ Failed to analyze evaluation comparison: {e}"
+            )
 
     def _display_conversation(self, title: str, conversation: List[Dict[str, str]]):
         """Display a conversation in a readable format"""
         if title:
-            print(f"\n--- {title} ---")
+            self.progress_reporter.print(f"\n--- {title} ---")
 
         for i, msg in enumerate(conversation):
             role = msg["role"].upper()
             content = msg["content"]
-            # Truncate very long messages for readability
-            if len(content) > 200:
-                content = content[:200] + "..."
-            print(f"{i+1}. {role}: {content}")
+            self.progress_reporter.print(f"{i+1}. {role}: {content}")
+
+    def _display_side_by_side_conversations(
+        self, conversation_a: List[Dict[str, str]], conversation_b: List[Dict[str, str]]
+    ):
+        """Display two conversations side-by-side using Rich tables"""
+
+        # Create table with two columns
+        table = Table(show_header=True, header_style="bold blue")
+        table.add_column("Option A", style="cyan")
+        table.add_column("Option B", style="green")
+
+        # Align by conversation turns (not total lines)
+        max_turns = max(len(conversation_a), len(conversation_b))
+
+        for i in range(max_turns):
+            # Get turn content or empty if conversation ended
+            turn_a = ""
+            if i < len(conversation_a):
+                msg_a = conversation_a[i]
+                role_a = msg_a["role"].upper()
+                content_a = msg_a["content"]
+                turn_a = f"[bold]{role_a}:[/bold] {content_a}"
+
+            turn_b = ""
+            if i < len(conversation_b):
+                msg_b = conversation_b[i]
+                role_b = msg_b["role"].upper()
+                content_b = msg_b["content"]
+                turn_b = f"[bold]{role_b}:[/bold] {content_b}"
+
+            table.add_row(turn_a, turn_b)
+
+        self.console.print(table)
 
     def get_learning_summary(self) -> Dict[str, Any]:
         """Get summary of what has been learned"""
@@ -422,8 +489,19 @@ def main():
     # Create preference manager and learner
     from agent.eval.preferences import SemanticPreferenceManager
 
-    prefs = SemanticPreferenceManager("test_preferences")
-    learner = SmartFeedbackLearner(prefs)
+    from agent.llm import create_llm, SupportedModel
+    from agent.progress import NullProgressReporter
+
+    prefs = SemanticPreferenceManager(
+        llm=create_llm(),
+        model=SupportedModel.DOLPHIN_MISTRAL_NEMO,
+        progress_reporter=NullProgressReporter(),
+        preferences_dir="test_preferences",
+    )
+    llm = create_llm()
+    learner = SmartFeedbackLearner(
+        prefs, llm, SupportedModel.DOLPHIN_MISTRAL_NEMO, NullProgressReporter()
+    )
 
     # Test feedback collection
     learner.start_feedback_session("conversation")

@@ -34,24 +34,30 @@ class MockImageGenerationTool(BaseTool):
     ):
         """Return mock image generation result instantly"""
 
-        # Create mock image content
+        # Create mock image content using the new schema
         image_content = ImageGenerationToolContent(
             type="image_generated",
-            prompt=input_data.prompt,
-            image_path=f"mock_images/eval_{tool_id or 'test'}.png",
+            prompt=f"Mock optimized prompt for: {input_data.description[:50]}...",
+            image_path=f"/generated_images/eval_{tool_id or 'test'}.png",
             image_url=f"/generated_images/eval_{tool_id or 'test'}.png",
-            width=input_data.width,
-            height=input_data.height,
-            num_inference_steps=input_data.num_inference_steps,
-            guidance_scale=input_data.guidance_scale,
-            negative_prompt=input_data.negative_prompt,
+            width=1024,
+            height=1024,
+            num_inference_steps=20,
+            guidance_scale=7.5,
+            negative_prompt="low quality, blurry",
             seed=input_data.seed or 12345,
+            # Add optimization metadata
+            original_description=input_data.description,
+            optimization_confidence=0.8,
+            camera_angle="medium shot",
+            viewpoint="eye level",
+            optimization_notes="Mock optimization for evaluation",
         )
 
         return ToolCallSuccess(
             type="success",
             content=image_content,
-            llm_feedback=f"Image generated: {image_content.image_url}",
+            llm_feedback=f"Mock image generated from: '{input_data.description[:50]}...'",
         )
 
 
@@ -134,6 +140,24 @@ interface EvaluationResponse {{
   feedback: string; // specific evaluation summary
   suggested_improvements: string[]; // actionable improvement suggestions
 }}""",
+            simulation_evaluation_prompt_template="""Evaluate the USER SIMULATION quality in this roleplay conversation.
+
+SCENARIO: {scenario}
+
+CONVERSATION:
+{conversation}
+
+Focus ONLY on the USER's behavior and responses, NOT the agent's performance.
+
+Evaluate how well the simulated user:
+- Behaves like a realistic person would in this roleplay scenario
+- Engages naturally and drives the conversation forward  
+- Tests different aspects of the roleplay appropriately
+- Builds on previous responses and maintains conversation flow
+- Provides appropriate challenges and prompts for interesting roleplay
+- Stays consistent with their role as a user testing the agent
+
+Your evaluation should focus on simulation quality - whether this feels like a real user having a genuine roleplay conversation, or if it feels artificial, repetitive, or inappropriate for testing purposes.""",
             evaluation_criteria=[
                 "character_consistency",
                 "tool_usage",

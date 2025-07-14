@@ -23,6 +23,7 @@ class OptimizationPaths:
     meta_history_dir: Path
     test_conversations_dir: Path
     optimized_prompts_dir: Path
+    logs_dir: Path
 
     # Preference files
     semantic_preferences_file: Path
@@ -60,6 +61,7 @@ class OptimizationPathManager:
             meta_history_dir=root / "meta_history",
             test_conversations_dir=root / "test_conversations",
             optimized_prompts_dir=root / "optimized_prompts",
+            logs_dir=root / "logs",
             # Preference files
             semantic_preferences_file=root
             / "preferences"
@@ -93,6 +95,7 @@ class OptimizationPathManager:
             self.paths.meta_history_dir,
             self.paths.test_conversations_dir,
             self.paths.optimized_prompts_dir,
+            self.paths.logs_dir,
         ]
 
         for directory in directories:
@@ -305,7 +308,7 @@ def main():
     print(f"Saved prompt to: {saved_file}")
 
     loaded_prompt = path_manager.load_optimized_prompt("agent")
-    print(f"Loaded prompt: {loaded_prompt[:50]}...")
+    print(f"Loaded prompt: {(loaded_prompt or '')[:50]}...")
 
     # Test test conversation management
     print("\n🧪 Testing test conversation management...")

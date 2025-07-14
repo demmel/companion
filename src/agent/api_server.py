@@ -55,7 +55,6 @@ def initialize_agent(config_name: str = "roleplay") -> Agent:
         config=config,
         model=SupportedModel.MISTRAL_SMALL,
         llm=llm,
-        verbose=False,
     )
     return agent
 

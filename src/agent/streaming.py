@@ -77,6 +77,7 @@ class StreamingParser:
         # Extensible prefix patterns with their handlers
         self.prefixes = {
             "TOOL_CALL:": self._handle_tool_call_complete,
+            "**TOOL_CALL:**": self._handle_tool_call_complete,  # Markdown format that mistral-nemo uses
         }
 
     def parse_chunk(self, chunk: str) -> Iterator[StreamEvent]:

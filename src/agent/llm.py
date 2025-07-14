@@ -2,9 +2,8 @@
 LLM client for interfacing with Ollama
 """
 
-from ast import TypeVar
 import ollama
-from typing import Iterator, List, Dict, Any, Optional
+from typing import Iterator, List, Dict, Optional
 from pydantic import BaseModel
 from dataclasses import dataclass
 from enum import Enum
@@ -99,9 +98,11 @@ class LLMClient:
 class SupportedModel(str, Enum):
     """Supported models with backend-specific identifiers"""
 
+    MISTRAL_SMALL = "huihui_ai/mistral-small-abliterated"
+    MISTRAL_NEMO = "mistral-nemo:latest"
+    DOLPHIN_MISTRAL_NEMO = "CognitiveComputations/dolphin-mistral-nemo:latest"
     LLAMA_8B = "llama3.1:8b"
     GEMMA_27B = "aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m"
-    MISTRAL_SMALL = "huihui_ai/mistral-small-abliterated"
 
 
 @dataclass
@@ -223,9 +224,21 @@ DEFAULT_MODELS = {
     ),
     SupportedModel.MISTRAL_SMALL: ModelConfig(
         model=SupportedModel.MISTRAL_SMALL,
-        keep_alive="20m",
+        keep_alive="30m",
         default_temperature=0.1,  # Lower temp for structured tasks
-        context_window=16384,
+        context_window=32768,
+    ),
+    SupportedModel.DOLPHIN_MISTRAL_NEMO: ModelConfig(
+        model=SupportedModel.DOLPHIN_MISTRAL_NEMO,
+        keep_alive="30m",
+        default_temperature=0.1,
+        context_window=32768,  # Large context for complex tasks
+    ),
+    SupportedModel.MISTRAL_NEMO: ModelConfig(
+        model=SupportedModel.MISTRAL_NEMO,
+        keep_alive="30m",
+        default_temperature=0.1,
+        context_window=32768,  # Large context for complex tasks
     ),
 }
 

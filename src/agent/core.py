@@ -57,7 +57,6 @@ class Agent:
         config: AgentConfig,
         model: SupportedModel,
         llm: LLM,
-        verbose: bool = False,
     ):
         self.llm = llm
         self.model = model
@@ -69,7 +68,6 @@ class Agent:
 
         # Initialize tools based on configuration
         self.tools = ToolRegistry(self, self.config.tools)
-        self.verbose = verbose
 
         # Dual conversation histories
         self.conversation_history: List[Message] = []  # Complete history for user view
@@ -168,8 +166,7 @@ class Agent:
             tools_start = time.time()
             tools_desc = self.tools.get_tools_description()
             tools_time = time.time() - tools_start
-            if self.verbose:
-                print(f"[PERF] Tools description generation took: {tools_time:.3f}s")
+            logger.debug(f"Tools description generation took: {tools_time:.3f}s")
         else:
             tools_desc = ""
 
@@ -213,22 +210,20 @@ class Agent:
             # )
             prompt_time = time.time() - prompt_start
 
-            if self.verbose:
-                print(
-                    f"Sending {len(messages)} messages to LLM (iteration {iteration}/{max_iterations})"
-                )
-                print(f"[PERF] Prompt building took: {prompt_time:.3f}s")
+            logger.debug(
+                f"Sending {len(messages)} messages to LLM (iteration {iteration}/{max_iterations})"
+            )
+            logger.debug(f"Prompt building took: {prompt_time:.3f}s")
 
             # Get streaming LLM response
             llm_start = time.time()
             stream = self.llm.chat_streaming(self.model, messages)
             llm_init_time = time.time() - llm_start
 
-            if self.verbose:
-                print(f"[PERF] LLM initialization took: {llm_init_time:.3f}s")
+            logger.debug(f"LLM initialization took: {llm_init_time:.3f}s")
 
             # Initialize streaming parser
-            parser = StreamingParser(debug=self.verbose)
+            parser = StreamingParser(debug=False)
             collected_response = ""
             tool_events: List[ToolCallEvent] = []
 
@@ -239,8 +234,7 @@ class Agent:
             for chunk in stream:
                 if first_chunk:
                     first_chunk_time = time.time() - llm_start
-                    if self.verbose:
-                        print(f"[PERF] Time to first chunk: {first_chunk_time:.3f}s")
+                    logger.debug(f"Time to first chunk: {first_chunk_time:.3f}s")
                     first_chunk = False
                 chunk_content = chunk["message"]["content"]
 
@@ -443,8 +437,7 @@ class Agent:
 
         # Performance logging
         total_time = time.time() - start_time
-        if self.verbose:
-            print(f"[PERF] Total chat_stream time: {total_time:.3f}s")
+        logger.debug(f"Total chat_stream time: {total_time:.3f}s")
 
     def reset_conversation(self):
         """Reset both conversation histories"""

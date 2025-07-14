@@ -9,7 +9,9 @@ from typing import Dict, List, Any, Optional
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from agent.eval.structured_llm import structured_llm_call, StructuredLLMError
+from agent.llm import LLM, SupportedModel
+from agent.progress import ProgressReporter
+from agent.structured_llm import structured_llm_call, StructuredLLMError, ResponseFormat
 from agent.eval.preferences import SemanticPreferenceManager
 
 
@@ -17,7 +19,6 @@ class InterruptionReason(Enum):
     LOW_CONFIDENCE = "low_confidence"
     STUCK_OPTIMIZATION = "stuck_optimization"
     CONTRADICTORY_TRENDS = "contradictory_trends"
-    INITIAL_CALIBRATION = "initial_calibration"
     STRATEGIC_CHECKPOINT = "strategic_checkpoint"
 
 
@@ -72,11 +73,15 @@ class IntelligentInterruptionSystem:
     def __init__(
         self,
         preference_manager: SemanticPreferenceManager,
-        model: str = "huihui_ai/mistral-small-abliterated",
+        llm: LLM,
+        model: SupportedModel,
+        progress_reporter: ProgressReporter,
     ):
         self.prefs = preference_manager
+        self.llm = llm
         self.model = model
         self.interruption_history: List[Dict[str, Any]] = []
+        self.progress_reporter = progress_reporter
 
     def should_interrupt(self, context: OptimizationContext) -> InterruptionAnalysis:
         """Use LLM reasoning to decide whether to interrupt for feedback"""
@@ -137,6 +142,8 @@ class IntelligentInterruptionSystem:
                 response_model=InterruptionAnalysis,
                 context=context_data,
                 model=self.model,
+                llm=self.llm,
+                format=ResponseFormat.CUSTOM,
             )
 
             # Record this decision for learning
@@ -151,28 +158,16 @@ class IntelligentInterruptionSystem:
             return result
 
         except StructuredLLMError as e:
-            print(f"Error in interruption analysis: {e}")
+            self.progress_reporter.print(f"Error in interruption analysis: {e}")
             # Conservative fallback - don't interrupt unless we really need initial calibration
             return InterruptionAnalysis(
-                should_interrupt=context.total_feedback_sessions < 2,
-                reason=(
-                    InterruptionReason.INITIAL_CALIBRATION
-                    if context.total_feedback_sessions < 2
-                    else None
-                ),
-                urgency="high" if context.total_feedback_sessions < 2 else "low",
-                confidence=0.5,
+                should_interrupt=False,
+                reason=None,
+                urgency="low",
+                confidence=0.0,
                 reasoning=f"Fallback decision due to analysis error: {e}",
-                expected_benefit=(
-                    "Initial preference learning"
-                    if context.total_feedback_sessions < 2
-                    else "None"
-                ),
-                risk_if_no_feedback=(
-                    "Cannot optimize without preferences"
-                    if context.total_feedback_sessions < 2
-                    else "Minimal"
-                ),
+                expected_benefit="None",
+                risk_if_no_feedback="Continuing without feedback may lead to suboptimal results.",
             )
 
     def _analyze_score_trend(self, score_history: List[float]) -> str:
@@ -255,8 +250,20 @@ def main():
     # Create preference manager and interruption system
     from agent.eval.preferences import SemanticPreferenceManager
 
-    prefs = SemanticPreferenceManager("test_preferences")
-    interruption_system = IntelligentInterruptionSystem(prefs)
+    from agent.llm import create_llm, SupportedModel
+
+    from agent.progress import NullProgressReporter
+
+    prefs = SemanticPreferenceManager(
+        llm=create_llm(),
+        model=SupportedModel.DOLPHIN_MISTRAL_NEMO,
+        progress_reporter=NullProgressReporter(),
+        preferences_dir="test_preferences",
+    )
+    llm = create_llm()
+    interruption_system = IntelligentInterruptionSystem(
+        prefs, llm, SupportedModel.DOLPHIN_MISTRAL_NEMO, NullProgressReporter()
+    )
 
     # Test different scenarios
     test_scenarios = [

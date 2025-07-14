@@ -162,11 +162,19 @@ class ToolRegistry:
         tool_call_instructions = """
 You may call tools using the following syntax:
 
-EXACT SYNTAX (always include call IDs):
+🚨 CRITICAL: Use EXACT syntax with underscore and call ID in parentheses:
+
 TOOL_CALL: tool_name (call_1)
 {
 "parameter": "value"
 }
+
+REQUIRED FORMAT COMPONENTS:
+- "TOOL_CALL:" with underscore (NOT "TOOL CALL:")  
+- Tool name after the colon
+- Call ID in parentheses like (call_1), (call_2), etc.
+- JSON parameters on following lines
+- NO markdown formatting, NO asterisks, NO emphasis
 
 For multiple tools:
 TOOL_CALL: tool_name_1 (call_1)
@@ -177,6 +185,10 @@ TOOL_CALL: tool_name_2 (call_2)
 {
 "parameter": "value"
 }
+
+WRONG: "TOOL CALL: tool_name" (missing underscore and call ID)
+WRONG: "**TOOL_CALL**: tool_name" (has markdown asterisks)
+RIGHT: "TOOL_CALL: tool_name (call_1)" (plain text with underscore and call ID)
 """
 
         tool_descriptions = "\n\n".join(descriptions)

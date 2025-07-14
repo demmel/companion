@@ -6,14 +6,18 @@ All higher-level optimizers use this to evaluate prompt quality.
 """
 
 import json
+import logging
 import time
 import re
-from typing import List, Dict, Any, Optional
-import ollama
-
+from typing import List, Dict, Optional
+from rich.console import Console
+from agent.llm import LLM, SupportedModel, Message
 from agent.core import Agent, message_to_llm_messages
-from agent.config import AgentConfig
+from agent.progress import ProgressReporter, NullProgressReporter
 from .base import DomainEvaluationConfig, EvaluationResult
+
+logger = logging.getLogger(__name__)
+console = Console()
 
 
 class AgentEvaluator:
@@ -22,32 +26,31 @@ class AgentEvaluator:
     def __init__(
         self,
         domain_eval_config: DomainEvaluationConfig,
-        user_simulator_model: str = "huihui_ai/mistral-small-abliterated",
-        evaluator_model: str = "huihui_ai/mistral-small-abliterated",
-        agent_model: str = "huihui_ai/mistral-small-abliterated",
+        model: SupportedModel,
+        llm: LLM,
+        progress: ProgressReporter,
     ):
+        self.model = model
+        self.llm = llm
+        self.progress = progress
 
         self.domain_eval_config = domain_eval_config
         self.eval_config = domain_eval_config.get_evaluation_config()
         self.agent_config = domain_eval_config.get_agent_config()
 
-        self.user_simulator_model = user_simulator_model
-        self.evaluator_model = evaluator_model
-        self.agent_model = agent_model
-
         # Create agent instance
-        self.agent = Agent(config=self.agent_config, model=agent_model)
+        self.agent = Agent(config=self.agent_config, model=model, llm=llm)
 
     def get_initial_user_input(self, scenario: str) -> str:
         """Get the initial user input to start the scenario using domain-specific template"""
         prompt = self.eval_config.initial_prompt_template.format(scenario=scenario)
 
-        response = ollama.chat(
-            model=self.user_simulator_model,
-            messages=[{"role": "user", "content": prompt}],
+        response = self.llm.chat_complete(
+            model=self.model,
+            messages=[Message(role="user", content=prompt)],
         )
 
-        return response["message"]["content"].strip()
+        return response.strip() if response else ""
 
     def get_user_response(
         self, scenario: str, conversation_history: List[Dict[str, str]]
@@ -59,77 +62,95 @@ class AgentEvaluator:
             scenario=scenario
         )
 
-        messages = [{"role": "system", "content": simulation_prompt}]
+        messages = [Message(role="system", content=simulation_prompt)]
 
         # Add conversation history (flip roles from user simulator's perspective)
         for msg in conversation_history:
             role = "assistant" if msg["role"] == "user" else "user"  # Flip the roles
-            messages.append({"role": role, "content": msg["content"]})
+            messages.append(Message(role=role, content=msg["content"]))
 
-        response = ollama.chat(model=self.user_simulator_model, messages=messages)
-        return response["message"]["content"].strip()
+        response = self.llm.chat_complete(
+            model=self.model,
+            messages=messages,
+        )
+        return response.strip() if response else ""
 
     def run_conversation(self, scenario: str) -> List[Dict[str, str]]:
         """Run interactive conversation between simulated user and agent"""
         num_turns = self.eval_config.num_conversation_turns
-        print(f"  Running {num_turns}-turn interactive conversation...")
 
-        conversation = []
+        with self.progress.task(
+            f"Running {num_turns}-turn conversation", total=num_turns
+        ) as task:
 
-        # Get initial user input
-        print(f"    Getting initial user input...")
-        initial_input = self.get_initial_user_input(scenario)
-        print(f"    Initial input: {initial_input[:60]}...")
+            conversation = []
 
-        conversation.append({"role": "user", "content": initial_input})
+            # Get initial user input
+            logger.debug(f"Getting initial user input...")
+            initial_input = self.get_initial_user_input(scenario)
+            logger.debug(f"Initial input: {initial_input[:60]}...")
+            conversation.append({"role": "user", "content": initial_input})
 
-        for turn in range(num_turns):
-            # Get agent response to latest user input
-            latest_user_input = conversation[-1]["content"]
-            print(f"    Turn {turn+1}: Getting agent response...")
+            for turn in range(num_turns):
+                # Update progress
+                task.update(
+                    turn / num_turns, f"Turn {turn+1}/{num_turns}: Agent responding..."
+                )
 
-            start_time = time.time()
-            # Get conversation length before agent response
-            history_before = len(self.agent.get_conversation_history())
+                # Get agent response to latest user input
+                latest_user_input = conversation[-1]["content"]
+                logger.debug(f"Turn {turn+1}: Getting agent response...")
 
-            # Trigger agent processing and wait for completion
-            list(self.agent.chat_stream(latest_user_input))  # Consume the stream
-            response_time = time.time() - start_time
+                start_time = time.time()
+                # Get conversation length before agent response
+                history_before = len(self.agent.get_conversation_history())
 
-            # Get new messages added to conversation history
-            conversation_history = self.agent.get_conversation_history()
-            new_messages = conversation_history[history_before:]
+                # Trigger agent processing and wait for completion
+                list(self.agent.chat_stream(latest_user_input))  # Consume the stream
+                response_time = time.time() - start_time
 
-            # Get only agent messages and convert to text format
-            full_agent_turn = ""
-            for msg in new_messages:
-                if msg.role == "assistant":  # Only include agent messages
-                    for llm_msg in message_to_llm_messages(msg):
-                        full_agent_turn += llm_msg.content + "\n"
-            full_agent_turn = full_agent_turn.strip()
+                # Get new messages added to conversation history
+                conversation_history = self.agent.get_conversation_history()
+                new_messages = conversation_history[history_before:]
 
-            print(
-                f"    Turn {turn+1}: Agent turn ({len(full_agent_turn)} chars, {response_time:.1f}s)"
-            )
-            conversation.append({"role": "agent", "content": full_agent_turn})
+                # Get only agent messages and convert to text format
+                full_agent_turn = ""
+                for msg in new_messages:
+                    if msg.role == "assistant":  # Only include agent messages
+                        for llm_msg in message_to_llm_messages(msg):
+                            full_agent_turn += llm_msg.content + "\n"
+                full_agent_turn = full_agent_turn.strip()
 
-            # Get user response (except on last turn)
-            if turn < num_turns - 1:
-                print(f"    Turn {turn+1}: Getting user response...")
-                user_response = self.get_user_response(scenario, conversation)
-                print(f"    Turn {turn+1}: User response: {user_response[:60]}...")
-                conversation.append({"role": "user", "content": user_response})
+                logger.debug(
+                    f"Turn {turn+1}: Agent turn ({len(full_agent_turn)} chars, {response_time:.1f}s)"
+                )
+                conversation.append({"role": "agent", "content": full_agent_turn})
 
-            # Brief pause between turns
-            time.sleep(1)
+                # Get user response (except on last turn)
+                if turn < num_turns - 1:
+                    task.update(
+                        (turn + 0.5) / num_turns,
+                        f"Turn {turn+1}/{num_turns}: User responding...",
+                    )
 
-        return conversation
+                    logger.debug(f"Turn {turn+1}: Getting user response...")
+                    user_response = self.get_user_response(scenario, conversation)
+                    logger.debug(
+                        f"Turn {turn+1}: User response: {user_response[:60]}..."
+                    )
+                    conversation.append({"role": "user", "content": user_response})
+
+                # Brief pause between turns
+                time.sleep(1)
+
+            return conversation
 
     def evaluate_conversation(
         self, scenario: str, conversation: List[Dict[str, str]]
     ) -> EvaluationResult:
         """Evaluate the conversation using the configured evaluation prompt"""
-        print(f"  Evaluating conversation...")
+        console.print("📊 Evaluating conversation...")
+        logger.debug(f"Starting conversation evaluation")
 
         # Build conversation text
         conv_text = "\n\n".join(
@@ -148,13 +169,13 @@ class AgentEvaluator:
             scenario=scenario, conversation=conv_text, agent_context=agent_context
         )
 
-        response = ollama.chat(
-            model=self.evaluator_model,
-            messages=[{"role": "user", "content": evaluation_prompt}],
-            options={"num_predict": 4096},
+        response = self.llm.chat_complete(
+            model=self.model,
+            messages=[Message(role="user", content=evaluation_prompt)],
+            num_predict=4096,
         )
 
-        response_text = response["message"]["content"]
+        response_text = response or ""
 
         try:
             # Extract and parse JSON
@@ -179,8 +200,8 @@ class AgentEvaluator:
             )
 
         except Exception as e:
-            print(f"  Error parsing evaluator response: {e}")
-            print(f"  Raw response: {response_text[:500]}...")
+            logger.error(f"Error parsing evaluator response: {e}")
+            logger.debug(f"Raw response: {response_text[:500]}...")
             return EvaluationResult(
                 config_name=self.agent_config.name,
                 scenario=scenario,
@@ -206,6 +227,7 @@ class AgentEvaluator:
         # Method 2: Look for the last complete JSON object in the response
         if not json_text and "{" in response_text:
             brace_count = 0
+            start_pos = 0
             for i, char in enumerate(response_text):
                 if char == "{":
                     if brace_count == 0:
@@ -237,12 +259,12 @@ class AgentEvaluator:
 
     def run_evaluation(self, scenario: str) -> EvaluationResult:
         """Run complete evaluation for a scenario"""
-        print(
-            f"\nEvaluating {self.eval_config.domain_name} scenario: {scenario[:60]}..."
+        logger.info(
+            f"Evaluating {self.eval_config.domain_name} scenario: {scenario[:60]}..."
         )
 
         # Reset agent state for new conversation
-        self.agent = Agent(config=self.agent_config, model=self.agent_model)
+        self.agent = Agent(config=self.agent_config, model=self.model, llm=self.llm)
 
         # Run interactive conversation
         conversation = self.run_conversation(scenario)
@@ -250,7 +272,9 @@ class AgentEvaluator:
         # Evaluate conversation
         result = self.evaluate_conversation(scenario, conversation)
 
-        print(f"  Overall score: {result.overall_score:.1f}/10")
+        console.print(
+            f"✅ Overall score: [bold green]{result.overall_score:.1f}/10[/bold green]"
+        )
         return result
 
     def run_evaluation_suite(self) -> List[EvaluationResult]:
@@ -259,7 +283,7 @@ class AgentEvaluator:
         scenarios = self.eval_config.test_scenarios
 
         for i, scenario in enumerate(scenarios):
-            print(f"\n=== Evaluation {i+1}/{len(scenarios)} ===")
+            console.print(f"\n=== Evaluation {i+1}/{len(scenarios)} ===")
             result = self.run_evaluation(scenario)
             results.append(result)
 
@@ -288,20 +312,22 @@ class AgentEvaluator:
 
     def analyze_results(self, results: List[EvaluationResult]):
         """Analyze and present evaluation results"""
-        print(f"\n{'='*60}")
-        print(f"{self.eval_config.domain_name.upper()} AGENT EVALUATION RESULTS")
-        print(f"{'='*60}")
+        console.print(f"\n{'='*60}")
+        console.print(
+            f"{self.eval_config.domain_name.upper()} AGENT EVALUATION RESULTS"
+        )
+        console.print(f"{'='*60}")
 
         if not results:
-            print("No results to analyze.")
+            console.print("No results to analyze.")
             return
 
         # Calculate average scores
         criteria = self.eval_config.evaluation_criteria
 
-        print(f"\nAVERAGE SCORES:")
-        print(f"{'Criteria':<20} {'Score':<10} {'Status':<10}")
-        print("-" * 40)
+        console.print(f"\nAVERAGE SCORES:")
+        console.print(f"{'Criteria':<20} {'Score':<10} {'Status':<10}")
+        console.print("-" * 40)
 
         avg_scores = {}
         for criterion in criteria:
@@ -314,16 +340,16 @@ class AgentEvaluator:
                     if avg_score >= 7
                     else "NEEDS WORK" if avg_score >= 5 else "POOR"
                 )
-                print(f"{criterion:<20} {avg_score:<10.1f} {status:<10}")
+                console.print(f"{criterion:<20} {avg_score:<10.1f} {status:<10}")
 
         # Overall performance
         overall_scores = [r.overall_score for r in results if r.overall_score]
         if overall_scores:
             avg_overall = sum(overall_scores) / len(overall_scores)
-            print(f"\nOVERALL AVERAGE: {avg_overall:.1f}/10")
+            console.print(f"\nOVERALL AVERAGE: {avg_overall:.1f}/10")
 
         # Common improvement suggestions
-        print(f"\nCOMMON IMPROVEMENT SUGGESTIONS:")
+        console.print(f"\nCOMMON IMPROVEMENT SUGGESTIONS:")
         all_suggestions = []
         for result in results:
             all_suggestions.extend(result.suggested_improvements)
@@ -338,11 +364,11 @@ class AgentEvaluator:
             suggestion_counts.items(), key=lambda x: x[1], reverse=True
         )
         for suggestion, count in sorted_suggestions[:5]:
-            print(f"  • {suggestion} (mentioned {count} times)")
+            console.print(f"  • {suggestion} (mentioned {count} times)")
 
         # Show sample feedback
-        print(f"\nSAMPLE DETAILED FEEDBACK:")
+        console.print(f"\nSAMPLE DETAILED FEEDBACK:")
         for i, result in enumerate(results[:2]):
             if result.feedback and "error" not in result.feedback.lower():
-                print(f"\nScenario {i+1}: {result.scenario[:50]}...")
-                print(f"Feedback: {result.feedback}")
+                console.print(f"\nScenario {i+1}: {result.scenario[:50]}...")
+                console.print(f"Feedback: {result.feedback}")

@@ -31,6 +31,7 @@ class EvaluationConfig:
     initial_prompt_template: str
     simulation_prompt_template: str
     evaluation_prompt_template: str
+    simulation_evaluation_prompt_template: str
     evaluation_criteria: List[str]
     num_conversation_turns: int = 6
 

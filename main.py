@@ -6,6 +6,7 @@ A general-purpose agent for various tasks.
 
 
 import click
+import logging
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -15,6 +16,8 @@ from agent.config import get_config
 from agent.presenters import get_presenter_for_config
 from agent.llm import create_llm, SupportedModel
 
+logger = logging.getLogger(__name__)
+
 console = Console()
 
 
@@ -22,11 +25,10 @@ console = Console()
 @click.option(
     "--model",
     default="gemma-27b",
-    help="Model to use (gemma-27b, llama-8b, mistral-small)",
+    help="Model to use (gemma-27b, llama-8b, mistral-small, mistral-nemo)",
 )
-@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--check", is_flag=True, help="Check if model is available")
-def main(model: str, verbose: bool, check: bool):
+def main(model: str, check: bool):
     """CLI Agent with Llama 3.3 70B - A general-purpose AI assistant"""
 
     console.print(
@@ -42,6 +44,7 @@ def main(model: str, verbose: bool, check: bool):
             "gemma-27b": SupportedModel.GEMMA_27B,
             "llama-8b": SupportedModel.LLAMA_8B,
             "mistral-small": SupportedModel.MISTRAL_SMALL,
+            "mistral-nemo": SupportedModel.DOLPHIN_MISTRAL_NEMO,
         }
 
         if model not in model_map:
@@ -58,7 +61,6 @@ def main(model: str, verbose: bool, check: bool):
             config=config,
             model=supported_model,
             llm=llm,
-            verbose=verbose,
         )
 
         if check:
@@ -222,17 +224,11 @@ def main(model: str, verbose: bool, check: bool):
                 break
             except Exception as e:
                 console.print(f"[red]Error: {e}[/red]")
-                if verbose:
-                    import traceback
-
-                    console.print(f"[red]{traceback.format_exc()}[/red]")
+                logger.debug("Full error traceback:", exc_info=True)
 
     except Exception as e:
         console.print(f"[red]Failed to initialize agent: {e}[/red]")
-        if verbose:
-            import traceback
-
-            console.print(f"[red]{traceback.format_exc()}[/red]")
+        logger.debug("Full error traceback:", exc_info=True)
 
 
 if __name__ == "__main__":

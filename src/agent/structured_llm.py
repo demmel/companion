@@ -6,10 +6,29 @@ using Pydantic models for schema generation and automatic validation.
 """
 
 import json
-from typing import TypeVar, Type, Dict, Any, Optional, List
+import logging
+from enum import Enum
+from typing import TypeVar, Type, Dict, Any, Optional
 from pydantic import BaseModel, ValidationError
 
-from agent.llm import LLM, SupportedModel, Message, create_llm
+from agent.llm import LLM, Message, SupportedModel
+
+logger = logging.getLogger(__name__)
+
+
+# Import custom format components (lazy import to avoid circular dependencies)
+def _get_custom_format_components():
+    from agent.custom_format_parser import CustomFormatParser
+    from agent.custom_format_schema import CustomFormatSchemaGenerator
+
+    return CustomFormatParser(), CustomFormatSchemaGenerator()
+
+
+class ResponseFormat(Enum):
+    """Supported response formats for structured LLM calls"""
+
+    JSON = "json"
+    CUSTOM = "custom"
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -36,6 +55,7 @@ class StructuredLLMClient:
         response_model: Type[T],
         context: Optional[Dict[str, Any]] = None,
         temperature: float = 0.1,
+        format: ResponseFormat = ResponseFormat.JSON,
     ) -> T:
         """
         Make a structured LLM call with automatic validation
@@ -54,17 +74,25 @@ class StructuredLLMClient:
             StructuredLLMError: If validation fails after retries
         """
 
-        # Generate JSON schema from Pydantic model
-        schema = response_model.model_json_schema()
-        schema_str = json.dumps(schema, indent=2)
-
-        # Build complete prompt with schema
-        full_prompt = self._build_prompt(system_prompt, user_input, schema_str, context)
+        schema_str = build_schema(response_model, format)
+        if format == ResponseFormat.JSON:
+            full_prompt = self._build_prompt_json(
+                system_prompt, user_input, schema_str, context
+            )
+        elif format == ResponseFormat.CUSTOM:
+            full_prompt = self._build_prompt_custom(
+                system_prompt, user_input, schema_str, context
+            )
+        else:
+            raise StructuredLLMError(f"Unsupported format: {format}")
 
         last_error = None
 
         # Start with the initial messages
         messages = [Message(role="user", content=full_prompt)]
+
+        response_text: str = ""
+        json_text: Optional[str] = None
 
         for attempt in range(self.max_retries + 1):
             try:
@@ -76,47 +104,81 @@ class StructuredLLMClient:
                     num_predict=4096,
                 )
 
-                response_text = response
-                assert response_text, "LLM response is empty"
+                response_text = response or ""
+                if not response_text:
+                    raise StructuredLLMError("LLM response is empty")
 
-                # Extract and parse JSON
-                json_text = self._extract_json(response_text)
-                if not json_text:
-                    raise StructuredLLMError("No valid JSON found in response")
+                # Log raw response for debugging
+                logger.info("Raw LLM response:\n%s", response_text)
 
-                try:
+                # Parse response based on format
+                if format == ResponseFormat.JSON:
+                    # Extract and parse JSON
+                    json_text = self._extract_json(response_text)
+                    if not json_text:
+                        raise StructuredLLMError("No valid JSON found in response")
+
+                    # Fix unescaped newlines and control characters in JSON
+                    fixed_json = self._fix_json_escaping(json_text)
+
                     # Parse JSON
-                    parsed_data = json.loads(json_text)
+                    parsed_data = json.loads(fixed_json)
+                elif format == ResponseFormat.CUSTOM:
+                    # Parse custom format
+                    parser, _ = _get_custom_format_components()
+                    parsed_data = parser.parse(response_text, response_model.__name__)
+                else:
+                    raise StructuredLLMError(f"Unsupported format: {format}")
 
-                    # Validate with Pydantic model
-                    validated_result = response_model.model_validate(parsed_data)
+                # Validate with Pydantic model
+                validated_result = response_model.model_validate(parsed_data)
 
-                    return validated_result
+                return validated_result
 
-                except (json.JSONDecodeError, ValidationError) as e:
-                    last_error = e
+            except (json.JSONDecodeError, ValidationError) as e:
+                # Log the full response and error details for debugging
+                logger.error(
+                    "Structured LLM call failed - attempt %d/%d",
+                    attempt + 1,
+                    self.max_retries + 1,
+                )
+                logger.error("Raw LLM response: %s", response_text)
+                if format == ResponseFormat.JSON:
+                    logger.error(
+                        "Extracted JSON text: %s",
+                        json_text if "json_text" in locals() else "N/A",
+                    )
+                logger.error("Error details: %s", str(e))
+                logger.error("Error type: %s", type(e).__name__)
 
-                    if attempt < self.max_retries:
-                        # Add the failed response to conversation history
-                        messages.append(
-                            Message(role="assistant", content=response_text)
-                        )
+                last_error = e
 
-                        # Add corrective feedback as a new user message
-                        error_guidance = self._get_error_guidance(e, schema_str)
+                if attempt < self.max_retries:
+                    # Add the failed response to conversation history
+                    messages.append(Message(role="assistant", content=response_text))
+
+                    # Add corrective feedback as a new user message
+                    error_guidance = self._get_error_guidance(e, schema_str, format)
+                    if format == ResponseFormat.JSON:
                         correction_message = f"""That JSON was invalid. {error_guidance}
 
-    Please provide a corrected JSON response that matches the required schema exactly. Remember:
-    - Include ALL required fields
-    - Use correct data types 
-    - Respond with ONLY valid JSON, no additional text"""
+Please provide a corrected JSON response that matches the required schema exactly. Remember:
+- Include ALL required fields
+- Use correct data types 
+- Respond with ONLY valid JSON, no additional text"""
+                    else:
+                        correction_message = f"""That response format was invalid. {error_guidance}
 
-                        messages.append(
-                            Message(role="user", content=correction_message)
-                        )
-                        continue
+Please provide a corrected response that follows the format exactly as specified. Remember:
+- Use exact field names as shown
+- Include ALL required fields
+- Follow the format structure precisely"""
 
+                    messages.append(Message(role="user", content=correction_message))
+                    continue
             except Exception as e:
+                # Handle other unexpected errors
+                logger.error("Unexpected error in structured LLM call: %s", str(e))
                 raise StructuredLLMError(f"LLM call failed: {e}")
 
         # All retries failed
@@ -124,14 +186,14 @@ class StructuredLLMClient:
             f"Failed to get valid response after {self.max_retries + 1} attempts. Last error: {last_error}"
         )
 
-    def _build_prompt(
+    def _build_prompt_json(
         self,
         system_prompt: str,
         user_input: str,
         schema_str: str,
         context: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Build complete prompt with schema and context"""
+        """Build complete prompt with JSON schema and context"""
 
         prompt_parts = [
             "You are a helpful AI assistant that provides structured responses.",
@@ -150,45 +212,63 @@ class StructuredLLMClient:
                 user_input,
                 "",
                 "RESPONSE FORMAT:",
-                "You must respond with valid JSON that matches this exact schema:",
+                "You must respond with valid JSON data that conforms to this schema:",
                 "",
                 schema_str,
                 "",
+                "EXAMPLE:",
+                "If the schema requires fields 'name' and 'age', respond with:",
+                '{"name": "John", "age": 30}',
+                "NOT with the schema definition itself.",
+                "",
                 "IMPORTANT:",
-                "- Respond ONLY with valid JSON",
-                "- Include all required fields",
-                "- Follow the field descriptions in the schema",
+                "- Create actual data, NOT the schema itself",
+                "- Respond ONLY with a JSON object containing the actual values",
+                "- Include all required fields with real content",
+                "- Follow the field descriptions to generate appropriate values",
                 "- Do not include any text before or after the JSON",
-                "- Ensure all field types match the schema",
+                "- Do not return the schema - return data that matches the schema",
             ]
         )
 
         return "\n".join(prompt_parts)
 
-    def _build_retry_prompt(
+    def _build_prompt_custom(
         self,
         system_prompt: str,
         user_input: str,
         schema_str: str,
-        context: Optional[Dict[str, Any]],
-        error_guidance: str,
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Build retry prompt with error-specific guidance"""
+        """Build complete prompt with custom format schema and context"""
 
-        base_prompt = self._build_prompt(system_prompt, user_input, schema_str, context)
+        prompt_parts = [
+            "You are a helpful AI assistant that provides structured responses.",
+            "",
+            "TASK:",
+            system_prompt,
+            "",
+        ]
 
-        retry_guidance = f"""
+        if context:
+            prompt_parts.extend(["CONTEXT:", json.dumps(context, indent=2), ""])
 
-PREVIOUS ATTEMPT FAILED:
-{error_guidance}
+        prompt_parts.extend(
+            [
+                "INPUT:",
+                user_input,
+                "",
+                schema_str,
+                "",
+                "IMPORTANT:",
+                "- Follow the format exactly as shown",
+                "- Use the exact field names specified",
+                "- All required fields must be included",
+                "- Do not include any text outside the specified format",
+            ]
+        )
 
-Please try again, being extra careful to:
-- Return only valid JSON
-- Match the exact schema structure
-- Include all required fields
-- Use correct data types"""
-
-        return base_prompt + retry_guidance
+        return "\n".join(prompt_parts)
 
     def _extract_json(self, response_text: str) -> Optional[str]:
         """Extract JSON from LLM response"""
@@ -214,7 +294,49 @@ Please try again, being extra careful to:
 
         return None
 
-    def _get_error_guidance(self, error: Exception, schema_str: str) -> str:
+    def _fix_json_escaping(self, json_text: str) -> str:
+        """Fix unescaped newlines and control characters in JSON string values"""
+        import re
+
+        # Simple approach: find string values and escape them properly
+        def fix_string_content(match):
+            full_match = match.group(0)
+            key_part = match.group(1)  # The "key": part
+            quote = match.group(2)  # Opening quote
+            content = match.group(3)  # String content
+
+            # Escape the content properly for JSON
+            escaped_content = (
+                content.replace("\\", "\\\\")  # Escape backslashes first
+                .replace(quote, "\\" + quote)  # Escape quotes
+                .replace("\n", "\\n")  # Escape newlines
+                .replace("\r", "\\r")  # Escape carriage returns
+                .replace("\t", "\\t")  # Escape tabs
+                .replace("\b", "\\b")  # Escape backspace
+                .replace("\f", "\\f")  # Escape form feed
+            )
+
+            # Handle other control characters
+            escaped_content = re.sub(
+                r"[\x00-\x1f\x7f]",
+                lambda m: f"\\u{ord(m.group(0)):04x}",
+                escaped_content,
+            )
+
+            return f"{key_part}{quote}{escaped_content}{quote}"
+
+        # Pattern to match JSON key-value pairs with string values
+        # Matches: "key": "value content here"
+        pattern = r'(\s*"[^"]*"\s*:\s*)(")([^"]*?)(?<!\\)"'
+
+        # Apply the fix
+        fixed = re.sub(pattern, fix_string_content, json_text, flags=re.DOTALL)
+
+        return fixed
+
+    def _get_error_guidance(
+        self, error: Exception, schema_str: str, format: ResponseFormat
+    ) -> str:
         """Get specific guidance based on the error type"""
 
         if isinstance(error, json.JSONDecodeError):
@@ -233,6 +355,24 @@ Please try again, being extra careful to:
             return f"Unknown error: {error}"
 
 
+def build_schema(
+    response_model: Type[T],
+    format: ResponseFormat,
+) -> str:
+    if format == ResponseFormat.JSON:
+        # Generate JSON schema from Pydantic model
+        schema = response_model.model_json_schema()
+        schema_str = json.dumps(schema, indent=2)
+        return schema_str
+    elif format == ResponseFormat.CUSTOM:
+        # Generate custom format schema
+        _, schema_generator = _get_custom_format_components()
+        schema_str = schema_generator.generate_schema_description(response_model)
+        return schema_str
+    else:
+        raise StructuredLLMError(f"Unsupported format: {format}")
+
+
 # Convenience function for quick structured calls
 def structured_llm_call(
     system_prompt: str,
@@ -242,6 +382,7 @@ def structured_llm_call(
     llm: LLM,
     context: Optional[Dict[str, Any]] = None,
     temperature: float = 0.1,
+    format: ResponseFormat = ResponseFormat.JSON,
 ) -> T:
     """
     Convenience function for making structured LLM calls
@@ -260,7 +401,7 @@ def structured_llm_call(
     """
     structured_client = StructuredLLMClient(model=model, llm=llm)
     return structured_client.call(
-        system_prompt, user_input, response_model, context, temperature
+        system_prompt, user_input, response_model, context, temperature, format
     )
 
 
@@ -271,13 +412,20 @@ def main():
     # Define test models
     from pydantic import BaseModel, Field
     from typing import List
+    from agent.llm import create_llm, SupportedModel
+
+    class PreferenceType(str, Enum):
+        POSITIVE = "positive"
+        NEGATIVE = "negative"
+        NEUTRAL = "neutral"
+        UNKNOWN = "unknown"
 
     class UserPreference(BaseModel):
         description: str = Field(
             description="Clear description of what the user values or wants to avoid"
         )
-        preference_type: str = Field(
-            description="Either 'positive' (what they like) or 'negative' (what they dislike)"
+        preference_type: PreferenceType = Field(
+            description="Specifies whether this is a positive, negative, or neutral preference"
         )
         confidence: float = Field(
             description="Confidence level from 0.0 to 1.0", ge=0.0, le=1.0
@@ -343,8 +491,11 @@ def main():
 
     # Test schema generation
     print(f"\n📋 Generated JSON Schema:")
-    schema = PreferenceAnalysis.model_json_schema()
-    print(json.dumps(schema, indent=2)[:500] + "...")
+    schema = build_schema(
+        response_model=PreferenceAnalysis,
+        format=ResponseFormat.CUSTOM,
+    )
+    print(schema)
 
     print("\n✅ Structured LLM system test complete!")
 

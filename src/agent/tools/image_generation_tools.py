@@ -3,11 +3,14 @@ Image generation tools using diffusers and Civitai models
 """
 
 from enum import Enum
+import logging
 import time
 import uuid
 from typing import Type, Callable, Any, Optional, List
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 from agent.core import Agent
 from agent.tools import (
@@ -170,8 +173,8 @@ class ImageGenerationTool(BaseTool):
     ) -> SDXLPromptOptimization:
         """Convert natural description to SDXL-optimized prompts with camera positioning"""
 
-        print(f"[DEBUG] Starting optimization for description: {description[:100]}...")
-        print(f"[DEBUG] Model: {agent.model}")
+        logger.debug(f"Starting optimization for description: {description[:100]}...")
+        logger.debug(f"Model: {agent.model}")
         progress_callback({"stage": "optimizing_prompts", "progress": 0.1})
 
         system_prompt = """You are an expert at creating multi-chunk prompts for Stable Diffusion XL (SDXL) with strategic attention control.
@@ -262,12 +265,14 @@ Think like a director framing a shot - you have limited attention budget and mus
 5. Check for dangerous adjacencies (color + hair, etc.)
 6. Only create additional chunks if Chunk 1 exceeds 75 tokens
 7. Preserve ALL user-mentioned details
+8. If the user mentions the absence of something, include it in the negative prompt
+9. Wearing nothing implies naked, so include "naked" in the prompt
 
 Focus on MAXIMUM ATTENTION for critical elements through strategic first-position placement."""
 
         try:
-            print(f"[DEBUG] Calling structured_llm_call with model: {agent.model}")
-            print(f"[DEBUG] Response model: {SDXLPromptOptimization}")
+            logger.debug(f"Calling structured_llm_call with model: {agent.model}")
+            logger.debug(f"Response model: {SDXLPromptOptimization}")
             result = structured_llm_call(
                 system_prompt=system_prompt,
                 user_input=f"Analyze this scene and create SDXL prompts with optimal camera positioning: {description}",
@@ -279,8 +284,8 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                 model=agent.model,
                 llm=agent.llm,
             )
-            print(
-                f"[DEBUG] LLM optimization successful, got {len(result.chunks)} chunks"
+            logger.debug(
+                f"LLM optimization successful, got {len(result.chunks)} chunks"
             )
 
             progress_callback(
@@ -299,11 +304,11 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             return result
 
         except StructuredLLMError as e:
-            print(f"[DEBUG] StructuredLLMError during optimization: {e}")
+            logger.debug(f"StructuredLLMError during optimization: {e}")
             progress_callback({"stage": "optimization_failed", "error": str(e)})
 
             # Simple fallback without manual analysis
-            print(f"[DEBUG] Using fallback optimization")
+            logger.debug(f"Using fallback optimization")
             return SDXLPromptOptimization(
                 chunks=[f"medium shot, {description[:180]}, masterpiece"],
                 negative_prompt="blurry, low quality",
@@ -325,10 +330,10 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         try:
             import torch
 
-            print(
-                f"[DEBUG] Encoding {len(chunks)} chunks with SDXL dual encoders: {chunks}"
+            logger.debug(
+                f"Encoding {len(chunks)} chunks with SDXL dual encoders: {chunks}"
             )
-            print(f"[DEBUG] Negative prompt: {negative_prompt}")
+            logger.debug(f"Negative prompt: {negative_prompt}")
             progress_callback({"stage": "encoding_chunks", "progress": 0.1})
 
             # Encode each chunk separately with both encoders (respecting 77 token limit)
@@ -377,8 +382,8 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     chunk_embeds_1.append(chunk_embed_1)
                     chunk_embeds_2.append(chunk_embed_2)
 
-                    print(
-                        f"[DEBUG] Chunk {i+1} - Encoder 1: {chunk_embed_1.shape}, Encoder 2: {chunk_embed_2.shape}"
+                    logger.debug(
+                        f"Chunk {i+1} - Encoder 1: {chunk_embed_1.shape}, Encoder 2: {chunk_embed_2.shape}"
                     )
 
             # Concatenate chunks along sequence dimension
@@ -403,10 +408,10 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                 )
                 pooled_prompt_embeds = pooled_output[0]  # pooled output
 
-            print(f"[DEBUG] Concatenated encoder 1: {concat_embeds_1.shape}")
-            print(f"[DEBUG] Concatenated encoder 2: {concat_embeds_2.shape}")
-            print(f"[DEBUG] Combined positive embeds: {positive_embeds.shape}")
-            print(f"[DEBUG] Pooled positive embeds: {pooled_prompt_embeds.shape}")
+            logger.debug(f"Concatenated encoder 1: {concat_embeds_1.shape}")
+            logger.debug(f"Concatenated encoder 2: {concat_embeds_2.shape}")
+            logger.debug(f"Combined positive embeds: {positive_embeds.shape}")
+            logger.debug(f"Pooled positive embeds: {pooled_prompt_embeds.shape}")
 
             # Encode negative prompt with both encoders (respecting 77 token limit)
             with torch.no_grad():
@@ -462,8 +467,8 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     [negative_embeds_1, negative_embeds_2], dim=-1
                 )
 
-                print(f"[DEBUG] Combined negative embeds: {negative_embeds.shape}")
-                print(f"[DEBUG] Pooled negative embeds: {pooled_negative_embeds.shape}")
+                logger.debug(f"Combined negative embeds: {negative_embeds.shape}")
+                logger.debug(f"Pooled negative embeds: {pooled_negative_embeds.shape}")
 
             progress_callback({"stage": "chunks_encoded", "progress": 0.5})
 
@@ -475,7 +480,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             )
 
         except Exception as e:
-            print(f"[DEBUG] Error during chunk encoding: {e}")
+            logger.error(f"Error during chunk encoding: {e}")
             import traceback
 
             traceback.print_exc()
@@ -494,7 +499,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         try:
             import torch
 
-            print(f"[DEBUG] Starting image generation with {len(chunks)} chunks")
+            logger.debug(f"Starting image generation with {len(chunks)} chunks")
 
             # Set random seed if provided
             if seed is not None:
@@ -507,7 +512,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             )
 
             if result is None or len(result) != 4:
-                print(f"[DEBUG] Failed to encode chunks, returning None")
+                logger.error(f"Failed to encode chunks, returning None")
                 return None
 
             (
@@ -530,8 +535,8 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                 height = 1024
 
             # Generate the image using embeddings and pooled embeddings
-            print(f"[DEBUG] Generating image with dimensions: {width}x{height}")
-            print(f"[DEBUG] Pipeline type: {type(self._pipeline)}")
+            logger.debug(f"Generating image with dimensions: {width}x{height}")
+            logger.debug(f"Pipeline type: {type(self._pipeline)}")
             with torch.inference_mode():
                 result = self._pipeline(
                     prompt_embeds=positive_embeds,
@@ -543,7 +548,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     num_inference_steps=30,
                     guidance_scale=5.0,
                 )
-                print(f"[DEBUG] Image generation completed successfully")
+            logger.debug(f"Image generation completed successfully")
 
             progress_callback({"stage": "image_generated", "progress": 0.8})
 
@@ -588,7 +593,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             return image_content
 
         except Exception as e:
-            print(f"[DEBUG] Error during image generation: {e}")
+            logger.error(f"Error during image generation: {e}")
             import traceback
 
             traceback.print_exc()
@@ -609,10 +614,10 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
     ) -> ToolResult:
         """Generate an image from natural description with LLM optimization"""
 
-        print(f"[DEBUG] ImageGenerationTool.run called with:")
-        print(f"[DEBUG]   Description: {input_data.description}")
-        print(f"[DEBUG]   Agent model: {agent.model}")
-        print(f"[DEBUG]   Tool ID: {tool_id}")
+        logger.debug(f"ImageGenerationTool.run called with:")
+        logger.debug(f"  Description: {input_data.description}")
+        logger.debug(f"  Agent model: {agent.model}")
+        logger.debug(f"  Tool ID: {tool_id}")
 
         # Step 1: Optimize description to SDXL prompts
         progress_callback({"stage": "starting_optimization", "progress": 0.0})
