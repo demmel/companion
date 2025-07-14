@@ -399,27 +399,23 @@ Please provide an improved version of the evaluator prompt that better aligns wi
         agent_config = self.domain_config.get_agent_config()
 
         # Temporarily update prompts
-        original_agent_prompt = agent_config.prompt_template
-        original_sim_prompt = eval_config.simulation_prompt_template
+        original_sim_init_prompt = eval_config.simulation_initial_prompt_template
 
         agent_config.prompt_template = agent_prompt
         eval_config.simulation_prompt_template = sim_prompt
 
-        try:
-            evaluator = ConversationGenerator(
-                domain_eval_config=self.domain_config,
-                model=self.model,
-                llm=self.llm,
-                progress=self.progress,
-            )
+        evaluator = ConversationGenerator(
+            simulation_initial_prompt_template=original_sim_init_prompt,
+            simulation_prompt_template=sim_prompt,
+            num_conversation_turns=6,
+            agent_config=agent_config,
+            model=self.model,
+            llm=self.llm,
+            progress=self.progress,
+        )
 
-            conversation = evaluator.generate_conversation(scenario)
-            return conversation
-
-        finally:
-            # Restore original prompts
-            agent_config.prompt_template = original_agent_prompt
-            eval_config.simulation_prompt_template = original_sim_prompt
+        conversation = evaluator.generate_conversation(scenario)
+        return conversation
 
     def evaluate_conversation(
         self,

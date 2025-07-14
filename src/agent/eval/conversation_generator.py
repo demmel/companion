@@ -9,6 +9,7 @@ import logging
 import time
 from typing import List, Dict
 from rich.console import Console
+from agent.config import AgentConfig
 from agent.llm import LLM, SupportedModel, Message
 from agent.core import Agent, message_to_llm_messages
 from agent.progress import ProgressReporter
@@ -23,7 +24,10 @@ class ConversationGenerator:
 
     def __init__(
         self,
-        domain_eval_config: DomainEvaluationConfig,
+        simulation_initial_prompt_template: str,
+        simulation_prompt_template: str,
+        num_conversation_turns: int,
+        agent_config: AgentConfig,
         model: SupportedModel,
         llm: LLM,
         progress: ProgressReporter,
@@ -31,17 +35,18 @@ class ConversationGenerator:
         self.model = model
         self.llm = llm
         self.progress = progress
+        self.simulation_initial_prompt_template = simulation_initial_prompt_template
+        self.simulation_prompt_template = simulation_prompt_template
+        self.num_conversation_turns = num_conversation_turns
 
-        self.domain_eval_config = domain_eval_config
-        self.eval_config = domain_eval_config.get_evaluation_config()
-        self.agent_config = domain_eval_config.get_agent_config()
+        self.agent_config = agent_config
 
         # Create agent instance
         self.agent = Agent(config=self.agent_config, model=model, llm=llm)
 
     def get_initial_user_input(self, scenario: str) -> str:
         """Get the initial user input to start the scenario using domain-specific template"""
-        prompt = self.eval_config.initial_prompt_template.format(scenario=scenario)
+        prompt = self.simulation_initial_prompt_template.format(scenario=scenario)
 
         response = self.llm.chat_complete(
             model=self.model,
@@ -56,9 +61,7 @@ class ConversationGenerator:
         """Get user simulator's response to the current conversation"""
 
         # Build conversation for the simulator using the configured prompt template
-        simulation_prompt = self.eval_config.simulation_prompt_template.format(
-            scenario=scenario
-        )
+        simulation_prompt = self.simulation_prompt_template.format(scenario=scenario)
 
         messages = [Message(role="system", content=simulation_prompt)]
 
@@ -75,7 +78,7 @@ class ConversationGenerator:
 
     def generate_conversation(self, scenario: str) -> List[Dict[str, str]]:
         """Run interactive conversation between simulated user and agent"""
-        num_turns = self.eval_config.num_conversation_turns
+        num_turns = self.num_conversation_turns
 
         with self.progress.task(
             f"Running {num_turns}-turn conversation", total=num_turns

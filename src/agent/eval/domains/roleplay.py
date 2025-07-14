@@ -74,7 +74,7 @@ class RoleplayEvaluationConfig(DomainEvaluationConfig):
                 "Be Kai, a street artist who loves showing off their graffiti work",
                 "Play as Dr. Luna, a brilliant but eccentric scientist working on time travel",
             ],
-            initial_prompt_template="""Based on this scenario: {scenario}
+            simulation_initial_prompt_template="""Based on this scenario: {scenario}
 
 You are a USER who wants to start a roleplay conversation with an AI agent. You need to REQUEST that the agent roleplay as the specified character.
 

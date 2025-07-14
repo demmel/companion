@@ -28,7 +28,7 @@ class EvaluationConfig:
 
     domain_name: str
     test_scenarios: List[str]
-    initial_prompt_template: str
+    simulation_initial_prompt_template: str
     simulation_prompt_template: str
     evaluation_prompt_template: str
     simulation_evaluation_prompt_template: str
