@@ -251,7 +251,9 @@ class CustomFormatSchemaGenerator:
         return "\n".join(description_parts)
 
     def _extract_type_info(
-        self, field_info: Dict[str, Any], schema: Dict[str, Any] = None
+        self,
+        field_info: Dict[str, Any],
+        schema: Dict[str, Any],
     ) -> TypeInfo:
         """Extract type information handling Pydantic's complex type representations"""
 
@@ -396,7 +398,9 @@ class CustomFormatSchemaGenerator:
 
         elif isinstance(type_info, EnumTypeInfo):
             enum_values = ", ".join(type_info.allowed_values)
-            constraints.append(f"SINGLE VALUE from: {enum_values} (NOT an array - do not use <<<ITEM>>>)")
+            constraints.append(
+                f"SINGLE VALUE from: {enum_values} (NOT an array - do not use <<<ITEM>>>)"
+            )
 
         elif isinstance(type_info, NumberTypeInfo):
             if type_info.minimum is not None:

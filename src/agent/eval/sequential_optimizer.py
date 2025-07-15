@@ -398,14 +398,11 @@ Please provide an improved version of the evaluator prompt that better aligns wi
         eval_config = self.domain_config.get_evaluation_config()
         agent_config = self.domain_config.get_agent_config()
 
-        # Temporarily update prompts
-        original_sim_init_prompt = eval_config.simulation_initial_prompt_template
-
+        # Update prompt to the provided ones
         agent_config.prompt_template = agent_prompt
         eval_config.simulation_prompt_template = sim_prompt
 
         evaluator = ConversationGenerator(
-            simulation_initial_prompt_template=original_sim_init_prompt,
             simulation_prompt_template=sim_prompt,
             num_conversation_turns=6,
             agent_config=agent_config,

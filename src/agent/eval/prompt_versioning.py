@@ -240,7 +240,7 @@ class PromptVersionManager:
             else:
                 # Context line
                 self.progress.print(f"  {line}")
-        
+
         self.progress.print("")  # Add spacing after diff
 
     def save_prompt_with_diff(

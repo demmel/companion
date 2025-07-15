@@ -13,7 +13,6 @@ from agent.config import AgentConfig
 from agent.llm import LLM, SupportedModel, Message
 from agent.core import Agent, message_to_llm_messages
 from agent.progress import ProgressReporter
-from .base import DomainEvaluationConfig
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -24,7 +23,6 @@ class ConversationGenerator:
 
     def __init__(
         self,
-        simulation_initial_prompt_template: str,
         simulation_prompt_template: str,
         num_conversation_turns: int,
         agent_config: AgentConfig,
@@ -35,7 +33,6 @@ class ConversationGenerator:
         self.model = model
         self.llm = llm
         self.progress = progress
-        self.simulation_initial_prompt_template = simulation_initial_prompt_template
         self.simulation_prompt_template = simulation_prompt_template
         self.num_conversation_turns = num_conversation_turns
 
@@ -46,7 +43,7 @@ class ConversationGenerator:
 
     def get_initial_user_input(self, scenario: str) -> str:
         """Get the initial user input to start the scenario using domain-specific template"""
-        prompt = self.simulation_initial_prompt_template.format(scenario=scenario)
+        prompt = self.simulation_prompt_template.format(scenario=scenario)
 
         response = self.llm.chat_complete(
             model=self.model,
