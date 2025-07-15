@@ -271,26 +271,35 @@ Please provide a corrected response that follows the format exactly as specified
         return "\n".join(prompt_parts)
 
     def _extract_json(self, response_text: str) -> Optional[str]:
-        """Extract JSON from LLM response"""
+        """Extract JSON from LLM response, cleaning reasoning tags first"""
         response_text = response_text.strip()
 
-        # If the response is already just JSON
-        if response_text.startswith("{") and response_text.endswith("}"):
-            return response_text
+        # Remove reasoning tags that could contain misleading JSON-like content
+        import re
 
-        # Look for JSON within the response
-        if "{" in response_text and "}" in response_text:
-            start_idx = response_text.find("{")
+        cleaned_text = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL)
+        cleaned_text = re.sub(
+            r"<reasoning>.*?</reasoning>", "", cleaned_text, flags=re.DOTALL
+        )
+        cleaned_text = cleaned_text.strip()
+
+        # If the response is already just JSON
+        if cleaned_text.startswith("{") and cleaned_text.endswith("}"):
+            return cleaned_text
+
+        # Look for JSON within the cleaned response
+        if "{" in cleaned_text and "}" in cleaned_text:
+            start_idx = cleaned_text.find("{")
 
             # Find the matching closing brace
             brace_count = 0
-            for i, char in enumerate(response_text[start_idx:], start_idx):
+            for i, char in enumerate(cleaned_text[start_idx:], start_idx):
                 if char == "{":
                     brace_count += 1
                 elif char == "}":
                     brace_count -= 1
                     if brace_count == 0:
-                        return response_text[start_idx : i + 1]
+                        return cleaned_text[start_idx : i + 1]
 
         return None
 

@@ -103,6 +103,7 @@ class SupportedModel(str, Enum):
     DOLPHIN_MISTRAL_NEMO = "CognitiveComputations/dolphin-mistral-nemo:latest"
     LLAMA_8B = "llama3.1:8b"
     GEMMA_27B = "aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m"
+    DEEPSEEK_R1_14B = "huihui_ai/deepseek-r1-abliterated:14b"
 
 
 @dataclass
@@ -111,11 +112,11 @@ class ModelConfig:
 
     model: SupportedModel
     keep_alive: str = "30m"
-    default_temperature: float = 0.3
+    default_temperature: float = 0.1
     default_top_p: float = 0.8
     default_top_k: int = 40
     default_repeat_penalty: float = 1.1
-    default_num_predict: int = 512
+    default_num_predict: int = 4096
     context_window: int = 32768
 
 
@@ -212,33 +213,21 @@ class LLM:
 DEFAULT_MODELS = {
     SupportedModel.LLAMA_8B: ModelConfig(
         model=SupportedModel.LLAMA_8B,
-        keep_alive="30m",
-        default_temperature=0.3,
-        context_window=32768,
     ),
     SupportedModel.GEMMA_27B: ModelConfig(
         model=SupportedModel.GEMMA_27B,
-        keep_alive="30m",  # Larger model, keep loaded longer
-        default_temperature=0.3,
-        context_window=32768,
     ),
     SupportedModel.MISTRAL_SMALL: ModelConfig(
         model=SupportedModel.MISTRAL_SMALL,
-        keep_alive="30m",
-        default_temperature=0.1,  # Lower temp for structured tasks
-        context_window=32768,
     ),
     SupportedModel.DOLPHIN_MISTRAL_NEMO: ModelConfig(
         model=SupportedModel.DOLPHIN_MISTRAL_NEMO,
-        keep_alive="30m",
-        default_temperature=0.1,
-        context_window=32768,  # Large context for complex tasks
     ),
     SupportedModel.MISTRAL_NEMO: ModelConfig(
         model=SupportedModel.MISTRAL_NEMO,
-        keep_alive="30m",
-        default_temperature=0.1,
-        context_window=32768,  # Large context for complex tasks
+    ),
+    SupportedModel.DEEPSEEK_R1_14B: ModelConfig(
+        model=SupportedModel.DEEPSEEK_R1_14B,
     ),
 }
 
