@@ -115,7 +115,9 @@ class ConversationGenerator:
                 full_agent_turn = ""
                 for msg in new_messages:
                     if msg.role == "assistant":  # Only include agent messages
-                        for llm_msg in message_to_llm_messages(msg):
+                        for llm_msg in message_to_llm_messages(
+                            msg, include_thoughts=False
+                        ):
                             full_agent_turn += llm_msg.content + "\n"
                 full_agent_turn = full_agent_turn.strip()
 

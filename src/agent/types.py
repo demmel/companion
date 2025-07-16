@@ -91,6 +91,13 @@ class TextContent(BaseModel):
     text: str
 
 
+class ThoughtContent(BaseModel):
+    """Structured content for reasoning/thought sections"""
+
+    type: Literal["thought"] = "thought"
+    text: str
+
+
 class SummarizationContent(BaseModel):
     """Structured content for summarization system messages"""
 
@@ -104,7 +111,7 @@ class SummarizationContent(BaseModel):
 
 # Role-specific content item types
 UserContentItem = TextContent
-AgentContentItem = TextContent
+AgentContentItem = Union[TextContent, ThoughtContent]
 SystemContentItem = Union[SummarizationContent, TextContent]
 
 # Role-specific content as lists

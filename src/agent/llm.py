@@ -228,6 +228,10 @@ DEFAULT_MODELS = {
     ),
     SupportedModel.DEEPSEEK_R1_14B: ModelConfig(
         model=SupportedModel.DEEPSEEK_R1_14B,
+        default_temperature=0.6,
+        default_repeat_penalty=1.2,
+        default_top_p=0.95,
+        default_top_k=50,
     ),
 }
 

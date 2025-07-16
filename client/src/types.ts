@@ -64,6 +64,12 @@ export interface TextContent {
   text: string;
 }
 
+export interface ThoughtContent {
+  /** Structured content for reasoning/thought sections */
+  type: "thought";
+  text: string;
+}
+
 export interface SummarizationContent {
   /** Structured content for summarization system messages */
   type: "summarization";
@@ -72,7 +78,7 @@ export interface SummarizationContent {
 }
 
 export type UserContentItem = TextContent;
-export type AgentContentItem = TextContent;
+export type AgentContentItem = TextContent | ThoughtContent;
 export type SystemContentItem = SummarizationContent | TextContent;
 
 export type UserContent = UserContentItem[];

@@ -375,9 +375,9 @@ describe("RoleplayPresenter", () => {
     // Should show scene setting
     // Check for scene setting components (text may be split across spans)
     expect(screen.getByText("📍")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Dark alley • mysterious • \(midnight\)/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Dark alley")).toBeInTheDocument();
+    expect(screen.getByText("mysterious")).toBeInTheDocument();
+    expect(screen.getByText("midnight")).toBeInTheDocument();
 
     // Should show dialogue
     expect(screen.getByText("The scene is set.")).toBeInTheDocument();

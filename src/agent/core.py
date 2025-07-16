@@ -17,6 +17,7 @@ from .types import (
     SummarizationContent,
     SystemMessage,
     TextContent,
+    ThoughtContent,
     ToolCall,
     ToolCallError,
     ToolCallFinished,
@@ -134,7 +135,7 @@ class Agent:
         ]
         # Use the optimized LLM history (which may include summaries)
         for msg in self.llm_conversation_history:
-            for llm_msg in message_to_llm_messages(msg):
+            for llm_msg in message_to_llm_messages(msg, include_thoughts=False):
                 messages.append(llm_msg)
         return messages
 
@@ -224,8 +225,19 @@ class Agent:
 
             # Initialize streaming parser
             parser = StreamingParser(debug=False)
-            collected_response = ""
+            content_items = []  # List[Union[TextContent, ThoughtContent]]
+            current_batch = ""
+            current_batch_is_thought = False
             tool_events: List[ToolCallEvent] = []
+
+            def flush_current_batch():
+                nonlocal current_batch, current_batch_is_thought
+                if current_batch:
+                    if current_batch_is_thought:
+                        content_items.append(ThoughtContent(text=current_batch))
+                    else:
+                        content_items.append(TextContent(text=current_batch))
+                    current_batch = ""
 
             # Process the stream
             first_chunk = True
@@ -243,9 +255,18 @@ class Agent:
 
                 for event in events:
                     if isinstance(event, TextEvent):
-                        # Only collect actual text content, not tool syntax
-                        collected_response += event.delta
-                        yield AgentTextEvent(content=event.delta)
+                        # Check if thought flag changed - flush batch if so
+                        if event.is_thought != current_batch_is_thought:
+                            flush_current_batch()
+                            current_batch_is_thought = event.is_thought
+
+                        # Add to current batch
+                        current_batch += event.delta
+
+                        # Yield streaming event (all text events are streamed)
+                        yield AgentTextEvent(
+                            content=event.delta, is_thought=event.is_thought
+                        )
                     elif isinstance(event, ToolCallEvent):
                         # Store tool event for later execution (only if not final iteration)
                         if not is_final_iteration:
@@ -266,8 +287,18 @@ class Agent:
             final_events = list(parser.finalize())
             for event in final_events:
                 if isinstance(event, TextEvent):
-                    collected_response += event.delta
-                    yield AgentTextEvent(content=event.delta)
+                    # Check if thought flag changed - flush batch if so
+                    if event.is_thought != current_batch_is_thought:
+                        flush_current_batch()
+                        current_batch_is_thought = event.is_thought
+
+                    # Add to current batch
+                    current_batch += event.delta
+
+                    # Yield streaming event
+                    yield AgentTextEvent(
+                        content=event.delta, is_thought=event.is_thought
+                    )
                 elif isinstance(event, InvalidToolCallEvent):
                     logger.error(
                         f"Invalid tool call detected: {event.error} in {event.tool_name} ({event.id})"
@@ -281,9 +312,9 @@ class Agent:
 
             # If no tools or final iteration, we're done
             if not tool_events or is_final_iteration:
-                agent_message = AgentMessage(
-                    content=[TextContent(text=collected_response)], tool_calls=[]
-                )
+                # Flush final batch and create message
+                flush_current_batch()
+                agent_message = AgentMessage(content=content_items, tool_calls=[])
                 self.conversation_history.append(agent_message)
                 self.llm_conversation_history.append(agent_message)
                 break
@@ -417,8 +448,10 @@ class Agent:
                     )
 
             # Store the agent message with tool calls in both histories
+            # Flush final batch first
+            flush_current_batch()
             agent_message = AgentMessage(
-                content=[TextContent(text=collected_response)],
+                content=content_items,
                 tool_calls=finished_tool_calls,
             )
             self.conversation_history.append(agent_message)
@@ -558,14 +591,24 @@ class Agent:
         )
 
 
-def message_to_llm_messages(message: Message) -> Iterator[LLMMessage]:
-    """Convert internal Message to LLMMessage format"""
+def message_to_llm_messages(
+    message: Message, include_thoughts: bool = False
+) -> Iterator[LLMMessage]:
+    """Convert internal Message to LLMMessage format
+
+    Args:
+        message: Message to convert
+        include_thoughts: Whether to include ThoughtContent in the LLM message
+    """
 
     # Extract text from content list
     content_parts = []
     for item in message.content:
         if isinstance(item, TextContent):
             content_parts.append(item.text)
+        elif isinstance(item, ThoughtContent):
+            if include_thoughts:
+                content_parts.append(f"<think>\n{item.text}\n</think>")
         elif isinstance(item, SummarizationContent):
             content_parts.append(f"[Summary: {item.summary}]")
 

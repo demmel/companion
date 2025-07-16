@@ -112,14 +112,17 @@ export function useConversation(
             };
           }
 
-          // Add text content (we know response.role === 'assistant')
+          // Determine content type based on is_thought flag
+          const contentType = event.is_thought ? "thought" : "text";
+          
+          // Add content (we know response.role === 'assistant')
           const lastContent = response.content[response.content.length - 1];
-          if (lastContent && lastContent.type === "text") {
-            // Append to existing text content
+          if (lastContent && lastContent.type === contentType) {
+            // Append to existing content of same type
             lastContent.text += event.content;
           } else {
-            // Create new text content
-            response.content.push({ type: "text", text: event.content });
+            // Create new content item
+            response.content.push({ type: contentType, text: event.content });
           }
 
           isComplete = false;

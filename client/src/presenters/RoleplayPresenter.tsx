@@ -7,8 +7,10 @@ import {
   ToolCall,
   SystemContent,
   SummarizationContent,
+  ThoughtContent,
 } from "@/types";
 import { RoleplayText } from "@/components/RoleplayText";
+import { ThoughtBubble } from "@/components/ThoughtBubble";
 import { RoleplayState, CharacterState } from "@/types/roleplay";
 import { css } from "@styled-system/css";
 import { debug } from "@/utils/debug";
@@ -351,7 +353,13 @@ function UserBubble({ bubble }: { bubble: MessageBubble }) {
   );
 }
 
-function AgentBubble({ bubble }: { bubble: MessageBubble }) {
+interface AgentBubbleProps {
+  bubble: MessageBubble;
+  isStreamActive: boolean;
+  isLastBubble: boolean;
+}
+
+function AgentBubble({ bubble, isStreamActive, isLastBubble }: AgentBubbleProps) {
   return (
     <div className={css({ mb: 4 })}>
       {/* Character Header - only when character changes */}
@@ -387,6 +395,19 @@ function AgentBubble({ bubble }: { bubble: MessageBubble }) {
                       if (item.type === "text") {
                         return (
                           <RoleplayText key={itemIndex} content={item.text} />
+                        );
+                      } else if (item.type === "thought") {
+                        // Determine if this thought is currently streaming
+                        const isLastMessage = index === bubble.messages.length - 1;
+                        const isLastContent = itemIndex === agentMessage.content.length - 1;
+                        const isStreamingThought = isStreamActive && isLastBubble && isLastMessage && isLastContent;
+                        
+                        return (
+                          <ThoughtBubble 
+                            key={itemIndex} 
+                            content={item as ThoughtContent}
+                            isStreaming={isStreamingThought}
+                          />
                         );
                       }
                       // Handle other content types if needed
@@ -444,7 +465,14 @@ export function RoleplayPresenter({
         if (bubble.role === "user") {
           return <UserBubble key={bubbleIndex} bubble={bubble} />;
         } else if (bubble.role === "assistant") {
-          return <AgentBubble key={bubbleIndex} bubble={bubble} />;
+          return (
+            <AgentBubble 
+              key={bubbleIndex} 
+              bubble={bubble} 
+              isStreamActive={isStreamActive}
+              isLastBubble={bubbleIndex === messageBubbles.length - 1}
+            />
+          );
         } else {
           return <SystemMessageBubble key={bubbleIndex} bubble={bubble} />;
         }

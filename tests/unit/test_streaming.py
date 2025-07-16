@@ -274,3 +274,67 @@ class TestStreamingParser:
         # Verify we can easily add new prefixes (extensibility)
         assert hasattr(parser, "prefixes")
         assert isinstance(parser.prefixes, dict)
+
+    def test_simple_thought_parsing(self):
+        """Simple thought section should emit thought events"""
+        parser = StreamingParser()
+        events = list(parser.parse_chunk("<think>Let me think about this...</think>"))
+
+        assert len(events) == 1
+        assert isinstance(events[0], TextEvent)
+        assert events[0].delta == "Let me think about this..."
+        assert events[0].is_thought is True
+
+    def test_thought_with_regular_text(self):
+        """Thought section followed by regular text"""
+        parser = StreamingParser()
+        events = list(parser.parse_chunk("<think>Thinking...</think>Here's my response"))
+
+        assert len(events) == 2
+        assert isinstance(events[0], TextEvent)
+        assert events[0].delta == "Thinking..."
+        assert events[0].is_thought is True
+        assert isinstance(events[1], TextEvent)
+        assert events[1].delta == "Here's my response"
+        assert events[1].is_thought is False
+
+    def test_thought_with_tool_calls_inside(self):
+        """Tool calls inside thoughts should be treated as plain text"""
+        parser = StreamingParser()
+        events = list(parser.parse_chunk('<think>I should use TOOL_CALL: search {"query": "test"}</think>'))
+
+        assert len(events) == 1
+        assert isinstance(events[0], TextEvent)
+        assert events[0].delta == 'I should use TOOL_CALL: search {"query": "test"}'
+        assert events[0].is_thought is True
+
+    def test_thought_across_chunks(self):
+        """Thought content spanning multiple chunks"""
+        parser = StreamingParser()
+        
+        events1 = list(parser.parse_chunk("<think>Let me think"))
+        assert len(events1) == 1
+        assert events1[0].is_thought is True
+        assert events1[0].delta == "Let me think"
+        
+        events2 = list(parser.parse_chunk(" about this problem"))
+        assert len(events2) == 1
+        assert events2[0].is_thought is True
+        assert events2[0].delta == " about this problem"
+        
+        events3 = list(parser.parse_chunk("</think>Done thinking"))
+        assert len(events3) == 1
+        assert events3[0].is_thought is False
+        assert events3[0].delta == "Done thinking"
+
+    def test_tool_calls_after_thoughts(self):
+        """Tool calls should work normally after thought sections"""
+        parser = StreamingParser()
+        events = list(parser.parse_chunk('<think>Planning...</think>TOOL_CALL: search (call_1)\n{"query": "test"}'))
+
+        assert len(events) == 2
+        assert isinstance(events[0], TextEvent)
+        assert events[0].delta == "Planning..."
+        assert events[0].is_thought is True
+        assert isinstance(events[1], ToolCallEvent)
+        assert events[1].tool_name == "search"

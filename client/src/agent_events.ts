@@ -2,6 +2,7 @@ import { ToolResult } from "./types";
 
 export interface AgentTextEvent {
   content: string;
+  is_thought: boolean;
   type: "text";
 }
 

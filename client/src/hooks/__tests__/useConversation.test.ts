@@ -25,8 +25,8 @@ describe("useConversation", () => {
 
   it("should show streaming agent response as it comes", () => {
     const events: ClientAgentEvent[] = [
-      { id: 0, type: "text", content: "Hello " },
-      { id: 1, type: "text", content: "there!" },
+      { id: 0, type: "text", content: "Hello ", is_thought: false },
+      { id: 1, type: "text", content: "there!", is_thought: false },
     ];
 
     const { result } = renderHook(() => useConversation(events));
@@ -43,7 +43,7 @@ describe("useConversation", () => {
 
   it("should handle tool calls during streaming", () => {
     const events: ClientAgentEvent[] = [
-      { id: 0, type: "text", content: "Let me help you. " },
+      { id: 0, type: "text", content: "Let me help you. ", is_thought: false },
       {
         id: 1,
         type: "tool_started",
@@ -76,7 +76,7 @@ describe("useConversation", () => {
             parameters: { mood: "happy" },
             result: {
               type: "success",
-              content: "Mood set to happy",
+              content: { type: "text", text: "Mood set to happy" },
             },
           },
         ],
@@ -116,7 +116,7 @@ describe("useConversation", () => {
 
   it("should finalize message on response_complete", () => {
     let events: ClientAgentEvent[] = [
-      { id: 0, type: "text", content: "Done!" },
+      { id: 0, type: "text", content: "Done!", is_thought: false },
     ];
 
     const { result, rerender } = renderHook(
@@ -189,7 +189,7 @@ describe("useConversation", () => {
 
   it("should handle multiple tool calls", () => {
     const events: ClientAgentEvent[] = [
-      { id: 0, type: "text", content: "Working on it. " },
+      { id: 0, type: "text", content: "Working on it. ", is_thought: false },
       {
         id: 1,
         type: "tool_started",
@@ -234,7 +234,7 @@ describe("useConversation", () => {
       tool_name: "tool_a",
       tool_id: "call_1",
       parameters: { a: 1 },
-      result: { type: "success", content: "Result A" },
+      result: { type: "success", content: { type: "text", text: "Result A" } },
     });
 
     expect(toolB).toEqual({
@@ -242,14 +242,14 @@ describe("useConversation", () => {
       tool_name: "tool_b",
       tool_id: "call_2",
       parameters: { b: 2 },
-      result: { type: "error", content: "Error B" },
+      result: { type: "error", error: "Error B" },
     });
   });
 
   it("should not duplicate messages", () => {
     let events: ClientAgentEvent[] = [
-      { id: 0, type: "text", content: "Hello" },
-      { id: 1, type: "text", content: " World" },
+      { id: 0, type: "text", content: "Hello", is_thought: false },
+      { id: 1, type: "text", content: " World", is_thought: false },
     ];
 
     const { result, rerender } = renderHook(
@@ -270,7 +270,7 @@ describe("useConversation", () => {
     // Add another event that should not duplicate
     events = [
       ...events,
-      { id: 2, type: "text", content: "!" },
+      { id: 2, type: "text", content: "!", is_thought: false },
       {
         id: 3,
         type: "response_complete",
@@ -310,7 +310,7 @@ describe("useConversation", () => {
     // Add another agent message
     events = [
       ...events,
-      { id: 4, type: "text", content: "Another response" },
+      { id: 4, type: "text", content: "Another response", is_thought: false },
       {
         id: 5,
         type: "response_complete",
@@ -381,7 +381,7 @@ describe("useConversation", () => {
           content: { type: "text", text: "Tool call result" },
         },
       },
-      { id: 8, type: "text", content: "Final response" },
+      { id: 8, type: "text", content: "Final response", is_thought: false },
       {
         id: 9,
         type: "response_complete",
@@ -421,7 +421,7 @@ describe("useConversation", () => {
             tool_name: "example_tool",
             tool_id: "call_3",
             parameters: { param: "value" },
-            result: { type: "success", content: "Tool call result" },
+            result: { type: "success", content: { type: "text", text: "Tool call result" } },
           },
         ],
       },
@@ -554,7 +554,7 @@ describe("useConversation", () => {
         messages_after: 5,
         context_usage_after: 38.5,
       },
-      { id: 2, type: "text", content: "Now I can continue helping you!" },
+      { id: 2, type: "text", content: "Now I can continue helping you!", is_thought: false },
       {
         id: 3,
         type: "response_complete",
@@ -643,8 +643,8 @@ describe("useConversation", () => {
         context_usage_after: 68.0,
       },
       // Text events that follow summarization (this was causing the bug)
-      { id: 2, type: "text", content: "*Eyes light up*" },
-      { id: 3, type: "text", content: " Amazing facts!" },
+      { id: 2, type: "text", content: "*Eyes light up*", is_thought: false },
+      { id: 3, type: "text", content: " Amazing facts!", is_thought: false },
       {
         id: 4,
         type: "response_complete",

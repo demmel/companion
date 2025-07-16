@@ -15,6 +15,7 @@ class AgentTextEvent(BaseModel):
     """Text content from agent response"""
 
     content: str
+    is_thought: bool = False
     type: Literal["text"] = "text"
 
 

@@ -23,6 +23,7 @@ class TextEvent:
     """A chunk of response text"""
 
     delta: str
+    is_thought: bool = False
     type: StreamEventType = StreamEventType.TEXT
 
 
@@ -57,6 +58,7 @@ class ParsingState(Enum):
     NORMAL_TEXT = "normal_text"
     TOOL_PARSING = "tool_parsing"
     BETWEEN_TOOLS = "between_tools"
+    THOUGHT_PARSING = "thought_parsing"
 
 
 class StreamingParser:
@@ -78,12 +80,18 @@ class StreamingParser:
         self.prefixes = {
             "TOOL_CALL:": self._handle_tool_call_complete,
             "**TOOL_CALL:**": self._handle_tool_call_complete,  # Markdown format that mistral-nemo uses
+            "<think>": self._handle_think_start,
         }
+
+        # Thinking state
+        self.in_thought_mode = False
+        self.think_end_patterns = ["</think>", "</reasoning>"]
 
     def parse_chunk(self, chunk: str) -> Iterator[StreamEvent]:
         """Parse a chunk of streaming text and yield appropriate events"""
         # Per-chunk text accumulator
         text_accumulator = ""
+        current_is_thought = False
 
         for char in chunk:
             # Process character and get any events
@@ -91,19 +99,29 @@ class StreamingParser:
 
             for event in events:
                 if isinstance(event, TextEvent):
+                    # Check if thought flag changed - flush if so
+                    if text_accumulator and event.is_thought != current_is_thought:
+                        yield TextEvent(
+                            delta=text_accumulator, is_thought=current_is_thought
+                        )
+                        text_accumulator = ""
+
                     # Accumulate text within this chunk
                     text_accumulator += event.delta
+                    current_is_thought = event.is_thought
                 else:
                     # Non-text event - emit any accumulated text first
                     if text_accumulator:
-                        yield TextEvent(delta=text_accumulator)
+                        yield TextEvent(
+                            delta=text_accumulator, is_thought=current_is_thought
+                        )
                         text_accumulator = ""
                     # Then emit the non-text event
                     yield event
 
         # Emit any remaining text from this chunk
         if text_accumulator:
-            yield TextEvent(delta=text_accumulator)
+            yield TextEvent(delta=text_accumulator, is_thought=current_is_thought)
 
     def _process_char(self, char: str) -> Iterator[StreamEvent]:
         """Process a single character based on current state"""
@@ -113,6 +131,8 @@ class StreamingParser:
             yield from self._process_tool_char(char)
         elif self.state == ParsingState.BETWEEN_TOOLS:
             yield from self._process_between_tools_char(char)
+        elif self.state == ParsingState.THOUGHT_PARSING:
+            yield from self._process_thought_char(char)
 
     def _process_normal_char(self, char: str) -> Iterator[StreamEvent]:
         """Process character in normal text mode with prefix detection"""
@@ -164,6 +184,12 @@ class StreamingParser:
         """Handle complete TOOL_CALL: prefix"""
         self.tool_buffer = ""
         self.state = ParsingState.TOOL_PARSING
+        return
+        yield  # Make this a generator
+
+    def _handle_think_start(self) -> Iterator[StreamEvent]:
+        """Handle complete <think> prefix"""
+        self.state = ParsingState.THOUGHT_PARSING
         return
         yield  # Make this a generator
 
@@ -269,6 +295,32 @@ class StreamingParser:
         # Always return empty iterator if no events to emit
         return
         yield  # This line never executes but makes this a generator
+
+    def _process_thought_char(self, char: str) -> Iterator[StreamEvent]:
+        """Process character in thought parsing mode"""
+        potential_buffer = self.prefix_buffer + char
+
+        # Check if we're building toward </think>
+        if "</think>".startswith(potential_buffer):
+            # Potential match - keep building buffer
+            self.prefix_buffer = potential_buffer
+
+            # Check if we have complete match
+            if potential_buffer == "</think>":
+                # End of thought section - exit thought mode
+                self.state = ParsingState.NORMAL_TEXT
+                self.prefix_buffer = ""
+        else:
+            # Not building toward end tag - emit buffer as thought text
+            if self.prefix_buffer:
+                yield TextEvent(delta=self.prefix_buffer, is_thought=True)
+
+            # Check if current char starts the end pattern
+            if "</think>".startswith(char):
+                self.prefix_buffer = char
+            else:
+                self.prefix_buffer = ""
+                yield TextEvent(delta=char, is_thought=True)
 
     def _reset_tool_state(self):
         """Reset tool parsing state"""

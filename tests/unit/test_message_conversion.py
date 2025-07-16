@@ -5,6 +5,7 @@ Tests for message conversion between structured format and LLM format
 from agent.core import message_to_llm_messages
 from agent.types import (
     TextContent,
+    ThoughtContent,
     TextToolContent,
     ToolCallError,
     ToolCallSuccess,
@@ -140,6 +141,56 @@ class TestMessageToLLMConversion:
         # Results message should have tool result
         results_llm_msg = llm_messages[1]
         assert "Success" in results_llm_msg.content
+
+    def test_agent_message_with_thoughts_excluded(self):
+        """Test that thoughts are excluded by default"""
+        agent_msg = AgentMessage(
+            content=[
+                ThoughtContent(text="Let me think about this..."),
+                TextContent(text="Here's my response"),
+            ],
+            tool_calls=[],
+        )
+
+        llm_messages = list(message_to_llm_messages(agent_msg))
+
+        assert len(llm_messages) == 1
+        assert llm_messages[0].role == "assistant"
+        assert llm_messages[0].content == "Here's my response"
+        assert "Let me think about this..." not in llm_messages[0].content
+
+    def test_agent_message_with_thoughts_included(self):
+        """Test that thoughts are included when requested"""
+        agent_msg = AgentMessage(
+            content=[
+                ThoughtContent(text="Let me think about this..."),
+                TextContent(text="Here's my response"),
+            ],
+            tool_calls=[],
+        )
+
+        llm_messages = list(message_to_llm_messages(agent_msg, include_thoughts=True))
+
+        assert len(llm_messages) == 1
+        assert llm_messages[0].role == "assistant"
+        expected_content = "<think>\nLet me think about this...\n</think>\nHere's my response"
+        assert llm_messages[0].content == expected_content
+
+    def test_agent_message_only_thoughts(self):
+        """Test message with only thought content"""
+        agent_msg = AgentMessage(
+            content=[ThoughtContent(text="Just thinking...")], tool_calls=[]
+        )
+
+        # Excluded by default
+        llm_messages = list(message_to_llm_messages(agent_msg))
+        assert len(llm_messages) == 1
+        assert llm_messages[0].content == ""
+
+        # Included when requested
+        llm_messages = list(message_to_llm_messages(agent_msg, include_thoughts=True))
+        assert len(llm_messages) == 1
+        assert llm_messages[0].content == "<think>\nJust thinking...\n</think>"
 
     def test_agent_message_with_tool_running_state(self):
         """Test that only finished tool calls generate results"""
