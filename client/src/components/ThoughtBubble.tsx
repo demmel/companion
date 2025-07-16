@@ -7,7 +7,10 @@ interface ThoughtBubbleProps {
   isStreaming?: boolean;
 }
 
-export function ThoughtBubble({ content, isStreaming = false }: ThoughtBubbleProps) {
+export function ThoughtBubble({
+  content,
+  isStreaming = false,
+}: ThoughtBubbleProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const label = isStreaming ? "Thinking..." : "Thoughts";
@@ -17,14 +20,10 @@ export function ThoughtBubble({ content, isStreaming = false }: ThoughtBubblePro
     <div
       className={css({
         border: "1px solid",
-        borderColor: "gray.300",
         borderRadius: "md",
         mb: 2,
-        bg: "gray.50",
-        _dark: {
-          borderColor: "gray.600",
-          bg: "gray.800",
-        },
+        borderColor: "gray.600",
+        bg: "gray.800",
       })}
     >
       <button
@@ -40,12 +39,12 @@ export function ThoughtBubble({ content, isStreaming = false }: ThoughtBubblePro
           justifyContent: "space-between",
           fontSize: "sm",
           fontWeight: "medium",
-          color: "gray.600",
-          _dark: { color: "gray.400" },
-          _hover: hasContent ? { 
-            bg: "gray.100",
-            _dark: { bg: "gray.700" } 
-          } : {},
+          color: "gray.400",
+          _hover: hasContent
+            ? {
+                bg: "gray.700",
+              }
+            : {},
           cursor: hasContent ? "pointer" : "default",
           _disabled: { cursor: "default" },
         })}
@@ -76,40 +75,34 @@ export function ThoughtBubble({ content, isStreaming = false }: ThoughtBubblePro
           </span>
         )}
       </button>
-      
+
       {isExpanded && hasContent && (
         <div
           className={css({
             px: 3,
-            pb: 3,
+            p: 3,
             borderTop: "1px solid",
-            borderColor: "gray.200",
-            _dark: { borderColor: "gray.600" },
+            borderColor: "gray.700",
           })}
         >
           <div
             className={css({
-              fontSize: "sm",
-              color: "gray.700",
+              fontSize: "lg",
               whiteSpace: "pre-wrap",
               fontFamily: "mono",
-              bg: "white",
               p: 2,
               borderRadius: "sm",
               border: "1px solid",
-              borderColor: "gray.200",
-              _dark: { 
-                color: "gray.300",
-                bg: "gray.900",
-                borderColor: "gray.700",
-              },
+              color: "gray.300",
+              bg: "gray.900",
+              borderColor: "gray.700",
             })}
           >
-            {content.text}
+            {content.text.trim()}
           </div>
         </div>
       )}
-      
+
       <style>
         {`
           @keyframes shimmer {

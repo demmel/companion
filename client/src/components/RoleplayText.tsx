@@ -10,7 +10,9 @@ interface RoleplayTextProps {
   className?: string;
 }
 
-export function parseRoleplayText(content: string): TextSpan[] {
+export function parseRoleplayText(rawContent: string): TextSpan[] {
+  const content = rawContent.trim();
+
   const spans: TextSpan[] = [];
   let currentSpan: TextSpan = { content: "", style: "default" };
 
