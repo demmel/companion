@@ -44,7 +44,7 @@ class SDXLPromptOptimization(BaseModel):
         max_length=4,
     )
     negative_prompt: str = Field(
-        description="Minimal negative prompt for critical quality issues", max_length=80
+        description="Minimal negative prompt for critical quality issues", max_length=120
     )
     layout: ImageLayout = Field(
         description="Most appropriate layout based on description and camera angle"
@@ -257,6 +257,21 @@ Think like a director framing a shot - you have limited attention budget and mus
 ✅ Chunk 3: "clothing item, style details" (outfit focus)
 ✅ Chunk 4: "environment setting, atmospheric details" (context)
 
+**NEGATIVE PROMPT GUIDELINES:**
+The negative_prompt field contains Stable Diffusion keywords for things to AVOID in the generated image. This is NOT optimization instructions - it's direct input to the AI model.
+
+**NEGATIVE PROMPT SHOULD BE:**
+- Short, comma-separated keywords: "blurry, low quality, distorted"
+- Specific visual problems: "bad anatomy, deformed hands, extra limbs"
+- Unwanted styles: "cartoon, anime, illustration" (if photorealistic wanted)
+- Quality issues: "pixelated, oversaturated, cropped"
+
+**NEGATIVE PROMPT EXAMPLES:**
+- Good: "blurry, low quality, distorted faces"
+- Good: "bad anatomy, deformed, extra limbs"
+- Bad: "avoid dangerous adjacencies like color + hair" (this is optimization instruction, not SD input)
+- Bad: "ensure character is clearly visible and in focus" (this is optimization instruction, not SD input)
+
 **PROCESS:**
 1. **CAMERA/VIEWPOINT FIRST** - if user specifies viewing angle, this MUST be the very first tokens
 2. Identify the MOST important visual element (often what user emphasizes)
@@ -265,7 +280,7 @@ Think like a director framing a shot - you have limited attention budget and mus
 5. Check for dangerous adjacencies (color + hair, etc.)
 6. Only create additional chunks if Chunk 1 exceeds 75 tokens
 7. Preserve ALL user-mentioned details
-8. If the user mentions the absence of something, include it in the negative prompt
+8. If the user mentions the absence of something, include it in the negative prompt as SD keywords
 9. Wearing nothing implies naked, so include "naked" in the prompt
 
 Focus on MAXIMUM ATTENTION for critical elements through strategic first-position placement."""
@@ -563,6 +578,9 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             # Save to generated_images directory
             generated_images_dir = agent_paths.get_generated_images_dir()
             image_path = generated_images_dir / filename
+
+            if not generated_images_dir.exists():
+                generated_images_dir.mkdir(parents=True, exist_ok=True)
 
             image.save(image_path)
 

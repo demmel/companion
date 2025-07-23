@@ -143,3 +143,9 @@ class SystemMessage(BaseModel):
 
 
 Message = UserMessage | AgentMessage | SystemMessage
+
+
+class ConversationData(BaseModel):
+    """Complete conversation data loaded from JSON"""
+    
+    messages: List[Message]

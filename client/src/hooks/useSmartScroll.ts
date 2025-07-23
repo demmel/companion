@@ -32,7 +32,9 @@ export function useSmartScroll({
   );
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, []);
 
   const setUserAtBottom = useCallback((atBottom: boolean) => {

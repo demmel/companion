@@ -130,6 +130,11 @@ class StructuredLLMClient:
                 else:
                     raise StructuredLLMError(f"Unsupported format: {format}")
 
+                # Handle common LLM response pattern where fields are wrapped in "properties"
+                if isinstance(parsed_data, dict) and "properties" in parsed_data:
+                    # If the model put everything under "properties", unwrap it
+                    parsed_data = parsed_data["properties"]
+
                 # Validate with Pydantic model
                 validated_result = response_model.model_validate(parsed_data)
 

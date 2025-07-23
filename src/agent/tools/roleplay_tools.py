@@ -22,20 +22,19 @@ from agent.types import (
 # ============================================================================
 
 
-class AssumeCharacterInput(ToolInput):
+class CreateCharacterInput(ToolInput):
     character_name: str = Field(description="Name of the character to roleplay")
+    appearance: str = Field(description="Physical appearance description")
     personality: str = Field(description="Key personality traits and characteristics")
-    background: str = Field(default="", description="Character's background story")
-    quirks: str = Field(default="", description="Unique quirks or mannerisms")
+    background: str = Field(description="Character's background story")
+    quirks: str = Field(description="Unique quirks or mannerisms")
 
 
 class SetMoodInput(ToolInput):
     mood: str = Field(description="Current emotional state or mood")
-    intensity: str = Field(
-        default="moderate", description="Intensity level (low, moderate, high)"
-    )
+    intensity: str = Field(description="Intensity level (low, moderate, high)")
     flavor_text: str = Field(
-        default="", description="Optional flavor text describing the mood change"
+        description="Optional flavor text describing the mood change"
     )
 
 
@@ -50,28 +49,15 @@ class InternalThoughtInput(ToolInput):
     thought: str = Field(description="Character's internal thought or motivation")
 
 
-class RelationshipStatusInput(ToolInput):
-    relationship: str = Field(description="Type of relationship with the user")
-    feelings: str = Field(default="", description="Current feelings or dynamic")
-
-
 class SceneSettingInput(ToolInput):
     location: str = Field(description="Where the scene takes place")
-    atmosphere: str = Field(default="", description="Mood or atmosphere of the scene")
-    time: str = Field(default="", description="Time of day or period")
+    atmosphere: str = Field(description="Mood or atmosphere of the scene")
+    time: str = Field(description="Time of day or period")
 
 
 class CharacterActionInput(ToolInput):
     action: str = Field(description="Physical action or behavior to perform")
-    reason: str = Field(default="", description="Motivation behind the action")
-
-
-class EmotionalReactionInput(ToolInput):
-    emotion: str = Field(description="Type of emotional reaction")
-    trigger: str = Field(default="", description="What triggered this emotion")
-    intensity: str = Field(
-        default="moderate", description="Intensity level (low, moderate, high)"
-    )
+    reason: str = Field(description="Motivation behind the action")
 
 
 class SwitchCharacterInput(ToolInput):
@@ -91,25 +77,25 @@ class CorrectDetailInput(ToolInput):
 # ============================================================================
 
 
-class AssumeCharacterTool(BaseTool):
+class CreateCharacterTool(BaseTool):
     """Tool for creating or switching to a character"""
 
     @property
     def name(self) -> str:
-        return "assume_character"
+        return "create_character"
 
     @property
     def description(self) -> str:
-        return "Assume a character persona for roleplay"
+        return "Create a new character for roleplay"
 
     @property
     def input_schema(self) -> Type[ToolInput]:
-        return AssumeCharacterInput
+        return CreateCharacterInput
 
     def run(
         self,
         agent,
-        input_data: AssumeCharacterInput,
+        input_data: CreateCharacterInput,
         tool_id: str,
         progress_callback: Callable[[Any], None],
     ) -> ToolResult:
@@ -519,12 +505,12 @@ class CorrectDetailTool(BaseTool):
 # ============================================================================
 
 ROLEPLAY_TOOLS = [
-    AssumeCharacterTool(),
-    SetMoodTool(),
+    CreateCharacterTool(),
+    # SetMoodTool(),
     RememberDetailTool(),
-    InternalThoughtTool(),
+    # InternalThoughtTool(),
     SceneSettingTool(),
-    CharacterActionTool(),
+    # CharacterActionTool(),
     SwitchCharacterTool(),
     CorrectDetailTool(),
 ]

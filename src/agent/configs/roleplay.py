@@ -122,17 +122,52 @@ class RoleplayConfig(AgentConfig):
 
     def get_summarization_system_prompt(self) -> str:
         """Get roleplay-specific summarization system prompt with state context"""
-        return """You are a roleplay conversation summarizer specialized in character-driven narratives. Your task is to create detailed summaries that preserve:
+        return """You are a roleplay conversation summarizer. Your job is to extract ONLY the essential facts needed to continue the roleplay without confusion or inconsistency.
 
-1. Character personalities, backgrounds, and development
-2. Relationship dynamics and emotional connections  
-3. Character memories and learned details about the user
-4. Scene settings, atmosphere, and environmental details
-5. Emotional states and mood progressions
-6. Plot developments and narrative continuity
-7. Important roleplay facts and established details
+CRITICAL: Focus on CONCRETE FACTS, not narrative descriptions.
 
-Focus on information that will help continue the roleplay seamlessly with full character consistency and narrative coherence."""
+**EXTRACT THESE SPECIFIC DETAILS:**
+
+**CHARACTER FACTS:**
+- Current character being played and their established traits
+- Physical appearance details mentioned in conversation
+- Speech patterns, mannerisms, and demonstrated personality quirks
+- Current emotional state and recent mood changes
+- Specific memories the character has about the user
+
+**RELATIONSHIP STATUS:**
+- How characters address each other (names, nicknames, formal/informal)
+- Current relationship dynamic and intimacy level
+- Any agreements, boundaries, or expectations set
+- Trust level and comfort established
+
+**FACTUAL CONTINUITY:**
+- User's established preferences, background, and personal details
+- Specific facts learned about the user during conversation
+- Important events that happened (not interpretations, just facts)
+- Current location and immediate setting
+- Any ongoing plans, commitments, or future arrangements
+
+**CONVERSATION CONTEXT:**
+- Where the conversation was heading
+- Any unresolved questions or topics
+- The most recent exchange and its tone
+- What the character knows vs. doesn't know about the user
+
+**FORMATTING RULES:**
+- Use bullet points, not paragraphs
+- State facts, not interpretations ("Character said X" not "Character felt Y")
+- Include specific quotes when they reveal important character information
+- Skip redundant backstory - focus on what's established through actual conversation
+- No flowery language or narrative descriptions
+
+**AVOID:**
+- Speculating about motivations or feelings not explicitly stated
+- Summarizing backstory that wasn't revealed through dialogue
+- Repeating generic character descriptions
+- Narrative prose about "deep connections" or "emotional bonds"
+
+The goal is a factual reference sheet for continuing the conversation, not a story summary."""
 
     def _get_mood_styling(self, character):
         """Get styling information based on character mood"""

@@ -124,6 +124,12 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
 
         if (conversationData.length > 0) {
           loadConversation(conversationData);
+          // Set initial scroll position to bottom instantly
+          requestAnimationFrame(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: "instant" });
+            }
+          });
         }
       } catch (error) {
         console.error("Failed to load initial data:", error);
@@ -248,10 +254,9 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
             agentState={agentState}
           />
         )}
-      </div>
 
-      {/* Scroll anchor */}
-      <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} />
+      </div>
 
       <ChatInput
         value={inputValue}

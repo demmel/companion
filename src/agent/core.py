@@ -13,6 +13,7 @@ from .streaming import StreamingParser, TextEvent, ToolCallEvent, InvalidToolCal
 from .config import AgentConfig
 from .types import (
     AgentMessage,
+    ConversationData,
     Message,
     SummarizationContent,
     SystemMessage,
@@ -146,9 +147,9 @@ class Agent:
             include_tools=True, iteration_info=(1, self.config.max_iterations)
         )
 
-        # Estimate token count (rough approximation: 1 token ≈ 4 characters)
+        # Estimate token count (conservative approximation: 1 token ≈ 3 characters)
         total_chars = sum(len(msg.content) for msg in messages)
-        estimated_tokens = total_chars // 4
+        estimated_tokens = int(total_chars / 3.4)
 
         return ContextInfo(
             message_count=len(messages),
@@ -184,7 +185,7 @@ class Agent:
 
         # Check if we need auto-summarization before processing
         context_info = self.get_context_info()
-        keep_recent = 6  # Default retention size
+        keep_recent = 10  # Conservative retention size
         if (
             context_info.approaching_limit
             and len(self.llm_conversation_history) > keep_recent
@@ -477,7 +478,106 @@ class Agent:
         self.conversation_history = []
         self.llm_conversation_history = []
 
-    def _auto_summarize_with_events(self, keep_recent: int = 6) -> Iterator[AgentEvent]:
+    def replay_conversation(
+        self, conversation_data: ConversationData, up_to_index: Optional[int] = None
+    ):
+        """Replay a conversation from ConversationData up to a specific point
+
+        Args:
+            conversation_data: ConversationData loaded from JSON
+            up_to_index: Stop replaying at this message index (exclusive). If None, replay all messages.
+        """
+        # Reset to clean state
+        self.reset_conversation()
+        self.state = (
+            self.config.default_state.copy() if self.config.default_state else {}
+        )
+
+        # Determine how many messages to replay
+        end_index = (
+            up_to_index if up_to_index is not None else len(conversation_data.messages)
+        )
+
+        for i, message in enumerate(conversation_data.messages[:end_index]):
+            self.conversation_history.append(message)
+
+            # Summarization messages require us to fix the llm_conversation_history
+            if isinstance(message, SystemMessage):
+                has_summary = any(
+                    isinstance(content, SummarizationContent)
+                    for content in message.content
+                )
+                if has_summary:
+                    logger.info(
+                        f"Replaying summarization message at index {i}: {message.content}"
+                    )
+                    self.llm_conversation_history = [
+                        message
+                    ] + self.llm_conversation_history[-10:]
+                else:
+                    self.llm_conversation_history.append(message)
+            else:
+                self.llm_conversation_history.append(message)
+
+            # Execute state-altering tools to rebuild agent state
+            if isinstance(message, AgentMessage) and message.tool_calls:
+                for tool_call in message.tool_calls:
+                    if isinstance(tool_call, ToolCallFinished):
+                        tool_name = tool_call.tool_name
+                        parameters = tool_call.parameters
+
+                        # Only execute state-altering tools (skip image generation, etc.)
+                        state_altering_tools = {
+                            "create_character",
+                            "switch_character",
+                            "set_mood",
+                            "remember_detail",
+                            "scene_setting",
+                            "correct_detail",
+                            "internal_thought",
+                            "character_action",
+                        }
+
+                        if tool_name not in state_altering_tools:
+                            continue
+
+                        # Find and execute the tool to update agent state
+                        for tool in self.config.tools:
+                            if tool.name == tool_name:
+                                try:
+                                    # Create tool input and execute
+                                    tool_input = tool.input_schema(**parameters)
+                                    tool.run(
+                                        self,
+                                        tool_input,
+                                        tool_call.tool_id,
+                                        lambda x: None,
+                                    )
+                                    logger.debug(
+                                        f"Replayed state-altering tool: {tool_name}"
+                                    )
+                                except Exception as e:
+                                    logger.warning(
+                                        f"Failed to replay tool {tool_name}: {e}"
+                                    )
+                                break
+
+        logger.info(
+            f"Replayed {len(self.conversation_history)} messages, agent state restored"
+        )
+
+    @classmethod
+    def load_conversation_data(cls, file_path: str) -> ConversationData:
+        """Load conversation data from JSON file"""
+        import json
+
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        return ConversationData.model_validate(data)
+
+    def _auto_summarize_with_events(
+        self, keep_recent: int = 10
+    ) -> Iterator[AgentEvent]:
         """Auto-summarize with event emission for streaming clients"""
         # Calculate what we're about to do - work on LLM history only
         old_messages = self.llm_conversation_history[:-keep_recent]
@@ -541,22 +641,6 @@ class Agent:
 
         summary_response = self.llm.chat_complete(self.model, summary_request)
         assert summary_response, "LLM response is empty"
-
-        # Create summary as agent message to maintain proper alternation
-        summary_message = SystemMessage(
-            content=[
-                SummarizationContent(
-                    type="summarization",
-                    title=f"Conversation Summary ({len(old_messages)} messages)",
-                    summary=summary_response,
-                    messages_summarized=len(old_messages),
-                    context_usage_before=context_before.usage_percentage,
-                    context_usage_after=0.0,  # Will be updated later
-                )
-            ]
-        )
-
-        self.llm_conversation_history = [summary_message] + recent_messages
 
         context_after = self.get_context_info()
 

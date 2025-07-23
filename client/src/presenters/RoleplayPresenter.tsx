@@ -22,7 +22,7 @@ import {
 } from "@/components/chat";
 // import { demoMessages } from "./demoData"; // Available for testing
 
-const HIDDEN_TOOLS = new Set(["assume_character"]);
+const HIDDEN_TOOLS = new Set(["create_character"]);
 const SYSTEM_TOOLS = new Set([
   "scene_setting",
   "correct_detail",
@@ -133,10 +133,8 @@ export function buildMessagesWithState(
       visibleToolCalls = message.tool_calls.filter(
         (tc) => !HIDDEN_TOOLS.has(tc.tool_name),
       );
-      const hasVisibleContent = !!(
-        message.content.some(
-          (item) => item.type === "text" && item.text.trim(),
-        ) || visibleToolCalls.some((tc) => tc.tool_name !== "assume_character")
+      const hasVisibleContent = !!message.content.some(
+        (item) => item.type === "text" && item.text.trim(),
       );
 
       // Show header when character changes (including from null to character)
@@ -173,7 +171,7 @@ function applyToolCallToState(
   const newState = { ...state };
 
   switch (toolCall.tool_name) {
-    case "assume_character": {
+    case "create_character": {
       const charId = `char_${toolCall.parameters.character_name}`;
       newState.current_character_id = charId;
       newState.characters = {
@@ -191,6 +189,12 @@ function applyToolCallToState(
           thoughts: [],
         },
       };
+      break;
+    }
+
+    case "switch_character": {
+      const charId = `char_${toolCall.parameters.character_name}`;
+      newState.current_character_id = charId;
       break;
     }
 
@@ -359,7 +363,11 @@ interface AgentBubbleProps {
   isLastBubble: boolean;
 }
 
-function AgentBubble({ bubble, isStreamActive, isLastBubble }: AgentBubbleProps) {
+function AgentBubble({
+  bubble,
+  isStreamActive,
+  isLastBubble,
+}: AgentBubbleProps) {
   return (
     <div className={css({ mb: 4 })}>
       {/* Character Header - only when character changes */}
@@ -398,13 +406,19 @@ function AgentBubble({ bubble, isStreamActive, isLastBubble }: AgentBubbleProps)
                         );
                       } else if (item.type === "thought") {
                         // Determine if this thought is currently streaming
-                        const isLastMessage = index === bubble.messages.length - 1;
-                        const isLastContent = itemIndex === agentMessage.content.length - 1;
-                        const isStreamingThought = isStreamActive && isLastBubble && isLastMessage && isLastContent;
-                        
+                        const isLastMessage =
+                          index === bubble.messages.length - 1;
+                        const isLastContent =
+                          itemIndex === agentMessage.content.length - 1;
+                        const isStreamingThought =
+                          isStreamActive &&
+                          isLastBubble &&
+                          isLastMessage &&
+                          isLastContent;
+
                         return (
-                          <ThoughtBubble 
-                            key={itemIndex} 
+                          <ThoughtBubble
+                            key={itemIndex}
                             content={item as ThoughtContent}
                             isStreaming={isStreamingThought}
                           />
@@ -466,9 +480,9 @@ export function RoleplayPresenter({
           return <UserBubble key={bubbleIndex} bubble={bubble} />;
         } else if (bubble.role === "assistant") {
           return (
-            <AgentBubble 
-              key={bubbleIndex} 
-              bubble={bubble} 
+            <AgentBubble
+              key={bubbleIndex}
+              bubble={bubble}
               isStreamActive={isStreamActive}
               isLastBubble={bubbleIndex === messageBubbles.length - 1}
             />
@@ -689,7 +703,7 @@ function GeneratedImage({ toolCall }: { toolCall: ToolCall }) {
         })}
         style={{ maxHeight: "300px" }}
       />
-      
+
       {/* Show original description if available, otherwise show optimized prompt */}
       {content.original_description ? (
         <div
@@ -716,27 +730,45 @@ function GeneratedImage({ toolCall }: { toolCall: ToolCall }) {
       )}
 
       {/* Collapsible SDXL details */}
-      <details className={css({ fontSize: "xs", color: "gray.500", mt: 1, cursor: "pointer" })}>
+      <details
+        className={css({
+          fontSize: "xs",
+          color: "gray.500",
+          mt: 1,
+          cursor: "pointer",
+        })}
+      >
         <summary className={css({ "&:hover": { color: "gray.400" } })}>
           SDXL Details
         </summary>
-        <div className={css({ mt: 1, pl: 2, borderLeft: "1px solid", borderColor: "gray.700" })}>
+        <div
+          className={css({
+            mt: 1,
+            pl: 2,
+            borderLeft: "1px solid",
+            borderColor: "gray.700",
+          })}
+        >
           <div className={css({ mb: 1 })}>
-            <span className={css({ color: "green.400" })}>Positive:</span> "{content.prompt}"
+            <span className={css({ color: "green.400" })}>Positive:</span> "
+            {content.prompt}"
           </div>
           {content.negative_prompt && (
             <div className={css({ mb: 1 })}>
-              <span className={css({ color: "red.400" })}>Negative:</span> "{content.negative_prompt}"
+              <span className={css({ color: "red.400" })}>Negative:</span> "
+              {content.negative_prompt}"
             </div>
           )}
           {content.camera_angle && content.viewpoint && (
             <div className={css({ mb: 1 })}>
-              <span className={css({ color: "blue.400" })}>Camera:</span> {content.camera_angle}, {content.viewpoint}
+              <span className={css({ color: "blue.400" })}>Camera:</span>{" "}
+              {content.camera_angle}, {content.viewpoint}
             </div>
           )}
           {content.optimization_confidence && (
             <div>
-              <span className={css({ color: "purple.400" })}>Confidence:</span> {Math.round(content.optimization_confidence * 100)}%
+              <span className={css({ color: "purple.400" })}>Confidence:</span>{" "}
+              {Math.round(content.optimization_confidence * 100)}%
             </div>
           )}
         </div>

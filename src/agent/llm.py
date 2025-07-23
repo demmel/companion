@@ -104,6 +104,7 @@ class SupportedModel(str, Enum):
     LLAMA_8B = "llama3.1:8b"
     GEMMA_27B = "aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m"
     DEEPSEEK_R1_14B = "huihui_ai/deepseek-r1-abliterated:14b"
+    RP_MAX = "technobyte/arliai-rpmax-12b-v1.1:q4_k_m"
 
 
 @dataclass
@@ -112,9 +113,9 @@ class ModelConfig:
 
     model: SupportedModel
     keep_alive: str = "30m"
-    default_temperature: float = 0.1
-    default_top_p: float = 0.8
-    default_top_k: int = 40
+    default_temperature: float = 0.3
+    default_top_p: float = 0.9
+    default_top_k: int = 50
     default_repeat_penalty: float = 1.1
     default_num_predict: int = 4096
     context_window: int = 32768
@@ -231,7 +232,9 @@ DEFAULT_MODELS = {
         default_temperature=0.6,
         default_repeat_penalty=1.2,
         default_top_p=0.95,
-        default_top_k=50,
+    ),
+    SupportedModel.RP_MAX: ModelConfig(
+        model=SupportedModel.RP_MAX,
     ),
 }
 
