@@ -22,16 +22,18 @@ import {
 } from "@/components/chat";
 // import { demoMessages } from "./demoData"; // Available for testing
 
-const HIDDEN_TOOLS = new Set(["create_character"]);
-const SYSTEM_TOOLS = new Set([
-  "scene_setting",
-  "correct_detail",
-  "remember_detail",
-]);
+const HIDDEN_TOOLS = new Set(["nonexistent"]);
+const SYSTEM_TOOLS = new Set(["nonexistent"]);
 const AGENT_TOOLS = new Set([
   "set_mood",
-  "character_action",
+  "remember_detail",
   "internal_thought",
+  "update_appearance",
+  "set_environment",
+  "update_relationship",
+  "set_goal",
+  "check_memory_status",
+  "reflect",
   "generate_image",
 ]);
 
@@ -522,6 +524,8 @@ function SpecialToolPresentation({
 }) {
   // Only handle agent tools here
   switch (toolCall.tool_name) {
+    case "generate_image":
+      return <GeneratedImage toolCall={toolCall} />;
     case "set_mood":
       return (
         <MoodTransition
@@ -529,41 +533,45 @@ function SpecialToolPresentation({
           stateBeforeMessage={stateBeforeMessage}
         />
       );
-    case "character_action":
-      return <CharacterAction toolCall={toolCall} />;
-    case "internal_thought":
-      return <InternalThought toolCall={toolCall} />;
-    case "generate_image":
-      return <GeneratedImage toolCall={toolCall} />;
+    case "remember_detail":
+      return (
+        <div>
+          💾 Memory stored: {JSON.stringify(toolCall.parameters, null, 2)}
+        </div>
+      );
     default:
-      return null;
+      return (
+        <div className={css({ mb: 4 })}>
+          {toolCall.tool_name} - {JSON.stringify(toolCall.parameters, null, 2)}
+        </div>
+      );
   }
 }
 
-function CharacterAction({ toolCall }: { toolCall: ToolCall }) {
-  const action = toolCall.parameters.action;
-  if (!action) return null;
+// function CharacterAction({ toolCall }: { toolCall: ToolCall }) {
+//   const action = toolCall.parameters.action;
+//   if (!action) return null;
 
-  return (
-    <div
-      className={css({
-        textAlign: "center",
-        my: 3,
-        py: 2,
-        px: 4,
-        color: "blue.300",
-        fontStyle: "italic",
-        fontSize: "2xl",
-        bg: "blue.950",
-        borderRadius: "md",
-        border: "1px solid",
-        borderColor: "blue.800",
-      })}
-    >
-      *{action}*
-    </div>
-  );
-}
+//   return (
+//     <div
+//       className={css({
+//         textAlign: "center",
+//         my: 3,
+//         py: 2,
+//         px: 4,
+//         color: "blue.300",
+//         fontStyle: "italic",
+//         fontSize: "2xl",
+//         bg: "blue.950",
+//         borderRadius: "md",
+//         border: "1px solid",
+//         borderColor: "blue.800",
+//       })}
+//     >
+//       *{action}*
+//     </div>
+//   );
+// }
 
 function MoodTransition({
   toolCall,
@@ -643,41 +651,41 @@ function MoodTransition({
   );
 }
 
-function InternalThought({ toolCall }: { toolCall: ToolCall }) {
-  const thought = toolCall.parameters.thought;
-  if (!thought) return null;
+// function InternalThought({ toolCall }: { toolCall: ToolCall }) {
+//   const thought = toolCall.parameters.thought;
+//   if (!thought) return null;
 
-  return (
-    <div
-      className={css({
-        my: 3,
-        py: 3,
-        px: 4,
-        bg: "yellow.950",
-        borderRadius: "lg",
-        border: "1px solid",
-        borderColor: "yellow.800",
-      })}
-    >
-      <div
-        className={css({
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          textAlign: "center",
-          gap: 2,
-          color: "yellow.200",
-          fontSize: "2xl",
-          mb: 2,
-        })}
-      >
-        <div>💭</div>
-        <div>{thought}</div>
-      </div>
-    </div>
-  );
-}
+//   return (
+//     <div
+//       className={css({
+//         my: 3,
+//         py: 3,
+//         px: 4,
+//         bg: "yellow.950",
+//         borderRadius: "lg",
+//         border: "1px solid",
+//         borderColor: "yellow.800",
+//       })}
+//     >
+//       <div
+//         className={css({
+//           display: "flex",
+//           flexDirection: "column",
+//           alignItems: "center",
+//           justifyContent: "center",
+//           textAlign: "center",
+//           gap: 2,
+//           color: "yellow.200",
+//           fontSize: "2xl",
+//           mb: 2,
+//         })}
+//       >
+//         <div>💭</div>
+//         <div>{thought}</div>
+//       </div>
+//     </div>
+//   );
+// }
 
 function GeneratedImage({ toolCall }: { toolCall: ToolCall }) {
   if (toolCall.type !== "finished" || toolCall.result.type !== "success") {

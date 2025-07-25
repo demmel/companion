@@ -13,6 +13,8 @@ from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
 from agent.llm import Message as LLMMessage
 from agent.reasoning.analyze import analyze_conversation_turn
+from agent.reasoning.chloe_prompts import build_chloe_response_prompt
+from agent.chloe_state import ChloeState, build_chloe_state_description
 from agent.types import (
     AgentMessage,
     Message,
@@ -34,6 +36,7 @@ def run_reasoning_loop(
     tools: ToolRegistry,
     llm: LLM,
     model: SupportedModel,
+    chloe_state: ChloeState,
 ) -> Iterator[AgentEvent]:
 
     current_text = user_input
@@ -45,6 +48,9 @@ def run_reasoning_loop(
     )
 
     while True:
+        # Build Chloe's state description for reasoning context
+        state_description = build_chloe_state_description(chloe_state)
+        
         reasoning_result = analyze_conversation_turn(
             current_text,
             current_analysis_type,
@@ -53,6 +59,7 @@ def run_reasoning_loop(
             llm,
             model,
             False,
+            state_description,
         )
 
         if current_analysis_type == AnalysisType.USER_INPUT:
@@ -204,6 +211,7 @@ def run_reasoning_loop(
             current_message,
             llm,
             model,
+            chloe_state,
         ):
             response += text
             yield AgentTextEvent(content=text, is_thought=False)
@@ -246,6 +254,7 @@ def _generate_response(
     current_message: AgentMessage,
     llm: LLM,
     model: SupportedModel,
+    chloe_state: ChloeState,
 ) -> Iterator[str]:
     # Serialize conversation history for context
     from .analyze import _serialize_conversation_context
@@ -273,18 +282,13 @@ def _generate_response(
     )
     tools_context = "\n".join(tool_results) if tool_results else "No tools executed"
 
-    system_prompt = "You are a helpful AI assistant. Generate a natural, engaging response based on the conversation history and analysis provided. Your response should feel conversational and appropriate to the context."
-
-    user_prompt = f"""CONVERSATION HISTORY:
-{context_str}
-
-REASONING ANALYSIS:
-{reasoning_context}
-
-TOOL RESULTS:
-{tools_context}
-
-Generate an appropriate response that naturally continues the conversation:"""
+    # Build Chloe's state description for response context
+    state_description = build_chloe_state_description(chloe_state)
+    
+    # Use Chloe-specific response generation prompt
+    system_prompt, user_prompt = build_chloe_response_prompt(
+        context_str, reasoning_context, tools_context, state_description
+    )
 
     for content in llm.chat_streaming(
         model=model,

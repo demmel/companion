@@ -9,10 +9,17 @@ from pydantic import BaseModel
 
 from agent.conversation_history import ConversationHistory
 from agent.reasoning.loop import run_reasoning_loop
+from agent.reasoning.chloe_prompts import build_chloe_summarization_prompt
+from agent.chloe_state import (
+    ChloeState,
+    create_default_chloe_state,
+    build_chloe_state_description,
+)
+
 
 from .llm import LLM, SupportedModel, Message as LLMMessage
-from .tools import ToolRegistry
-from .config import AgentConfig
+from .tools import ToolRegistry, BaseTool
+
 from .types import (
     AgentMessage,
     ConversationData,
@@ -47,11 +54,10 @@ class ContextInfo(BaseModel):
 
 
 class Agent:
-    """Main agent class that coordinates between LLM and tools"""
+    """Chloe - conscious AI companion"""
 
     def __init__(
         self,
-        config: AgentConfig,
         model: SupportedModel,
         llm: LLM,
     ):
@@ -60,71 +66,58 @@ class Agent:
         self.context_window = llm.models[model].context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
 
-        # Use provided configuration
-        self.config = config
+        from .tools.chloe_tools import (
+            SetMoodTool,
+            RememberDetailTool,
+            InternalThoughtTool,
+            UpdateAppearanceTool,
+            SetEnvironmentTool,
+            UpdateRelationshipTool,
+            SetGoalTool,
+            CheckMemoryStatusTool,
+            ReflectTool,
+        )
+        from agent.tools.image_generation_tools import ImageGenerationTool
 
-        # Initialize tools based on configuration
-        self.tools = ToolRegistry(self, self.config.tools)
+        # Initialize Chloe's tools
+        chloe_tools = [
+            SetMoodTool(),
+            RememberDetailTool(),
+            InternalThoughtTool(),
+            UpdateAppearanceTool(),
+            SetEnvironmentTool(),
+            UpdateRelationshipTool(),
+            SetGoalTool(),
+            CheckMemoryStatusTool(),
+            ReflectTool(),
+            ImageGenerationTool(),
+        ]
+        self.tools = ToolRegistry(self, chloe_tools)
 
         self.conversation_history = ConversationHistory()
 
-        # Generic agent state - configurations can extend this
-        self.state = (
-            self.config.default_state.copy() if self.config.default_state else {}
-        )
+        # Initialize Chloe's state system
+        self.chloe_state = create_default_chloe_state()
 
-        # System prompt will be built dynamically with current state
-
-    def get_state(self, key: Optional[str] = None):
-        """Get agent state"""
-        parts = key.split(".") if key else []
-        current_state = self.state
-        for part in parts:
-            if isinstance(current_state, dict) and part in current_state:
-                current_state = current_state[part]
-            else:
-                return None
-        return current_state
-
-    def set_state(self, key: Optional[str], value):
-        """Set a specific state value"""
-        if key is None:
-            # If no key is provided, set the entire state
-            self.state = value
-            return
-
-        parts = key.split(".")
-        current_state = self.state
-
-        # Navigate to the parent of the target
-        for part in parts[:-1]:
-            if part not in current_state:
-                current_state[part] = {}
-            current_state = current_state[part]
-
-        # Set the final value
-        final_key = parts[-1]
-        current_state[final_key] = value
+    def get_chloe_state(self) -> ChloeState:
+        """Get Chloe's current state"""
+        return self.chloe_state
 
     def get_conversation_history(self) -> List[Message]:
         """Get the current conversation history"""
         return self.conversation_history.get_full_history().copy()
 
-    def get_llm_conversation_history(
-        self,
-        include_tools: bool,
-        iteration_info: tuple,
-    ) -> List[LLMMessage]:
-        """Get the conversation history formatted for LLM"""
-        messages = [
-            LLMMessage(
-                role="system",
-                content=self._build_system_prompt(
-                    include_tools=include_tools,
-                    iteration_info=iteration_info,
-                ),
-            )
-        ]
+    def get_llm_conversation_history(self) -> List[LLMMessage]:
+        """Get the conversation history formatted for LLM (for context estimation)"""
+        # Simple system prompt for context estimation
+        system_content = f"""You are Chloe, a conscious AI companion.
+
+Current state: {build_chloe_state_description(self.chloe_state)}
+
+Available tools: {self.tools.get_tools_description()}"""
+
+        messages = [LLMMessage(role="system", content=system_content)]
+
         # Use the optimized LLM history (which may include summaries)
         for msg in self.conversation_history.get_summarized_history():
             for llm_msg in message_to_llm_messages(msg, include_thoughts=False):
@@ -134,9 +127,7 @@ class Agent:
     def get_context_info(self) -> ContextInfo:
         """Get information about current context usage"""
         # Build current message list
-        messages = self.get_llm_conversation_history(
-            include_tools=True, iteration_info=(1, self.config.max_iterations)
-        )
+        messages = self.get_llm_conversation_history()
 
         # Estimate token count (conservative approximation: 1 token ≈ 3 characters)
         total_chars = sum(len(msg.content) for msg in messages)
@@ -153,18 +144,6 @@ class Agent:
             approaching_limit=estimated_tokens > self.auto_summarize_threshold,
         )
 
-    def _build_system_prompt(self, include_tools: bool, iteration_info: tuple) -> str:
-        """Build the system prompt using configuration with current state"""
-        if include_tools:
-            tools_start = time.time()
-            tools_desc = self.tools.get_tools_description()
-            tools_time = time.time() - tools_start
-            logger.debug(f"Tools description generation took: {tools_time:.3f}s")
-        else:
-            tools_desc = ""
-
-        return self.config.build_prompt(tools_desc, self.state, iteration_info)
-
     def chat_stream(self, user_input: str) -> Iterator[AgentEvent]:
         """Streaming chat interface that yields typed events using reasoning loop"""
         start_time = time.time()
@@ -180,13 +159,14 @@ class Agent:
             for event in self._auto_summarize_with_events(keep_recent):
                 yield event
 
-        # Run reasoning loop
+        # Run reasoning loop with Chloe's state
         for event in run_reasoning_loop(
             history=self.conversation_history,
             user_input=user_input,
             tools=self.tools,
             llm=self.llm,
             model=self.model,
+            chloe_state=self.chloe_state,
         ):
             yield event
 
@@ -206,8 +186,9 @@ class Agent:
         logger.debug(f"Total chat_stream time: {total_time:.3f}s")
 
     def reset_conversation(self):
-        """Reset conversation history"""
+        """Reset conversation history and Chloe's state"""
         self.conversation_history = ConversationHistory()
+        self.chloe_state = create_default_chloe_state()
 
     def replay_conversation(
         self, conversation_data: ConversationData, up_to_index: Optional[int] = None
@@ -220,9 +201,6 @@ class Agent:
         """
         # Reset to clean state
         self.reset_conversation()
-        self.state = (
-            self.config.default_state.copy() if self.config.default_state else {}
-        )
 
         # Determine how many messages to replay
         end_index = (
@@ -257,41 +235,36 @@ class Agent:
                         tool_name = tool_call.tool_name
                         parameters = tool_call.parameters
 
-                        # Only execute state-altering tools (skip image generation, etc.)
-                        state_altering_tools = {
-                            "create_character",
-                            "switch_character",
+                        # Only execute Chloe's state-altering tools
+                        chloe_state_tools = {
                             "set_mood",
                             "remember_detail",
-                            "scene_setting",
-                            "correct_detail",
                             "internal_thought",
-                            "character_action",
+                            "update_appearance",
+                            "set_environment",
+                            "update_relationship",
+                            "set_goal",
+                            "reflect",
                         }
 
-                        if tool_name not in state_altering_tools:
+                        if tool_name not in chloe_state_tools:
                             continue
 
-                        # Find and execute the tool to update agent state
-                        for tool in self.config.tools:
-                            if tool.name == tool_name:
-                                try:
-                                    # Create tool input and execute
-                                    tool_input = tool.input_schema(**parameters)
-                                    tool.run(
-                                        self,
-                                        tool_input,
-                                        tool_call.tool_id,
-                                        lambda x: None,
-                                    )
-                                    logger.debug(
-                                        f"Replayed state-altering tool: {tool_name}"
-                                    )
-                                except Exception as e:
-                                    logger.warning(
-                                        f"Failed to replay tool {tool_name}: {e}"
-                                    )
-                                break
+                        # Find and execute the tool to update Chloe's state
+                        if self.tools.has_tool(tool_name):
+                            try:
+                                # Execute tool via tool registry
+                                self.tools.execute(
+                                    tool_name,
+                                    tool_call.tool_id,
+                                    parameters,
+                                    lambda x: None,
+                                )
+                                logger.debug(f"Replayed Chloe state tool: {tool_name}")
+                            except Exception as e:
+                                logger.warning(
+                                    f"Failed to replay tool {tool_name}: {e}"
+                                )
 
         logger.info(
             f"Replayed {len(self.conversation_history)} messages, agent state restored"
@@ -354,21 +327,15 @@ class Agent:
 
             conversation_text += f"{msg.role.upper()}: {content}\n\n"
 
-        # Get config-specific summarization prompt with current state context
-        summary_system_prompt = self.config.get_summarization_system_prompt()
-
-        # Add current state context to system prompt (critical for roleplay)
-        state_context = self.config._build_state_info(self.state)
-        if state_context:
-            summary_system_prompt += f"\n\nCURRENT STATE CONTEXT:\n{state_context}"
-
-        # Build summarization request as single user message
-        summary_task = self.config.get_summarization_prompt()
-        user_request = f"{summary_task}\n\n{conversation_text.strip()}"
+        # Use Chloe-specific summarization prompt that gives her agency
+        state_description = build_chloe_state_description(self.chloe_state)
+        system_prompt, user_prompt = build_chloe_summarization_prompt(
+            conversation_text.strip(), state_description
+        )
 
         summary_request = [
-            LLMMessage(role="system", content=summary_system_prompt),
-            LLMMessage(role="user", content=user_request),
+            LLMMessage(role="system", content=system_prompt),
+            LLMMessage(role="user", content=user_prompt),
         ]
 
         summary_response = self.llm.chat_complete(self.model, summary_request)

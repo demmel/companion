@@ -6,9 +6,9 @@ import { useSmartScroll } from "@/hooks/useSmartScroll";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
 import { AgentClient } from "@/client";
-import { getPresenterForConfig } from "@/presenters";
 import { css } from "@styled-system/css";
 import { debug } from "@/utils/debug";
+import { RoleplayPresenter } from "@/presenters/RoleplayPresenter";
 
 interface ChatInterfaceProps {
   client: AgentClient;
@@ -24,8 +24,6 @@ interface ContextInfo {
 
 export function ChatInterface({ client }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("");
-  const [configName, setConfigName] = useState<string>("general");
-  const [agentState, setAgentState] = useState<Record<string, any>>({});
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
 
   // New architecture: batch events then convert to structured messages
@@ -48,7 +46,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   }, [messages]);
 
   // Get the appropriate presenter component
-  const PresenterComponent = getPresenterForConfig(configName);
+  const PresenterComponent = RoleplayPresenter;
 
   const handleMessage = useCallback(
     (event: ClientAgentEvent) => {
@@ -104,16 +102,11 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     const loadInitialData = async () => {
       try {
         // Load config, state, conversation, and context info in parallel
-        const [config, state, conversationData, contextData] =
-          await Promise.all([
-            client.getConfig(),
-            client.getState(),
-            client.getConversation(),
-            client.getContextInfo(),
-          ]);
+        const [conversationData, contextData] = await Promise.all([
+          client.getConversation(),
+          client.getContextInfo(),
+        ]);
 
-        setConfigName(config.name);
-        setAgentState(state);
         setContextInfo({
           estimated_tokens: contextData.estimated_tokens,
           context_limit: contextData.context_limit,
@@ -251,7 +244,6 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
           <PresenterComponent
             messages={messages}
             isStreamActive={isStreamActive}
-            agentState={agentState}
           />
         )}
 

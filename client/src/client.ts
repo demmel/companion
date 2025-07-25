@@ -54,20 +54,6 @@ export class AgentClient {
     return data.messages;
   }
 
-  async getConfig(): Promise<{
-    name: string;
-    description: string;
-    tools: string[];
-  }> {
-    const response = await fetch(`${this.httpBaseUrl}/api/config`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to get config: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
   async getState(): Promise<Record<string, any>> {
     const response = await fetch(`${this.httpBaseUrl}/api/state`);
 

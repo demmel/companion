@@ -8,6 +8,7 @@ from agent.llm import LLM, SupportedModel
 from agent.tools import BaseTool, ToolRegistry
 from agent.structured_llm import structured_llm_call
 from .types import AnalysisType, ReasoningResult
+from .chloe_prompts import build_chloe_understanding_prompt, build_chloe_reflection_prompt
 from agent.types import (
     Message,
     AgentMessage,
@@ -27,6 +28,7 @@ def analyze_conversation_turn(
     llm: LLM,
     model: SupportedModel,
     include_thoughts: bool = True,
+    chloe_state: str = "",
 ) -> ReasoningResult:
     """
     Analyze a conversation turn - understand it and decide what to do
@@ -44,14 +46,14 @@ def analyze_conversation_turn(
     # Get tool descriptions from registry
     tools_description = tool_registry.get_tools_description()
 
-    # Build analysis-type-specific prompts
+    # Build Chloe-specific prompts
     if analysis_type == AnalysisType.USER_INPUT:
-        system_prompt, user_prompt = _build_user_input_analysis_prompt(
-            text, context_text, tools_description
+        system_prompt, user_prompt = build_chloe_understanding_prompt(
+            text, context_text, tools_description, chloe_state
         )
     elif analysis_type == AnalysisType.AGENT_RESPONSE:
-        system_prompt, user_prompt = _build_agent_response_analysis_prompt(
-            text, context_text, tools_description
+        system_prompt, user_prompt = build_chloe_reflection_prompt(
+            text, context_text, tools_description, chloe_state
         )
     else:
         raise ValueError(f"Unknown analysis type: {analysis_type}")
