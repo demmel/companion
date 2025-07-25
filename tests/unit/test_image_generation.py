@@ -53,49 +53,41 @@ def test_tool_properties(image_tool):
 
 def test_input_validation():
     """Test ImageGenerationInput validation"""
-    # Test valid input
-    valid_input = ImageGenerationInput(prompt="test prompt", width=512, height=512)
-    assert valid_input.prompt == "test prompt"
-    assert valid_input.width == 512
-    assert valid_input.height == 512
-    assert valid_input.num_inference_steps == 20  # default
+    # Test valid input with just description
+    valid_input = ImageGenerationInput(description="test description")
+    assert valid_input.description == "test description"
 
-    # Test input with all fields
-    full_input = ImageGenerationInput(
-        prompt="detailed prompt",
-        negative_prompt="bad quality",
-        width=768,
-        height=768,
-        num_inference_steps=30,
-        guidance_scale=8.0,
-        seed=42,
+    # Test input with detailed description
+    detailed_input = ImageGenerationInput(
+        description="A detailed description of a character in a scene with atmospheric lighting"
     )
-    assert full_input.negative_prompt == "bad quality"
-    assert full_input.seed == 42
+    assert detailed_input.description == "A detailed description of a character in a scene with atmospheric lighting"
 
 
 def test_input_validation_constraints():
     """Test input validation constraints"""
-    # Test width/height constraints
+    # Test description max length constraint
     with pytest.raises(ValueError):
-        ImageGenerationInput(prompt="test", width=100)  # Too small
+        ImageGenerationInput(description="x" * 1001)  # Too long (max_length=1000)
 
-    with pytest.raises(ValueError):
-        ImageGenerationInput(prompt="test", width=2000)  # Too large
+    # Test that valid descriptions work
+    valid_input = ImageGenerationInput(description="x" * 1000)  # Exactly at limit
+    assert len(valid_input.description) == 1000
 
-    # Test steps constraints
-    with pytest.raises(ValueError):
-        ImageGenerationInput(prompt="test", num_inference_steps=5)  # Too few
+    # Test that reasonable descriptions work
+    normal_input = ImageGenerationInput(description="A normal description")
+    assert normal_input.description == "A normal description"
 
-    with pytest.raises(ValueError):
-        ImageGenerationInput(prompt="test", num_inference_steps=100)  # Too many
+    # Test short descriptions work (empty string is allowed by default in pydantic)
+    short_input = ImageGenerationInput(description="")
+    assert short_input.description == ""
 
 
 def test_schema_description(image_tool):
     """Test schema description generation"""
     schema_desc = image_tool.get_schema_description()
     assert "generate_image" in schema_desc
-    assert "prompt" in schema_desc
+    assert "description" in schema_desc
     assert "required" in schema_desc or "optional" in schema_desc
 
 
@@ -107,19 +99,15 @@ def test_tool_initialization():
 
 
 @pytest.mark.parametrize(
-    "width,height,steps",
+    "description",
     [
-        (256, 256, 10),
-        (512, 512, 20),
-        (768, 768, 30),
-        (1024, 1024, 50),
+        "A portrait of a character",
+        "A landscape scene with mountains",
+        "A square composition with balanced elements",
+        "A detailed character description with specific features and atmospheric lighting",
     ],
 )
-def test_input_parameter_combinations(width, height, steps):
-    """Test various valid parameter combinations"""
-    input_data = ImageGenerationInput(
-        prompt="test image", width=width, height=height, num_inference_steps=steps
-    )
-    assert input_data.width == width
-    assert input_data.height == height
-    assert input_data.num_inference_steps == steps
+def test_input_parameter_combinations(description):
+    """Test various valid description combinations"""
+    input_data = ImageGenerationInput(description=description)
+    assert input_data.description == description

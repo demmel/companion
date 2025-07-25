@@ -7,9 +7,11 @@ import time
 from typing import List, Optional, Iterator
 from pydantic import BaseModel
 
+from agent.conversation_history import ConversationHistory
+from agent.reasoning.loop import run_reasoning_loop
+
 from .llm import LLM, SupportedModel, Message as LLMMessage
-from .tools import ToolRegistry, ToolExecutionError
-from .streaming import StreamingParser, TextEvent, ToolCallEvent, InvalidToolCallEvent
+from .tools import ToolRegistry
 from .config import AgentConfig
 from .types import (
     AgentMessage,
@@ -20,17 +22,10 @@ from .types import (
     TextContent,
     ThoughtContent,
     ToolCall,
-    ToolCallError,
     ToolCallFinished,
-    ToolResult,
-    UserMessage,
 )
 from .agent_events import (
     AgentEvent,
-    AgentTextEvent,
-    ToolStartedEvent,
-    ToolFinishedEvent,
-    AgentErrorEvent,
     SummarizationStartedEvent,
     SummarizationFinishedEvent,
     ResponseCompleteEvent,
@@ -71,11 +66,7 @@ class Agent:
         # Initialize tools based on configuration
         self.tools = ToolRegistry(self, self.config.tools)
 
-        # Dual conversation histories
-        self.conversation_history: List[Message] = []  # Complete history for user view
-        self.llm_conversation_history: List[Message] = (
-            []
-        )  # Optimized history for LLM (with summaries)
+        self.conversation_history = ConversationHistory()
 
         # Generic agent state - configurations can extend this
         self.state = (
@@ -117,7 +108,7 @@ class Agent:
 
     def get_conversation_history(self) -> List[Message]:
         """Get the current conversation history"""
-        return self.conversation_history.copy()
+        return self.conversation_history.get_full_history().copy()
 
     def get_llm_conversation_history(
         self,
@@ -135,7 +126,7 @@ class Agent:
             )
         ]
         # Use the optimized LLM history (which may include summaries)
-        for msg in self.llm_conversation_history:
+        for msg in self.conversation_history.get_summarized_history():
             for llm_msg in message_to_llm_messages(msg, include_thoughts=False):
                 messages.append(llm_msg)
         return messages
@@ -154,7 +145,7 @@ class Agent:
         return ContextInfo(
             message_count=len(messages),
             conversation_messages=len(
-                self.conversation_history
+                self.conversation_history.get_full_history()
             ),  # User-visible message count
             estimated_tokens=estimated_tokens,
             context_limit=self.context_window,
@@ -175,288 +166,29 @@ class Agent:
         return self.config.build_prompt(tools_desc, self.state, iteration_info)
 
     def chat_stream(self, user_input: str) -> Iterator[AgentEvent]:
-        """Streaming chat interface that yields typed events"""
+        """Streaming chat interface that yields typed events using reasoning loop"""
         start_time = time.time()
-
-        # Add user message to both histories
-        user_message = UserMessage(content=[TextContent(text=user_input)])
-        self.conversation_history.append(user_message)
-        self.llm_conversation_history.append(user_message)
 
         # Check if we need auto-summarization before processing
         context_info = self.get_context_info()
         keep_recent = 10  # Conservative retention size
         if (
             context_info.approaching_limit
-            and len(self.llm_conversation_history) > keep_recent
+            and len(self.conversation_history.get_summarized_history()) > keep_recent
         ):
             # Perform auto-summarization with event emission
             for event in self._auto_summarize_with_events(keep_recent):
                 yield event
 
-        # Continue generating responses with iteration limit
-        max_iterations = self.config.max_iterations
-        for iteration in range(1, max_iterations + 1):
-            iteration_start = time.time()
-
-            # Build system prompt based on iteration (no tools on final iteration)
-            is_final_iteration = iteration == max_iterations
-
-            prompt_start = time.time()
-            messages = self.get_llm_conversation_history(
-                include_tools=not is_final_iteration,
-                iteration_info=(iteration, max_iterations),
-            )
-            # logger.info(
-            #     f"System prompt for iteration {iteration}/{max_iterations}:\n{messages[0].content}"
-            # )
-            prompt_time = time.time() - prompt_start
-
-            logger.debug(
-                f"Sending {len(messages)} messages to LLM (iteration {iteration}/{max_iterations})"
-            )
-            logger.debug(f"Prompt building took: {prompt_time:.3f}s")
-
-            # Get streaming LLM response
-            llm_start = time.time()
-            stream = self.llm.chat_streaming(self.model, messages)
-            llm_init_time = time.time() - llm_start
-
-            logger.debug(f"LLM initialization took: {llm_init_time:.3f}s")
-
-            # Initialize streaming parser
-            parser = StreamingParser(debug=False)
-            content_items = []  # List[Union[TextContent, ThoughtContent]]
-            current_batch = ""
-            current_batch_is_thought = False
-            tool_events: List[ToolCallEvent] = []
-
-            def flush_current_batch():
-                nonlocal current_batch, current_batch_is_thought
-                if current_batch:
-                    if current_batch_is_thought:
-                        content_items.append(ThoughtContent(text=current_batch))
-                    else:
-                        content_items.append(TextContent(text=current_batch))
-                    current_batch = ""
-
-            # Process the stream
-            first_chunk = True
-            first_chunk_time = None
-
-            for chunk in stream:
-                if first_chunk:
-                    first_chunk_time = time.time() - llm_start
-                    logger.debug(f"Time to first chunk: {first_chunk_time:.3f}s")
-                    first_chunk = False
-                chunk_content = chunk["message"]["content"]
-
-                # Parse chunk for events
-                events = list(parser.parse_chunk(chunk_content))
-
-                for event in events:
-                    if isinstance(event, TextEvent):
-                        # Check if thought flag changed - flush batch if so
-                        if event.is_thought != current_batch_is_thought:
-                            flush_current_batch()
-                            current_batch_is_thought = event.is_thought
-
-                        # Add to current batch
-                        current_batch += event.delta
-
-                        # Yield streaming event (all text events are streamed)
-                        yield AgentTextEvent(
-                            content=event.delta, is_thought=event.is_thought
-                        )
-                    elif isinstance(event, ToolCallEvent):
-                        # Store tool event for later execution (only if not final iteration)
-                        if not is_final_iteration:
-                            tool_events.append(event)
-                    elif isinstance(event, InvalidToolCallEvent):
-                        # System-level error (malformed tool call)
-                        logger.error(
-                            f"Invalid tool call detected: {event.error} in {event.tool_name} ({event.id})"
-                        )
-                        logger.error(f"Tool call content: {event.raw_content}")
-                        yield AgentErrorEvent(
-                            message=f"Invalid tool call: {event.error}",
-                            tool_name=event.tool_name,
-                            tool_id=event.id,
-                        )
-
-            # Finalize parser
-            final_events = list(parser.finalize())
-            for event in final_events:
-                if isinstance(event, TextEvent):
-                    # Check if thought flag changed - flush batch if so
-                    if event.is_thought != current_batch_is_thought:
-                        flush_current_batch()
-                        current_batch_is_thought = event.is_thought
-
-                    # Add to current batch
-                    current_batch += event.delta
-
-                    # Yield streaming event
-                    yield AgentTextEvent(
-                        content=event.delta, is_thought=event.is_thought
-                    )
-                elif isinstance(event, InvalidToolCallEvent):
-                    logger.error(
-                        f"Invalid tool call detected: {event.error} in {event.tool_name} ({event.id})"
-                    )
-                    logger.error(f"Tool call content: {event.raw_content}")
-                    yield AgentErrorEvent(
-                        message=f"Invalid tool call: {event.error}",
-                        tool_name=event.tool_name,
-                        tool_id=event.id,
-                    )
-
-            # If no tools or final iteration, we're done
-            if not tool_events or is_final_iteration:
-                # Flush final batch and create message
-                flush_current_batch()
-                agent_message = AgentMessage(content=content_items, tool_calls=[])
-                self.conversation_history.append(agent_message)
-                self.llm_conversation_history.append(agent_message)
-                break
-
-            # Execute tools and continue to next iteration
-            tool_results = []
-            finished_tool_calls = []
-
-            for tool_event in tool_events:
-                # Check if tool exists before emitting any events
-                if not self.tools.has_tool(tool_event.tool_name):
-                    # Agent made a mistake - inform it via tool_results for next iteration
-                    error_msg = f"Tool '{tool_event.tool_name}' not found"
-                    tool_results.append(
-                        f"{tool_event.tool_name} ({tool_event.id}): {error_msg}"
-                    )
-
-                    # Create error tool call
-                    finished_tool_calls.append(
-                        ToolCallFinished(
-                            tool_name=tool_event.tool_name,
-                            tool_id=tool_event.id,
-                            parameters=tool_event.parameters,
-                            result=ToolCallError(type="error", error=error_msg),
-                        )
-                    )
-                    yield AgentErrorEvent(
-                        message=error_msg,
-                        tool_name=tool_event.tool_name,
-                        tool_id=tool_event.id,
-                    )
-                    continue  # No tool events for nonexistent tools
-
-                # Tool exists - proceed with normal execution flow
-                yield ToolStartedEvent(
-                    tool_name=tool_event.tool_name,
-                    tool_id=tool_event.id,
-                    parameters=tool_event.parameters,
-                )
-
-            for tool_event in tool_events:
-                try:
-                    # Check if tool exists again (in case of previous errors)
-                    if not self.tools.has_tool(tool_event.tool_name):
-                        # If tool was not found, skip execution
-                        continue
-
-                    # Execute tool with progress callback
-                    def progress_callback(data):
-                        # Send progress events for streaming
-                        pass  # For now, we can ignore progress in the core
-
-                    logger.info(
-                        f"Executing tool {tool_event.tool_name} with ID {tool_event.id}\n{json.dumps(tool_event.parameters, indent=2)}"
-                    )
-                    result = self.tools.execute(
-                        tool_event.tool_name,
-                        tool_event.id,
-                        tool_event.parameters,
-                        progress_callback,
-                    )
-                    tool_results.append(
-                        f"{tool_event.tool_name} ({tool_event.id}): {result}"
-                    )
-
-                    # Create successful tool call
-                    finished_tool_calls.append(
-                        ToolCallFinished(
-                            tool_name=tool_event.tool_name,
-                            tool_id=tool_event.id,
-                            parameters=tool_event.parameters,
-                            result=result,
-                        )
-                    )
-
-                    # Signal successful tool execution
-                    yield ToolFinishedEvent(
-                        tool_id=tool_event.id,
-                        result=result,
-                    )
-                except ToolExecutionError as e:
-                    logger.error(
-                        f"Error executing tool {tool_event.tool_name} ({tool_event.id}): {str(e)}"
-                    )
-
-                    # Tool exists but failed during execution
-                    tool_results.append(
-                        f"{tool_event.tool_name} ({tool_event.id}): {str(e)}"
-                    )
-
-                    # Create error tool call
-                    finished_tool_calls.append(
-                        ToolCallFinished(
-                            tool_name=tool_event.tool_name,
-                            tool_id=tool_event.id,
-                            parameters=tool_event.parameters,
-                            result=ToolCallError(type="error", error=str(e)),
-                        )
-                    )
-
-                    yield ToolFinishedEvent(
-                        tool_id=tool_event.id, result=ToolCallError(error=str(e))
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Unexpected error executing tool {tool_event.tool_name} ({tool_event.id}): {str(e)}"
-                    )
-
-                    # Unexpected system error
-                    error_msg = (
-                        f"System error executing {tool_event.tool_name}: {str(e)}"
-                    )
-                    tool_results.append(
-                        f"{tool_event.tool_name} ({tool_event.id}): {error_msg}"
-                    )
-
-                    # Create system error tool call
-                    finished_tool_calls.append(
-                        ToolCallFinished(
-                            tool_name=tool_event.tool_name,
-                            tool_id=tool_event.id,
-                            parameters=tool_event.parameters,
-                            result=ToolCallError(type="error", error=error_msg),
-                        )
-                    )
-
-                    yield AgentErrorEvent(
-                        message=str(e),
-                        tool_name=tool_event.tool_name,
-                        tool_id=tool_event.id,
-                    )
-
-            # Store the agent message with tool calls in both histories
-            # Flush final batch first
-            flush_current_batch()
-            agent_message = AgentMessage(
-                content=content_items,
-                tool_calls=finished_tool_calls,
-            )
-            self.conversation_history.append(agent_message)
-            self.llm_conversation_history.append(agent_message)
+        # Run reasoning loop
+        for event in run_reasoning_loop(
+            history=self.conversation_history,
+            user_input=user_input,
+            tools=self.tools,
+            llm=self.llm,
+            model=self.model,
+        ):
+            yield event
 
         # Emit response complete event with context info
         context_info = self.get_context_info()
@@ -474,9 +206,8 @@ class Agent:
         logger.debug(f"Total chat_stream time: {total_time:.3f}s")
 
     def reset_conversation(self):
-        """Reset both conversation histories"""
-        self.conversation_history = []
-        self.llm_conversation_history = []
+        """Reset conversation history"""
+        self.conversation_history = ConversationHistory()
 
     def replay_conversation(
         self, conversation_data: ConversationData, up_to_index: Optional[int] = None
@@ -580,8 +311,9 @@ class Agent:
     ) -> Iterator[AgentEvent]:
         """Auto-summarize with event emission for streaming clients"""
         # Calculate what we're about to do - work on LLM history only
-        old_messages = self.llm_conversation_history[:-keep_recent]
-        recent_messages = self.llm_conversation_history[-keep_recent:]
+        llm_history = self.conversation_history.get_summarized_history()
+        old_messages = llm_history[:-keep_recent]
+        recent_messages = llm_history[-keep_recent:]
         context_before = self.get_context_info()
 
         # Emit started event
@@ -646,7 +378,9 @@ class Agent:
 
         # Add structured summarization notification to user history
         # Find the position where summarization occurred in user history
-        user_summary_index = len(self.conversation_history) - len(recent_messages)
+        user_summary_index = len(self.conversation_history.get_full_history()) - len(
+            recent_messages
+        )
 
         # Create structured summarization content that matches frontend expectations
         summarization_content = SummarizationContent(
@@ -663,14 +397,15 @@ class Agent:
         )
 
         # Insert notification at the right position to maintain chronological order
-        self.conversation_history.insert(user_summary_index, summary_message)
-        self.llm_conversation_history = [summary_message] + recent_messages
+        self.conversation_history.insert_summary_notification(
+            user_summary_index, summary_message, recent_messages
+        )
 
         # Emit finished event
         yield SummarizationFinishedEvent(
             summary=summary_response,
             messages_summarized=len(old_messages),
-            messages_after=len(self.llm_conversation_history),
+            messages_after=len(self.conversation_history.get_summarized_history()),
             context_usage_after=context_after.usage_percentage,
         )
 

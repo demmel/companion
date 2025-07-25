@@ -28,10 +28,17 @@ class AgentConfig:
         """Build the system prompt with tools and state"""
         state = current_state or self.default_state or {}
 
+        # Build iteration info string
+        iteration_str = ""
+        if iteration_info:
+            current_iteration, max_iterations = iteration_info
+            iteration_str = f"(Iteration {current_iteration}/{max_iterations})"
+
         # Replace placeholders in template
         return self.prompt_template.format(
             tools_description=tools_description,
             state_info=self._build_state_info(state),
+            iteration_info=iteration_str,
         )
 
     def _build_state_info(self, state: Dict[str, Any]) -> str:

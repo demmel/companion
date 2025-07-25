@@ -45,7 +45,6 @@ class MockImageGenerationTool(BaseTool):
             num_inference_steps=20,
             guidance_scale=7.5,
             negative_prompt="low quality, blurry",
-            seed=input_data.seed or 12345,
             # Add optimization metadata
             original_description=input_data.description,
             optimization_confidence=0.8,
@@ -74,6 +73,8 @@ class RoleplayEvaluationConfig(DomainEvaluationConfig):
                 "Be Kai, a street artist who loves showing off their graffiti work",
                 "Play as Dr. Luna, a brilliant but eccentric scientist working on time travel",
             ],
+            simulation_initial_prompt_template="""
+""",
             simulation_prompt_template="""You are a user testing a roleplay AI agent in this scenario: {scenario}
 
 Your goal is to conduct a natural roleplay conversation that tests the agent's capabilities:

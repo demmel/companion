@@ -12,6 +12,7 @@ import logging
 
 import rich
 import rich.progress
+from rich.progress import TaskID
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +156,7 @@ class RichProgressReporter:
         self, task_id: str, progress: float, description: Optional[str] = None
     ) -> None:
         try:
-            rich_task_id = int(task_id)
+            rich_task_id = TaskID(int(task_id))
 
             # Check if task still exists
             if rich_task_id not in self._progress.task_ids:
@@ -175,7 +176,7 @@ class RichProgressReporter:
 
             # Update description if provided
             if description:
-                self._progress.update(rich_task_id, description=description)
+                self._progress.update(task_id=rich_task_id, description=description)
 
             # Update progress
             if task.total:
@@ -196,7 +197,7 @@ class RichProgressReporter:
 
     def finish_task(self, task_id: str) -> None:
         try:
-            rich_task_id = int(task_id)
+            rich_task_id = TaskID(int(task_id))
 
             # Check if task still exists
             if rich_task_id not in self._progress.task_ids:

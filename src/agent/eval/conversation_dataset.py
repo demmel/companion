@@ -308,7 +308,7 @@ class ConversationDataset:
         return self.conversations.get(conversation_id)
 
     def get_conversations_for_evaluation(
-        self, evaluator_id: str, limit: int = None
+        self, evaluator_id: str, limit: int
     ) -> List[ConversationEntry]:
         """Get conversations that have been evaluated by a specific evaluator"""
 

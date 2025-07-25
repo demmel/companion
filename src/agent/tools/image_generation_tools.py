@@ -44,7 +44,8 @@ class SDXLPromptOptimization(BaseModel):
         max_length=4,
     )
     negative_prompt: str = Field(
-        description="Minimal negative prompt for critical quality issues", max_length=120
+        description="Minimal negative prompt for critical quality issues",
+        max_length=120,
     )
     layout: ImageLayout = Field(
         description="Most appropriate layout based on description and camera angle"
@@ -68,9 +69,6 @@ class ImageGenerationInput(ToolInput):
     description: str = Field(
         description="Natural description of what you want to see. Be detailed about mood, setting, character appearance, style, and any specific viewpoint or camera angle you want. Example: 'Elena is a mysterious vampire standing in her gothic castle. She has long dark hair, pale skin, and is wearing an elegant dark dress. The scene should be atmospheric with candlelight and stone architecture, viewed from a low angle to make her appear imposing.'",
         max_length=1000,
-    )
-    seed: Optional[int] = Field(
-        default=None, description="Random seed for reproducibility"
     )
 
 
@@ -507,7 +505,6 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         chunks: List[str],
         negative_prompt: str,
         layout: ImageLayout,
-        seed: Optional[int],
         progress_callback: Callable[[Any], None],
     ) -> Optional[ImageGenerationToolContent]:
         """Generate image and return the file path"""
@@ -515,11 +512,6 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             import torch
 
             logger.debug(f"Starting image generation with {len(chunks)} chunks")
-
-            # Set random seed if provided
-            if seed is not None:
-                torch.manual_seed(seed)
-                progress_callback({"stage": "seed_set", "progress": 0.1, "seed": seed})
 
             # Encode chunks to embeddings with pooled embeddings
             result = self._encode_chunked_prompts(
@@ -605,7 +597,6 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                 num_inference_steps=30,
                 guidance_scale=5.0,
                 negative_prompt=negative_prompt if negative_prompt else None,
-                seed=seed,
             )
 
             return image_content
@@ -675,7 +666,6 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             optimization.chunks,
             optimization.negative_prompt,
             optimization.layout,
-            input_data.seed,
             progress_callback,
         )
 

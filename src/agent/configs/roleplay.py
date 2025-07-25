@@ -9,11 +9,11 @@ class RoleplayConfig(AgentConfig):
     def __init__(self):
         # Load the prompt template from file
         prompt_template = load_prompt(PromptType.ROLEPLAY)
-        
+
         # Validate that the template uses only expected variables
         expected_variables = {"state_info", "tools_description"}
         validate_prompt_variables(prompt_template, expected_variables)
-        
+
         super().__init__(
             name="roleplay",
             description="Character roleplay and creative interactions",

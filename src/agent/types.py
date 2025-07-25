@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel
 
+from agent.reasoning.types import ReasoningResult
+
 
 # Tool content types (similar to message content types)
 class TextToolContent(BaseModel):
@@ -23,7 +25,6 @@ class ImageGenerationToolContent(BaseModel):
     num_inference_steps: int
     guidance_scale: float
     negative_prompt: Optional[str] = None
-    seed: Optional[int] = None
 
     # New optimization metadata
     original_description: Optional[str] = None  # Original natural description
@@ -95,7 +96,19 @@ class ThoughtContent(BaseModel):
     """Structured content for reasoning/thought sections"""
 
     type: Literal["thought"] = "thought"
-    text: str
+    text: str  # Keep for backward compatibility
+    reasoning: ReasoningResult
+
+
+class ToolCallContent(BaseModel):
+    """Tool call as content within a message"""
+
+    type: Literal["tool_call"] = "tool_call"
+    tool_name: str
+    call_id: str
+    parameters: Dict[str, Any]
+    reasoning: str  # Why this tool was called
+    result: ToolResult | None = None
 
 
 class SummarizationContent(BaseModel):
@@ -111,7 +124,7 @@ class SummarizationContent(BaseModel):
 
 # Role-specific content item types
 UserContentItem = TextContent
-AgentContentItem = Union[TextContent, ThoughtContent]
+AgentContentItem = Union[TextContent, ThoughtContent, ToolCallContent]
 SystemContentItem = Union[SummarizationContent, TextContent]
 
 # Role-specific content as lists
@@ -147,5 +160,5 @@ Message = UserMessage | AgentMessage | SystemMessage
 
 class ConversationData(BaseModel):
     """Complete conversation data loaded from JSON"""
-    
+
     messages: List[Message]

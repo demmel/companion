@@ -13,10 +13,23 @@ from agent.types import (
     AgentMessage,
     ToolCallFinished,
 )
+from agent.reasoning.types import ReasoningResult
 
 
 class TestMessageToLLMConversion:
     """Test conversion of structured messages to LLM format"""
+
+    def create_mock_reasoning(self, text: str) -> ReasoningResult:
+        """Create a mock reasoning result for tests"""
+        return ReasoningResult(
+            understanding=f"Understanding: {text}",
+            situational_awareness="Test situation",
+            emotional_context="Neutral",
+            key_information=[],
+            proposed_tools=[],
+            follow_up_opportunities=[],
+            should_end_turn=True,
+        )
 
     def test_user_message_conversion(self):
         """Test that user messages convert correctly"""
@@ -146,7 +159,10 @@ class TestMessageToLLMConversion:
         """Test that thoughts are excluded by default"""
         agent_msg = AgentMessage(
             content=[
-                ThoughtContent(text="Let me think about this..."),
+                ThoughtContent(
+                    text="Let me think about this...",
+                    reasoning=self.create_mock_reasoning("thinking"),
+                ),
                 TextContent(text="Here's my response"),
             ],
             tool_calls=[],
@@ -163,7 +179,10 @@ class TestMessageToLLMConversion:
         """Test that thoughts are included when requested"""
         agent_msg = AgentMessage(
             content=[
-                ThoughtContent(text="Let me think about this..."),
+                ThoughtContent(
+                    text="Let me think about this...",
+                    reasoning=self.create_mock_reasoning("thinking"),
+                ),
                 TextContent(text="Here's my response"),
             ],
             tool_calls=[],
@@ -179,7 +198,13 @@ class TestMessageToLLMConversion:
     def test_agent_message_only_thoughts(self):
         """Test message with only thought content"""
         agent_msg = AgentMessage(
-            content=[ThoughtContent(text="Just thinking...")], tool_calls=[]
+            content=[
+                ThoughtContent(
+                    text="Just thinking...",
+                    reasoning=self.create_mock_reasoning("thoughts"),
+                )
+            ],
+            tool_calls=[],
         )
 
         # Excluded by default
