@@ -131,22 +131,24 @@ Available tools: {self.tools.get_tools_description()}"""
         from agent.reasoning.chloe_prompts import build_chloe_understanding_prompt
         from agent.reasoning.analyze import _serialize_conversation_context
         from agent.chloe_state import build_chloe_state_description
-        
+
         # Get current conversation and state
         conversation_context = self.conversation_history.get_summarized_history()
-        context_text = _serialize_conversation_context(conversation_context, include_thoughts=True)
+        context_text = _serialize_conversation_context(
+            conversation_context, include_thoughts=True
+        )
         tools_description = self.tools.get_tools_description()
         chloe_state_desc = build_chloe_state_description(self.chloe_state)
-        
+
         # Build sample reasoning prompt (this is what actually gets sent to LLM)
         system_prompt, user_prompt = build_chloe_understanding_prompt(
             "sample user input", context_text, tools_description, chloe_state_desc
         )
-        
+
         # Calculate total prompt size
         total_chars = len(system_prompt) + len(user_prompt)
         estimated_tokens = int(total_chars / 3.4)
-        
+
         return ContextInfo(
             message_count=len(conversation_context),
             conversation_messages=len(self.conversation_history.get_full_history()),
@@ -353,8 +355,6 @@ Available tools: {self.tools.get_tools_description()}"""
         summary_response = self.llm.chat_complete(self.model, summary_request)
         assert summary_response, "LLM response is empty"
 
-        context_after = self.get_context_info()
-
         # Add structured summarization notification to user history
         # Find the position where summarization occurred in user history
         user_summary_index = len(self.conversation_history.get_full_history()) - len(
@@ -364,21 +364,25 @@ Available tools: {self.tools.get_tools_description()}"""
         # Create structured summarization content that matches frontend expectations
         summarization_content = SummarizationContent(
             type="summarization",
-            title=f"✅ Summarized {len(old_messages)} messages. Context usage: {context_before.usage_percentage:.1f}% → {context_after.usage_percentage:.1f}%",
+            title="",  # Title will be set after summarization
             summary=summary_response,
             messages_summarized=len(old_messages),
             context_usage_before=context_before.usage_percentage,
-            context_usage_after=context_after.usage_percentage,
-        )
-
-        summary_message = SystemMessage(
-            content=[summarization_content],
+            context_usage_after=0.0,  # Update this after summarization
         )
 
         # Insert notification at the right position to maintain chronological order
         self.conversation_history.insert_summary_notification(
-            user_summary_index, summary_message, recent_messages
+            user_summary_index,
+            SystemMessage(
+                content=[summarization_content],
+            ),
+            recent_messages,
         )
+
+        context_after = self.get_context_info()
+        summarization_content.context_usage_after = context_after.usage_percentage
+        summarization_content.title = f"✅ Summarized {len(old_messages)} messages. Context usage: {context_before.usage_percentage:.1f}% → {context_after.usage_percentage:.1f}%"
 
         # Emit finished event
         yield SummarizationFinishedEvent(

@@ -16,7 +16,7 @@ class AnalysisType(Enum):
 
 class TurnDecision(BaseModel):
     """Decision about whether to continue speaking with reasoning"""
-    
+
     reasoning: str = Field(
         description="My reasoning about whether to continue speaking or let them respond. Explain what feels natural - do I want to continue expressing myself, or does this feel like a good place to pause and see what they say?"
     )

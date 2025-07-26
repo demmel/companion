@@ -85,7 +85,11 @@ def _serialize_conversation_context(
     lines = ["## Conversation History\n"]
 
     # Remove truncation - include all messages for full context
-    for msg in messages:
+    for i, msg in enumerate(messages):
+        # Add 2 blank lines between messages (except the first one)
+        if i > 0:
+            lines.append("")
+            lines.append("")
         # Handle different message types with proper union type checking
         if isinstance(msg, UserMessage):
             # Extract user name from context or default to "User"
@@ -99,7 +103,7 @@ def _serialize_conversation_context(
             if content_parts:
                 content_text = " ".join(content_parts)
                 lines.append(f"### {user_name}")
-                lines.append(f"{content_text}\n")
+                lines.append(content_text)
 
         elif isinstance(msg, AgentMessage):
             lines.append("### Chloe")
@@ -115,6 +119,7 @@ def _serialize_conversation_context(
                 if prev_type and prev_type != current_type:
                     if current_section:
                         lines.extend(current_section)
+                        lines.append("")  # 1 blank line between sections
                         current_section = []
 
                 if isinstance(content_item, ThoughtContent) and include_thoughts:
@@ -129,7 +134,7 @@ def _serialize_conversation_context(
                         thought_parts.append(
                             f"- Emotional context: {reasoning.emotional_context}"
                         )
-                    current_section = ["\n".join(thought_parts) + "\n"]
+                    current_section = ["\n".join(thought_parts)]
 
                 elif isinstance(content_item, TextContent):
                     if current_section:
@@ -145,28 +150,47 @@ def _serialize_conversation_context(
                     params = content_item.parameters
                     result = content_item.result
 
-                    action_lines = [f"**Action:** {tool_name.title().replace('_', ' ')}"]
-                    
+                    action_lines = [
+                        f"**Action:** {tool_name.title().replace('_', ' ')}"
+                    ]
+
                     # Show parameters as bullet list
                     if params:
                         for key, value in params.items():
                             action_lines.append(f"- {key}: {value}")
-                    
+
                     # Show result
                     if result:
                         if result.type == "success":
-                            action_lines.append(f"- ✅ Result: {result.content}")
+                            # Handle different content types
+                            content = result.content
+                            if content.type == "text":
+                                result_text = content.text
+                            elif content.type == "image_generated":
+                                # Show interesting optimization details
+                                details = [f"Optimized prompt: '{content.prompt}'"]
+                                if content.optimization_notes:
+                                    details.append(
+                                        f"Notes: {content.optimization_notes}"
+                                    )
+                                if content.camera_angle:
+                                    details.append(f"Camera: {content.camera_angle}")
+                                if content.viewpoint:
+                                    details.append(f"Viewpoint: {content.viewpoint}")
+                                result_text = " | ".join(details)
+                            else:
+                                result_text = str(content)
+                            action_lines.append(f"- ✅ Result: {result_text}")
                         elif result.type == "error":
                             action_lines.append(f"- ❌ Error: {result.error}")
 
-                    current_section = ["\n".join(action_lines) + "\n"]
+                    current_section = ["\n".join(action_lines)]
 
                 prev_type = current_type
 
-            # Flush final section with trailing newline for proper spacing
+            # Flush final section
             if current_section:
                 lines.extend(current_section)
-            lines.append("")  # Add blank line after agent message
 
         elif isinstance(msg, SystemMessage):
             content_parts = []
@@ -183,8 +207,7 @@ def _serialize_conversation_context(
                     content_parts
                 )  # Use double newlines to separate content blocks
                 lines.append("### System")
-                lines.append("")  # Blank line after header
-                lines.append(f"*{content_text}*\n")
+                lines.append(f"*{content_text}*")
 
     return "\n".join(lines)
 

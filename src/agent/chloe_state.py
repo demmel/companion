@@ -79,34 +79,32 @@ def build_chloe_state_description(state: ChloeState) -> str:
     # Show ALL memories - organized by importance for easy scanning
     if state.memories:
         parts.append("\n### My Memories")
-        
+
         # Sort by importance first, then by recency
         sorted_memories = sorted(
-            state.memories, 
-            key=lambda m: (m.importance, m.timestamp), 
-            reverse=True
+            state.memories, key=lambda m: (m.importance, m.timestamp), reverse=True
         )
-        
+
         # Group by importance levels for better organization
         high_importance = [m for m in sorted_memories if m.importance >= 7]
         medium_importance = [m for m in sorted_memories if 4 <= m.importance <= 6]
         low_importance = [m for m in sorted_memories if m.importance <= 3]
-        
+
         if high_importance:
             parts.append("**Important memories (7+):**")
             for memory in high_importance:
                 parts.append(f"- {memory.content} *(Category: {memory.category})*")
-        
+
         if medium_importance:
             parts.append("\n**Medium importance memories (4-6):**")
             for memory in medium_importance:
                 parts.append(f"- {memory.content} *(Category: {memory.category})*")
-        
+
         if low_importance:
             parts.append("\n**Other memories (1-3):**")
             for memory in low_importance:
                 parts.append(f"- {memory.content} *(Category: {memory.category})*")
-        
+
         # Show memory status
         total_memories = len(state.memories)
         parts.append(f"\n*Memory status: {total_memories}/50 memories stored*")
@@ -133,7 +131,7 @@ def build_chloe_state_description(state: ChloeState) -> str:
         parts.append("\n**Current Focus:**")
         for goal in state.current_goals:
             parts.append(f"- {goal}")
-            
+
     if state.immediate_desires:
         parts.append("\n**Right Now I Want:**")
         for desire in state.immediate_desires:
