@@ -58,7 +58,7 @@ def run_reasoning_loop(
             tools,
             llm,
             model,
-            False,
+            True,  # Include thoughts for reasoning continuity
             state_description,
         )
 
@@ -259,7 +259,7 @@ def _generate_response(
     # Serialize conversation history for context
     from .analyze import _serialize_conversation_context
 
-    context_str = _serialize_conversation_context(conversation, include_thoughts=False)
+    context_str = _serialize_conversation_context(conversation, include_thoughts=True)
 
     # Extract reasoning and tool results from current message
     reasoning_parts = []

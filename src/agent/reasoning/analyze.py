@@ -20,6 +20,7 @@ from agent.types import (
     UserMessage,
     SystemMessage,
     TextContent,
+    SummarizationContent,
 )
 
 
@@ -119,14 +120,14 @@ def _serialize_conversation_context(
                 if isinstance(content_item, ThoughtContent) and include_thoughts:
                     reasoning = content_item.reasoning
                     thought_parts = ["**My Thoughts:**"]
-                    thought_parts.append(f"*Understanding: {reasoning.understanding}*")
+                    thought_parts.append(f"- Understanding: {reasoning.understanding}")
                     if reasoning.situational_awareness:
                         thought_parts.append(
-                            f"*Situational awareness: {reasoning.situational_awareness}*"
+                            f"- Situational awareness: {reasoning.situational_awareness}"
                         )
                     if reasoning.emotional_context:
                         thought_parts.append(
-                            f"*Emotional context: {reasoning.emotional_context}*"
+                            f"- Emotional context: {reasoning.emotional_context}"
                         )
                     current_section = ["\n".join(thought_parts) + "\n"]
 
@@ -144,56 +145,45 @@ def _serialize_conversation_context(
                     params = content_item.parameters
                     result = content_item.result
 
-                    action_desc = f"**Action:** {tool_name.title().replace('_', ' ')}"
-
-                    # Show key parameters
+                    action_lines = [f"**Action:** {tool_name.title().replace('_', ' ')}"]
+                    
+                    # Show parameters as bullet list
                     if params:
-                        if "detail" in params:
-                            action_desc += f" - \"{params['detail']}\""
-                        elif "mood" in params:
-                            action_desc += f" - {params['mood']}"
-                        elif "character_name" in params:
-                            action_desc += f" - {params['character_name']}"
-                        # Show other parameters compactly
-                        other_params = {
-                            k: v
-                            for k, v in params.items()
-                            if k not in ["detail", "mood", "character_name"]
-                        }
-                        if other_params:
-                            param_strs = [f"{k}: {v}" for k, v in other_params.items()]
-                            action_desc += f" ({', '.join(param_strs)})"
+                        for key, value in params.items():
+                            action_lines.append(f"- {key}: {value}")
+                    
+                    # Show result
+                    if result:
+                        if result.type == "success":
+                            action_lines.append(f"- ✅ Result: {result.content}")
+                        elif result.type == "error":
+                            action_lines.append(f"- ❌ Error: {result.error}")
 
-                    # Show result if available
-                    if (
-                        result
-                        and hasattr(result, "success")
-                        and hasattr(result, "data")
-                    ):
-                        if result.success:
-                            action_desc += f" → ✅ {result.data}"
-                        else:
-                            action_desc += f" → ❌ {result.data}"
-                    elif result and isinstance(result, str):
-                        action_desc += f" → ✅ {result}"
-
-                    current_section = [f"{action_desc}\n"]
+                    current_section = ["\n".join(action_lines) + "\n"]
 
                 prev_type = current_type
 
-            # Flush final section
+            # Flush final section with trailing newline for proper spacing
             if current_section:
                 lines.extend(current_section)
+            lines.append("")  # Add blank line after agent message
 
         elif isinstance(msg, SystemMessage):
             content_parts = []
             for content_item in msg.content:
                 if isinstance(content_item, TextContent):
                     content_parts.append(content_item.text)
+                elif isinstance(content_item, SummarizationContent):
+                    content_parts.append(
+                        f"**Conversation Summary:**\n\n{content_item.summary}"
+                    )
 
             if content_parts:
-                content_text = " ".join(content_parts)
+                content_text = "\n\n".join(
+                    content_parts
+                )  # Use double newlines to separate content blocks
                 lines.append("### System")
+                lines.append("")  # Blank line after header
                 lines.append(f"*{content_text}*\n")
 
     return "\n".join(lines)

@@ -135,7 +135,7 @@ Available tools: {self.tools.get_tools_description()}"""
         # Get current conversation and state
         conversation_context = self.conversation_history.get_summarized_history()
         context_text = _serialize_conversation_context(conversation_context, include_thoughts=True)
-        tools_description = self.tool_registry.get_tools_description()
+        tools_description = self.tools.get_tools_description()
         chloe_state_desc = build_chloe_state_description(self.chloe_state)
         
         # Build sample reasoning prompt (this is what actually gets sent to LLM)
