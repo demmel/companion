@@ -6,9 +6,10 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from pydantic import BaseModel
 
-@dataclass
-class ChloeMemory:
+
+class ChloeMemory(BaseModel):
     """A single memory that Chloe has"""
 
     content: str
@@ -18,8 +19,7 @@ class ChloeMemory:
     importance: int = 5  # 1-10 scale
 
 
-@dataclass
-class ChloeState:
+class ChloeState(BaseModel):
     """Chloe's current internal state"""
 
     # Core identity

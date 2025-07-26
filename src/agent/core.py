@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from agent.conversation_history import ConversationHistory
 from agent.reasoning.loop import run_reasoning_loop
 from agent.reasoning.chloe_prompts import build_chloe_summarization_prompt
+from agent.conversation_persistence import ConversationPersistence
 from agent.chloe_state import (
     ChloeState,
     create_default_chloe_state,
@@ -60,11 +61,17 @@ class Agent:
         self,
         model: SupportedModel,
         llm: LLM,
+        auto_save: bool = True,
     ):
         self.llm = llm
         self.model = model
         self.context_window = llm.models[model].context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
+        
+        # Conversation persistence
+        self.auto_save = auto_save
+        self.persistence = ConversationPersistence()
+        self.conversation_id = self.persistence.generate_conversation_id() if auto_save else None
 
         from .tools.chloe_tools import (
             SetMoodTool,
@@ -106,6 +113,31 @@ class Agent:
     def get_conversation_history(self) -> List[Message]:
         """Get the current conversation history"""
         return self.conversation_history.get_full_history().copy()
+    
+    def save_conversation(self, title: Optional[str] = None) -> Optional[str]:
+        """Save the current conversation to disk
+        
+        Returns:
+            The conversation ID if saved, None if auto_save is disabled
+        """
+        if not self.auto_save or not self.conversation_id:
+            return None
+        
+        messages = self.get_conversation_history()
+        if not messages:
+            return None  # Don't save empty conversations
+        
+        self.persistence.save_conversation(
+            self.conversation_id,
+            messages,
+            self.chloe_state,
+            title
+        )
+        return self.conversation_id
+    
+    def get_conversation_id(self) -> Optional[str]:
+        """Get the current conversation ID"""
+        return self.conversation_id
 
     def get_llm_conversation_history(self) -> List[LLMMessage]:
         """Get the conversation history formatted for LLM (for context estimation)"""
@@ -198,11 +230,19 @@ Available tools: {self.tools.get_tools_description()}"""
         # Performance logging
         total_time = time.time() - start_time
         logger.debug(f"Total chat_stream time: {total_time:.3f}s")
+        
+        # Auto-save conversation after each turn
+        if self.auto_save:
+            self.save_conversation()
 
     def reset_conversation(self):
         """Reset conversation history and Chloe's state"""
         self.conversation_history = ConversationHistory()
         self.chloe_state = create_default_chloe_state()
+        
+        # Generate new conversation ID for the fresh conversation
+        if self.auto_save:
+            self.conversation_id = self.persistence.generate_conversation_id()
 
     def replay_conversation(
         self, conversation_data: ConversationData, up_to_index: Optional[int] = None
