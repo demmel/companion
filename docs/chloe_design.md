@@ -22,7 +22,7 @@ When Chloe is triggered, she engages in a reasoning activity that involves the f
 
 2. **Evaluating Context**: Chloe evaluates the context of the trigger, including her current state, the environment, and any relevant information she has.
 
-3. **Taking Action**: Based on her understanding and evaluation, Chloe decides on an appropriate action to take. This could involve sending a message, changing her state, or calling external tools, reflecting her reasoning process, or simply doing nothing.
+3. **Taking Action**: Based on her understanding and evaluation, Chloe decides on an appropriate action to take. This could involve sending a message, changing her state, or taking actions to interact with her environment, reflecting her reasoning process, or simply doing nothing.
 
 ### Triggers
 
@@ -42,7 +42,7 @@ Actions are the responses Chloe can take when triggered. They can be immediate o
 
 **Change State**: Chloe can change her internal state based on the trigger. This could involve updating her knowledge, changing her mood, or adjusting her priorities.
 
-**Use Tools**: Chloe chooses to use external tools or services when they align with her goals. This could include making API calls, interacting with other systems, or executing commands based on what she wants to accomplish.
+**Take Actions**: Chloe chooses to take actions when they align with her goals. This could include updating her internal state, generating images, or interacting with external systems based on what she wants to accomplish.
 
 **Do Nothing**: In some cases, Chloe may choose to do nothing in response to a trigger. This could be a deliberate choice based on her reasoning process or simply a lack of relevant information or context. Essentially, she'll go back to sleep and wait for the next trigger.
 
@@ -85,25 +85,37 @@ The system has been simplified and focused around Chloe as the core agent:
 sequenceDiagram
     participant User
     participant Agent
-    participant Understanding
-    participant Tools
+    participant Reasoning
+    participant Actions
     participant Response
+    participant Conversation
+    participant Persistence
 
     User->>Agent: Send Message
-    Agent->>Understanding: Analyze Input (as Chloe)
-    Understanding->>Tools: Execute State Tools
-    Tools->>Agent: Update ChloeState
-    Agent->>Response: Generate Response (as Chloe)
-    Response->>User: Authentic Response
+    Agent->>Reasoning: Reason About User Input
 
-    Note over Agent,Response: Self-Reflection Loop
-    Agent->>Understanding: Reflect on Response (as Chloe)
-    Understanding->>Tools: Additional Actions (if needed)
-    Tools->>Agent: Update ChloeState
-    Agent->>Response: Continue Response (if needed)
+    loop
+        Reasoning->>Analyze: Understand User Input or Reflection on Response (as Chloe)
+        Note over Analyze: Makes TurnDecision here
+        Analyze->>Reasoning: Generate Reasoning and Actions to Take
+        Reasoning->>Actions: Execute Actions (if any)
+        Actions-->>Agent: Update ChloeState
+
+        alt TurnDecision.want_to_continue = true
+            Reasoning->>Response: Generate Response
+            Response-->>User: Stream Response Text
+            Reasoning->>Conversation: Add Response to Conversation History
+            Conversation-->>Agent: Update Conversation History
+            Note over Reasoning: Response becomes input for next iteration
+        else TurnDecision.want_to_continue = false
+            Note over Reasoning: Exit loop - no response generated
+        end
+    end
+
+    Agent->>Persistence: Auto-save Conversation + State
 ```
 
-### Directoy Structure
+### Directory Structure
 
 ```plaintext
 .
@@ -159,12 +171,7 @@ sequenceDiagram
 │   └── agent                                      # Root package for the agent
 │       ├── agent_events.py                        # Events the agent can emit to the client
 │       ├── api_server.py                          # API server for the agent used by the client
-│       ├── character_state.py                     # Current rudimentary roleplay character state (should be migrated to a more complex state management system)
-│       ├── config.py                              # Configuration management for the agent (The old vision had configurable agents, but we're moving away from that for now to build Chloe as the core agent)
-│       ├── configs                                # Existing configuration files for the agent (onlyt roleplay is fleshed out at the moment)
-│       │   ├── coding.py
-│       │   ├── general.py
-│       │   └── roleplay.py
+│       ├── chloe_state.py                     # Chloe's state management system with memories, mood, relationships, and goals
 │       ├── conversation_history.py                # Basic conversation history management (should be migrated to a more complex memory system)
 │       ├── core.py                                # Core functionality of the agent (Agent class)
 │       ├── custom_format_parser.py                # Custom format parser for structured llm to handle essay-like responses that still have structure
@@ -194,12 +201,13 @@ sequenceDiagram
 │       ├── reasoning                              # Reasoning system
 │       │   ├── analyze.py                         # Analyze user and agent messages
 │       │   ├── loop.py                            # Reasoning loop that analyzes, acts, and responds
+|       |   ├── chloe_prompts.py                   # Chloe-specific prompts for reasoning, responding, and summarizing
 │       │   └── types.py                           # Types used by the reasoning system
 │       ├── streaming.py                           # Streaming parser for LLM responses that call stream structured data from text.
 │       ├── structured_llm.py                      # Structured LLM interface for handling structured data in LLM responses
 │       ├── tools                                  # Tools that Chloe can use to perform actions
 │       │   ├── image_generation_tools.py          # Tools for generating images
-│       │   └── roleplay_tools.py                  # Tools for roleplay scenarios
+│       │   └── chloe_tools.py                     # Chloe's actions for managing her internal state
 │       └── types.py                               # Types used by the agent and client
 └── tests
     ├── integration                                # Integration tests for the agent (slower)
@@ -224,6 +232,36 @@ Based on testing Chloe's first reasoning conversation, several issues have emerg
 
 3. **Reasoning Complexity**: The single reasoning step tries to do too much (understand + decide actions + plan response), leading to cognitive overload and inconsistent decisions.
 
+4. **Tool/Action Confusion Between Reasoning and Response Phases**: Chloe sees action syntax in conversation history and tries to use markdown action syntax in her response phase instead of structured output in reasoning phase. She's copying implementation details without understanding the phase boundaries.
+
+5. **Pronoun and Perspective Confusion**: Inconsistent pronoun usage causes identity confusion and repetitive behavior. System prompt uses "You are Chloe" (second person), state uses "My Current State" (first person), user prompts use "My capabilities" (first person in user context), and conversation history uses "Chloe"/"User" (third person).
+
+6. **User Attribution Clarity**: Understanding prompts show user text without clearly stating it's a trigger. Should be "What just happened: The user said 'Hi Chloe'" to align with trigger-based system design.
+
+7. **Outdated Tool Syntax References**: Tool registry describes TOOL_CALL syntax that confuses Chloe about how to use actions in structured output.
+
+8. **Repetitive Reasoning Content**: Chloe often fills in identical details in understanding vs reflection reasoning because both prompts ask similar analysis questions instead of having distinct purposes.
+
+### Proposed Solutions
+
+#### High Priority - Core Functionality Issues
+
+- **Action Phase Clarity**: Make reasoning prompts explicitly state this is her "action phase" where she can take actions via structured output
+- **Response Phase Clarity**: Make response prompts explicitly state she can only speak, not take actions
+- **Code Block Escaping**: Wrap her speech in markdown code blocks in conversation history so action syntax appears escaped if misused
+
+#### High Priority - Quality Issues
+
+- **Pronoun Consistency**: Choose either consistent second person ("You are Chloe", "Your capabilities") or first person throughout all prompts
+- **Clear Trigger Attribution**: "What just happened: The user said 'Hi Chloe'" to align with trigger-based system
+- **Update Tool Registry Descriptions**: Fix tool registry to describe structured output instead of TOOL_CALL syntax
+- **Distinct Reasoning Types**: Make reflection prompts focus on evaluating her response, not re-analyzing user input
+
+#### Medium Priority - User Experience
+
+- **Terminology Shift**: Change "tools" to "actions" throughout system for more natural mental model
+- **Conversation History Perspective**: Match conversation history perspective to chosen prompt perspective
+
 ### Future Directions
 
 The future direction of Chloe's design involves several key areas of focus:
@@ -232,64 +270,15 @@ The future direction of Chloe's design involves several key areas of focus:
 
 Based on testing Chloe's first reasoning conversation, several critical issues need immediate attention:
 
-**1. Debug and Fix Turn-Taking Issues (Preserve Rich Thinking)**
-- **Problem**: Chloe doesn't recognize when she's completed a response and should pause for user input. Her reasoning/responses lag behind user input, responding to previous messages instead of current ones.
-- **Observable Symptoms** (from conversation testing):
-  - Multiple consecutive assistant messages without user input
-  - `should_end_turn: false` causing continued reasoning when she should stop
-  - Responses seem to address previous messages rather than current user input
-- **Solution Strategy**:
-  - **Preserve Rich Thinking**: Chloe's verbose reasoning enables complex emotional conversations - don't cripple this strength
-  - **Debug Prompts First**: Add comprehensive logging to understand what prompts she's actually receiving
-  - **Custom Format**: Consider using custom format parser for Chloe's essay-like structured responses
-  - **Separate Steps**: Implement Understand → Act → Respond phases for cleaner processing
-  - **Clearer Terminology**: Change `should_end_turn` to `want_to_speak` for better intention clarity
-- **Implementation Approach**:
-  ```python
-  # Debug what Chloe actually sees
-  def debug_chloe_reasoning_context(user_input, chloe_state, conversation_history, constructed_prompt):
-      logger.debug(f"=== CHLOE REASONING DEBUG ===")
-      logger.debug(f"Current user input: '{user_input}'")
-      logger.debug(f"Last 3 conversation messages: {[msg.content for msg in conversation_history[-3:]]}")
-      logger.debug(f"Constructed prompt length: {len(constructed_prompt)} chars")
-      logger.debug(f"Full constructed prompt:\n{constructed_prompt}")
-      logger.debug(f"Chloe state summary: {build_chloe_state_description(chloe_state)}")
-  
-  # Try custom format for essay-like reasoning
-  def use_custom_format_for_reasoning():
-      # Chloe's reasoning is naturally essay-like, might work better with custom format parser
-      return structured_llm_call_custom_format(...)
-  
-  # Sequential processing phases
-  def run_sequential_reasoning_loop(user_input, chloe_state, tools, llm, model):
-      # Phase 1: Understanding (with rich thinking preserved)
-      understanding = understand_user_input(user_input, chloe_state, llm, model)
-      
-      # Phase 2: Action Planning
-      action_plan = plan_actions(understanding, chloe_state, tools, llm, model)
-      
-      # Phase 3: Execute Actions
-      for action in action_plan.actions:
-          execute_action(action, tools, chloe_state)
-      
-      # Phase 4: Response Generation (with turn decision)
-      response = generate_response(understanding, action_plan, chloe_state, llm, model)
-      
-      return response
-  
-  # Clearer turn-taking terminology
-  class ChloeReasoningResult(BaseModel):
-      want_to_speak: bool = Field(description="Do I want to continue speaking, or should I listen?")
-      turn_reasoning: str = Field(description="Why I chose to continue or pause")
-  ```
-- **Key Changes**:
-  - Add comprehensive debug logging for constructed prompts and context
-  - Try custom format parser for Chloe's naturally essay-like reasoning responses
-  - Implement separate Understand → Act → Respond phases for cleaner processing
-  - Replace `should_end_turn` with clearer `want_to_speak` terminology
-  - **Preserve** Chloe's rich thinking capabilities while improving the underlying architecture
+**1. Turn-Taking System (COMPLETED)**
 
-**2. Give Chloe Agency Over Memory Management** 
+- **Status**: ✅ Implemented `TurnDecision` with `want_to_continue` approach and explicit reasoning
+- **Solution**: Replaced `should_end_turn` boolean with paired object containing reasoning and decision
+- **Current Implementation**: Uses structured `TurnDecision` object with reasoning field explaining why Chloe wants to continue or pause
+- **Next**: Testing needed to verify improved conversation flow in real conversations
+
+**2. Give Chloe Agency Over Memory Management**
+
 - **Problem**: All memories get importance 6+, making scoring meaningless, and Chloe lacks agency over what she remembers
 - **Root Cause**: Algorithmic importance scoring doesn't reflect Chloe's personal values and choices about what matters to her
 - **Solution Strategy**:
@@ -297,6 +286,7 @@ Based on testing Chloe's first reasoning conversation, several critical issues n
   - **Personal Relevance**: Chloe decides what's important to her based on her own values and experiences
   - **Memory Agency**: Give Chloe control over her own memory management instead of automated scoring
 - **Implementation Approach**:
+
   ```python
   # Memory curation when approaching limit
   class MemoryCurationDecision(BaseModel):
@@ -312,46 +302,25 @@ Based on testing Chloe's first reasoning conversation, several critical issues n
           response_model=MemoryCurationDecision
       )
   ```
+
 - **Key Changes**:
   - Remove importance scoring system entirely
   - Add memory curation tool that lets Chloe actively choose what to forget
   - Implement memory limit triggers that give Chloe agency over curation
   - Allow Chloe to reflect on the emotional aspect of forgetting memories
 
-**4. Implement Automatic Conversation Persistence**
-- **Problem**: Conversations are not automatically saved, making it impossible to reset/test during development without losing Chloe's memories and progress
-- **Root Cause**: Manual conversation management creates testing friction and risk of data loss
-- **Solution Strategy**:
-  - **Timestamp-based IDs**: Use ISO timestamp for conversation start time as ID
-  - **Automatic Persistence**: Save conversation after each turn to `/conversations/` folder
-  - **Safe Reset**: Allow conversation reset while preserving memory state
-  - **Development Safety**: Enable testing without fear of losing progress
-- **Implementation Approach**:
-  ```python
-  # Automatic conversation persistence with timestamp IDs
-  class ConversationManager:
-      def __init__(self):
-          self.conversation_start = datetime.now().isoformat().replace(':', '-')
-          self.conversation_path = f"/conversations/chloe_{self.conversation_start}.json"
-      
-      def persist_after_turn(self, conversation_data):
-          """Save conversation after each turn"""
-          with open(self.conversation_path, 'w') as f:
-              json.dump(conversation_data.model_dump(), f, indent=2)
-      
-      def reset_with_persistence(self):
-          """Reset conversation but keep it saved"""
-          self.persist_after_turn(self.current_conversation)
-          self.conversation_start = datetime.now().isoformat().replace(':', '-')
-          self.conversation_path = f"/conversations/chloe_{self.conversation_start}.json"
-  ```
-- **Key Changes**:
-  - Add ISO timestamp generation for conversation sessions (human-readable and sortable)
-  - Implement automatic turn-by-turn conversation persistence
-  - Update Agent initialization and reset methods to use ConversationManager
-  - Enable safe development testing without losing conversation history
+**3. Automatic Conversation Persistence (COMPLETED)**
 
-**3. Separate Reasoning Into Distinct Steps**
+- **Status**: ✅ Implemented automatic conversation persistence with unique timestamp-based IDs
+- **Solution**: Built `ConversationPersistence` class with auto-save after each turn
+- **Current Implementation**:
+  - Generates unique IDs like `chloe_20250725_234412_437648`
+  - Saves both conversation data and Chloe's state separately
+  - Maintains metadata index for conversation listing
+- **Next**: Consider adding conversation loading/resuming functionality if needed
+
+**4. Separate Reasoning Into Distinct Steps**
+
 - **Problem**: Single reasoning step tries to do too much (understand + act + respond)
 - **Root Cause**: Monolithic reasoning prompt tries to do too much in one LLM call
 - **Solution Strategy**:
@@ -359,26 +328,28 @@ Based on testing Chloe's first reasoning conversation, several critical issues n
   - **Phase-Specific Prompts**: Create focused prompts for each reasoning phase
   - **State Passing**: Maintain context between phases while allowing focused processing
 - **Implementation Approach**:
+
   ```python
   # Multi-phase reasoning architecture
   def run_sequential_reasoning_loop(user_input, chloe_state, tools, llm, model):
       # Phase 1: Understanding
       understanding = understand_user_input(user_input, chloe_state, llm, model)
-      
+
       # Phase 2: Action Planning
       action_plan = plan_actions(understanding, chloe_state, tools, llm, model)
-      
+
       # Phase 3: Execute Actions
       for action in action_plan.actions:
           execute_action(action, tools, chloe_state)
-      
+
       # Phase 4: Response Generation
       response = generate_response(understanding, action_plan, chloe_state, llm, model)
-      
+
       # Phase 5: Self-Reflection (optional)
       if action_plan.should_reflect:
           reflection = reflect_on_interaction(understanding, response, chloe_state, llm, model)
   ```
+
 - **Key Changes**:
   - Refactor `reasoning/loop.py` to implement sequential phases
   - Create phase-specific prompt functions in `reasoning/chloe_prompts.py`
