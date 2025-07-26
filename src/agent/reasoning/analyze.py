@@ -8,7 +8,10 @@ from agent.llm import LLM, SupportedModel
 from agent.tools import BaseTool, ToolRegistry
 from agent.structured_llm import structured_llm_call
 from .types import AnalysisType, ReasoningResult
-from .chloe_prompts import build_chloe_understanding_prompt, build_chloe_reflection_prompt
+from .chloe_prompts import (
+    build_chloe_understanding_prompt,
+    build_chloe_reflection_prompt,
+)
 from agent.types import (
     Message,
     AgentMessage,
@@ -59,7 +62,7 @@ def analyze_conversation_turn(
         raise ValueError(f"Unknown analysis type: {analysis_type}")
 
     # Use structured LLM call to get reliable output
-    return structured_llm_call(
+    result = structured_llm_call(
         system_prompt=system_prompt,
         user_input=user_prompt,
         response_model=ReasoningResult,
@@ -68,52 +71,130 @@ def analyze_conversation_turn(
         temperature=0.3,
     )
 
+    return result
+
 
 def _serialize_conversation_context(
     messages: List[Message], include_thoughts: bool = True
 ) -> str:
-    """Convert List[ReasoningMessage] to formatted string for prompt inclusion"""
+    """Convert conversation messages to markdown format preserving chronological order"""
     if not messages:
         return "No previous conversation history."
 
-    lines = []
-    for msg in messages[-10:]:  # Only include last 10 messages to avoid context bloat
-        role_display = msg.role.upper()
+    lines = ["## Conversation History\n"]
 
+    # Remove truncation - include all messages for full context
+    for msg in messages:
         # Handle different message types with proper union type checking
         if isinstance(msg, UserMessage):
+            # Extract user name from context or default to "User"
+            user_name = "User"  # TODO: Extract actual user name if available
+
             content_parts = []
             for content_item in msg.content:
                 if isinstance(content_item, TextContent):
                     content_parts.append(content_item.text)
-            content_text = " ".join(content_parts) if content_parts else "[No content]"
+
+            if content_parts:
+                content_text = " ".join(content_parts)
+                lines.append(f"### {user_name}")
+                lines.append(f"{content_text}\n")
 
         elif isinstance(msg, AgentMessage):
-            content_parts = []
+            lines.append("### Chloe")
+
+            # Process content items in chronological order, detecting type changes
+            prev_type = None
+            current_section = []
+
             for content_item in msg.content:
-                if isinstance(content_item, TextContent):
-                    content_parts.append(content_item.text)
-                elif isinstance(content_item, ThoughtContent) and include_thoughts:
-                    content_parts.append(
-                        f"[REASONING: {content_item.reasoning.understanding}]"
-                    )
+                current_type = type(content_item).__name__
+
+                # If content type changed, flush previous section
+                if prev_type and prev_type != current_type:
+                    if current_section:
+                        lines.extend(current_section)
+                        current_section = []
+
+                if isinstance(content_item, ThoughtContent) and include_thoughts:
+                    reasoning = content_item.reasoning
+                    thought_parts = ["**My Thoughts:**"]
+                    thought_parts.append(f"*Understanding: {reasoning.understanding}*")
+                    if reasoning.situational_awareness:
+                        thought_parts.append(
+                            f"*Situational awareness: {reasoning.situational_awareness}*"
+                        )
+                    if reasoning.emotional_context:
+                        thought_parts.append(
+                            f"*Emotional context: {reasoning.emotional_context}*"
+                        )
+                    current_section = ["\n".join(thought_parts) + "\n"]
+
+                elif isinstance(content_item, TextContent):
+                    if current_section:
+                        # Already in text section - just append content
+                        current_section.append(content_item.text)
+                    else:
+                        # Start new text section with separate header and content
+                        current_section = ["**What I said:**", content_item.text]
+
                 elif isinstance(content_item, ToolCallContent):
-                    content_parts.append(f"TOOL_CALL: {content_item.tool_name}")
-            content_text = " ".join(content_parts) if content_parts else "[No content]"
+                    # Format tool call with parameters and results
+                    tool_name = content_item.tool_name
+                    params = content_item.parameters
+                    result = content_item.result
+
+                    action_desc = f"**Action:** {tool_name.title().replace('_', ' ')}"
+
+                    # Show key parameters
+                    if params:
+                        if "detail" in params:
+                            action_desc += f" - \"{params['detail']}\""
+                        elif "mood" in params:
+                            action_desc += f" - {params['mood']}"
+                        elif "character_name" in params:
+                            action_desc += f" - {params['character_name']}"
+                        # Show other parameters compactly
+                        other_params = {
+                            k: v
+                            for k, v in params.items()
+                            if k not in ["detail", "mood", "character_name"]
+                        }
+                        if other_params:
+                            param_strs = [f"{k}: {v}" for k, v in other_params.items()]
+                            action_desc += f" ({', '.join(param_strs)})"
+
+                    # Show result if available
+                    if (
+                        result
+                        and hasattr(result, "success")
+                        and hasattr(result, "data")
+                    ):
+                        if result.success:
+                            action_desc += f" → ✅ {result.data}"
+                        else:
+                            action_desc += f" → ❌ {result.data}"
+                    elif result and isinstance(result, str):
+                        action_desc += f" → ✅ {result}"
+
+                    current_section = [f"{action_desc}\n"]
+
+                prev_type = current_type
+
+            # Flush final section
+            if current_section:
+                lines.extend(current_section)
 
         elif isinstance(msg, SystemMessage):
             content_parts = []
             for content_item in msg.content:
                 if isinstance(content_item, TextContent):
                     content_parts.append(content_item.text)
-            content_text = (
-                " ".join(content_parts) if content_parts else "[System message]"
-            )
 
-        else:
-            content_text = "[Unknown message type]"
-
-        lines.append(f"{role_display}: {content_text}")
+            if content_parts:
+                content_text = " ".join(content_parts)
+                lines.append("### System")
+                lines.append(f"*{content_text}*\n")
 
     return "\n".join(lines)
 

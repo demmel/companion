@@ -125,19 +125,31 @@ Available tools: {self.tools.get_tools_description()}"""
         return messages
 
     def get_context_info(self) -> ContextInfo:
-        """Get information about current context usage"""
-        # Build current message list
-        messages = self.get_llm_conversation_history()
-
-        # Estimate token count (conservative approximation: 1 token ≈ 3 characters)
-        total_chars = sum(len(msg.content) for msg in messages)
+        """Get information about current context usage based on reasoning prompt size"""
+        # Use reasoning prompt for more accurate context estimation since it's the largest
+        # Build a sample reasoning prompt to estimate actual context usage
+        from agent.reasoning.chloe_prompts import build_chloe_understanding_prompt
+        from agent.reasoning.analyze import _serialize_conversation_context
+        from agent.chloe_state import build_chloe_state_description
+        
+        # Get current conversation and state
+        conversation_context = self.conversation_history.get_summarized_history()
+        context_text = _serialize_conversation_context(conversation_context, include_thoughts=True)
+        tools_description = self.tool_registry.get_tools_description()
+        chloe_state_desc = build_chloe_state_description(self.chloe_state)
+        
+        # Build sample reasoning prompt (this is what actually gets sent to LLM)
+        system_prompt, user_prompt = build_chloe_understanding_prompt(
+            "sample user input", context_text, tools_description, chloe_state_desc
+        )
+        
+        # Calculate total prompt size
+        total_chars = len(system_prompt) + len(user_prompt)
         estimated_tokens = int(total_chars / 3.4)
-
+        
         return ContextInfo(
-            message_count=len(messages),
-            conversation_messages=len(
-                self.conversation_history.get_full_history()
-            ),  # User-visible message count
+            message_count=len(conversation_context),
+            conversation_messages=len(self.conversation_history.get_full_history()),
             estimated_tokens=estimated_tokens,
             context_limit=self.context_window,
             usage_percentage=(estimated_tokens / self.context_window) * 100,

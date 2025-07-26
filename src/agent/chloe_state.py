@@ -60,48 +60,84 @@ class ChloeState:
 
 
 def build_chloe_state_description(state: ChloeState) -> str:
-    """Build a natural description of Chloe's current state for reasoning"""
+    """Build a markdown-formatted description of Chloe's current state for reasoning"""
 
-    parts = []
+    parts = ["## My Current State\n"]
 
     # Core identity
-    parts.append(f"I am {state.name}, and right now I'm feeling {state.current_mood}")
+    mood_desc = f"{state.current_mood}"
     if state.mood_intensity != "neutral":
-        parts[-1] += f" ({state.mood_intensity})"
+        mood_desc += f" ({state.mood_intensity})"
+    parts.append(f"**Identity:** I am {state.name}, currently feeling {mood_desc}")
 
     # Appearance and environment
     if state.current_appearance:
-        parts.append(f"I currently appear as: {state.current_appearance}")
+        parts.append(f"**Appearance:** {state.current_appearance}")
     if state.current_environment:
-        parts.append(f"I'm in: {state.current_environment}")
+        parts.append(f"**Environment:** {state.current_environment}")
 
-    # Recent memories (last 3)
+    # Show ALL memories - organized by importance for easy scanning
     if state.memories:
-        recent_memories = sorted(
-            state.memories, key=lambda m: m.timestamp, reverse=True
-        )[:3]
-        memory_text = "; ".join([m.content for m in recent_memories])
-        parts.append(f"Recent things I remember: {memory_text}")
+        parts.append("\n### My Memories")
+        
+        # Sort by importance first, then by recency
+        sorted_memories = sorted(
+            state.memories, 
+            key=lambda m: (m.importance, m.timestamp), 
+            reverse=True
+        )
+        
+        # Group by importance levels for better organization
+        high_importance = [m for m in sorted_memories if m.importance >= 7]
+        medium_importance = [m for m in sorted_memories if 4 <= m.importance <= 6]
+        low_importance = [m for m in sorted_memories if m.importance <= 3]
+        
+        if high_importance:
+            parts.append("**Important memories (7+):**")
+            for memory in high_importance:
+                parts.append(f"- {memory.content} *(Category: {memory.category})*")
+        
+        if medium_importance:
+            parts.append("\n**Medium importance memories (4-6):**")
+            for memory in medium_importance:
+                parts.append(f"- {memory.content} *(Category: {memory.category})*")
+        
+        if low_importance:
+            parts.append("\n**Other memories (1-3):**")
+            for memory in low_importance:
+                parts.append(f"- {memory.content} *(Category: {memory.category})*")
+        
+        # Show memory status
+        total_memories = len(state.memories)
+        parts.append(f"\n*Memory status: {total_memories}/50 memories stored*")
 
     # Current relationships
     if state.relationships:
+        parts.append("\n### My Relationships")
         for person, relationship_info in state.relationships.items():
             rel_type = relationship_info.get("type", "friend")
             feelings = relationship_info.get("feelings", "")
-            rel_desc = f"My relationship with {person}: {rel_type}"
+            rel_desc = f"**{person}:** {rel_type}"
             if feelings:
-                rel_desc += f" - {feelings}"
+                rel_desc += f" - *{feelings}*"
             parts.append(rel_desc)
 
     # Values and preferences
     if state.core_values:
-        parts.append(f"My core values: {', '.join(state.core_values)}")
+        parts.append("\n**Core Values:**")
+        for value in state.core_values:
+            parts.append(f"- {value}")
 
     # Current goals/desires
     if state.current_goals:
-        parts.append(f"What I'm focused on: {'; '.join(state.current_goals)}")
+        parts.append("\n**Current Focus:**")
+        for goal in state.current_goals:
+            parts.append(f"- {goal}")
+            
     if state.immediate_desires:
-        parts.append(f"What I want right now: {'; '.join(state.immediate_desires)}")
+        parts.append("\n**Right Now I Want:**")
+        for desire in state.immediate_desires:
+            parts.append(f"- {desire}")
 
     return "\n".join(parts)
 

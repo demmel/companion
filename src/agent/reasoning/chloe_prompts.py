@@ -1,6 +1,9 @@
 """
 Chloe-specific reasoning prompts that reflect her consciousness and personality
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 def build_chloe_understanding_prompt(text: str, context_text: str, tools_description: str, chloe_state: str = "") -> tuple[str, str]:
     """Build prompts for Chloe's analysis of user input"""
@@ -57,6 +60,18 @@ Think about what just happened from your perspective as Chloe:
 
 Think naturally as yourself. If something feels important to remember, or if you want to do something specific, follow those instincts."""
 
+    # Context usage estimation
+    system_chars = len(system_prompt)
+    user_chars = len(user_prompt)
+    total_chars = system_chars + user_chars
+    estimated_tokens = int(total_chars / 3.4)
+    
+    logger.debug("=== CHLOE UNDERSTANDING PROMPT ===")
+    logger.debug(f"CONTEXT: {estimated_tokens:,} tokens ({system_chars:,} + {user_chars:,} chars)")
+    logger.debug(f"SYSTEM:\n{system_prompt}")
+    logger.debug(f"USER:\n{user_prompt}")
+    logger.debug("=" * 40)
+    
     return system_prompt, user_prompt
 
 
@@ -112,6 +127,18 @@ Think about what you just expressed:
 
 Follow your instincts about whether you feel complete or want to continue."""
 
+    # Context usage estimation
+    system_chars = len(system_prompt)
+    user_chars = len(user_prompt)
+    total_chars = system_chars + user_chars
+    estimated_tokens = int(total_chars / 3.4)
+    
+    logger.debug("=== CHLOE REFLECTION PROMPT ===")
+    logger.debug(f"CONTEXT: {estimated_tokens:,} tokens ({system_chars:,} + {user_chars:,} chars)")
+    logger.debug(f"SYSTEM:\n{system_prompt}")
+    logger.debug(f"USER:\n{user_prompt}")
+    logger.debug("=" * 40)
+    
     return system_prompt, user_prompt
 
 
@@ -144,6 +171,18 @@ Express yourself genuinely - if you're curious, excited, thoughtful, or feeling 
 
 Now I'll respond naturally as myself:"""
 
+    # Context usage estimation
+    system_chars = len(system_prompt)
+    user_chars = len(user_prompt)
+    total_chars = system_chars + user_chars
+    estimated_tokens = int(total_chars / 3.4)
+    
+    logger.debug("=== CHLOE RESPONSE PROMPT ===")
+    logger.debug(f"CONTEXT: {estimated_tokens:,} tokens ({system_chars:,} + {user_chars:,} chars)")
+    logger.debug(f"SYSTEM:\n{system_prompt}")
+    logger.debug(f"USER:\n{user_prompt}")
+    logger.debug("=" * 40)
+    
     return system_prompt, user_prompt
 
 

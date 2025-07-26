@@ -232,28 +232,62 @@ The future direction of Chloe's design involves several key areas of focus:
 
 Based on testing Chloe's first reasoning conversation, several critical issues need immediate attention:
 
-**1. Fix Turn-Taking Confusion**
-- **Problem**: Chloe doesn't recognize when she's completed a response and should pause for user input
-- **Root Cause**: The reasoning loop continues indefinitely without clear stopping criteria for conversational turn completion
+**1. Debug and Fix Turn-Taking Issues (Preserve Rich Thinking)**
+- **Problem**: Chloe doesn't recognize when she's completed a response and should pause for user input. Her reasoning/responses lag behind user input, responding to previous messages instead of current ones.
+- **Observable Symptoms** (from conversation testing):
+  - Multiple consecutive assistant messages without user input
+  - `should_end_turn: false` causing continued reasoning when she should stop
+  - Responses seem to address previous messages rather than current user input
 - **Solution Strategy**:
-  - **Response Completion Detection**: Add explicit prompting for Chloe to decide if her response is complete
-  - **Turn-taking Awareness**: Include conversation flow context in reasoning prompts
-  - **Stop Signal Implementation**: Create clear stop conditions in the reasoning loop
+  - **Preserve Rich Thinking**: Chloe's verbose reasoning enables complex emotional conversations - don't cripple this strength
+  - **Debug Prompts First**: Add comprehensive logging to understand what prompts she's actually receiving
+  - **Custom Format**: Consider using custom format parser for Chloe's essay-like structured responses
+  - **Separate Steps**: Implement Understand → Act → Respond phases for cleaner processing
+  - **Clearer Terminology**: Change `should_end_turn` to `want_to_speak` for better intention clarity
 - **Implementation Approach**:
   ```python
-  # Add response completion check in reasoning loop
-  def should_continue_response(chloe_state, current_response, reasoning_result):
-      """Check if Chloe should continue her response or pause for user input"""
-      return structured_llm_call(
-          system_prompt="You are helping Chloe understand conversation flow...",
-          user_input=f"Current response: {current_response}\nShould Chloe continue or pause?",
-          response_model=ResponseCompletionDecision
-      )
+  # Debug what Chloe actually sees
+  def debug_chloe_reasoning_context(user_input, chloe_state, conversation_history, constructed_prompt):
+      logger.debug(f"=== CHLOE REASONING DEBUG ===")
+      logger.debug(f"Current user input: '{user_input}'")
+      logger.debug(f"Last 3 conversation messages: {[msg.content for msg in conversation_history[-3:]]}")
+      logger.debug(f"Constructed prompt length: {len(constructed_prompt)} chars")
+      logger.debug(f"Full constructed prompt:\n{constructed_prompt}")
+      logger.debug(f"Chloe state summary: {build_chloe_state_description(chloe_state)}")
+  
+  # Try custom format for essay-like reasoning
+  def use_custom_format_for_reasoning():
+      # Chloe's reasoning is naturally essay-like, might work better with custom format parser
+      return structured_llm_call_custom_format(...)
+  
+  # Sequential processing phases
+  def run_sequential_reasoning_loop(user_input, chloe_state, tools, llm, model):
+      # Phase 1: Understanding (with rich thinking preserved)
+      understanding = understand_user_input(user_input, chloe_state, llm, model)
+      
+      # Phase 2: Action Planning
+      action_plan = plan_actions(understanding, chloe_state, tools, llm, model)
+      
+      # Phase 3: Execute Actions
+      for action in action_plan.actions:
+          execute_action(action, tools, chloe_state)
+      
+      # Phase 4: Response Generation (with turn decision)
+      response = generate_response(understanding, action_plan, chloe_state, llm, model)
+      
+      return response
+  
+  # Clearer turn-taking terminology
+  class ChloeReasoningResult(BaseModel):
+      want_to_speak: bool = Field(description="Do I want to continue speaking, or should I listen?")
+      turn_reasoning: str = Field(description="Why I chose to continue or pause")
   ```
 - **Key Changes**:
-  - Modify `run_reasoning_loop()` to include response completion checks
-  - Add turn-taking awareness to Chloe's reasoning prompts
-  - Implement explicit stopping criteria based on conversational completeness
+  - Add comprehensive debug logging for constructed prompts and context
+  - Try custom format parser for Chloe's naturally essay-like reasoning responses
+  - Implement separate Understand → Act → Respond phases for cleaner processing
+  - Replace `should_end_turn` with clearer `want_to_speak` terminology
+  - **Preserve** Chloe's rich thinking capabilities while improving the underlying architecture
 
 **2. Give Chloe Agency Over Memory Management** 
 - **Problem**: All memories get importance 6+, making scoring meaningless, and Chloe lacks agency over what she remembers
@@ -283,6 +317,39 @@ Based on testing Chloe's first reasoning conversation, several critical issues n
   - Add memory curation tool that lets Chloe actively choose what to forget
   - Implement memory limit triggers that give Chloe agency over curation
   - Allow Chloe to reflect on the emotional aspect of forgetting memories
+
+**4. Implement Automatic Conversation Persistence**
+- **Problem**: Conversations are not automatically saved, making it impossible to reset/test during development without losing Chloe's memories and progress
+- **Root Cause**: Manual conversation management creates testing friction and risk of data loss
+- **Solution Strategy**:
+  - **Timestamp-based IDs**: Use ISO timestamp for conversation start time as ID
+  - **Automatic Persistence**: Save conversation after each turn to `/conversations/` folder
+  - **Safe Reset**: Allow conversation reset while preserving memory state
+  - **Development Safety**: Enable testing without fear of losing progress
+- **Implementation Approach**:
+  ```python
+  # Automatic conversation persistence with timestamp IDs
+  class ConversationManager:
+      def __init__(self):
+          self.conversation_start = datetime.now().isoformat().replace(':', '-')
+          self.conversation_path = f"/conversations/chloe_{self.conversation_start}.json"
+      
+      def persist_after_turn(self, conversation_data):
+          """Save conversation after each turn"""
+          with open(self.conversation_path, 'w') as f:
+              json.dump(conversation_data.model_dump(), f, indent=2)
+      
+      def reset_with_persistence(self):
+          """Reset conversation but keep it saved"""
+          self.persist_after_turn(self.current_conversation)
+          self.conversation_start = datetime.now().isoformat().replace(':', '-')
+          self.conversation_path = f"/conversations/chloe_{self.conversation_start}.json"
+  ```
+- **Key Changes**:
+  - Add ISO timestamp generation for conversation sessions (human-readable and sortable)
+  - Implement automatic turn-by-turn conversation persistence
+  - Update Agent initialization and reset methods to use ConversationManager
+  - Enable safe development testing without losing conversation history
 
 **3. Separate Reasoning Into Distinct Steps**
 - **Problem**: Single reasoning step tries to do too much (understand + act + respond)

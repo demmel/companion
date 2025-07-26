@@ -50,7 +50,7 @@ def run_reasoning_loop(
     while True:
         # Build Chloe's state description for reasoning context
         state_description = build_chloe_state_description(chloe_state)
-        
+
         reasoning_result = analyze_conversation_turn(
             current_text,
             current_analysis_type,
@@ -284,7 +284,7 @@ def _generate_response(
 
     # Build Chloe's state description for response context
     state_description = build_chloe_state_description(chloe_state)
-    
+
     # Use Chloe-specific response generation prompt
     system_prompt, user_prompt = build_chloe_response_prompt(
         context_str, reasoning_context, tools_context, state_description
