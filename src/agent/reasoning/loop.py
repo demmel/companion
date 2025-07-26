@@ -200,7 +200,7 @@ def run_reasoning_loop(
                     tool_id=tool_event.call_id,
                 )
 
-        if reasoning_result.should_end_turn:
+        if not reasoning_result.turn_decision.want_to_continue:
             _populate_legacy_tool_calls(current_message)
             history.add_message(current_message)
             break

@@ -14,6 +14,17 @@ class AnalysisType(Enum):
     AGENT_RESPONSE = "agent_response"
 
 
+class TurnDecision(BaseModel):
+    """Decision about whether to continue speaking with reasoning"""
+    
+    reasoning: str = Field(
+        description="My reasoning about whether to continue speaking or let them respond. Explain what feels natural - do I want to continue expressing myself, or does this feel like a good place to pause and see what they say?"
+    )
+    want_to_continue: bool = Field(
+        description="Whether I want to keep speaking - True means continue, False means let them respond"
+    )
+
+
 class ProposedToolCall(BaseModel):
     """A tool that should be called based on the reasoning"""
 
@@ -47,7 +58,6 @@ class ReasoningResult(BaseModel):
     follow_up_opportunities: List[str] = Field(
         description="Future conversation opportunities this creates"
     )
-    should_end_turn: bool = Field(
-        description="Whether this analysis suggests ending the conversation turn",
-        default=False,
+    turn_decision: TurnDecision = Field(
+        description="My decision about whether to continue speaking or let them respond, with reasoning"
     )

@@ -218,7 +218,7 @@ sequenceDiagram
 
 Based on testing Chloe's first reasoning conversation, several issues have emerged:
 
-1. **Turn-Taking Confusion**: Chloe doesn't understand when she's provided a complete response and should let the user respond. She sometimes continues responding when she should pause.
+1. **Turn-Taking System (In Testing)**: New `want_to_continue` approach with explicit reasoning implemented. Replaced `should_end_turn` boolean with `TurnDecision` paired object where Chloe provides reasoning before deciding whether to continue speaking. Testing needed to verify improved conversation flow and reduced out-of-sync responses.
 
 2. **Memory Importance Inflation**: Every memory gets importance 6+, making the scoring system meaningless. Chloe thinks everything is important and lacks perspective on relative importance.
 
