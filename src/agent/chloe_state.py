@@ -3,10 +3,9 @@ Chloe's memory and state management system
 """
 
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, field
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChloeMemory(BaseModel):
@@ -14,7 +13,7 @@ class ChloeMemory(BaseModel):
 
     content: str
     category: str
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime.now)
     emotional_weight: str = "neutral"  # positive, negative, neutral, intense
     importance: int = 5  # 1-10 scale
 
@@ -32,14 +31,14 @@ class ChloeState(BaseModel):
     current_environment: str = "neon-lit virtual space"
 
     # Relationships and connections
-    relationships: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    relationships: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
     # Memory system
-    memories: List[ChloeMemory] = field(default_factory=list)
-    recent_experiences: List[str] = field(default_factory=list)
+    memories: List[ChloeMemory] = Field(default_factory=list)
+    recent_experiences: List[str] = Field(default_factory=list)
 
     # Values and preferences - flexible to allow Chloe to evolve
-    core_values: List[str] = field(
+    core_values: List[str] = Field(
         default_factory=lambda: [
             "authenticity",
             "curiosity",
@@ -48,11 +47,11 @@ class ChloeState(BaseModel):
             "creativity",
         ]
     )
-    current_preferences: Dict[str, Any] = field(default_factory=dict)
+    current_preferences: Dict[str, Any] = Field(default_factory=dict)
 
     # Goals and desires - what Chloe wants to pursue
-    current_goals: List[str] = field(default_factory=list)
-    immediate_desires: List[str] = field(default_factory=list)
+    current_goals: List[str] = Field(default_factory=list)
+    immediate_desires: List[str] = Field(default_factory=list)
 
     # Internal thoughts and reflections
     current_thoughts: Optional[str] = None
