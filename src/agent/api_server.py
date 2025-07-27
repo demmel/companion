@@ -17,7 +17,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from agent.core import Agent
-from agent.config import get_config as get_agent_config, get_all_configs
 from agent.paths import agent_paths
 
 
@@ -26,19 +25,8 @@ class ConversationResponse(BaseModel):
     messages: List[Message]
 
 
-class ConfigResponse(BaseModel):
-    name: str
-    description: str
-    tools: List[str]
-
-
-class ConfigsResponse(BaseModel):
-    configs: Dict[str, str]  # name -> description
-
-
 class ResetResponse(BaseModel):
     message: str
-    config: str
     timestamp: str
 
 
@@ -47,15 +35,45 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def initialize_agent(config_name: str = "roleplay") -> Agent:
-    """Initialize the global agent instance"""
-    config = get_agent_config(config_name)
+def initialize_agent(load_conversation: bool = False) -> Agent:
+    """Initialize Chloe
+
+    Args:
+        load_conversation: Whether to load conversation.json up to first summary
+    """
     llm = create_llm()
     agent = Agent(
-        config=config,
         model=SupportedModel.MISTRAL_SMALL,
         llm=llm,
     )
+
+    # Load conversation.json up to first summary if requested
+    if load_conversation:
+        try:
+            conversation_data = Agent.load_conversation_data("conversation.json")
+
+            # Find first summary index
+            first_summary_index = None
+            # for i, message in enumerate(conversation_data.messages):
+            #     if hasattr(message, 'content'):
+            #         for content in message.content:
+            #             if hasattr(content, 'type') and content.type == 'summarization':
+            #                 first_summary_index = i
+            #                 break
+            #         if first_summary_index is not None:
+            #             break
+
+            # Replay conversation up to first summary
+            agent.replay_conversation(
+                conversation_data, up_to_index=first_summary_index
+            )
+            logger.info(f"Loaded conversation")
+
+        except FileNotFoundError:
+            logger.info("conversation.json not found")
+        except Exception as e:
+            logger.warning(f"Failed to load conversation.json: {e}")
+
     return agent
 
 
@@ -65,7 +83,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.state.agent = initialize_agent()  # Initialize global agent instance
+app.state.agent = initialize_agent(
+    # load_conversation=True
+)
 
 # Add CORS middleware for local network access (phone, etc.)
 app.add_middleware(
@@ -99,67 +119,15 @@ async def get_context_info():
     }
 
 
-@app.get("/api/state")
-async def get_state(path: Optional[str] = None):
-    """Get agent state, optionally by dot notation path"""
-
-    value = app.state.agent.get_state(path)
-    if value is None:
-        raise HTTPException(status_code=404, detail="State not found")
-    return value
-
-
-@app.put("/api/state")
-async def set_state(request: Request, path: Optional[str] = None):
-    """Set agent state, optionally by dot notation path"""
-
-    # Get request body as JSON
-    body = await request.json()
-
-    app.state.agent.set_state(path, body)  # Set state with optional path
-
-    return app.state.agent.get_state()
-
-
-@app.get("/api/config", response_model=ConfigResponse)
-async def get_config():
-    """Get current agent configuration info"""
-
-    config = app.state.agent.config
-    tool_names = [tool.name for tool in config.tools]
-
-    return ConfigResponse(
-        name=config.name, description=config.description, tools=tool_names
-    )
-
-
-@app.get("/api/configs", response_model=ConfigsResponse)
-async def get_configs():
-    """Get all available agent configurations"""
-    configs = {}
-    for name, config in get_all_configs().items():
-        configs[name] = config.description
-
-    return ConfigsResponse(configs=configs)
-
-
 @app.post("/api/reset", response_model=ResetResponse)
-async def reset_agent(config: str = "roleplay"):
-    """Reset agent with specified configuration"""
+async def reset_agent():
+    """Reset Chloe"""
 
-    available_configs = get_all_configs()
-    if config not in available_configs:
-        available = list(available_configs.keys())
-        raise HTTPException(
-            status_code=400, detail=f"Invalid config '{config}'. Available: {available}"
-        )
-
-    # Reinitialize agent with specified config
-    app.state.agent = initialize_agent(config)
+    # Reinitialize Chloe
+    app.state.agent = initialize_agent()
 
     return ResetResponse(
-        message="Agent reset successfully",
-        config=config,
+        message="Chloe reset successfully",
         timestamp=datetime.now().isoformat(),
     )
 
@@ -212,7 +180,7 @@ async def health_check():
     return {
         "status": "healthy",
         "agent_initialized": app.state.agent is not None,
-        "agent_config": app.state.agent.config.name,
+        "agent_name": "Chloe",
         "timestamp": datetime.now().isoformat(),
     }
 
