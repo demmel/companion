@@ -209,6 +209,60 @@ class LLM:
             print(f"Error pulling model {model}: {e}")
             return False
 
+    def generate(
+        self,
+        model: SupportedModel,
+        prompt: str,
+        stream: bool = False,
+        keep_alive: Optional[str] = None,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        repeat_penalty: Optional[float] = None,
+        num_predict: Optional[int] = None,
+        **kwargs,
+    ):
+        """Send direct generation request (no chat template) to LLM"""
+
+        if model not in self.models:
+            raise ValueError(
+                f"Model {model} not configured. Available models: {list(self.models.keys())}"
+            )
+
+        config = self.models[model]
+
+        # Apply model defaults with overrides
+        options = {
+            "num_gpu": -1,
+            "num_thread": 16,
+            "num_ctx": config.context_window,
+            "temperature": temperature or config.default_temperature,
+            "top_p": top_p or config.default_top_p,
+            "top_k": top_k or config.default_top_k,
+            "repeat_penalty": repeat_penalty or config.default_repeat_penalty,
+            "num_predict": num_predict or config.default_num_predict,
+            **kwargs,
+        }
+
+        return self.client.generate(
+            model=model.value,  # Use the enum value for backend
+            prompt=prompt,
+            stream=stream,
+            options=options,
+            keep_alive=keep_alive or config.keep_alive,
+        )
+
+    def generate_streaming(
+        self, model: SupportedModel, prompt: str, **kwargs
+    ) -> Iterator[ollama.GenerateResponse]:
+        """Convenience method for streaming direct generation"""
+        return self.generate(model, prompt, stream=True, **kwargs)  # type: ignore
+
+    def generate_complete(self, model: SupportedModel, prompt: str, **kwargs) -> str:
+        """Convenience method for non-streaming direct generation"""
+        response = self.generate(model, prompt, stream=False, **kwargs)
+        return response["response"]  # type: ignore
+
 
 # Default model configurations
 DEFAULT_MODELS = {

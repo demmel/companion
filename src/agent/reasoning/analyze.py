@@ -6,7 +6,7 @@ from typing import List
 
 from agent.llm import LLM, SupportedModel
 from agent.tools import BaseTool, ToolRegistry
-from agent.structured_llm import structured_llm_call
+from agent.structured_llm import direct_structured_llm_call
 from .types import AnalysisType, ReasoningResult
 from .chloe_prompts import (
     build_chloe_understanding_prompt,
@@ -50,22 +50,21 @@ def analyze_conversation_turn(
     # Get tool descriptions from registry
     tools_description = tool_registry.get_tools_description()
 
-    # Build Chloe-specific prompts
+    # Build Chloe-specific direct prompts
     if analysis_type == AnalysisType.USER_INPUT:
-        system_prompt, user_prompt = build_chloe_understanding_prompt(
+        direct_prompt = build_chloe_understanding_prompt(
             text, context_text, tools_description, chloe_state
         )
     elif analysis_type == AnalysisType.AGENT_RESPONSE:
-        system_prompt, user_prompt = build_chloe_reflection_prompt(
+        direct_prompt = build_chloe_reflection_prompt(
             text, context_text, tools_description, chloe_state
         )
     else:
         raise ValueError(f"Unknown analysis type: {analysis_type}")
 
-    # Use structured LLM call to get reliable output
-    result = structured_llm_call(
-        system_prompt=system_prompt,
-        user_input=user_prompt,
+    # Use direct structured LLM call to get reliable output
+    result = direct_structured_llm_call(
+        prompt=direct_prompt,
         response_model=ReasoningResult,
         model=model,
         llm=llm,
@@ -93,7 +92,7 @@ def _serialize_conversation_context(
         # Handle different message types with proper union type checking
         if isinstance(msg, UserMessage):
             # Extract user name from context or default to "User"
-            user_name = "User"  # TODO: Extract actual user name if available
+            user_name = "David"  # TODO: Extract actual user name if available
 
             content_parts = []
             for content_item in msg.content:
@@ -106,7 +105,7 @@ def _serialize_conversation_context(
                 lines.append(content_text)
 
         elif isinstance(msg, AgentMessage):
-            lines.append("### Chloe")
+            lines.append("### Me")
 
             # Process content items in chronological order, detecting type changes
             prev_type = None
@@ -142,7 +141,12 @@ def _serialize_conversation_context(
                         current_section.append(content_item.text)
                     else:
                         # Start new text section with separate header and content
-                        current_section = ["**What I said:**", content_item.text]
+                        current_section = [
+                            "**What I said:**",
+                            "```",
+                            content_item.text,
+                            "```",
+                        ]
 
                 elif isinstance(content_item, ToolCallContent):
                     # Format tool call with parameters and results

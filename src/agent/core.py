@@ -67,11 +67,13 @@ class Agent:
         self.model = model
         self.context_window = llm.models[model].context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
-        
+
         # Conversation persistence
         self.auto_save = auto_save
         self.persistence = ConversationPersistence()
-        self.conversation_id = self.persistence.generate_conversation_id() if auto_save else None
+        self.conversation_id = (
+            self.persistence.generate_conversation_id() if auto_save else None
+        )
 
         from .tools.chloe_tools import (
             SetMoodTool,
@@ -113,28 +115,25 @@ class Agent:
     def get_conversation_history(self) -> List[Message]:
         """Get the current conversation history"""
         return self.conversation_history.get_full_history().copy()
-    
+
     def save_conversation(self, title: Optional[str] = None) -> Optional[str]:
         """Save the current conversation to disk
-        
+
         Returns:
             The conversation ID if saved, None if auto_save is disabled
         """
         if not self.auto_save or not self.conversation_id:
             return None
-        
+
         messages = self.get_conversation_history()
         if not messages:
             return None  # Don't save empty conversations
-        
+
         self.persistence.save_conversation(
-            self.conversation_id,
-            messages,
-            self.chloe_state,
-            title
+            self.conversation_id, messages, self.chloe_state, title
         )
         return self.conversation_id
-    
+
     def get_conversation_id(self) -> Optional[str]:
         """Get the current conversation ID"""
         return self.conversation_id
@@ -173,12 +172,12 @@ Available tools: {self.tools.get_tools_description()}"""
         chloe_state_desc = build_chloe_state_description(self.chloe_state)
 
         # Build sample reasoning prompt (this is what actually gets sent to LLM)
-        system_prompt, user_prompt = build_chloe_understanding_prompt(
+        prompt = build_chloe_understanding_prompt(
             "sample user input", context_text, tools_description, chloe_state_desc
         )
 
         # Calculate total prompt size
-        total_chars = len(system_prompt) + len(user_prompt)
+        total_chars = len(prompt)
         estimated_tokens = int(total_chars / 3.4)
 
         return ContextInfo(
@@ -230,7 +229,7 @@ Available tools: {self.tools.get_tools_description()}"""
         # Performance logging
         total_time = time.time() - start_time
         logger.debug(f"Total chat_stream time: {total_time:.3f}s")
-        
+
         # Auto-save conversation after each turn
         if self.auto_save:
             self.save_conversation()
@@ -239,7 +238,7 @@ Available tools: {self.tools.get_tools_description()}"""
         """Reset conversation history and Chloe's state"""
         self.conversation_history = ConversationHistory()
         self.chloe_state = create_default_chloe_state()
-        
+
         # Generate new conversation ID for the fresh conversation
         if self.auto_save:
             self.conversation_id = self.persistence.generate_conversation_id()
@@ -381,18 +380,13 @@ Available tools: {self.tools.get_tools_description()}"""
 
             conversation_text += f"{msg.role.upper()}: {content}\n\n"
 
-        # Use Chloe-specific summarization prompt that gives her agency
+        # Use Chloe-specific summarization prompt that gives her agency (first-person direct)
         state_description = build_chloe_state_description(self.chloe_state)
-        system_prompt, user_prompt = build_chloe_summarization_prompt(
+        direct_prompt = build_chloe_summarization_prompt(
             conversation_text.strip(), state_description
         )
 
-        summary_request = [
-            LLMMessage(role="system", content=system_prompt),
-            LLMMessage(role="user", content=user_prompt),
-        ]
-
-        summary_response = self.llm.chat_complete(self.model, summary_request)
+        summary_response = self.llm.generate_complete(self.model, direct_prompt)
         assert summary_response, "LLM response is empty"
 
         # Add structured summarization notification to user history

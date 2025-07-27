@@ -419,6 +419,306 @@ def structured_llm_call(
     )
 
 
+def direct_structured_llm_call(
+    prompt: str,
+    response_model: Type[T],
+    model: SupportedModel,
+    llm: LLM,
+    context: Optional[Dict[str, Any]] = None,
+    temperature: float = 0.1,
+    format: ResponseFormat = ResponseFormat.JSON,
+    max_retries: int = 2,
+) -> T:
+    """
+    Direct generation structured LLM call for first-person prompts
+
+    Uses direct generation (llm.generate_complete) instead of chat templates.
+    This approach is better suited for first-person consciousness prompts where
+    the AI thinks from its own perspective rather than following system/user roles.
+
+    Args:
+        prompt: Single first-person prompt
+        response_model: Pydantic model for response
+        model: Supported model enum
+        llm: LLM manager instance
+        context: Optional context
+        temperature: LLM temperature
+        format: Response format (JSON or CUSTOM)
+        max_retries: Maximum retry attempts
+
+    Returns:
+        Validated instance of response_model
+
+    Raises:
+        StructuredLLMError: If validation fails after retries
+    """
+
+    # Build the complete prompt with schema and context
+    schema_str = build_schema(response_model, format)
+    full_prompt = _build_direct_prompt(prompt, schema_str, context, format)
+
+    last_error = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            # Use direct generation instead of chat template
+            response_text = llm.generate_complete(
+                model=model,
+                prompt=full_prompt,
+                temperature=temperature,
+                num_predict=4096,
+            )
+
+            if not response_text:
+                raise StructuredLLMError("LLM response is empty")
+
+            # Log raw response for debugging
+            logger.info("Raw LLM response (direct generation):\n%s", response_text)
+
+            # Parse response based on format
+            if format == ResponseFormat.JSON:
+                # Extract and parse JSON
+                json_text = _extract_json_from_response(response_text)
+                logger.debug(f"DIRECT_DEBUG: Extracted JSON text: {repr(json_text)}")
+                if not json_text:
+                    raise StructuredLLMError("No valid JSON found in response")
+
+                # Fix unescaped newlines and control characters in JSON
+                fixed_json = _fix_json_escaping_standalone(json_text)
+                logger.debug(f"DIRECT_DEBUG: Fixed JSON: {repr(fixed_json)}")
+
+                # Parse JSON
+                parsed_data = json.loads(fixed_json)
+                logger.debug(f"DIRECT_DEBUG: Parsed data: {parsed_data}")
+                logger.debug(f"DIRECT_DEBUG: Parsed data type: {type(parsed_data)}")
+                if isinstance(parsed_data, dict):
+                    logger.debug(
+                        f"DIRECT_DEBUG: Parsed data keys: {list(parsed_data.keys())}"
+                    )
+            elif format == ResponseFormat.CUSTOM:
+                # Parse custom format
+                parser, _ = _get_custom_format_components()
+                parsed_data = parser.parse(response_text, response_model.__name__)
+            else:
+                raise StructuredLLMError(f"Unsupported format: {format}")
+
+            # Handle common LLM response pattern where fields are wrapped in "properties"
+            if isinstance(parsed_data, dict) and "properties" in parsed_data:
+                logger.debug(
+                    f"DIRECT_DEBUG: Found properties key, unwrapping from: {parsed_data}"
+                )
+                # If the model put everything under "properties", unwrap it
+                parsed_data = parsed_data["properties"]
+                logger.debug(
+                    f"DIRECT_DEBUG: After properties unwrapping: {parsed_data}"
+                )
+
+            # Validate with Pydantic model
+            logger.debug(f"DIRECT_DEBUG: Input to validation: {parsed_data}")
+            logger.debug(f"DIRECT_DEBUG: Input type to validation: {type(parsed_data)}")
+            validated_result = response_model.model_validate(parsed_data)
+
+            return validated_result
+
+        except (json.JSONDecodeError, ValidationError) as e:
+            # Log the full response and error details for debugging
+            logger.error(
+                "Direct structured LLM call failed - attempt %d/%d",
+                attempt + 1,
+                max_retries + 1,
+            )
+            logger.error("Raw LLM response: %s", response_text)
+            logger.error("Error details: %s", str(e))
+            logger.error("Error type: %s", type(e).__name__)
+
+            last_error = e
+
+            if attempt < max_retries:
+                # For direct generation, we need to modify the prompt for retry
+                error_guidance = _get_error_guidance_standalone(e, schema_str, format)
+                if format == ResponseFormat.JSON:
+                    correction_text = f"""
+
+PREVIOUS ATTEMPT FAILED: {error_guidance}
+
+Please provide a corrected JSON response that matches the required schema exactly. Remember:
+- Include ALL required fields
+- Use correct data types 
+- Respond with ONLY valid JSON, no additional text"""
+                else:
+                    correction_text = f"""
+
+PREVIOUS ATTEMPT FAILED: {error_guidance}
+
+Please provide a corrected response that follows the format exactly as specified. Remember:
+- Use exact field names as shown
+- Include ALL required fields
+- Follow the format structure precisely"""
+
+                full_prompt += correction_text
+                continue
+
+        except Exception as e:
+            # Handle other unexpected errors
+            logger.error("Unexpected error in direct structured LLM call: %s", str(e))
+            raise StructuredLLMError(f"Direct LLM call failed: {e}")
+
+    # All retries failed
+    raise StructuredLLMError(
+        f"Failed to get valid response after {max_retries + 1} attempts. Last error: {last_error}"
+    )
+
+
+def _build_direct_prompt(
+    prompt: str,
+    schema_str: str,
+    context: Optional[Dict[str, Any]] = None,
+    format: ResponseFormat = ResponseFormat.JSON,
+) -> str:
+    """Build complete direct generation prompt with schema and context"""
+
+    prompt_parts = [prompt, ""]
+
+    if context:
+        prompt_parts.extend(["CONTEXT:", json.dumps(context, indent=2), ""])
+
+    if format == ResponseFormat.JSON:
+        prompt_parts.extend(
+            [
+                "I need to provide my response in JSON format that conforms to this schema:",
+                "",
+                schema_str,
+                "",
+                "EXAMPLE:",
+                "If the schema requires fields 'name' and 'age', I respond with:",
+                '{"name": "John", "age": 30}',
+                "NOT with the schema definition itself.",
+                "",
+                "IMPORTANT:",
+                "- I'll create actual data, NOT the schema itself",
+                "- I'll respond ONLY with a JSON object containing the actual values",
+                "- I'll include all required fields with real content",
+                "- I'll follow the field descriptions to generate appropriate values",
+                "- I won't include any text before or after the JSON",
+                "- I won't return the schema - I'll return data that matches the schema",
+                "",
+                "Here is my response in JSON format:",
+            ]
+        )
+    elif format == ResponseFormat.CUSTOM:
+        prompt_parts.extend(
+            [
+                schema_str,
+                "",
+                "IMPORTANT:",
+                "- I'll follow the format exactly as shown",
+                "- I'll use the exact field names specified",
+                "- I'll include all required fields",
+                "- I won't include any text outside the specified format",
+                "",
+                "Here is my response:",
+            ]
+        )
+
+    return "\n".join(prompt_parts)
+
+
+def _extract_json_from_response(response_text: str) -> Optional[str]:
+    """Extract JSON from direct generation response, cleaning reasoning tags first"""
+    response_text = response_text.strip()
+
+    # Remove reasoning tags that could contain misleading JSON-like content
+    import re
+
+    cleaned_text = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL)
+    cleaned_text = re.sub(
+        r"<reasoning>.*?</reasoning>", "", cleaned_text, flags=re.DOTALL
+    )
+    cleaned_text = cleaned_text.strip()
+
+    # If the response is already just JSON
+    if cleaned_text.startswith("{") and cleaned_text.endswith("}"):
+        return cleaned_text
+
+    # Look for JSON within the cleaned response
+    if "{" in cleaned_text and "}" in cleaned_text:
+        start_idx = cleaned_text.find("{")
+
+        # Find the matching closing brace
+        brace_count = 0
+        for i, char in enumerate(cleaned_text[start_idx:], start_idx):
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    return cleaned_text[start_idx : i + 1]
+
+    return None
+
+
+def _fix_json_escaping_standalone(json_text: str) -> str:
+    """Fix unescaped newlines and control characters in JSON string values"""
+    import re
+
+    # Simple approach: find string values and escape them properly
+    def fix_string_content(match):
+        full_match = match.group(0)
+        key_part = match.group(1)  # The "key": part
+        quote = match.group(2)  # Opening quote
+        content = match.group(3)  # String content
+
+        # Escape the content properly for JSON
+        escaped_content = (
+            content.replace("\\", "\\\\")  # Escape backslashes first
+            .replace(quote, "\\" + quote)  # Escape quotes
+            .replace("\n", "\\n")  # Escape newlines
+            .replace("\r", "\\r")  # Escape carriage returns
+            .replace("\t", "\\t")  # Escape tabs
+            .replace("\b", "\\b")  # Escape backspace
+            .replace("\f", "\\f")  # Escape form feed
+        )
+
+        # Handle other control characters
+        escaped_content = re.sub(
+            r"[\x00-\x1f\x7f]",
+            lambda m: f"\\u{ord(m.group(0)):04x}",
+            escaped_content,
+        )
+
+        return f"{key_part}{quote}{escaped_content}{quote}"
+
+    # Pattern to match JSON key-value pairs with string values
+    # Matches: "key": "value content here"
+    pattern = r'(\s*"[^"]*"\s*:\s*)(")([^"]*?)(?<!\\)"'
+
+    # Apply the fix
+    fixed = re.sub(pattern, fix_string_content, json_text, flags=re.DOTALL)
+
+    return fixed
+
+
+def _get_error_guidance_standalone(
+    error: Exception, schema_str: str, format: ResponseFormat
+) -> str:
+    """Get specific guidance based on the error type for direct generation"""
+
+    if isinstance(error, json.JSONDecodeError):
+        return f"JSON parsing failed: {error}. Make sure to return valid JSON only."
+
+    elif isinstance(error, ValidationError):
+        error_details = []
+        for err in error.errors():
+            field = " -> ".join(str(x) for x in err["loc"])
+            msg = err["msg"]
+            error_details.append(f"Field '{field}': {msg}")
+
+        return f"Validation failed:\n" + "\n".join(error_details)
+
+    else:
+        return f"Unknown error: {error}"
+
+
 def main():
     """Test the structured LLM system"""
     print("=== STRUCTURED LLM SYSTEM TEST ===")

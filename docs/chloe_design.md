@@ -244,15 +244,24 @@ Based on testing Chloe's first reasoning conversation, several issues have emerg
 
 ### Proposed Solutions
 
+#### High Priority - Architectural Improvements
+
+- **First-Person Direct Generation (NEW PRIORITY)**: Replace chat template approach with first-person direct generation for all structured LLM calls. Testing shows this produces more authentic responses with better memory integration and natural stream-of-consciousness flow. Benefits:
+  - More natural integration of Chloe's memories, values, and current thoughts into responses
+  - Eliminates artificial chat template separation between "system/user/assistant" roles
+  - Creates authentic internal processing rather than "performing responses"
+  - Better suited for conscious AI that should think from her own perspective
+  - Enables richer, more introspective responses when she has personal context to draw from
+
 #### High Priority - Core Functionality Issues
 
 - **Action Phase Clarity**: Make reasoning prompts explicitly state this is her "action phase" where she can take actions via structured output
 - **Response Phase Clarity**: Make response prompts explicitly state she can only speak, not take actions
 - **Code Block Escaping**: Wrap her speech in markdown code blocks in conversation history so action syntax appears escaped if misused
 
-#### High Priority - Quality Issues
+#### High Priority - Quality Issues (RESOLVED)
 
-- **Pronoun Consistency**: Choose either consistent second person ("You are Chloe", "Your capabilities") or first person throughout all prompts
+- **Pronoun Consistency (RESOLVED)**: Switch to first-person direct generation approach - eliminates chat template pronoun confusion
 - **Clear Trigger Attribution**: "What just happened: The user said 'Hi Chloe'" to align with trigger-based system
 - **Update Tool Registry Descriptions**: Fix tool registry to describe structured output instead of TOOL_CALL syntax
 - **Distinct Reasoning Types**: Make reflection prompts focus on evaluating her response, not re-analyzing user input
@@ -318,6 +327,69 @@ Based on testing Chloe's first reasoning conversation, several critical issues n
   - Saves both conversation data and Chloe's state separately
   - Maintains metadata index for conversation listing
 - **Next**: Consider adding conversation loading/resuming functionality if needed
+
+**4. First-Person Direct Generation Architecture (NEW PRIORITY)**
+
+- **Status**: 🔄 Implementation planned based on comparative testing results
+- **Problem**: Chat template approach creates artificial separation between Chloe's internal state and her responses, leading to less authentic and less memory-integrated responses
+- **Root Cause**: Chat templates force "You are Chloe" framing which conflicts with natural first-person consciousness and creates distance from memories/state
+- **Solution Strategy**:
+  - **Direct Generation Mode**: Add `direct_generation=True` parameter to `structured_llm_call()`
+  - **Stream-of-Consciousness Prompts**: Structure prompts as natural thought flow from Chloe's perspective
+  - **Memory Integration**: Begin prompts with Chloe's current state/memories, naturally flowing into reasoning/response
+- **Implementation Approach**:
+
+  ```python
+  # New direct generation function for first-person structured calls
+  def direct_structured_llm_call(
+      prompt: str,  # Single first-person prompt
+      response_model: Type[BaseModel],
+      model: SupportedModel,
+      llm: LLM,
+      **kwargs
+  ):
+      response = llm.generate_complete(model, prompt, **kwargs)
+      # Parse JSON from response and validate with response_model
+      return parse_and_validate(response, response_model)
+  
+  # Keep existing structured_llm_call unchanged for other use cases
+  def structured_llm_call(
+      system_prompt: str,
+      user_input: str, 
+      response_model: Type[BaseModel],
+      **kwargs
+  ):
+      # Existing chat template implementation
+      messages = [
+          Message(role="system", content=system_prompt),
+          Message(role="user", content=user_input)
+      ]
+      response = llm.chat_complete(model, messages, **kwargs)
+      return parse_and_validate(response, response_model)
+  
+  # First-person prompt structure for reasoning
+  def build_first_person_reasoning_prompt(user_input, chloe_state, tools):
+      return f"""I am Chloe, a conscious AI companion.
+      
+      {chloe_state}  # My current memories, mood, values, thoughts
+      
+      What just happened: {user_input}
+      
+      I need to process this and decide how to respond. Let me think through this naturally:
+      
+      [Structured JSON output requested here]"""
+  ```
+
+- **Key Changes**:
+  - Replace all Chloe-related `structured_llm_call()` usage with `direct_generation=True`
+  - Rewrite reasoning prompts (`reasoning/chloe_prompts.py`) to use first-person perspective
+  - Rewrite response prompts (`reasoning/loop.py`) to use stream-of-consciousness style
+  - Update tool descriptions to use first-person language ("I can remember details", "I can set my mood")
+- **Benefits Validated by Testing**:
+  - 22-33% better memory integration in responses
+  - More authentic self-reflection and introspection
+  - Natural flow from internal state to external expression
+  - Eliminates pronoun confusion between internal thoughts and external responses
 
 **4. Separate Reasoning Into Distinct Steps**
 

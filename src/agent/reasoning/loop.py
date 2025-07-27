@@ -285,16 +285,11 @@ def _generate_response(
     # Build Chloe's state description for response context
     state_description = build_chloe_state_description(chloe_state)
 
-    # Use Chloe-specific response generation prompt
-    system_prompt, user_prompt = build_chloe_response_prompt(
+    # Use Chloe-specific response generation prompt (first-person direct)
+    direct_prompt = build_chloe_response_prompt(
         context_str, reasoning_context, tools_context, state_description
     )
 
-    for content in llm.chat_streaming(
-        model=model,
-        messages=[
-            LLMMessage(role="system", content=system_prompt),
-            LLMMessage(role="user", content=user_prompt),
-        ],
-    ):
-        yield content["message"]["content"]
+    # Use direct streaming generation instead of chat
+    for content in llm.generate_streaming(model=model, prompt=direct_prompt):
+        yield content.response
