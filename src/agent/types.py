@@ -97,7 +97,6 @@ class ThoughtContent(BaseModel):
 
     type: Literal["thought"] = "thought"
     text: str  # Keep for backward compatibility
-    reasoning: ReasoningResult
 
 
 class ToolCallContent(BaseModel):

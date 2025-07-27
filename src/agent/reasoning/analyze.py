@@ -33,7 +33,7 @@ def analyze_conversation_turn(
     model: SupportedModel,
     include_thoughts: bool = True,
     chloe_state: str = "",
-) -> ReasoningResult:
+) -> str:
     """
     Analyze a conversation turn - understand it and decide what to do
 
@@ -62,16 +62,14 @@ def analyze_conversation_turn(
     else:
         raise ValueError(f"Unknown analysis type: {analysis_type}")
 
-    # Use direct structured LLM call to get reliable output
-    result = direct_structured_llm_call(
-        prompt=direct_prompt,
-        response_model=ReasoningResult,
+    # Use direct generation for unstructured thoughts
+    thoughts = llm.generate_complete(
         model=model,
-        llm=llm,
-        temperature=0.3,
+        prompt=direct_prompt,
+        temperature=0.6,
     )
 
-    return result
+    return thoughts
 
 
 def _serialize_conversation_context(
@@ -122,17 +120,8 @@ def _serialize_conversation_context(
                         current_section = []
 
                 if isinstance(content_item, ThoughtContent) and include_thoughts:
-                    reasoning = content_item.reasoning
                     thought_parts = ["**My Thoughts:**"]
-                    thought_parts.append(f"- Understanding: {reasoning.understanding}")
-                    if reasoning.situational_awareness:
-                        thought_parts.append(
-                            f"- Situational awareness: {reasoning.situational_awareness}"
-                        )
-                    if reasoning.emotional_context:
-                        thought_parts.append(
-                            f"- Emotional context: {reasoning.emotional_context}"
-                        )
+                    thought_parts.append(content_item.text)
                     current_section = ["\n".join(thought_parts)]
 
                 elif isinstance(content_item, TextContent):

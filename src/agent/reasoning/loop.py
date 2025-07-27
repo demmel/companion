@@ -39,189 +39,55 @@ def run_reasoning_loop(
     chloe_state: ChloeState,
 ) -> Iterator[AgentEvent]:
 
-    current_text = user_input
-    current_analysis_type = AnalysisType.USER_INPUT
+    # Build Chloe's state description for reasoning context
+    state_description = build_chloe_state_description(chloe_state)
+
+    # Generate Chloe's thoughts about the user input
+    thoughts = analyze_conversation_turn(
+        user_input,
+        AnalysisType.USER_INPUT,
+        history.get_summarized_history(),
+        tools,
+        llm,
+        model,
+        True,  # Include thoughts for reasoning continuity
+        state_description,
+    )
+
+    # Add user message to history
+    user_message = UserMessage(content=[TextContent(text=user_input)])
+    history.add_message(user_message)
+
+    # Emit thoughts as thought event
+    yield AgentTextEvent(
+        content=thoughts,
+        is_thought=True,
+    )
+
+    # Create agent message with thoughts
     current_message = AgentMessage(
         role="assistant",
-        content=[],
+        content=[ThoughtContent(text=thoughts)],
         tool_calls=[],
     )
 
-    while True:
-        # Build Chloe's state description for reasoning context
-        state_description = build_chloe_state_description(chloe_state)
+    # Generate response based on thoughts
+    response = ""
+    for text in _generate_response(
+        history.get_summarized_history(),
+        current_message,
+        llm,
+        model,
+        chloe_state,
+    ):
+        response += text
+        yield AgentTextEvent(content=text, is_thought=False)
 
-        reasoning_result = analyze_conversation_turn(
-            current_text,
-            current_analysis_type,
-            history.get_summarized_history(),
-            tools,
-            llm,
-            model,
-            True,  # Include thoughts for reasoning continuity
-            state_description,
-        )
+    # Add response text to the message
+    current_message.content.append(TextContent(text=response.strip()))
 
-        if current_analysis_type == AnalysisType.USER_INPUT:
-            user_message = UserMessage(content=[TextContent(text=current_text)])
-            history.add_message(user_message)
-        else:
-            # After reasoning, we can append the text content to the current message which is in history
-            current_message.content.append(TextContent(text=current_text))
-            current_message = AgentMessage(
-                role="assistant",
-                content=[],
-                tool_calls=[],
-            )
-
-        current_message.content.append(
-            ThoughtContent(
-                text=reasoning_result.model_dump_json(indent=2),
-                reasoning=reasoning_result,
-            )
-        )
-
-        # Emit reasoning as thought event
-        yield AgentTextEvent(
-            content=reasoning_result.model_dump_json(indent=2),
-            is_thought=True,
-        )
-
-        for tool_event in reasoning_result.proposed_tools:
-            # Check if tool exists before emitting any events
-            if not tools.has_tool(tool_event.tool_name):
-                # Agent made a mistake - inform it via tool_results for next iteration
-                error_msg = f"Tool '{tool_event.tool_name}' not found"
-
-                # Create error tool call
-                current_message.content.append(
-                    ToolCallContent(
-                        tool_name=tool_event.tool_name,
-                        call_id=tool_event.call_id,
-                        parameters=tool_event.parameters,
-                        reasoning=tool_event.reasoning,
-                        result=ToolCallError(type="error", error=error_msg),
-                    )
-                )
-
-                yield AgentErrorEvent(
-                    message=error_msg,
-                    tool_name=tool_event.tool_name,
-                    tool_id=tool_event.call_id,
-                )
-                continue  # No tool events for nonexistent tools
-
-            # Tool exists - proceed with normal execution flow
-            yield ToolStartedEvent(
-                tool_name=tool_event.tool_name,
-                tool_id=tool_event.call_id,
-                parameters=tool_event.parameters,
-            )
-
-        for tool_event in reasoning_result.proposed_tools:
-            try:
-                # Check if tool exists again (in case of previous errors)
-                if not tools.has_tool(tool_event.tool_name):
-                    # If tool was not found, skip execution
-                    continue
-
-                # Execute tool with progress callback
-                def progress_callback(data):
-                    # Send progress events for streaming
-                    pass  # For now, we can ignore progress in the core
-
-                logger.info(
-                    f"Executing tool {tool_event.tool_name} with ID {tool_event.call_id}\n{json.dumps(tool_event.parameters, indent=2)}"
-                )
-                result = tools.execute(
-                    tool_event.tool_name,
-                    tool_event.call_id,
-                    tool_event.parameters,
-                    progress_callback,
-                )
-
-                # Create successful tool call
-                current_message.content.append(
-                    ToolCallContent(
-                        tool_name=tool_event.tool_name,
-                        call_id=tool_event.call_id,
-                        parameters=tool_event.parameters,
-                        reasoning=tool_event.reasoning,
-                        result=result,
-                    )
-                )
-
-                # Signal successful tool execution
-                yield ToolFinishedEvent(
-                    tool_id=tool_event.call_id,
-                    result=result,
-                )
-            except ToolExecutionError as e:
-                logger.error(
-                    f"Error executing tool {tool_event.tool_name} ({tool_event.call_id}): {str(e)}"
-                )
-
-                # Create error tool call
-                current_message.content.append(
-                    ToolCallContent(
-                        tool_name=tool_event.tool_name,
-                        call_id=tool_event.call_id,
-                        parameters=tool_event.parameters,
-                        reasoning=tool_event.reasoning,
-                        result=ToolCallError(type="error", error=str(e)),
-                    )
-                )
-
-                yield ToolFinishedEvent(
-                    tool_id=tool_event.call_id, result=ToolCallError(error=str(e))
-                )
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error executing tool {tool_event.tool_name} ({tool_event.call_id}): {str(e)}"
-                )
-
-                # Unexpected system error
-                error_msg = f"System error executing {tool_event.tool_name}: {str(e)}"
-
-                # Create system error tool call
-                current_message.content.append(
-                    ToolCallContent(
-                        tool_name=tool_event.tool_name,
-                        call_id=tool_event.call_id,
-                        parameters=tool_event.parameters,
-                        reasoning=tool_event.reasoning,
-                        result=ToolCallError(type="error", error=error_msg),
-                    )
-                )
-
-                yield AgentErrorEvent(
-                    message=str(e),
-                    tool_name=tool_event.tool_name,
-                    tool_id=tool_event.call_id,
-                )
-
-        if not reasoning_result.turn_decision.want_to_continue:
-            _populate_legacy_tool_calls(current_message)
-            history.add_message(current_message)
-            break
-
-        response = ""
-        for text in _generate_response(
-            history.get_summarized_history(),
-            current_message,
-            llm,
-            model,
-            chloe_state,
-        ):
-            response += text
-            yield AgentTextEvent(content=text, is_thought=False)
-
-        response = response.strip()
-        current_text = response
-        current_analysis_type = AnalysisType.AGENT_RESPONSE
-
-        _populate_legacy_tool_calls(current_message)
-        history.add_message(current_message)
+    # Add complete message to history
+    history.add_message(current_message)
 
 
 def _populate_legacy_tool_calls(message: AgentMessage):
@@ -267,18 +133,13 @@ def _generate_response(
 
     for content in current_message.content:
         if isinstance(content, ThoughtContent):
-            reasoning_parts.append(f"Understanding: {content.reasoning.understanding}")
-            reasoning_parts.append(
-                f"Situational awareness: {content.reasoning.situational_awareness}"
-            )
-            reasoning_parts.append(
-                f"Emotional context: {content.reasoning.emotional_context}"
-            )
+            # Use unstructured thoughts text directly
+            reasoning_parts.append(content.text)
         elif isinstance(content, ToolCallContent) and content.result:
             tool_results.append(f"{content.tool_name}: {content.result}")
 
     reasoning_context = (
-        "\n".join(reasoning_parts) if reasoning_parts else "No reasoning available"
+        "\n".join(reasoning_parts) if reasoning_parts else "No thoughts available"
     )
     tools_context = "\n".join(tool_results) if tool_results else "No tools executed"
 
