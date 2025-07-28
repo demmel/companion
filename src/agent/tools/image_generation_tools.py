@@ -68,7 +68,6 @@ class SDXLPromptOptimization(BaseModel):
 class ImageGenerationInput(ToolInput):
     description: str = Field(
         description="Natural description of what you want to see. Be detailed about mood, setting, character appearance, style, and any specific viewpoint or camera angle you want. Example: 'Elena is a mysterious vampire standing in her gothic castle. She has long dark hair, pale skin, and is wearing an elegant dark dress. The scene should be atmospheric with candlelight and stone architecture, viewed from a low angle to make her appear imposing.'",
-        max_length=1000,
     )
 
 

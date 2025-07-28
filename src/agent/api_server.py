@@ -101,7 +101,9 @@ app.add_middleware(
 async def get_conversation():
     """Get current conversation history for client hydration"""
     # Return the structured conversation history
-    messages = app.state.agent.get_conversation_history()
+    agent: Agent = app.state.agent
+    messages = agent.initial_exchange
+    messages.extend(agent.get_conversation_history())
     return ConversationResponse(messages=messages)
 
 

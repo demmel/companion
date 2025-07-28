@@ -11,7 +11,7 @@ from typing import Optional, List
 from dataclasses import dataclass
 
 from .types import ConversationData, Message
-from .chloe_state import ChloeState
+from .state import ChloeState, create_default_chloe_state
 
 
 @dataclass
@@ -86,8 +86,6 @@ class ConversationPersistence:
                 chloe_state = ChloeState.model_validate(json.load(f))
         else:
             # Fallback to default state if no state file exists
-            from .chloe_state import create_default_chloe_state
-
             chloe_state = create_default_chloe_state()
 
         return conversation_data, chloe_state

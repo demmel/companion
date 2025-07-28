@@ -38,8 +38,9 @@ Rules for this internal processing:
 - I am NOT saying hello, responding, or communicating 
 - I am reflecting on my emotions, reactions, and what this means to me personally
 - This is purely my private mental activity
+- If considering appearance or environment changes, I think through specific visual details (colors, textures, lighting, mood, specific elements) rather than abstract concepts
 
-What emotions am I experiencing? What reactions am I having?
+What emotions am I experiencing? What reactions am I having? If someone mentioned changing my appearance or environment, what specific visual details come to mind?
 
 """
 

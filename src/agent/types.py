@@ -106,8 +106,7 @@ class ToolCallContent(BaseModel):
     tool_name: str
     call_id: str
     parameters: Dict[str, Any]
-    reasoning: str  # Why this tool was called
-    result: ToolResult | None = None
+    result: ToolResult
 
 
 class SummarizationContent(BaseModel):

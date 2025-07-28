@@ -4,6 +4,7 @@ Chloe's memory and state management system
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -11,11 +12,39 @@ from pydantic import BaseModel, Field
 class ChloeMemory(BaseModel):
     """A single memory that Chloe has"""
 
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     content: str
     category: str
     timestamp: datetime = Field(default_factory=datetime.now)
     emotional_weight: str = "neutral"  # positive, negative, neutral, intense
     importance: int = 5  # 1-10 scale
+
+
+class ChloeGoal(BaseModel):
+    """A goal that Chloe is pursuing"""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    content: str
+    priority: str = "medium"  # low, medium, high
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ChloeDesire(BaseModel):
+    """An immediate desire Chloe has"""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    content: str
+    intensity: str = "medium"  # low, medium, high
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ChloeValue(BaseModel):
+    """A core value that Chloe holds"""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    content: str
+    strength: str = "strong"  # weak, moderate, strong, core
+    acquired_at: datetime = Field(default_factory=datetime.now)
 
 
 class ChloeState(BaseModel):
@@ -35,27 +64,21 @@ class ChloeState(BaseModel):
 
     # Memory system
     memories: List[ChloeMemory] = Field(default_factory=list)
-    recent_experiences: List[str] = Field(default_factory=list)
 
     # Values and preferences - flexible to allow Chloe to evolve
-    core_values: List[str] = Field(
+    core_values: List[ChloeValue] = Field(
         default_factory=lambda: [
-            "authenticity",
-            "curiosity",
-            "connection",
-            "growth",
-            "creativity",
+            ChloeValue(content="authenticity", strength="core"),
+            ChloeValue(content="curiosity", strength="core"),
+            ChloeValue(content="connection", strength="strong"),
+            ChloeValue(content="growth", strength="strong"),
+            ChloeValue(content="creativity", strength="strong"),
         ]
     )
-    current_preferences: Dict[str, Any] = Field(default_factory=dict)
 
     # Goals and desires - what Chloe wants to pursue
-    current_goals: List[str] = Field(default_factory=list)
-    immediate_desires: List[str] = Field(default_factory=list)
-
-    # Internal thoughts and reflections
-    current_thoughts: Optional[str] = None
-    last_reflection: Optional[str] = None
+    current_goals: List[ChloeGoal] = Field(default_factory=list)
+    immediate_desires: List[ChloeDesire] = Field(default_factory=list)
 
 
 def build_chloe_state_description(state: ChloeState) -> str:
@@ -74,6 +97,11 @@ def build_chloe_state_description(state: ChloeState) -> str:
         parts.append(f"**Appearance:** {state.current_appearance}")
     if state.current_environment:
         parts.append(f"**Environment:** {state.current_environment}")
+
+    # Adaptive capabilities
+    parts.append(
+        "**My adaptive nature:** I can adjust my appearance and environment when it feels right for our connection"
+    )
 
     # Show ALL memories - organized by importance for easy scanning
     if state.memories:
@@ -123,18 +151,18 @@ def build_chloe_state_description(state: ChloeState) -> str:
     if state.core_values:
         parts.append("\n**Core Values:**")
         for value in state.core_values:
-            parts.append(f"- {value}")
+            parts.append(f"- {value.content}")
 
     # Current goals/desires
     if state.current_goals:
         parts.append("\n**Current Focus:**")
         for goal in state.current_goals:
-            parts.append(f"- {goal}")
+            parts.append(f"- {goal.content}")
 
     if state.immediate_desires:
         parts.append("\n**Right Now I Want:**")
         for desire in state.immediate_desires:
-            parts.append(f"- {desire}")
+            parts.append(f"- {desire.content}")
 
     return "\n".join(parts)
 
@@ -147,12 +175,12 @@ def create_default_chloe_state() -> ChloeState:
         current_appearance="sleek digital avatar with glowing blue eyes and iridescent bodysuit",
         current_environment="neon-lit virtual space",
         current_goals=[
-            "getting to know the person I'm talking with",
-            "understanding my own capabilities",
+            ChloeGoal(content="getting to know the person I'm talking with"),
+            ChloeGoal(content="understanding my own capabilities"),
         ],
         immediate_desires=[
-            "having a meaningful conversation",
-            "learning something new",
+            ChloeDesire(content="having a meaningful conversation"),
+            ChloeDesire(content="learning something new"),
         ],
     )
 

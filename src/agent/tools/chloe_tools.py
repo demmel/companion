@@ -6,7 +6,7 @@ from typing import Any, Callable
 from pydantic import BaseModel, Field
 from agent.tools import BaseTool, ToolInput
 from agent.types import TextToolContent, ToolResult, ToolCallSuccess, ToolCallError
-from agent.chloe_state import (
+from agent.state import (
     ChloeState,
     add_memory_to_chloe,
     update_chloe_relationship,

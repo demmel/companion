@@ -8,7 +8,7 @@ from agent.llm import LLM, SupportedModel
 from agent.tools import BaseTool, ToolRegistry
 from agent.structured_llm import direct_structured_llm_call
 from .types import AnalysisType, ReasoningResult
-from .chloe_prompts import (
+from .prompts import (
     build_chloe_understanding_prompt,
     build_chloe_reflection_prompt,
 )
