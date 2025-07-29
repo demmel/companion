@@ -13,8 +13,8 @@ from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
 from agent.llm import Message as LLMMessage
 from agent.reasoning.analyze import analyze_conversation_turn
-from agent.reasoning.prompts import build_chloe_response_prompt
-from agent.state import ChloeState, build_chloe_state_description
+from agent.reasoning.prompts import build_response_prompt
+from agent.state import State, build_agent_state_description
 from agent.state_analysis import analyze_thoughts_for_state_updates, apply_state_updates
 from agent.types import (
     AgentMessage,
@@ -52,13 +52,13 @@ def run_reasoning_loop(
     tools: ToolRegistry,
     llm: LLM,
     model: SupportedModel,
-    chloe_state: ChloeState,
+    state: State,
 ) -> Iterator[AgentEvent]:
 
-    # Build Chloe's state description for reasoning context
-    state_description = build_chloe_state_description(chloe_state)
+    # Build the agent's state description for reasoning context
+    state_description = build_agent_state_description(state)
 
-    # Generate Chloe's thoughts about the user input
+    # Generate the agent's thoughts about the user input
     thoughts = analyze_conversation_turn(
         user_input,
         AnalysisType.USER_INPUT,
@@ -66,8 +66,8 @@ def run_reasoning_loop(
         tools,
         llm,
         model,
+        state,
         True,  # Include thoughts for reasoning continuity
-        state_description,
     )
 
     # Add user message to history
@@ -89,11 +89,9 @@ def run_reasoning_loop(
 
     # Analyze thoughts for state updates
     try:
-        state_updates = analyze_thoughts_for_state_updates(
-            thoughts, chloe_state, llm, model
-        )
-        # Apply updates to Chloe's state
-        chloe_state = apply_state_updates(chloe_state, state_updates)
+        state_updates = analyze_thoughts_for_state_updates(thoughts, state, llm, model)
+        # Apply updates to the agent's state
+        state = apply_state_updates(state, state_updates)
         current_message.content.append(
             ThoughtContent(
                 text=f"State updates:\n{state_updates.model_dump_json(indent=2)}"
@@ -109,7 +107,7 @@ def run_reasoning_loop(
         if state_updates.appearance or state_updates.environment:
             # Build image description from updated state
             image_description = _build_image_description(
-                chloe_state.current_appearance, chloe_state.current_environment
+                state.current_appearance, state.current_environment
             )
 
             # Generate image using the existing tool with streaming events
@@ -171,7 +169,7 @@ def run_reasoning_loop(
         current_message,
         llm,
         model,
-        chloe_state,
+        state,
     ):
         response += text
         yield AgentTextEvent(content=text, is_thought=False)
@@ -213,7 +211,7 @@ def _generate_response(
     current_message: AgentMessage,
     llm: LLM,
     model: SupportedModel,
-    chloe_state: ChloeState,
+    state: State,
 ) -> Iterator[str]:
     # Serialize conversation history for context
     from .analyze import _serialize_conversation_context
@@ -236,12 +234,9 @@ def _generate_response(
     )
     tools_context = "\n".join(tool_results) if tool_results else "No tools executed"
 
-    # Build Chloe's state description for response context
-    state_description = build_chloe_state_description(chloe_state)
-
-    # Use Chloe-specific response generation prompt (first-person direct)
-    direct_prompt = build_chloe_response_prompt(
-        context_str, reasoning_context, tools_context, state_description
+    # Use agent-specific response generation prompt (first-person direct)
+    direct_prompt = build_response_prompt(
+        context_str, reasoning_context, tools_context, state
     )
 
     # Use direct streaming generation instead of chat

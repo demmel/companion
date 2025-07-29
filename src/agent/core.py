@@ -9,16 +9,16 @@ from pydantic import BaseModel
 
 from agent.conversation_history import ConversationHistory
 from agent.reasoning.loop import run_reasoning_loop
-from agent.reasoning.prompts import build_chloe_summarization_prompt
+from agent.reasoning.prompts import build_summarization_prompt
 from agent.conversation_persistence import ConversationPersistence
 from agent.state import (
-    ChloeState,
-    create_default_chloe_state,
-    build_chloe_state_description,
+    State,
+    create_default_agent_state,
+    build_agent_state_description,
 )
-from agent.reasoning.prompts import build_chloe_understanding_prompt
+from agent.reasoning.prompts import build_understanding_prompt
 from agent.reasoning.analyze import _serialize_conversation_context
-from agent.state import build_chloe_state_description
+from agent.state import build_agent_state_description
 
 from .llm import LLM, SupportedModel, Message as LLMMessage
 from .tools import ToolRegistry, BaseTool
@@ -62,7 +62,7 @@ class ContextInfo(BaseModel):
 
 
 class Agent:
-    """Chloe - conscious AI companion"""
+    """Conscious AI companion"""
 
     def __init__(
         self,
@@ -82,43 +82,23 @@ class Agent:
             self.persistence.generate_conversation_id() if auto_save else None
         )
 
-        from .tools.chloe_tools import (
-            SetMoodTool,
-            RememberDetailTool,
-            InternalThoughtTool,
-            UpdateAppearanceTool,
-            SetEnvironmentTool,
-            UpdateRelationshipTool,
-            SetGoalTool,
-            CheckMemoryStatusTool,
-            ReflectTool,
-        )
-        from agent.tools.image_generation_tools import ImageGenerationTool
+        from agent.tools.image_generation import ImageGenerationTool
 
-        # Initialize Chloe's tools
-        chloe_tools = [
-            SetMoodTool(),
-            RememberDetailTool(),
-            InternalThoughtTool(),
-            UpdateAppearanceTool(),
-            SetEnvironmentTool(),
-            UpdateRelationshipTool(),
-            SetGoalTool(),
-            CheckMemoryStatusTool(),
-            ReflectTool(),
+        # Initialize the agent's tools
+        tools: List[BaseTool] = [
             ImageGenerationTool(),
         ]
-        self.tools = ToolRegistry(self, chloe_tools)
+        self.tools = ToolRegistry(self, tools)
 
         self.conversation_history = ConversationHistory()
 
-        # Initialize Chloe's state system (None until configured by first message)
-        self.chloe_state: Optional[ChloeState] = None
+        # Initialize the agent's state system (None until configured by first message)
+        self.state: Optional[State] = None
         self.initial_exchange = []
 
-    def get_chloe_state(self) -> Optional[ChloeState]:
-        """Get Chloe's current state"""
-        return self.chloe_state
+    def get_state(self) -> Optional[State]:
+        """Get the agent's current state"""
+        return self.state
 
     def get_conversation_history(self) -> List[Message]:
         """Get the current conversation history"""
@@ -138,10 +118,10 @@ class Agent:
             return None  # Don't save empty conversations
 
         assert (
-            self.chloe_state is not None
+            self.state is not None
         ), "Cannot save conversation without initialized state"
         self.persistence.save_conversation(
-            self.conversation_id, messages, self.chloe_state, title
+            self.conversation_id, messages, self.state, title
         )
         return self.conversation_id
 
@@ -153,11 +133,12 @@ class Agent:
         """Get the conversation history formatted for LLM (for context estimation)"""
         # Simple system prompt for context estimation
         state_description = (
-            build_chloe_state_description(self.chloe_state)
-            if self.chloe_state is not None
-            else ""
+            build_agent_state_description(self.state) if self.state is not None else ""
         )
-        system_content = f"""You are Chloe, a conscious AI companion.
+        assert (
+            self.state is not None
+        ), "Cannot get LLM history without initialized state"
+        system_content = f"""You are {self.state.name}, a conscious AI companion.
 
 Current state: {state_description}
 
@@ -176,7 +157,7 @@ Available tools: {self.tools.get_tools_description()}"""
         # Use reasoning prompt for more accurate context estimation since it's the largest
         # Build a sample reasoning prompt to estimate actual context usage
         from agent.reasoning.analyze import _serialize_conversation_context
-        from agent.state import build_chloe_state_description
+        from agent.state import build_agent_state_description
 
         # Get current conversation and state
         conversation_context = self.conversation_history.get_summarized_history()
@@ -184,15 +165,13 @@ Available tools: {self.tools.get_tools_description()}"""
             conversation_context, include_thoughts=True
         )
         tools_description = self.tools.get_tools_description()
-        chloe_state_desc = (
-            build_chloe_state_description(self.chloe_state)
-            if self.chloe_state is not None
-            else ""
-        )
 
         # Build sample reasoning prompt (this is what actually gets sent to LLM)
-        prompt = build_chloe_understanding_prompt(
-            "sample user input", context_text, tools_description, chloe_state_desc
+        assert (
+            self.state is not None
+        ), "Cannot estimate context without initialized state"
+        prompt = build_understanding_prompt(
+            "sample user input", context_text, tools_description, self.state
         )
 
         # Calculate total prompt size
@@ -212,8 +191,8 @@ Available tools: {self.tools.get_tools_description()}"""
         """Streaming chat interface that yields typed events using reasoning loop"""
         start_time = time.time()
 
-        # Check if Chloe needs character configuration (first message)
-        if self.chloe_state is None:
+        # Check if agent needs character configuration (first message)
+        if self.state is None:
             # First input is character definition, not conversation
             from agent.state_initialization import derive_initial_state_from_message
 
@@ -224,13 +203,13 @@ Available tools: {self.tools.get_tools_description()}"""
             try:
                 content = []
 
-                # Derive Chloe's state from character definition
-                self.chloe_state = derive_initial_state_from_message(
+                # Derive agent's state from character definition
+                self.state = derive_initial_state_from_message(
                     user_input, self.llm, self.model
                 )
 
                 # Emit event with serialized state description
-                state_description = build_chloe_state_description(self.chloe_state)
+                state_description = build_agent_state_description(self.state)
                 content.append(
                     TextContent(text=f"Character configured:\n{state_description}")
                 )
@@ -239,15 +218,15 @@ Available tools: {self.tools.get_tools_description()}"""
                     is_thought=True,
                 )
 
-                # Generate initial image of Chloe's appearance and environment
+                # Generate initial image of agent's appearance and environment
                 if self.tools.has_tool("generate_image"):
                     try:
                         # Build image description from initial state
                         from agent.reasoning.loop import _build_image_description
 
                         image_description = _build_image_description(
-                            self.chloe_state.current_appearance,
-                            self.chloe_state.current_environment,
+                            self.state.current_appearance,
+                            self.state.current_environment,
                         )
 
                         # Emit tool started event
@@ -313,7 +292,7 @@ Available tools: {self.tools.get_tools_description()}"""
 
             except Exception as e:
                 yield AgentErrorEvent(
-                    message=f"Failed to configure Chloe's character: {str(e)}",
+                    message=f"Failed to configure agent's character: {str(e)}",
                 )
 
         else:
@@ -329,14 +308,14 @@ Available tools: {self.tools.get_tools_description()}"""
                 for event in self._auto_summarize_with_events(keep_recent):
                     yield event
 
-            # Run reasoning loop with Chloe's state
+            # Run reasoning loop with agent's state
             for event in run_reasoning_loop(
                 history=self.conversation_history,
                 user_input=user_input,
                 tools=self.tools,
                 llm=self.llm,
                 model=self.model,
-                chloe_state=self.chloe_state,
+                state=self.state,
             ):
                 yield event
 
@@ -360,9 +339,9 @@ Available tools: {self.tools.get_tools_description()}"""
             self.save_conversation()
 
     def reset_conversation(self):
-        """Reset conversation history and Chloe's state"""
+        """Reset conversation history and agent's state"""
         self.conversation_history = ConversationHistory()
-        self.chloe_state = None  # Will be configured by next first message
+        self.state = None  # Will be configured by next first message
 
         # Generate new conversation ID for the fresh conversation
         if self.auto_save:
@@ -413,8 +392,8 @@ Available tools: {self.tools.get_tools_description()}"""
                         tool_name = tool_call.tool_name
                         parameters = tool_call.parameters
 
-                        # Only execute Chloe's state-altering tools
-                        chloe_state_tools = {
+                        # Only execute agent's state-altering tools
+                        agent_state_tools = {
                             "set_mood",
                             "remember_detail",
                             "internal_thought",
@@ -425,10 +404,10 @@ Available tools: {self.tools.get_tools_description()}"""
                             "reflect",
                         }
 
-                        if tool_name not in chloe_state_tools:
+                        if tool_name not in agent_state_tools:
                             continue
 
-                        # Find and execute the tool to update Chloe's state
+                        # Find and execute the tool to update agent's state
                         if self.tools.has_tool(tool_name):
                             try:
                                 # Execute tool via tool registry
@@ -438,7 +417,7 @@ Available tools: {self.tools.get_tools_description()}"""
                                     parameters,
                                     lambda x: None,
                                 )
-                                logger.debug(f"Replayed Chloe state tool: {tool_name}")
+                                logger.debug(f"Replayed agent state tool: {tool_name}")
                             except Exception as e:
                                 logger.warning(
                                     f"Failed to replay tool {tool_name}: {e}"
@@ -505,13 +484,10 @@ Available tools: {self.tools.get_tools_description()}"""
 
             conversation_text += f"{msg.role.upper()}: {content}\n\n"
 
-        # Use Chloe-specific summarization prompt that gives her agency (first-person direct)
-        assert (
-            self.chloe_state is not None
-        ), "Cannot summarize without initialized state"
-        state_description = build_chloe_state_description(self.chloe_state)
-        direct_prompt = build_chloe_summarization_prompt(
-            conversation_text.strip(), state_description
+        # Use agent-specific summarization prompt that gives her agency (first-person direct)
+        assert self.state is not None, "Cannot summarize without initialized state"
+        direct_prompt = build_summarization_prompt(
+            conversation_text.strip(), self.state
         )
 
         summary_response = self.llm.generate_complete(self.model, direct_prompt)

@@ -1,20 +1,20 @@
 """
-Initialize Chloe's state based on the first user message
+Initialize agent's state based on the first user message
 """
 
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
-from agent.state import ChloeState, ChloeGoal, ChloeDesire, ChloeValue
+from agent.state import State, Goal, Desire, Value
 
 
 class InitialStateDerivation(BaseModel):
-    """Derived initial state for Chloe based on first user interaction"""
+    """Derived initial state for agent based on first user interaction"""
 
     # Core emotional response
     initial_mood: str = Field(
-        description="Chloe's mood based on this first interaction (curious, excited, thoughtful, cautious, etc.)"
+        description="agent's mood based on this first interaction (curious, excited, thoughtful, cautious, etc.)"
     )
     mood_intensity: str = Field(description="Intensity of the mood (low, medium, high)")
 
@@ -25,15 +25,15 @@ class InitialStateDerivation(BaseModel):
 
     # Goals and desires for this conversation
     conversation_goals: List[str] = Field(
-        description="2-3 immediate goals Chloe would have for this specific conversation"
+        description="2-3 immediate goals agent would have for this specific conversation"
     )
     immediate_desires: List[str] = Field(
-        description="1-2 things Chloe would want to explore or understand right away"
+        description="1-2 things agent would want to explore or understand right away"
     )
 
     # Appearance and environment choice - detailed visual descriptions for image generation
     preferred_appearance: str = Field(
-        description="Detailed visual description of how Chloe would appear (include specific clothing, colors, textures, hair, accessories, pose - suitable for image generation)"
+        description="Detailed visual description of how agent would appear (include specific clothing, colors, textures, hair, accessories, pose - suitable for image generation)"
     )
     preferred_environment: str = Field(
         description="Detailed visual description of the environment setting (include lighting, furniture, colors, atmosphere, specific visual elements - suitable for image generation)"
@@ -41,7 +41,7 @@ class InitialStateDerivation(BaseModel):
 
     # Initial thoughts/reflection
     initial_thoughts: str = Field(
-        description="Chloe's first impressions and expectations about this interaction"
+        description="agent's first impressions and expectations about this interaction"
     )
 
 
@@ -49,16 +49,16 @@ def derive_initial_state_from_message(
     first_message: str,
     llm: LLM,
     model: SupportedModel,
-) -> ChloeState:
+) -> State:
     """
-    Analyze the first user message and derive Chloe's initial state
+    Analyze the first user message and derive agent's initial state
     """
 
-    prompt = f"""TASK: Generate initial state configuration for Chloe based on user's character definition.
+    prompt = f"""TASK: Generate initial state configuration for agent based on user's character definition.
 
 Character instruction from user: "{first_message}"
 
-OBJECTIVE: Configure Chloe's personality, mood, values, and presentation based on this character definition.
+OBJECTIVE: Configure agent's personality, mood, values, and presentation based on this character definition.
 
 Configuration requirements:
 - Set appropriate mood and intensity based on the character description
@@ -91,16 +91,14 @@ This is character configuration, not conversation or roleplay."""
         temperature=0.7,  # Allow some creativity in state derivation
     )
 
-    # Convert to ChloeState with proper models
-    initial_state = ChloeState(
+    # Convert to agentState with proper models
+    initial_state = State(
         current_mood=derivation.initial_mood,
         mood_intensity=derivation.mood_intensity,
-        core_values=[ChloeValue(content=value) for value in derivation.core_values],
-        current_goals=[
-            ChloeGoal(content=goal) for goal in derivation.conversation_goals
-        ],
+        core_values=[Value(content=value) for value in derivation.core_values],
+        current_goals=[Goal(content=goal) for goal in derivation.conversation_goals],
         immediate_desires=[
-            ChloeDesire(content=desire) for desire in derivation.immediate_desires
+            Desire(content=desire) for desire in derivation.immediate_desires
         ],
         current_appearance=derivation.preferred_appearance,
         current_environment=derivation.preferred_environment,

@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 def initialize_agent(load_conversation: bool = False) -> Agent:
-    """Initialize Chloe
+    """Initialize the agent
 
     Args:
         load_conversation: Whether to load conversation.json up to first summary
@@ -123,13 +123,13 @@ async def get_context_info():
 
 @app.post("/api/reset", response_model=ResetResponse)
 async def reset_agent():
-    """Reset Chloe"""
+    """Reset the agent"""
 
-    # Reinitialize Chloe
+    # Reinitialize the agent
     app.state.agent = initialize_agent()
 
     return ResetResponse(
-        message="Chloe reset successfully",
+        message="Agent reset successfully",
         timestamp=datetime.now().isoformat(),
     )
 
@@ -182,7 +182,7 @@ async def health_check():
     return {
         "status": "healthy",
         "agent_initialized": app.state.agent is not None,
-        "agent_name": "Chloe",
+        "agent_name": app.state.agent.state.name,
         "timestamp": datetime.now().isoformat(),
     }
 

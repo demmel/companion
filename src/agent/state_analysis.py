@@ -1,5 +1,5 @@
 """
-Analyze Chloe's thoughts to extract state updates
+Analyze agent's thoughts to extract state updates
 """
 
 from typing import List, Optional, Dict, Any
@@ -7,16 +7,16 @@ from pydantic import BaseModel, Field, field_validator
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
 from agent.state import (
-    ChloeState,
-    ChloeMemory,
-    ChloeGoal,
-    ChloeDesire,
-    ChloeValue,
+    State,
+    Memory,
+    Goal,
+    Desire,
+    Value,
 )
 
 
 class StateUpdates(BaseModel):
-    """State changes extracted from Chloe's thoughts"""
+    """State changes extracted from agent's thoughts"""
 
     # Mood changes
     mood_change: Optional[str] = Field(
@@ -28,10 +28,10 @@ class StateUpdates(BaseModel):
 
     # Appearance and environment changes
     appearance: Optional[str] = Field(
-        description="Updated appearance description that builds on current state if Chloe thought about changes, or None if no change. MUST start with current appearance and modify only what she wanted to change. Keep all existing details she didn't mention changing."
+        description="Updated appearance description that builds on current state if agent thought about changes, or None if no change. MUST start with current appearance and modify only what she wanted to change. Keep all existing details she didn't mention changing."
     )
     environment: Optional[str] = Field(
-        description="Updated environment description that builds on current state if Chloe thought about changes, or None if no change. MUST start with current environment and modify only what she wanted to change. Keep all existing details she didn't mention changing."
+        description="Updated environment description that builds on current state if agent thought about changes, or None if no change. MUST start with current environment and modify only what she wanted to change. Keep all existing details she didn't mention changing."
     )
 
     # Memory updates
@@ -93,12 +93,12 @@ class StateUpdates(BaseModel):
 
 def analyze_thoughts_for_state_updates(
     thoughts_text: str,
-    current_state: ChloeState,
+    current_state: State,
     llm: LLM,
     model: SupportedModel,
 ) -> StateUpdates:
     """
-    Analyze Chloe's thoughts and extract state updates
+    Analyze agent's thoughts and extract state updates
     """
 
     # Build current state context with IDs
@@ -128,9 +128,9 @@ def analyze_thoughts_for_state_updates(
     ]
     current_memories = "\n".join(memories_list) if memories_list else "None"
 
-    prompt = f"""TASK: Analyze Chloe's thoughts and extract state updates.
+    prompt = f"""TASK: Analyze agent's thoughts and extract state updates.
 
-Chloe's current state:
+agent's current state:
 - Mood: {current_mood}
 - Current Appearance: {current_state.current_appearance}
 - Current Environment: {current_state.current_environment}
@@ -147,7 +147,7 @@ Current Desires:
 All Current Memories:
 {current_memories}
 
-Chloe's thoughts to analyze:
+agent's thoughts to analyze:
 "{thoughts_text}"
 
 OBJECTIVE: Extract any state changes from these thoughts.
@@ -168,7 +168,7 @@ Rules for IDs:
 - New items don't need IDs - they will be generated automatically
 
 Rules for appearance/environment changes:
-- ONLY populate appearance/environment fields if Chloe explicitly thought about making changes
+- ONLY populate appearance/environment fields if agent explicitly thought about making changes
 - If she thought about changes, you MUST build on the current state, not replace it entirely
 - START with the current appearance/environment and MODIFY only what she wanted to change
 - Keep all existing details that she didn't mention changing
@@ -198,8 +198,8 @@ This is analytical state extraction, not conversation."""
     return updates
 
 
-def apply_state_updates(state: ChloeState, updates: StateUpdates) -> ChloeState:
-    """Apply the extracted updates to Chloe's state"""
+def apply_state_updates(state: State, updates: StateUpdates) -> State:
+    """Apply the extracted updates to agent's state"""
 
     # Update mood if changed
     if updates.mood_change:
@@ -216,7 +216,7 @@ def apply_state_updates(state: ChloeState, updates: StateUpdates) -> ChloeState:
     # Memory management
     # Add new memories
     for memory_content in updates.new_memories:
-        memory = ChloeMemory(
+        memory = Memory(
             content=memory_content,
             category="conversation",
             importance=5,  # Default importance
@@ -230,7 +230,7 @@ def apply_state_updates(state: ChloeState, updates: StateUpdates) -> ChloeState:
     # Goals management
     # Add new goals
     for goal_content in updates.new_goals:
-        goal = ChloeGoal(content=goal_content)
+        goal = Goal(content=goal_content)
         state.current_goals.append(goal)
 
     # Remove goals by ID
@@ -240,7 +240,7 @@ def apply_state_updates(state: ChloeState, updates: StateUpdates) -> ChloeState:
     # Desires management
     # Add new desires
     for desire_content in updates.new_desires:
-        desire = ChloeDesire(content=desire_content)
+        desire = Desire(content=desire_content)
         state.immediate_desires.append(desire)
 
     # Remove desires by ID
@@ -252,7 +252,7 @@ def apply_state_updates(state: ChloeState, updates: StateUpdates) -> ChloeState:
     # Values evolution
     # Add new values
     for value_content in updates.new_values:
-        value = ChloeValue(content=value_content)
+        value = Value(content=value_content)
         state.core_values.append(value)
 
     # Remove values by ID
@@ -269,7 +269,7 @@ def test_state_analysis():
     """Test state analysis with example thoughts"""
 
     from agent.llm import create_llm
-    from agent.state import create_default_chloe_state
+    from agent.state import create_default_agent_state
 
     llm = create_llm()
     model = SupportedModel.MISTRAL_SMALL
@@ -289,7 +289,7 @@ def test_state_analysis():
 
         try:
             # Create test state
-            state = create_default_chloe_state()
+            state = create_default_agent_state()
 
             # Analyze thoughts
             updates = analyze_thoughts_for_state_updates(thoughts, state, llm, model)

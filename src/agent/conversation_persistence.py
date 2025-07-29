@@ -11,7 +11,7 @@ from typing import Optional, List
 from dataclasses import dataclass
 
 from .types import ConversationData, Message
-from .state import ChloeState, create_default_chloe_state
+from .state import State, create_default_agent_state
 
 
 @dataclass
@@ -42,13 +42,13 @@ class ConversationPersistence:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         # Add microseconds for uniqueness if multiple conversations start at same second
         microseconds = int(time.time() * 1000000) % 1000000
-        return f"chloe_{timestamp}_{microseconds:06d}"
+        return f"conversation_{timestamp}_{microseconds:06d}"
 
     def save_conversation(
         self,
         conversation_id: str,
         messages: List[Message],
-        chloe_state: ChloeState,
+        state: State,
         title: Optional[str] = None,
     ) -> None:
         """Save a conversation with its state"""
@@ -59,17 +59,15 @@ class ConversationPersistence:
         with open(conversation_file, "w") as f:
             f.write(conversation_data.model_dump_json(indent=2))
 
-        # Save Chloe's state separately
+        # Save the agent's state separately
         state_file = self.conversations_dir / f"{conversation_id}_state.json"
         with open(state_file, "w") as f:
-            f.write(chloe_state.model_dump_json(indent=2))
+            f.write(state.model_dump_json(indent=2))
 
         # Update metadata index
         self._update_metadata(conversation_id, len(messages), title)
 
-    def load_conversation(
-        self, conversation_id: str
-    ) -> tuple[ConversationData, ChloeState]:
+    def load_conversation(self, conversation_id: str) -> tuple[ConversationData, State]:
         """Load a conversation and its state"""
         # Load conversation data
         conversation_file = self.conversations_dir / f"{conversation_id}.json"
@@ -79,16 +77,16 @@ class ConversationPersistence:
         with open(conversation_file, "r") as f:
             conversation_data = ConversationData.model_validate(json.load(f))
 
-        # Load Chloe's state
+        # Load the agent's state
         state_file = self.conversations_dir / f"{conversation_id}_state.json"
         if state_file.exists():
             with open(state_file, "r") as f:
-                chloe_state = ChloeState.model_validate(json.load(f))
+                state = State.model_validate(json.load(f))
         else:
             # Fallback to default state if no state file exists
-            chloe_state = create_default_chloe_state()
+            state = create_default_agent_state()
 
-        return conversation_data, chloe_state
+        return conversation_data, state
 
     def list_conversations(self) -> List[ConversationMetadata]:
         """List all saved conversations with metadata"""

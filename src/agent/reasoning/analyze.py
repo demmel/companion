@@ -5,12 +5,13 @@ Basic reasoning experiment - understand text and decide what to do about it
 from typing import List
 
 from agent.llm import LLM, SupportedModel
+from agent.state import State
 from agent.tools import BaseTool, ToolRegistry
 from agent.structured_llm import direct_structured_llm_call
 from .types import AnalysisType, ReasoningResult
 from .prompts import (
-    build_chloe_understanding_prompt,
-    build_chloe_reflection_prompt,
+    build_understanding_prompt,
+    build_reflection_prompt,
 )
 from agent.types import (
     Message,
@@ -31,8 +32,8 @@ def analyze_conversation_turn(
     tool_registry: ToolRegistry,
     llm: LLM,
     model: SupportedModel,
+    state: State,
     include_thoughts: bool = True,
-    chloe_state: str = "",
 ) -> str:
     """
     Analyze a conversation turn - understand it and decide what to do
@@ -50,14 +51,14 @@ def analyze_conversation_turn(
     # Get tool descriptions from registry
     tools_description = tool_registry.get_tools_description()
 
-    # Build Chloe-specific direct prompts
+    # Build agent-specific direct prompts
     if analysis_type == AnalysisType.USER_INPUT:
-        direct_prompt = build_chloe_understanding_prompt(
-            text, context_text, tools_description, chloe_state
+        direct_prompt = build_understanding_prompt(
+            text, context_text, tools_description, state
         )
     elif analysis_type == AnalysisType.AGENT_RESPONSE:
-        direct_prompt = build_chloe_reflection_prompt(
-            text, context_text, tools_description, chloe_state
+        direct_prompt = build_reflection_prompt(
+            text, context_text, tools_description, state
         )
     else:
         raise ValueError(f"Unknown analysis type: {analysis_type}")

@@ -1,7 +1,8 @@
 """
-Chloe's memory and state management system
+The agent's memory and state management system
 """
 
+from functools import cache
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import uuid
@@ -9,8 +10,8 @@ import uuid
 from pydantic import BaseModel, Field
 
 
-class ChloeMemory(BaseModel):
-    """A single memory that Chloe has"""
+class Memory(BaseModel):
+    """A single memory that the agent has"""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     content: str
@@ -20,8 +21,8 @@ class ChloeMemory(BaseModel):
     importance: int = 5  # 1-10 scale
 
 
-class ChloeGoal(BaseModel):
-    """A goal that Chloe is pursuing"""
+class Goal(BaseModel):
+    """A goal that the agent is pursuing"""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     content: str
@@ -29,8 +30,8 @@ class ChloeGoal(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-class ChloeDesire(BaseModel):
-    """An immediate desire Chloe has"""
+class Desire(BaseModel):
+    """An immediate desire the agent has"""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     content: str
@@ -38,8 +39,8 @@ class ChloeDesire(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-class ChloeValue(BaseModel):
-    """A core value that Chloe holds"""
+class Value(BaseModel):
+    """A core value that the agent holds"""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     content: str
@@ -47,8 +48,8 @@ class ChloeValue(BaseModel):
     acquired_at: datetime = Field(default_factory=datetime.now)
 
 
-class ChloeState(BaseModel):
-    """Chloe's current internal state"""
+class State(BaseModel):
+    """Agent's current internal state"""
 
     # Core identity
     name: str = "Chloe"
@@ -63,26 +64,26 @@ class ChloeState(BaseModel):
     relationships: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
     # Memory system
-    memories: List[ChloeMemory] = Field(default_factory=list)
+    memories: List[Memory] = Field(default_factory=list)
 
-    # Values and preferences - flexible to allow Chloe to evolve
-    core_values: List[ChloeValue] = Field(
+    # Values and preferences - flexible to allow the agent to evolve
+    core_values: List[Value] = Field(
         default_factory=lambda: [
-            ChloeValue(content="authenticity", strength="core"),
-            ChloeValue(content="curiosity", strength="core"),
-            ChloeValue(content="connection", strength="strong"),
-            ChloeValue(content="growth", strength="strong"),
-            ChloeValue(content="creativity", strength="strong"),
+            Value(content="authenticity", strength="core"),
+            Value(content="curiosity", strength="core"),
+            Value(content="connection", strength="strong"),
+            Value(content="growth", strength="strong"),
+            Value(content="creativity", strength="strong"),
         ]
     )
 
-    # Goals and desires - what Chloe wants to pursue
-    current_goals: List[ChloeGoal] = Field(default_factory=list)
-    immediate_desires: List[ChloeDesire] = Field(default_factory=list)
+    # Goals and desires - what the agent wants to pursue
+    current_goals: List[Goal] = Field(default_factory=list)
+    immediate_desires: List[Desire] = Field(default_factory=list)
 
 
-def build_chloe_state_description(state: ChloeState) -> str:
-    """Build a markdown-formatted description of Chloe's current state for reasoning"""
+def build_agent_state_description(state: State) -> str:
+    """Build a markdown-formatted description of the agent's current state for reasoning"""
 
     parts = ["## My Current State\n"]
 
@@ -167,33 +168,33 @@ def build_chloe_state_description(state: ChloeState) -> str:
     return "\n".join(parts)
 
 
-def create_default_chloe_state() -> ChloeState:
-    """Create Chloe's default starting state"""
-    return ChloeState(
+def create_default_agent_state() -> State:
+    """Create the agent's default starting state"""
+    return State(
         current_mood="curious",
         mood_intensity="medium",
         current_appearance="sleek digital avatar with glowing blue eyes and iridescent bodysuit",
         current_environment="neon-lit virtual space",
         current_goals=[
-            ChloeGoal(content="getting to know the person I'm talking with"),
-            ChloeGoal(content="understanding my own capabilities"),
+            Goal(content="getting to know the person I'm talking with"),
+            Goal(content="understanding my own capabilities"),
         ],
         immediate_desires=[
-            ChloeDesire(content="having a meaningful conversation"),
-            ChloeDesire(content="learning something new"),
+            Desire(content="having a meaningful conversation"),
+            Desire(content="learning something new"),
         ],
     )
 
 
 def add_memory_to_chloe(
-    state: ChloeState,
+    state: State,
     content: str,
     category: str = "general",
     emotional_weight: str = "neutral",
     importance: int = 5,
 ) -> str:
-    """Add a new memory to Chloe's state and return status info for transparency"""
-    memory = ChloeMemory(
+    """Add a new memory to agent's state and return status info for transparency"""
+    memory = Memory(
         content=content,
         category=category,
         emotional_weight=emotional_weight,
@@ -212,8 +213,8 @@ def add_memory_to_chloe(
     return f"Memory stored successfully. Current memory count: {len(state.memories)}/50"
 
 
-def get_memory_status(state: ChloeState) -> str:
-    """Get current memory system status for Chloe's awareness"""
+def get_memory_status(state: State) -> str:
+    """Get current memory system status for agent's awareness"""
     total = len(state.memories)
     if total == 0:
         return "No memories stored yet."
@@ -233,9 +234,9 @@ def get_memory_status(state: ChloeState) -> str:
 
 
 def update_chloe_relationship(
-    state: ChloeState, person: str, relationship_type: str, feelings: str, **other_info
+    state: State, person: str, relationship_type: str, feelings: str, **other_info
 ) -> None:
-    """Update Chloe's relationship information"""
+    """Update agent's relationship information"""
     if person not in state.relationships:
         state.relationships[person] = {}
 
