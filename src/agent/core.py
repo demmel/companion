@@ -211,7 +211,7 @@ Available tools: {self.tools.get_tools_description()}"""
                 # Emit event with serialized state description
                 state_description = build_agent_state_description(self.state)
                 content.append(
-                    TextContent(text=f"Character configured:\n{state_description}")
+                    ThoughtContent(text=f"Character configured:\n{state_description}")
                 )
                 yield AgentTextEvent(
                     content=f"Character configured:\n{state_description}",
@@ -227,6 +227,9 @@ Available tools: {self.tools.get_tools_description()}"""
                         image_description = _build_image_description(
                             self.state.current_appearance,
                             self.state.current_environment,
+                            self.state.name,
+                            self.llm,
+                            self.model,
                         )
 
                         # Emit tool started event

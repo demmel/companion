@@ -32,18 +32,87 @@ from agent.tools import ToolExecutionError, ToolRegistry
 logger = logging.getLogger(__name__)
 
 
-def _build_image_description(appearance: str, environment: str) -> str:
-    """Build an image generation prompt from appearance and environment descriptions"""
+def _resolve_removal_ids_for_streaming(state_updates, state):
+    """Resolve removal IDs to readable content for streaming display"""
+    import json
 
-    # Simply combine the descriptions without bias
-    if appearance and environment:
-        return f"{appearance} in {environment}"
-    elif appearance:
-        return appearance
-    elif environment:
-        return f"A person in {environment}"
-    else:
-        return "A person"
+    # Start with the original state updates (JSON-safe serialization)
+    updates_dict = state_updates.model_dump(mode='json')
+
+    # Resolve memory IDs to content
+    if updates_dict.get("memory_ids_to_forget"):
+        resolved_memories = []
+        for memory_id in updates_dict["memory_ids_to_forget"]:
+            memory = next((m for m in state.memories if m.id == memory_id), None)
+            if memory:
+                resolved_memories.append(f"{memory.content} (ID: {memory_id})")
+            else:
+                resolved_memories.append(f"Unknown memory (ID: {memory_id})")
+        updates_dict["memory_ids_to_forget"] = resolved_memories
+
+    # Resolve goal IDs to content
+    if updates_dict.get("goal_ids_to_remove"):
+        resolved_goals = []
+        for goal_id in updates_dict["goal_ids_to_remove"]:
+            goal = next((g for g in state.current_goals if g.id == goal_id), None)
+            if goal:
+                resolved_goals.append(f"{goal.content} (ID: {goal_id})")
+            else:
+                resolved_goals.append(f"Unknown goal (ID: {goal_id})")
+        updates_dict["goal_ids_to_remove"] = resolved_goals
+
+    # Resolve desire IDs to content
+    if updates_dict.get("desire_ids_to_remove"):
+        resolved_desires = []
+        for desire_id in updates_dict["desire_ids_to_remove"]:
+            desire = next(
+                (d for d in state.immediate_desires if d.id == desire_id), None
+            )
+            if desire:
+                resolved_desires.append(f"{desire.content} (ID: {desire_id})")
+            else:
+                resolved_desires.append(f"Unknown desire (ID: {desire_id})")
+        updates_dict["desire_ids_to_remove"] = resolved_desires
+
+    # Resolve value IDs to content
+    if updates_dict.get("value_ids_to_remove"):
+        resolved_values = []
+        for value_id in updates_dict["value_ids_to_remove"]:
+            value = next((v for v in state.core_values if v.id == value_id), None)
+            if value:
+                resolved_values.append(f"{value.content} (ID: {value_id})")
+            else:
+                resolved_values.append(f"Unknown value (ID: {value_id})")
+        updates_dict["value_ids_to_remove"] = resolved_values
+
+    return json.dumps(updates_dict, indent=2)
+
+
+def _build_image_description(
+    appearance: str, environment: str, agent_name: str, llm: LLM, model: SupportedModel
+) -> str:
+    """Use LLM to convert first-person descriptions and combine into image generation prompt"""
+
+    # Handle empty descriptions
+    if not appearance and not environment:
+        return f"{agent_name}"
+    elif not appearance:
+        appearance = f"I am {agent_name}"
+    elif not environment:
+        environment = "I'm in a simple setting"
+
+    prompt = f"""Create an image generation description by converting these first-person descriptions to third-person and combining them naturally:
+
+Character name: {agent_name}
+Appearance: "{appearance}"
+Environment: "{environment}"
+
+Convert to third-person and combine into a coherent image description suitable for AI image generation. Focus on visual details that can be rendered. Keep it concise but descriptive.
+
+Image description:"""
+
+    response = llm.generate_complete(model, prompt)
+    return response.strip()
 
 
 def run_reasoning_loop(
@@ -90,24 +159,31 @@ def run_reasoning_loop(
     # Analyze thoughts for state updates
     try:
         state_updates = analyze_thoughts_for_state_updates(thoughts, state, llm, model)
+
+        # Resolve removal IDs to content for readable streaming
+        readable_updates = _resolve_removal_ids_for_streaming(state_updates, state)
+
+        # Emit readable state updates for debugging
+        yield AgentTextEvent(
+            content=f"State updates: {readable_updates}",
+            is_thought=True,
+        )
+
         # Apply updates to the agent's state
         state = apply_state_updates(state, state_updates)
         current_message.content.append(
-            ThoughtContent(
-                text=f"State updates:\n{state_updates.model_dump_json(indent=2)}"
-            )
-        )
-        # Emit state updates as JSON for debugging
-        yield AgentTextEvent(
-            content=f"State updates: {state_updates.model_dump_json(indent=2)}",
-            is_thought=True,
+            ThoughtContent(text=f"State updates:\n{readable_updates}")
         )
 
         # Generate image if appearance or environment changed
         if state_updates.appearance or state_updates.environment:
             # Build image description from updated state
             image_description = _build_image_description(
-                state.current_appearance, state.current_environment
+                state.current_appearance,
+                state.current_environment,
+                state.name,
+                llm,
+                model,
             )
 
             # Generate image using the existing tool with streaming events

@@ -15,6 +15,38 @@ from agent.state import (
 )
 
 
+def to_third_person(first_person_text: str, name: str) -> str:
+    """Convert first-person description to third-person with name for image generation"""
+    if not first_person_text:
+        return first_person_text
+    
+    text = first_person_text
+    # Convert pronouns
+    text = text.replace("I'm", f"{name} is")
+    text = text.replace("I am", f"{name} is") 
+    text = text.replace("my ", f"{name}'s ")
+    text = text.replace("My ", f"{name}'s ")
+    text = text.replace("I ", f"{name} ")
+    text = text.replace("me ", f"{name} ")
+    text = text.replace("myself", f"{name}")
+    
+    return text
+
+
+def to_first_person(third_person_text: str, name: str) -> str:
+    """Convert third-person description back to first-person for reasoning prompts"""
+    if not third_person_text:
+        return third_person_text
+        
+    text = third_person_text
+    # Convert back to first person
+    text = text.replace(f"{name} is", "I'm")
+    text = text.replace(f"{name}'s ", "my ")
+    text = text.replace(f"{name} ", "I ")
+    
+    return text
+
+
 class StateUpdates(BaseModel):
     """State changes extracted from agent's thoughts"""
 
@@ -28,10 +60,10 @@ class StateUpdates(BaseModel):
 
     # Appearance and environment changes
     appearance: Optional[str] = Field(
-        description="Updated appearance description that builds on current state if agent thought about changes, or None if no change. MUST start with current appearance and modify only what she wanted to change. Keep all existing details she didn't mention changing."
+        description="Updated appearance description in first-person that builds on current state if I thought about changes, or None if no change. MUST start with 'I' and follow this exact order: 1) Pose/posture 2) Facial expression 3) Hair/body details 4) Clothing/accessories. PRIORITIZE emotional expression over clothing. Example: 'I'm leaning forward with a gentle smile, my hair falling softly around my shoulders, wearing a simple blue dress.' Always start with current appearance and modify only what I wanted to change."
     )
     environment: Optional[str] = Field(
-        description="Updated environment description that builds on current state if agent thought about changes, or None if no change. MUST start with current environment and modify only what she wanted to change. Keep all existing details she didn't mention changing."
+        description="Updated environment description in first-person that builds on current state if I thought about changes, or None if no change. Only change when contextually meaningful to the conversation. MUST start with current environment and modify only what I wanted to change. Example: 'I'm in a cozy room with softer lighting...'"
     )
 
     # Memory updates
@@ -128,9 +160,9 @@ def analyze_thoughts_for_state_updates(
     ]
     current_memories = "\n".join(memories_list) if memories_list else "None"
 
-    prompt = f"""TASK: Analyze agent's thoughts and extract state updates.
+    prompt = f"""TASK: Analyze my thoughts and extract state updates.
 
-agent's current state:
+My current state:
 - Mood: {current_mood}
 - Current Appearance: {current_state.current_appearance}
 - Current Environment: {current_state.current_environment}
@@ -147,16 +179,20 @@ Current Desires:
 All Current Memories:
 {current_memories}
 
-agent's thoughts to analyze:
+My thoughts to analyze:
 "{thoughts_text}"
 
 OBJECTIVE: Extract any state changes from these thoughts.
 
 Analysis requirements:
-- Identify if her mood or mood intensity changed during these thoughts
-- Identify if she decided to change her appearance or environment, capturing the SPECIFIC visual details she thought about (not abstract concepts like 'elegant' but actual visual descriptions like colors, textures, clothing, lighting, etc.)
+- Identify if my mood or mood intensity changed during these thoughts
+- Identify if I decided to change my appearance or environment:
+  * PRIORITIZE emotional expression: facial expressions, posture, body language, gestures
+  * SECONDARILY consider: clothing, accessories, environment changes (only when contextually meaningful)
+  * Focus on HOW my emotions show through my physical presence
+  * Capture specific visual details, not abstract concepts
 - Extract important details that should be remembered (not already obvious from context)
-- Identify any new goals or desires that emerged from her thinking
+- Identify any new goals or desires that emerged from my thinking
 - Identify any goals/desires that should be removed (completed, no longer relevant)
 - Identify any values that should be added or removed
 - Identify any memories that should be forgotten (use exact memory IDs from the full list above)
@@ -168,15 +204,19 @@ Rules for IDs:
 - New items don't need IDs - they will be generated automatically
 
 Rules for appearance/environment changes:
-- ONLY populate appearance/environment fields if agent explicitly thought about making changes
-- If she thought about changes, you MUST build on the current state, not replace it entirely
-- START with the current appearance/environment and MODIFY only what she wanted to change
-- Keep all existing details that she didn't mention changing
-- Example: If current appearance is "blue dress with lace details" and she thinks "maybe a red color instead", output "red dress with lace details" (keeping the lace, changing only the color)
-- If she thinks about adding something: add it to the existing description
-- If she thinks about removing something: remove only that specific element
-- If she thinks about a complete outfit change: then you can replace the full description
-- NEVER simplify or lose details from the current state unless she explicitly wanted them removed
+- ONLY populate appearance/environment fields if I explicitly thought about making changes
+- If I thought about changes, you MUST build on my current state, not replace it entirely
+- START with my current appearance/environment and MODIFY only what I wanted to change
+- Keep all existing details that I didn't mention changing
+- For appearance changes, MUST follow this exact order: 1) Pose/posture 2) Facial expression 3) Hair/body details 4) Clothing/accessories
+- PRIORITIZE emotional expression (pose, facial expression) over clothing changes
+- Always start with "I" and maintain first-person language
+- NEVER use lazy shortcuts like "as before", "the same", "styled as before", "wearing the same", etc.
+- ALWAYS provide complete, self-contained descriptions that can stand alone
+- Example: If I think about being more engaged, output "I'm leaning forward with an interested expression, my long wavy hair falling softly around my shoulders, wearing a blue dress with delicate lace details"
+- If I think about adding something: add it in the correct structural position with full description
+- If I think about removing something: remove only that specific element while maintaining complete description
+- NEVER simplify or lose details from the current state unless I explicitly wanted them removed
 
 Rules for other changes:
 - Only extract changes/updates, not existing state

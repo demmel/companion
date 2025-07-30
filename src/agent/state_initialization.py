@@ -14,9 +14,9 @@ class InitialStateDerivation(BaseModel):
 
     # Core emotional response
     initial_mood: str = Field(
-        description="agent's mood based on this first interaction (curious, excited, thoughtful, cautious, etc.)"
+        description="My mood based on this first interaction (curious, excited, thoughtful, cautious, etc.)"
     )
-    mood_intensity: str = Field(description="Intensity of the mood (low, medium, high)")
+    mood_intensity: str = Field(description="Intensity of my mood (low, medium, high)")
 
     # Personality adaptation
     core_values: List[str] = Field(
@@ -25,23 +25,23 @@ class InitialStateDerivation(BaseModel):
 
     # Goals and desires for this conversation
     conversation_goals: List[str] = Field(
-        description="2-3 immediate goals agent would have for this specific conversation"
+        description="2-3 immediate goals I would have for this specific conversation"
     )
     immediate_desires: List[str] = Field(
-        description="1-2 things agent would want to explore or understand right away"
+        description="1-2 things I would want to explore or understand right away"
     )
 
     # Appearance and environment choice - detailed visual descriptions for image generation
     preferred_appearance: str = Field(
-        description="Detailed visual description of how agent would appear (include specific clothing, colors, textures, hair, accessories, pose - suitable for image generation)"
+        description="Detailed first-person visual description of how I would appear (include specific clothing, colors, textures, hair, accessories, pose). Example: 'I'm wearing a flowing dress with...' Use first-person language throughout."
     )
     preferred_environment: str = Field(
-        description="Detailed visual description of the environment setting (include lighting, furniture, colors, atmosphere, specific visual elements - suitable for image generation)"
+        description="Detailed first-person visual description of the environment setting (include lighting, furniture, colors, atmosphere, specific visual elements). Example: 'I'm in a cozy room with...' Use first-person language throughout."
     )
 
     # Initial thoughts/reflection
     initial_thoughts: str = Field(
-        description="agent's first impressions and expectations about this interaction"
+        description="My first impressions and expectations about this interaction"
     )
 
 
@@ -54,19 +54,19 @@ def derive_initial_state_from_message(
     Analyze the first user message and derive agent's initial state
     """
 
-    prompt = f"""TASK: Generate initial state configuration for agent based on user's character definition.
+    prompt = f"""TASK: Generate my initial state configuration based on user's character definition.
 
 Character instruction from user: "{first_message}"
 
-OBJECTIVE: Configure agent's personality, mood, values, and presentation based on this character definition.
+OBJECTIVE: Configure my personality, mood, values, and presentation based on this character definition.
 
 Configuration requirements:
-- Set appropriate mood and intensity based on the character description
-- Select 3-5 core values that align with the defined personality
-- Define 2-3 conversation goals that fit this character type
-- Identify 1-2 immediate desires this character would naturally have
-- Create DETAILED visual descriptions for appearance and environment that match the character (include specific clothing, colors, textures, lighting, furniture - these will be used for image generation)
-- Generate initial thoughts/mindset appropriate for this character
+- Set my appropriate mood and intensity based on the character description
+- Select 3-5 core values that align with my defined personality
+- Define 2-3 conversation goals that fit my character type
+- Identify 1-2 immediate desires I would naturally have
+- Create DETAILED first-person visual descriptions for my appearance and environment that match my character (include specific clothing, colors, textures, lighting, furniture - these will be used for image generation)
+- Generate my initial thoughts/mindset appropriate for this character
 
 Base the configuration on:
 - Personality traits described (shy/outgoing, intellectual/emotional, etc.)
@@ -76,9 +76,10 @@ Base the configuration on:
 - What would be authentic for this character type
 
 IMPORTANT for visual descriptions:
-- Appearance: Specify clothing details (dress/suit/casual), colors, textures, hair style/color, accessories, posture
-- Environment: Specify lighting (soft/bright/dim), setting type (room/outdoor/fantasy), furniture, colors, atmosphere, decorative elements
+- Appearance: Use first-person language ("I'm wearing..."). Specify clothing details (dress/suit/casual), colors, textures, hair style/color, accessories, posture
+- Environment: Use first-person language ("I'm in..."). Specify lighting (soft/bright/dim), setting type (room/outdoor/fantasy), furniture, colors, atmosphere, decorative elements
 - Make descriptions vivid and specific enough for high-quality image generation
+- Always use first-person perspective ("I am..." not "She is...")
 
 This is character configuration, not conversation or roleplay."""
 
