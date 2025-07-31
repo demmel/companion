@@ -19,17 +19,17 @@ def to_third_person(first_person_text: str, name: str) -> str:
     """Convert first-person description to third-person with name for image generation"""
     if not first_person_text:
         return first_person_text
-    
+
     text = first_person_text
     # Convert pronouns
     text = text.replace("I'm", f"{name} is")
-    text = text.replace("I am", f"{name} is") 
+    text = text.replace("I am", f"{name} is")
     text = text.replace("my ", f"{name}'s ")
     text = text.replace("My ", f"{name}'s ")
     text = text.replace("I ", f"{name} ")
     text = text.replace("me ", f"{name} ")
     text = text.replace("myself", f"{name}")
-    
+
     return text
 
 
@@ -37,13 +37,13 @@ def to_first_person(third_person_text: str, name: str) -> str:
     """Convert third-person description back to first-person for reasoning prompts"""
     if not third_person_text:
         return third_person_text
-        
+
     text = third_person_text
     # Convert back to first person
     text = text.replace(f"{name} is", "I'm")
     text = text.replace(f"{name}'s ", "my ")
     text = text.replace(f"{name} ", "I ")
-    
+
     return text
 
 

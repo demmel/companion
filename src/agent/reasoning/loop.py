@@ -37,7 +37,7 @@ def _resolve_removal_ids_for_streaming(state_updates, state):
     import json
 
     # Start with the original state updates (JSON-safe serialization)
-    updates_dict = state_updates.model_dump(mode='json')
+    updates_dict = state_updates.model_dump(mode="json")
 
     # Resolve memory IDs to content
     if updates_dict.get("memory_ids_to_forget"):

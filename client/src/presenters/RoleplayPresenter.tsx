@@ -541,8 +541,45 @@ function SpecialToolPresentation({
       );
     default:
       return (
-        <div className={css({ mb: 4 })}>
-          {toolCall.tool_name} - {JSON.stringify(toolCall.parameters, null, 2)}
+        <div
+          className={css({
+            textAlign: "center",
+            my: 3,
+            py: 2,
+            px: 4,
+            bg: "gray.800",
+            borderRadius: "2xl",
+            border: "1px solid",
+            borderColor: "gray.600",
+          })}
+        >
+          <div
+            className={css({
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 3,
+              fontSize: "2xl",
+              mb: 2,
+            })}
+          >
+            <span>{toolCall.tool_name}</span>
+          </div>
+          <div
+            className={css({
+              fontSize: "2xl",
+              color: "gray.300",
+              fontStyle: "italic",
+            })}
+          >
+            {JSON.stringify(toolCall.parameters, null, 2)}
+            {toolCall.type === "finished" ? (
+              <>
+                <hr />
+                {JSON.stringify(toolCall.result, null, 2)}
+              </>
+            ) : null}
+          </div>
         </div>
       );
   }

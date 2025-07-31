@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from agent.conversation_history import ConversationHistory
 from agent.reasoning.loop import run_reasoning_loop
 from agent.reasoning.prompts import build_summarization_prompt
+from agent.chain_of_action.reasoning_loop import ActionBasedReasoningLoop
 from agent.conversation_persistence import ConversationPersistence
 from agent.state import (
     State,
@@ -30,6 +31,7 @@ from .types import (
     SummarizationContent,
     SystemMessage,
     TextContent,
+    TextToolContent,
     ThoughtContent,
     ToolCall,
     ToolCallContent,
@@ -69,9 +71,12 @@ class Agent:
         model: SupportedModel,
         llm: LLM,
         auto_save: bool = True,
+        use_chain_of_action: bool = False,
+        enable_image_generation: bool = True,
     ):
         self.llm = llm
         self.model = model
+        self.use_chain_of_action = use_chain_of_action
         self.context_window = llm.models[model].context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
 
@@ -82,15 +87,20 @@ class Agent:
             self.persistence.generate_conversation_id() if auto_save else None
         )
 
-        from agent.tools.image_generation import ImageGenerationTool
-
         # Initialize the agent's tools
-        tools: List[BaseTool] = [
-            ImageGenerationTool(),
-        ]
+        tools: List[BaseTool] = []
+        if enable_image_generation:
+            from agent.tools.image_generation import ImageGenerationTool
+
+            tools.append(ImageGenerationTool())
+
         self.tools = ToolRegistry(self, tools)
 
         self.conversation_history = ConversationHistory()
+
+        # Initialize reasoning system
+        if self.use_chain_of_action:
+            self.action_reasoning_loop = ActionBasedReasoningLoop()
 
         # Initialize the agent's state system (None until configured by first message)
         self.state: Optional[State] = None
@@ -311,16 +321,21 @@ Available tools: {self.tools.get_tools_description()}"""
                 for event in self._auto_summarize_with_events(keep_recent):
                     yield event
 
-            # Run reasoning loop with agent's state
-            for event in run_reasoning_loop(
-                history=self.conversation_history,
-                user_input=user_input,
-                tools=self.tools,
-                llm=self.llm,
-                model=self.model,
-                state=self.state,
-            ):
-                yield event
+            if self.use_chain_of_action:
+                # Use action-based reasoning with callback conversion
+                for event in self._run_chain_of_action_with_streaming(user_input):
+                    yield event
+            else:
+                # Use original reasoning loop
+                for event in run_reasoning_loop(
+                    history=self.conversation_history,
+                    user_input=user_input,
+                    tools=self.tools,
+                    llm=self.llm,
+                    model=self.model,
+                    state=self.state,
+                ):
+                    yield event
 
         # Emit response complete event with context info
         context_info = self.get_context_info()
@@ -340,6 +355,169 @@ Available tools: {self.tools.get_tools_description()}"""
         # Auto-save conversation after each turn
         if self.auto_save:
             self.save_conversation()
+
+    def _run_chain_of_action_with_streaming(
+        self, user_input: str
+    ) -> Iterator[AgentEvent]:
+        """Run chain_of_action with callback conversion to AgentEvents"""
+        from agent.chain_of_action.callbacks import ActionCallback
+        from agent.chain_of_action.action_types import ActionType
+        from agent.streaming_queue import StreamingQueue
+
+        # Create streaming queue for events
+        streaming = StreamingQueue[AgentEvent]()
+
+        # Track content for history
+        content = []
+        tool_calls = []
+
+        # Add user message to history first
+        user_message = UserMessage(content=[TextContent(text=user_input)])
+        self.conversation_history.add_message(user_message)
+
+        # Create callback that emits to streaming queue
+        class StreamingCallback(ActionCallback):
+            def __init__(self, agent):
+                self.agent = agent
+
+            def on_sequence_started(
+                self, sequence_number: int, total_actions: int, reasoning: str
+            ) -> None:
+                pass  # Don't emit to UI
+
+            def on_action_started(
+                self,
+                action_type: ActionType,
+                context: str,
+                sequence_number: int,
+                action_number: int,
+            ) -> None:
+                # Emit started events for everything except THINK and SPEAK
+                if action_type not in (ActionType.THINK, ActionType.SPEAK):
+                    from agent.agent_events import ToolStartedEvent
+
+                    streaming.emit(
+                        ToolStartedEvent(
+                            tool_name=action_type.value,
+                            tool_id=f"action_{sequence_number}_{action_number}",
+                            parameters={"context": context},
+                        )
+                    )
+
+            def on_action_progress(
+                self,
+                action_type: ActionType,
+                progress_data,
+                sequence_number: int,
+                action_number: int,
+            ) -> None:
+                from agent.chain_of_action.action_events import (
+                    SpeakProgressData,
+                    ThinkProgressData,
+                )
+
+                # Handle streaming progress for THINK and SPEAK actions
+                if action_type == ActionType.THINK:
+                    assert isinstance(progress_data, ThinkProgressData)
+                    if progress_data.is_partial and progress_data.text:
+                        # Stream thought tokens
+                        streaming.emit(
+                            AgentTextEvent(
+                                content=progress_data.text,
+                                is_thought=True,
+                            )
+                        )
+
+                elif action_type == ActionType.SPEAK:
+                    assert isinstance(progress_data, SpeakProgressData)
+                    if progress_data.is_partial and progress_data.text:
+                        # Stream speech tokens
+                        streaming.emit(
+                            AgentTextEvent(
+                                content=progress_data.text,
+                                is_thought=False,
+                            )
+                        )
+
+            def on_action_finished(
+                self,
+                action_type: ActionType,
+                result,
+                sequence_number: int,
+                action_number: int,
+            ) -> None:
+                if action_type == ActionType.THINK:
+                    # THINK: just capture content (streaming already handled by on_action_progress)
+                    content.append(ThoughtContent(text=result.result_summary))
+
+                elif action_type == ActionType.SPEAK:
+                    # SPEAK: just capture content (streaming already handled by on_action_progress)
+                    content.append(TextContent(text=result.result_summary))
+
+                elif action_type == ActionType.DONE:
+                    # DONE: Don't do anything
+                    pass
+                else:
+                    # Other actions: emit finished event
+                    from agent.agent_events import ToolFinishedEvent
+                    from agent.types import ToolCallSuccess
+
+                    tool_result = ToolCallSuccess(
+                        content=TextToolContent(text=result.result_summary),
+                        llm_feedback=result.result_summary,
+                    )
+
+                    streaming.emit(
+                        ToolFinishedEvent(
+                            tool_id=f"action_{sequence_number}_{action_number}",
+                            result=tool_result,
+                        )
+                    )
+
+            def on_sequence_finished(
+                self, sequence_number: int, total_results: int, successful_actions: int
+            ) -> None:
+                pass  # Don't emit to UI
+
+            def on_evaluation(
+                self,
+                has_repetition: bool,
+                pattern_detected: str,
+                original_actions: int,
+                corrected_actions: int,
+            ) -> None:
+                pass  # Don't emit to UI
+
+            def on_processing_complete(
+                self, total_sequences: int, total_actions: int
+            ) -> None:
+                # Add the complete agent message to history
+                if content:
+                    agent_message = AgentMessage(
+                        role="assistant",
+                        content=content,
+                        tool_calls=tool_calls,
+                    )
+                    self.agent.conversation_history.add_message(agent_message)
+
+        # Create callback
+        callback = StreamingCallback(self)
+
+        # Define work function for streaming queue
+        def chain_of_action_work():
+            assert self.state is not None, "State must be initialized before processing"
+            self.action_reasoning_loop.process_user_input(
+                user_input=user_input,
+                user_name="User",  # TODO: Could be parameterized
+                state=self.state,
+                conversation_history=self.conversation_history,
+                llm=self.llm,
+                model=self.model,
+                callback=callback,
+            )
+
+        # Stream events while work executes
+        yield from streaming.stream_while(chain_of_action_work)
 
     def reset_conversation(self):
         """Reset conversation history and agent's state"""
