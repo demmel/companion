@@ -132,13 +132,13 @@ class ActionBasedReasoningLoop:
 
             # Results are already added to context.completed_actions by executor
 
-            # Check if agent signaled completion with DONE action
-            done_actions = [
-                r for r in sequence_results if r.action.value == "done" and r.success
+            # Check if agent signaled completion with WAIT action
+            wait_actions = [
+                r for r in sequence_results if r.action.value == "wait" and r.success
             ]
-            if done_actions:
+            if wait_actions:
                 logger.debug(
-                    f"Agent signaled completion: {done_actions[0].result_summary}"
+                    f"Agent signaled completion: {wait_actions[0].result_summary}"
                 )
                 break
 

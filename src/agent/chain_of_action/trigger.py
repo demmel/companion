@@ -34,7 +34,7 @@ def format_trigger_for_prompt(trigger: TriggerEvent) -> str:
     if isinstance(trigger, UserInputTrigger):
         # For user input, show who spoke to the agent
         user_trigger = trigger  # Type: UserInputTrigger
-        return f'{user_trigger.user_name} just said to me: "{user_trigger.content}"'
+        return f'{user_trigger.user_name} said to me: "{user_trigger.content}"'
     else:
         # Future trigger types would be formatted differently
         # e.g., "A tool finished executing: {result}"

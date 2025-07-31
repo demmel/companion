@@ -3,13 +3,13 @@ Action implementations.
 """
 
 from .think_action import ThinkAction
-from .done_action import DoneAction
+from .done_action import WaitAction
 from .speak_action import SpeakAction
 from .update_mood_action import UpdateMoodAction
 
 __all__ = [
     "ThinkAction",
-    "DoneAction",
+    "WaitAction",
     "SpeakAction",
     "UpdateMoodAction",
 ]

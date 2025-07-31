@@ -26,4 +26,4 @@ class ActionType(str, Enum):
     SPEAK = "speak"  # Generate conversational response
 
     # Meta Actions
-    DONE = "done"  # Complete sequence
+    WAIT = "wait"  # Wait for response before continuing

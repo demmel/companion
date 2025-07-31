@@ -18,6 +18,10 @@ class ActionPlan(BaseModel):
 class ActionSequence(BaseModel):
     """Sequence of actions to execute"""
 
-    actions: List[ActionPlan] = Field(description="Actions in execution order")
-    can_extend: bool = Field(description="Whether more actions can be added on-the-fly")
-    reasoning: str = Field(description="Why this sequence was chosen")
+    situation_analysis: str = Field(
+        description="My analysis of the current situation and what it calls for"
+    )
+    actions: List[ActionPlan] = Field(
+        description="The actions I want to take, in order"
+    )
+    reasoning: str = Field(description="My reasoning for why I chose this sequence")

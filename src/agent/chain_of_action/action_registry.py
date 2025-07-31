@@ -7,7 +7,7 @@ import logging
 
 from .action_types import ActionType
 from .base_action import BaseAction
-from .actions import ThinkAction, DoneAction, SpeakAction, UpdateMoodAction
+from .actions import ThinkAction, WaitAction, SpeakAction, UpdateMoodAction
 
 from agent.state import State
 from agent.conversation_history import ConversationHistory
@@ -26,7 +26,7 @@ class ActionRegistry:
     def _register_default_actions(self):
         """Register the core actions"""
         self.register(ThinkAction)
-        self.register(DoneAction)
+        self.register(WaitAction)
         self.register(SpeakAction)
         self.register(UpdateMoodAction)
         # etc.

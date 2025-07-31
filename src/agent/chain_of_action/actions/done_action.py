@@ -1,5 +1,5 @@
 """
-DONE action implementation.
+WAIT action implementation.
 """
 
 import time
@@ -17,18 +17,18 @@ from agent.llm import LLM, SupportedModel
 logger = logging.getLogger(__name__)
 
 
-class DoneAction(BaseAction):
-    """Signal completion of the action sequence"""
+class WaitAction(BaseAction):
+    """Wait for something else to happen"""
 
-    action_type = ActionType.DONE
+    action_type = ActionType.WAIT
 
     @classmethod
     def get_action_description(cls) -> str:
-        return "Signal that I am complete and ready to wait for the next trigger"
+        return "Wait for something else to happen"
 
     @classmethod
     def get_context_description(cls) -> str:
-        return "Reason why I feel complete - what I've accomplished or why no further actions are needed"
+        return "Brief reflection on what I've accomplished and why I'm ready for whatever comes next"
 
     def execute(
         self,
@@ -50,8 +50,8 @@ class DoneAction(BaseAction):
         duration_ms = (time.time() - start_time) * 1000
 
         return ActionResult(
-            action=ActionType.DONE,
-            result_summary=f"Completed sequence. Reason: {action_plan.context}",
+            action=ActionType.WAIT,
+            result_summary=f"Waiting for something else to happen. Reason: {action_plan.context}",
             context_given=action_plan.context,
             duration_ms=duration_ms,
             success=True,
