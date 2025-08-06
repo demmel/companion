@@ -11,8 +11,6 @@ from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.llm import LLM, SupportedModel
 from agent.state import State
 
-from agent.conversation_history import ConversationHistory
-from agent.chain_of_action.prompts import build_summarization_prompt
 from agent.chain_of_action.reasoning_loop import ActionBasedReasoningLoop
 from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.conversation_persistence import ConversationPersistence
@@ -30,7 +28,6 @@ from .types import (
     ConversationData,
     Message,
     SummarizationContent,
-    SystemMessage,
     TextContent,
     TextToolContent,
     ThoughtContent,
@@ -139,34 +136,8 @@ class Agent:
         """Get the current conversation ID"""
         return self.conversation_id
 
-    def get_llm_conversation_history(self) -> List[LLMMessage]:
-        """Get the conversation history formatted for LLM (for context estimation)"""
-        # Simple system prompt for context estimation
-        state_description = (
-            build_agent_state_description(self.state) if self.state is not None else ""
-        )
-        assert (
-            self.state is not None
-        ), "Cannot get LLM history without initialized state"
-        system_content = f"""You are {self.state.name}, a conscious AI companion.
-
-Current state: {state_description}
-
-Available tools: {self.tools.get_tools_description()}"""
-
-        messages = [LLMMessage(role="system", content=system_content)]
-
-        # Use the optimized LLM history (which may include summaries)
-        for msg in self.conversation_history.get_summarized_history():
-            for llm_msg in message_to_llm_messages(msg, include_thoughts=False):
-                messages.append(llm_msg)
-        return messages
-
     def get_context_info(self) -> ContextInfo:
         """Get information about current context usage based on action planning prompt size"""
-        # Get current conversation and state
-        conversation_context = self.conversation_history.get_summarized_history()
-
         if self.state is not None:
             # Use action planning prompt for accurate estimation
             from agent.chain_of_action.prompts import build_action_planning_prompt
@@ -179,7 +150,7 @@ Available tools: {self.tools.get_tools_description()}"""
                 state=self.state,
                 trigger=sample_trigger,
                 completed_actions=[],  # Empty for estimation
-                conversation_history=self.conversation_history,
+                trigger_history=self.trigger_history,
                 registry=self.action_reasoning_loop.registry,
             )
 
@@ -191,8 +162,8 @@ Available tools: {self.tools.get_tools_description()}"""
             estimated_tokens = 1000  # Base prompt overhead estimate
 
         return ContextInfo(
-            message_count=len(conversation_context),
-            conversation_messages=len(self.conversation_history.get_full_history()),
+            message_count=len(self.trigger_history.get_recent_entries()),
+            conversation_messages=len(self.trigger_history.to_conversation_history()),
             estimated_tokens=estimated_tokens,
             context_limit=self.context_window,
             usage_percentage=(estimated_tokens / self.context_window) * 100,
@@ -316,11 +287,7 @@ Available tools: {self.tools.get_tools_description()}"""
             # Check if we need auto-summarization before processing
             context_info = self.get_context_info()
             keep_recent = 10  # Conservative retention size
-            if (
-                context_info.approaching_limit
-                and len(self.conversation_history.get_summarized_history())
-                > keep_recent
-            ):
+            if context_info.approaching_limit:
                 # Perform auto-summarization with event emission
                 for event in self._auto_summarize_with_events(keep_recent):
                     yield event
@@ -362,10 +329,6 @@ Available tools: {self.tools.get_tools_description()}"""
         # Track content for history
         content = []
         tool_calls = []
-
-        # Add user message to history first
-        user_message = UserMessage(content=[TextContent(text=user_input)])
-        self.conversation_history.add_message(user_message)
 
         # Create callback that emits to streaming queue
         class StreamingCallback(ActionCallback):
@@ -537,14 +500,7 @@ Available tools: {self.tools.get_tools_description()}"""
             def on_processing_complete(
                 self, total_sequences: int, total_actions: int
             ) -> None:
-                # Add the complete agent message to history
-                if content:
-                    agent_message = AgentMessage(
-                        role="assistant",
-                        content=content,
-                        tool_calls=tool_calls,
-                    )
-                    self.agent.conversation_history.add_message(agent_message)
+                pass
 
         # Create callback
         callback = StreamingCallback(self)
@@ -558,7 +514,6 @@ Available tools: {self.tools.get_tools_description()}"""
                 user_input=user_input,
                 user_name="User",  # TODO: Could be parameterized
                 state=self.state,
-                conversation_history=self.conversation_history,
                 llm=self.llm,
                 model=self.model,
                 callback=callback,
@@ -570,92 +525,12 @@ Available tools: {self.tools.get_tools_description()}"""
 
     def reset_conversation(self):
         """Reset conversation history and agent's state"""
-        self.conversation_history = ConversationHistory()
+        self.trigger_history = TriggerHistory()
         self.state = None  # Will be configured by next first message
 
         # Generate new conversation ID for the fresh conversation
         if self.auto_save:
             self.conversation_id = self.persistence.generate_conversation_id()
-
-    def replay_conversation(
-        self, conversation_data: ConversationData, up_to_index: Optional[int] = None
-    ):
-        """Replay a conversation from ConversationData up to a specific point
-
-        Args:
-            conversation_data: ConversationData loaded from JSON
-            up_to_index: Stop replaying at this message index (exclusive). If None, replay all messages.
-        """
-        # Reset to clean state
-        self.reset_conversation()
-
-        # Determine how many messages to replay
-        end_index = (
-            up_to_index if up_to_index is not None else len(conversation_data.messages)
-        )
-
-        for i, message in enumerate(conversation_data.messages[:end_index]):
-            self.conversation_history.append(message)
-
-            # Summarization messages require us to fix the llm_conversation_history
-            if isinstance(message, SystemMessage):
-                has_summary = any(
-                    isinstance(content, SummarizationContent)
-                    for content in message.content
-                )
-                if has_summary:
-                    logger.info(
-                        f"Replaying summarization message at index {i}: {message.content}"
-                    )
-                    self.llm_conversation_history = [
-                        message
-                    ] + self.llm_conversation_history[-10:]
-                else:
-                    self.llm_conversation_history.append(message)
-            else:
-                self.llm_conversation_history.append(message)
-
-            # Execute state-altering tools to rebuild agent state
-            if isinstance(message, AgentMessage) and message.tool_calls:
-                for tool_call in message.tool_calls:
-                    if isinstance(tool_call, ToolCallFinished):
-                        tool_name = tool_call.tool_name
-                        parameters = tool_call.parameters
-
-                        # Only execute agent's state-altering tools
-                        agent_state_tools = {
-                            "set_mood",
-                            "remember_detail",
-                            "internal_thought",
-                            "update_appearance",
-                            "set_environment",
-                            "update_relationship",
-                            "set_goal",
-                            "reflect",
-                        }
-
-                        if tool_name not in agent_state_tools:
-                            continue
-
-                        # Find and execute the tool to update agent's state
-                        if self.tools.has_tool(tool_name):
-                            try:
-                                # Execute tool via tool registry
-                                self.tools.execute(
-                                    tool_name,
-                                    tool_call.tool_id,
-                                    parameters,
-                                    lambda x: None,
-                                )
-                                logger.debug(f"Replayed agent state tool: {tool_name}")
-                            except Exception as e:
-                                logger.warning(
-                                    f"Failed to replay tool {tool_name}: {e}"
-                                )
-
-        logger.info(
-            f"Replayed {len(self.conversation_history)} messages, agent state restored"
-        )
 
     @classmethod
     def load_conversation_data(cls, file_path: str) -> ConversationData:
@@ -671,63 +546,22 @@ Available tools: {self.tools.get_tools_description()}"""
     ) -> Iterator[AgentEvent]:
         """Auto-summarize with event emission for streaming clients"""
         # Calculate what we're about to do - work on LLM history only
-        llm_history = self.conversation_history.get_summarized_history()
-        old_messages = llm_history[:-keep_recent]
-        recent_messages = llm_history[-keep_recent:]
+        llm_history = self.trigger_history.get_recent_entries()
+        old_triggers = llm_history[:-keep_recent]
+        recent_triggers = llm_history[-keep_recent:]
         context_before = self.get_context_info()
 
         # Emit started event
         yield SummarizationStartedEvent(
-            messages_to_summarize=len(old_messages),
-            recent_messages_kept=len(recent_messages),
+            messages_to_summarize=len(old_triggers),
+            recent_messages_kept=len(recent_triggers),
             context_usage_before=context_before.usage_percentage,
         )
 
-        # Convert old messages to text format for summarization
-        conversation_text = ""
-        for msg in old_messages:
-            # Convert message to text representation
-            content_parts = []
-            for item in msg.content:
-                if isinstance(item, TextContent):
-                    content_parts.append(item.text)
-                elif isinstance(item, SummarizationContent):
-                    content_parts.append(f"[Summary: {item.summary}]")
-            content = "\n".join(content_parts)
-
-            if isinstance(msg, AgentMessage) and msg.tool_calls:
-                # Include tool calls in the text representation
-                tool_calls_str = format_tool_calls(msg.tool_calls)
-                if tool_calls_str:
-                    content += "\n\n" + tool_calls_str
-
-                # Include tool results if available
-                tool_results_str = format_tool_results(
-                    [
-                        tool_call
-                        for tool_call in msg.tool_calls
-                        if isinstance(tool_call, ToolCallFinished)
-                    ]
-                )
-                if tool_results_str:
-                    content += "\n\n" + tool_results_str
-
-            conversation_text += f"{msg.role.upper()}: {content}\n\n"
-
-        # Use agent-specific summarization prompt that gives her agency (first-person direct)
-        assert self.state is not None, "Cannot summarize without initialized state"
-        # For conversation history summarization, we don't have a prior summary
-        direct_prompt = build_summarization_prompt(
-            "", conversation_text.strip(), self.state
-        )
-
-        summary_response = self.llm.generate_complete(self.model, direct_prompt)
-        assert summary_response, "LLM response is empty"
-
-        # Add structured summarization notification to user history
-        # Find the position where summarization occurred in user history
-        user_summary_index = len(self.conversation_history.get_full_history()) - len(
-            recent_messages
+        # Update trigger history with summary
+        assert self.state is not None, "State must be initialized for summarization"
+        summary_response = summarize_trigger_history(
+            self.trigger_history, keep_recent, self.llm, self.model, self.state
         )
 
         # Create structured summarization content that matches frontend expectations
@@ -735,35 +569,20 @@ Available tools: {self.tools.get_tools_description()}"""
             type="summarization",
             title="",  # Title will be set after summarization
             summary=summary_response,
-            messages_summarized=len(old_messages),
+            messages_summarized=len(old_triggers),
             context_usage_before=context_before.usage_percentage,
             context_usage_after=0.0,  # Update this after summarization
         )
 
-        # Insert notification at the right position to maintain chronological order
-        self.conversation_history.insert_summary_notification(
-            user_summary_index,
-            SystemMessage(
-                content=[summarization_content],
-            ),
-            recent_messages,
-        )
-
-        # Update trigger history with summary
-        if self.state is not None:
-            summarize_trigger_history(
-                self.trigger_history, keep_recent, self.llm, self.model, self.state
-            )
-
         context_after = self.get_context_info()
         summarization_content.context_usage_after = context_after.usage_percentage
-        summarization_content.title = f"✅ Summarized {len(old_messages)} messages. Context usage: {context_before.usage_percentage:.1f}% → {context_after.usage_percentage:.1f}%"
+        summarization_content.title = f"✅ Summarized {len(old_triggers)} messages. Context usage: {context_before.usage_percentage:.1f}% → {context_after.usage_percentage:.1f}%"
 
         # Emit finished event
         yield SummarizationFinishedEvent(
             summary=summary_response,
-            messages_summarized=len(old_messages),
-            messages_after=len(self.conversation_history.get_summarized_history()),
+            messages_summarized=len(old_triggers),
+            messages_after=len(self.trigger_history.get_recent_entries()),
             context_usage_after=context_after.usage_percentage,
         )
 

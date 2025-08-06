@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def initialize_agent(load_conversation: bool = False) -> Agent:
+def initialize_agent() -> Agent:
     """Initialize the agent
 
     Args:
@@ -47,33 +47,6 @@ def initialize_agent(load_conversation: bool = False) -> Agent:
         llm=llm,
         enable_image_generation=True,
     )
-
-    # Load conversation.json up to first summary if requested
-    if load_conversation:
-        try:
-            conversation_data = Agent.load_conversation_data("conversation.json")
-
-            # Find first summary index
-            first_summary_index = None
-            # for i, message in enumerate(conversation_data.messages):
-            #     if hasattr(message, 'content'):
-            #         for content in message.content:
-            #             if hasattr(content, 'type') and content.type == 'summarization':
-            #                 first_summary_index = i
-            #                 break
-            #         if first_summary_index is not None:
-            #             break
-
-            # Replay conversation up to first summary
-            agent.replay_conversation(
-                conversation_data, up_to_index=first_summary_index
-            )
-            logger.info(f"Loaded conversation")
-
-        except FileNotFoundError:
-            logger.info("conversation.json not found")
-        except Exception as e:
-            logger.warning(f"Failed to load conversation.json: {e}")
 
     return agent
 

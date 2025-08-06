@@ -7,11 +7,14 @@ import logging
 
 from .action_types import ActionType
 from .base_action import BaseAction
-from .actions import ThinkAction, WaitAction, SpeakAction, UpdateMoodAction, UpdateAppearanceAction
+from .actions import (
+    ThinkAction,
+    WaitAction,
+    SpeakAction,
+    UpdateMoodAction,
+    UpdateAppearanceAction,
+)
 
-from agent.state import State
-from agent.conversation_history import ConversationHistory
-from agent.llm import LLM, SupportedModel
 
 logger = logging.getLogger(__name__)
 

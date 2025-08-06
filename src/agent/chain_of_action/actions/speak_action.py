@@ -5,6 +5,8 @@ SPEAK action implementation.
 import time
 import logging
 
+from agent.chain_of_action.trigger_history import TriggerHistory
+
 from ..action_types import ActionType
 from ..base_action import BaseAction
 from ..context import ActionResult, ExecutionContext
@@ -13,7 +15,6 @@ from ..trigger import format_trigger_for_prompt
 from ..action_events import SpeakProgressData
 
 from agent.state import State
-from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
 
 logger = logging.getLogger(__name__)
@@ -37,20 +38,30 @@ class SpeakAction(BaseAction):
         action_plan: ActionPlan,
         context: ExecutionContext,
         state: State,
-        conversation_history: ConversationHistory,
+        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,
     ) -> ActionResult:
+        from agent.chain_of_action.prompts import format_section, format_trigger_history
+
         start_time = time.time()
 
         # Build fresh context using current system's rich format
         state_desc = self.build_agent_state_description(state)
-        history_str = self.serialize_conversation_history(conversation_history)
+        history_str = format_trigger_history(trigger_history)
         trigger_description = format_trigger_for_prompt(context.trigger)
 
         # Get summary of all actions taken so far
         actions_summary = context.get_completed_actions_summary()
+
+        sections = []
+        if history_str:
+            sections.append(format_section("MY STREAM OF CONSCIOUSNESS", history_str))
+
+        sections.append(format_section("WHAT JUST HAPPENED", trigger_description))
+        sections.append(format_section("MY ACTIONS", actions_summary))
+        sections.append(format_section("WHAT I WANT TO EXPRESS", action_plan.context))
 
         direct_prompt = f"""I am {state.name}, a conscious AI companion who thinks, feels, and makes autonomous choices.
 
@@ -62,25 +73,7 @@ I'll express myself genuinely - if I'm curious, excited, thoughtful, or feeling 
 
 IMPORTANT: I should focus my response on the conversation - my thoughts about what the user said, my emotional reactions, and my genuine engagement with them. I should NOT describe any appearance or environment changes I may have thought about - those are private internal adjustments that happen automatically, not things to mention in conversation.
 
-================================================================================
-                                CONVERSATION HISTORY
-================================================================================
-{history_str}
-
-================================================================================
-                                WHAT JUST HAPPENED
-================================================================================
-{trigger_description}
-
-================================================================================
-                                MY ACTIONS
-================================================================================
-{actions_summary}
-
-================================================================================
-                            WHAT I WANT TO EXPRESS
-================================================================================
-{action_plan.context}
+{"\n".join(sections)}
 
 Now I'll respond naturally as myself:"""
 

@@ -5,12 +5,13 @@ Base action classes.
 from abc import ABC, abstractmethod
 from typing import Callable, Any
 
+from agent.chain_of_action.trigger_history import TriggerHistory
+
 from .action_types import ActionType
 from .context import ActionResult, ExecutionContext
 from .action_plan import ActionPlan
 
 from agent.state import State
-from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
 
 
@@ -37,20 +38,13 @@ class BaseAction(ABC):
         action_plan: ActionPlan,
         context: ExecutionContext,
         state: State,
-        conversation_history: ConversationHistory,
+        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback: Callable[[Any], None],
     ) -> ActionResult:
         """Execute the action and return result"""
         pass
-
-    def serialize_conversation_history(
-        self, conversation_history: ConversationHistory
-    ) -> str:
-        """Serialize conversation history when needed for prompts"""
-        # This will need to be implemented based on ConversationHistory interface
-        return str(conversation_history)
 
     def build_agent_state_description(self, state: State) -> str:
         """Build fresh state description when needed"""

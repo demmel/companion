@@ -7,14 +7,14 @@ from typing import List
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ActionResult
+from agent.chain_of_action.trigger_history import TriggerHistory
 
 from .action_types import ActionType
-from .action_plan import ActionPlan, ActionSequence
+from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
 from ..structured_llm import direct_structured_llm_call
 
 from agent.state import State
-from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
 from .trigger import TriggerEvent
 
@@ -50,7 +50,7 @@ class ActionPlanner:
         trigger: TriggerEvent,
         completed_actions: List[ActionResult],
         state: State,
-        conversation_history: ConversationHistory,
+        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
     ) -> ActionSequence:
@@ -63,7 +63,7 @@ class ActionPlanner:
             state=state,
             trigger=trigger,
             completed_actions=completed_actions,
-            conversation_history=conversation_history,
+            trigger_history=trigger_history,
             registry=self.registry,
         )
 

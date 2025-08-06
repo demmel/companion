@@ -13,7 +13,6 @@ from .trigger import UserInputTrigger
 from .context import ActionResult
 from .callbacks import ActionCallback, NoOpCallback
 from agent.state import State
-from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
 from agent.chain_of_action.trigger_history import TriggerHistory
 
@@ -34,7 +33,6 @@ class ActionBasedReasoningLoop:
         user_input: str,
         user_name: str,
         state: State,
-        conversation_history: ConversationHistory,
         llm: LLM,
         model: SupportedModel,
         callback: ActionCallback,
@@ -79,7 +77,7 @@ class ActionBasedReasoningLoop:
                 trigger=trigger,
                 completed_actions=context.completed_actions,  # Show planner what's already done
                 state=state,
-                conversation_history=conversation_history,
+                trigger_history=trigger_history,
                 llm=llm,
                 model=model,
             )
@@ -126,7 +124,7 @@ class ActionBasedReasoningLoop:
                 sequence=sequence,
                 context=context,  # Pass shared context
                 state=state,
-                conversation_history=conversation_history,
+                trigger_history=trigger_history,
                 llm=llm,
                 model=model,
                 sequence_number=sequence_num,

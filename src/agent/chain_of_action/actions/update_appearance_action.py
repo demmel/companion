@@ -7,13 +7,14 @@ from __future__ import annotations
 import time
 import logging
 
+from agent.chain_of_action.trigger_history import TriggerHistory
+
 from ..action_types import ActionType
 from ..base_action import BaseAction
 from ..context import ActionResult, ExecutionContext
 from ..action_plan import ActionPlan
 
 from agent.state import State
-from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
 
@@ -75,7 +76,7 @@ class UpdateAppearanceAction(BaseAction):
         action_plan: ActionPlan,
         context: ExecutionContext,
         state: State,
-        conversation_history: ConversationHistory,
+        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,

@@ -3,7 +3,9 @@ Action executor for running action sequences.
 """
 
 import logging
-from typing import List, TYPE_CHECKING
+from typing import List
+
+from agent.chain_of_action.trigger_history import TriggerHistory
 
 from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
@@ -11,7 +13,6 @@ from .context import ExecutionContext, ActionResult
 from .callbacks import ActionCallback, NoOpCallback
 
 from agent.state import State
-from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class ActionExecutor:
         sequence: ActionSequence,
         context: ExecutionContext,
         state: State,
-        conversation_history: ConversationHistory,
+        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         sequence_number: int,
@@ -76,7 +77,7 @@ class ActionExecutor:
                     action_plan=action_plan,
                     context=context,
                     state=state,
-                    conversation_history=conversation_history,
+                    trigger_history=trigger_history,
                     llm=llm,
                     model=model,
                     progress_callback=action_progress_callback,
