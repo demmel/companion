@@ -14,11 +14,9 @@ from agent.chain_of_action.reasoning_loop import ActionBasedReasoningLoop
 from agent.conversation_persistence import ConversationPersistence
 from agent.state import (
     State,
-    create_default_agent_state,
     build_agent_state_description,
 )
 from agent.reasoning.prompts import build_understanding_prompt
-from agent.reasoning.analyze import _serialize_conversation_context
 from agent.state import build_agent_state_description
 
 from .llm import LLM, SupportedModel, Message as LLMMessage
@@ -36,7 +34,6 @@ from .types import (
     ToolCall,
     ToolCallContent,
     ToolCallFinished,
-    ToolCallSuccess,
     UserMessage,
 )
 from .agent_events import (
@@ -90,9 +87,9 @@ class Agent:
         # Initialize the agent's tools
         tools: List[BaseTool] = []
         if enable_image_generation:
-            from agent.tools.image_generation import ImageGenerationTool
+            from agent.tools.image_generation import get_shared_image_generator
 
-            tools.append(ImageGenerationTool())
+            tools.append(get_shared_image_generator())
 
         self.tools = ToolRegistry(self, tools)
 
@@ -393,7 +390,18 @@ Available tools: {self.tools.get_tools_description()}"""
                 action_number: int,
             ) -> None:
                 # Emit started events for everything except THINK and SPEAK
-                if action_type not in (ActionType.THINK, ActionType.SPEAK):
+                if action_type == ActionType.UPDATE_APPEARANCE:
+                    # For UPDATE_APPEARANCE, emit image generation tool started
+                    from agent.agent_events import ToolStartedEvent
+
+                    streaming.emit(
+                        ToolStartedEvent(
+                            tool_name="generate_image",
+                            tool_id=f"appearance_image_{sequence_number}_{action_number}",
+                            parameters={"description": context},
+                        )
+                    )
+                elif action_type not in (ActionType.THINK, ActionType.SPEAK):
                     from agent.agent_events import ToolStartedEvent
 
                     streaming.emit(
@@ -454,8 +462,51 @@ Available tools: {self.tools.get_tools_description()}"""
                     # SPEAK: just capture content (streaming already handled by on_action_progress)
                     content.append(TextContent(text=result.result_summary))
 
-                elif action_type == ActionType.DONE:
-                    # DONE: Don't do anything
+                elif action_type == ActionType.UPDATE_APPEARANCE:
+                    # UPDATE_APPEARANCE: Handle image generation tool events and add to tool_calls
+                    if result.metadata and "image_result" in result.metadata:
+                        image_result = result.metadata["image_result"]
+                        tool_id = f"appearance_image_{sequence_number}_{action_number}"
+
+                        # Emit tool started and finished events for image generation
+                        from agent.agent_events import (
+                            ToolStartedEvent,
+                            ToolFinishedEvent,
+                        )
+
+                        streaming.emit(
+                            ToolStartedEvent(
+                                tool_name="generate_image",
+                                tool_id=tool_id,
+                                parameters={
+                                    "description": result.metadata["image_description"]
+                                },
+                            )
+                        )
+
+                        streaming.emit(
+                            ToolFinishedEvent(
+                                tool_id=tool_id,
+                                result=image_result,
+                            )
+                        )
+
+                        # Add to tool_calls for conversation history
+                        from agent.types import ToolCallFinished
+
+                        tool_calls.append(
+                            ToolCallFinished(
+                                tool_name="generate_image",
+                                tool_id=tool_id,
+                                parameters={
+                                    "description": result.metadata["image_description"]
+                                },
+                                result=image_result,
+                            )
+                        )
+
+                elif action_type == ActionType.WAIT:
+                    # WAIT: Don't do anything special for UI
                     pass
                 else:
                     # Other actions: emit finished event

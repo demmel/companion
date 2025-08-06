@@ -7,7 +7,7 @@ import logging
 
 from .action_types import ActionType
 from .base_action import BaseAction
-from .actions import ThinkAction, WaitAction, SpeakAction, UpdateMoodAction
+from .actions import ThinkAction, WaitAction, SpeakAction, UpdateMoodAction, UpdateAppearanceAction
 
 from agent.state import State
 from agent.conversation_history import ConversationHistory
@@ -29,6 +29,7 @@ class ActionRegistry:
         self.register(WaitAction)
         self.register(SpeakAction)
         self.register(UpdateMoodAction)
+        self.register(UpdateAppearanceAction)
         # etc.
 
     def register(self, action_class: Type[BaseAction]):

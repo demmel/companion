@@ -613,6 +613,42 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             )
             return None
 
+    def generate_image_direct(
+        self,
+        description: str,
+        agent: Agent,
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
+        """Direct image generation method for use by actions (bypasses tool interface)"""
+
+        # Create input data object
+        input_data = ImageGenerationInput(description=description)
+
+        # Use the main run method with a generated tool ID
+        import uuid
+
+        tool_id = f"appearance_update_{uuid.uuid4().hex[:8]}"
+
+        return self.run(agent, input_data, tool_id, progress_callback)
+
+    def generate_image_for_action(
+        self,
+        description: str,
+        llm: LLM,
+        model: "SupportedModel",
+        progress_callback: Callable[[Any], None],
+    ) -> ToolResult:
+        """Generate image for actions (creates minimal agent-like object)"""
+
+        # Create minimal agent-like object with just the needed properties
+        class MinimalAgent:
+            def __init__(self, model, llm):
+                self.model = model
+                self.llm = llm
+
+        minimal_agent = MinimalAgent(model, llm)
+        return self.generate_image_direct(description, minimal_agent, progress_callback)
+
     def run(
         self,
         agent: Agent,
@@ -685,7 +721,16 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         )
 
 
-# Tool instance for registration
+# Shared instance for use by actions (maintains pipeline cache)
+_shared_image_generator = ImageGenerationTool()
+
+
+def get_shared_image_generator() -> ImageGenerationTool:
+    """Get the shared image generator instance (maintains pipeline cache across calls)"""
+    return _shared_image_generator
+
+
+# Tool instance for registration (uses shared instance)
 IMAGE_GENERATION_TOOLS = [
-    ImageGenerationTool(),
+    _shared_image_generator,
 ]
