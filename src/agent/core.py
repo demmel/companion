@@ -124,15 +124,14 @@ class Agent:
         if not self.auto_save or not self.conversation_id:
             return None
 
-        messages = self.get_conversation_history()
-        if not messages:
-            return None  # Don't save empty conversations
-
         assert (
             self.state is not None
         ), "Cannot save conversation without initialized state"
         self.persistence.save_conversation(
-            self.conversation_id, messages, self.state, title, self.trigger_history
+            self.conversation_id,
+            self.state,
+            self.trigger_history,
+            title,
         )
         return self.conversation_id
 
