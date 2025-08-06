@@ -438,25 +438,3 @@ class CustomFormatSchemaGenerator:
             return f"One of: {', '.join(type_info.allowed_values)}"
         else:
             return "Any value"
-
-
-def main():
-    """Test the schema generator"""
-    print("=== CUSTOM FORMAT SCHEMA GENERATOR TEST ===")
-
-    # Test with PromptMutation model
-    from agent.eval.sequential_optimizer import PromptMutation
-
-    generator = CustomFormatSchemaGenerator()
-    schema_desc = generator.generate_schema_description(PromptMutation)
-
-    print("Generated schema description:")
-    print("=" * 80)
-    print(schema_desc)
-    print("=" * 80)
-
-    print("\n✅ Schema generator test complete!")
-
-
-if __name__ == "__main__":
-    main()

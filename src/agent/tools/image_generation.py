@@ -10,6 +10,8 @@ from typing import Type, Callable, Any, Optional, List
 
 from pydantic import BaseModel, Field
 
+from agent.llm import LLM, SupportedModel
+
 logger = logging.getLogger(__name__)
 
 from agent.core import Agent
@@ -635,7 +637,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         self,
         description: str,
         llm: LLM,
-        model: "SupportedModel",
+        model: SupportedModel,
         progress_callback: Callable[[Any], None],
     ) -> ToolResult:
         """Generate image for actions (creates minimal agent-like object)"""

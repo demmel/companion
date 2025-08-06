@@ -10,3 +10,4 @@ wheels/
 .venv
 
 generated_images/
+conversations/

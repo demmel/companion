@@ -92,9 +92,6 @@ class ActionPlanner:
 
         except Exception as e:
             logger.error(f"Action planning failed: {e}")
-            # Fallback to just thinking
-            return ActionSequence(
-                actions=[],
-                can_extend=False,
-                reasoning="I couldn't plan any actions due to an error, so I won't do anything for now.",
-            )
+            raise RuntimeError(
+                "Failed to plan actions due to an error in the LLM response"
+            ) from e

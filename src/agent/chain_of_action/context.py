@@ -2,7 +2,7 @@
 Execution context for action sequences.
 """
 
-from typing import List
+from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 
 from .trigger import TriggerEvent
@@ -18,6 +18,7 @@ class ActionResult(BaseModel):
     duration_ms: float
     success: bool = True
     error: str = ""
+    metadata: Optional[dict[str, Any]] = None
 
 
 class ExecutionContext(BaseModel):

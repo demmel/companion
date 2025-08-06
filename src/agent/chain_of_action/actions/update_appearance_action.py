@@ -105,7 +105,10 @@ The result should be a natural evolution of my current appearance with the reque
         try:
             # Get updated appearance using structured LLM call
             appearance_update = direct_structured_llm_call(
-                llm, model, merge_prompt, AppearanceUpdate
+                prompt=merge_prompt,
+                response_model=AppearanceUpdate,
+                model=model,
+                llm=llm,
             )
 
             # Update state with new appearance
@@ -148,15 +151,13 @@ The result should be a natural evolution of my current appearance with the reque
                 context_given=action_plan.context,
                 duration_ms=duration_ms,
                 success=True,
+                metadata={
+                    "image_description": image_description,
+                    "old_appearance": old_appearance,
+                    "new_appearance": appearance_update.updated_appearance,
+                    "image_result": image_result,
+                },
             )
-
-            # Add image generation metadata and result to result for callback handling
-            result.metadata = {
-                "image_description": image_description,
-                "old_appearance": old_appearance,
-                "new_appearance": appearance_update.updated_appearance,
-                "image_result": image_result,
-            }
 
             return result
 
