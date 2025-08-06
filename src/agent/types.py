@@ -2,9 +2,6 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel
 
-from agent.reasoning.types import ReasoningResult
-
-
 # Tool content types (similar to message content types)
 class TextToolContent(BaseModel):
     """Text tool content"""

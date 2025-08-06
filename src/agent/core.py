@@ -7,16 +7,19 @@ import time
 from typing import List, Optional, Iterator
 from pydantic import BaseModel
 
+from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.llm import LLM, SupportedModel
+from agent.state import State
+
 from agent.conversation_history import ConversationHistory
-from agent.reasoning.loop import run_reasoning_loop
-from agent.reasoning.prompts import build_summarization_prompt
+from agent.chain_of_action.prompts import build_summarization_prompt
 from agent.chain_of_action.reasoning_loop import ActionBasedReasoningLoop
+from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.conversation_persistence import ConversationPersistence
 from agent.state import (
     State,
     build_agent_state_description,
 )
-from agent.reasoning.prompts import build_understanding_prompt
 from agent.state import build_agent_state_description
 
 from .llm import LLM, SupportedModel, Message as LLMMessage
@@ -68,12 +71,10 @@ class Agent:
         model: SupportedModel,
         llm: LLM,
         auto_save: bool = True,
-        use_chain_of_action: bool = False,
         enable_image_generation: bool = True,
     ):
         self.llm = llm
         self.model = model
-        self.use_chain_of_action = use_chain_of_action
         self.context_window = llm.models[model].context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
 
@@ -93,11 +94,10 @@ class Agent:
 
         self.tools = ToolRegistry(self, tools)
 
-        self.conversation_history = ConversationHistory()
+        self.trigger_history = TriggerHistory()
 
         # Initialize reasoning system
-        if self.use_chain_of_action:
-            self.action_reasoning_loop = ActionBasedReasoningLoop()
+        self.action_reasoning_loop = ActionBasedReasoningLoop()
 
         # Initialize the agent's state system (None until configured by first message)
         self.state: Optional[State] = None
@@ -107,9 +107,13 @@ class Agent:
         """Get the agent's current state"""
         return self.state
 
+    def get_trigger_history(self) -> TriggerHistory:
+        """Get the current trigger history"""
+        return self.trigger_history
+
     def get_conversation_history(self) -> List[Message]:
-        """Get the current conversation history"""
-        return self.conversation_history.get_full_history().copy()
+        """Get the current conversation history (converted from trigger history)"""
+        return self.trigger_history.to_conversation_history()
 
     def save_conversation(self, title: Optional[str] = None) -> Optional[str]:
         """Save the current conversation to disk
@@ -128,7 +132,7 @@ class Agent:
             self.state is not None
         ), "Cannot save conversation without initialized state"
         self.persistence.save_conversation(
-            self.conversation_id, messages, self.state, title
+            self.conversation_id, messages, self.state, title, self.trigger_history
         )
         return self.conversation_id
 
@@ -160,30 +164,32 @@ Available tools: {self.tools.get_tools_description()}"""
         return messages
 
     def get_context_info(self) -> ContextInfo:
-        """Get information about current context usage based on reasoning prompt size"""
-        # Use reasoning prompt for more accurate context estimation since it's the largest
-        # Build a sample reasoning prompt to estimate actual context usage
-        from agent.reasoning.analyze import _serialize_conversation_context
-        from agent.state import build_agent_state_description
-
+        """Get information about current context usage based on action planning prompt size"""
         # Get current conversation and state
         conversation_context = self.conversation_history.get_summarized_history()
-        context_text = _serialize_conversation_context(
-            conversation_context, include_thoughts=True
-        )
-        tools_description = self.tools.get_tools_description()
 
-        # Build sample reasoning prompt (this is what actually gets sent to LLM)
-        assert (
-            self.state is not None
-        ), "Cannot estimate context without initialized state"
-        prompt = build_understanding_prompt(
-            "sample user input", context_text, tools_description, self.state
-        )
+        if self.state is not None:
+            # Use action planning prompt for accurate estimation
+            from agent.chain_of_action.prompts import build_action_planning_prompt
+            from agent.chain_of_action.trigger import UserInputTrigger
 
-        # Calculate total prompt size
-        total_chars = len(prompt)
-        estimated_tokens = int(total_chars / 3.4)
+            # Create a sample trigger for estimation
+            sample_trigger = UserInputTrigger(content="sample user input")
+
+            prompt = build_action_planning_prompt(
+                state=self.state,
+                trigger=sample_trigger,
+                completed_actions=[],  # Empty for estimation
+                conversation_history=self.conversation_history,
+                registry=self.action_reasoning_loop.registry,
+            )
+
+            # Calculate total prompt size
+            total_chars = len(prompt)
+            estimated_tokens = int(total_chars / 3.4)
+        else:
+            # Fallback estimation when state is not initialized yet
+            estimated_tokens = 1000  # Base prompt overhead estimate
 
         return ContextInfo(
             message_count=len(conversation_context),
@@ -229,7 +235,9 @@ Available tools: {self.tools.get_tools_description()}"""
                 if self.tools.has_tool("generate_image"):
                     try:
                         # Build image description from initial state
-                        from agent.reasoning.loop import _build_image_description
+                        from agent.chain_of_action.actions.update_appearance_action import (
+                            _build_image_description,
+                        )
 
                         image_description = _build_image_description(
                             self.state.current_appearance,
@@ -318,21 +326,9 @@ Available tools: {self.tools.get_tools_description()}"""
                 for event in self._auto_summarize_with_events(keep_recent):
                     yield event
 
-            if self.use_chain_of_action:
-                # Use action-based reasoning with callback conversion
-                for event in self._run_chain_of_action_with_streaming(user_input):
-                    yield event
-            else:
-                # Use original reasoning loop
-                for event in run_reasoning_loop(
-                    history=self.conversation_history,
-                    user_input=user_input,
-                    tools=self.tools,
-                    llm=self.llm,
-                    model=self.model,
-                    state=self.state,
-                ):
-                    yield event
+            # Use action-based reasoning with callback conversion
+            for event in self._run_chain_of_action_with_streaming(user_input):
+                yield event
 
         # Emit response complete event with context info
         context_info = self.get_context_info()
@@ -557,6 +553,8 @@ Available tools: {self.tools.get_tools_description()}"""
         # Define work function for streaming queue
         def chain_of_action_work():
             assert self.state is not None, "State must be initialized before processing"
+
+            # Process with trigger history integration
             self.action_reasoning_loop.process_user_input(
                 user_input=user_input,
                 user_name="User",  # TODO: Could be parameterized
@@ -565,6 +563,7 @@ Available tools: {self.tools.get_tools_description()}"""
                 llm=self.llm,
                 model=self.model,
                 callback=callback,
+                trigger_history=self.trigger_history,
             )
 
         # Stream events while work executes
@@ -718,8 +717,9 @@ Available tools: {self.tools.get_tools_description()}"""
 
         # Use agent-specific summarization prompt that gives her agency (first-person direct)
         assert self.state is not None, "Cannot summarize without initialized state"
+        # For conversation history summarization, we don't have a prior summary
         direct_prompt = build_summarization_prompt(
-            conversation_text.strip(), self.state
+            "", conversation_text.strip(), self.state
         )
 
         summary_response = self.llm.generate_complete(self.model, direct_prompt)
@@ -749,6 +749,12 @@ Available tools: {self.tools.get_tools_description()}"""
             ),
             recent_messages,
         )
+
+        # Update trigger history with summary
+        if self.state is not None:
+            summarize_trigger_history(
+                self.trigger_history, keep_recent, self.llm, self.model, self.state
+            )
 
         context_after = self.get_context_info()
         summarization_content.context_usage_after = context_after.usage_percentage
@@ -832,3 +838,50 @@ def format_tool_results(tool_results: List[ToolCallFinished]) -> str:
             f"TOOL_RESULT: {result.tool_name} ({result.tool_id}): {feedback}"
         )
     return "\n\n".join(formatted_results)
+
+
+def summarize_trigger_history(
+    trigger_history: TriggerHistory,
+    keep_recent: int,
+    llm: LLM,
+    model: SupportedModel,
+    state: State,
+) -> str:
+    """Pure function to summarize trigger history entries"""
+    from agent.chain_of_action.prompts import (
+        build_summarization_prompt,
+        format_single_trigger_entry,
+    )
+
+    total_entries = len(trigger_history.get_all_entries())
+    entries_to_summarize_end = total_entries - keep_recent
+
+    if entries_to_summarize_end <= 0:
+        return ""
+
+    # Get old summary if exists
+    old_summary = (
+        trigger_history.summaries[-1].summary_text if trigger_history.summaries else ""
+    )
+    summary_start = (
+        trigger_history.summaries[-1].insert_at_index
+        if trigger_history.summaries
+        else 0
+    )
+
+    # Format entries to summarize
+    entries_to_format = trigger_history.entries[summary_start:entries_to_summarize_end]
+    if not entries_to_format:
+        return ""
+
+    formatted_entries = [
+        format_single_trigger_entry(entry) for entry in entries_to_format
+    ]
+    recent_entries = "\n\n".join(formatted_entries)
+
+    # Use structured prompt with separated sections
+    summary = llm.generate_complete(
+        model, build_summarization_prompt(old_summary, recent_entries, state)
+    )
+    trigger_history.add_summary(summary, entries_to_summarize_end)
+    return summary

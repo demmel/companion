@@ -12,6 +12,15 @@ from dataclasses import dataclass
 
 from .types import ConversationData, Message
 from .state import State, create_default_agent_state
+from .chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry, SummaryRecord
+from pydantic import BaseModel
+from typing import List
+
+
+class TriggerHistoryData(BaseModel):
+    """Serializable trigger history data for persistence"""
+    entries: List[TriggerHistoryEntry]
+    summaries: List[SummaryRecord]
 
 
 @dataclass
@@ -50,8 +59,9 @@ class ConversationPersistence:
         messages: List[Message],
         state: State,
         title: Optional[str] = None,
+        trigger_history: Optional[TriggerHistory] = None,
     ) -> None:
-        """Save a conversation with its state"""
+        """Save a conversation with its state and optional trigger history"""
         conversation_data = ConversationData(messages=messages)
 
         # Save conversation data
@@ -63,6 +73,16 @@ class ConversationPersistence:
         state_file = self.conversations_dir / f"{conversation_id}_state.json"
         with open(state_file, "w") as f:
             f.write(state.model_dump_json(indent=2))
+
+        # Save trigger history if provided
+        if trigger_history:
+            trigger_file = self.conversations_dir / f"{conversation_id}_triggers.json"
+            trigger_data = TriggerHistoryData(
+                entries=trigger_history.entries,
+                summaries=trigger_history.summaries
+            )
+            with open(trigger_file, "w") as f:
+                f.write(trigger_data.model_dump_json(indent=2))
 
         # Update metadata index
         self._update_metadata(conversation_id, len(messages), title)

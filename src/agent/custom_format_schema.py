@@ -5,6 +5,8 @@ Converts Pydantic models to custom format schema descriptions that help LLMs
 understand the expected structure for essay-like content.
 """
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
 from typing import Type, Dict, Any, List, Union, Optional, Set
@@ -52,7 +54,7 @@ class BooleanTypeInfo:
 @dataclass
 class ArrayTypeInfo:
     description: str
-    items_type: "TypeInfo"
+    items_type: TypeInfo
     min_items: Optional[int] = None
     max_items: Optional[int] = None
     type: str = "array"

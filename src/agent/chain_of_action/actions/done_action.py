@@ -34,10 +34,10 @@ class WaitAction(BaseAction):
         self,
         action_plan: ActionPlan,
         context: ExecutionContext,
-        state: "State",
-        conversation_history: "ConversationHistory",
-        llm: "LLM",
-        model: "SupportedModel",
+        state: State,
+        conversation_history: ConversationHistory,
+        llm: LLM,
+        model: SupportedModel,
         progress_callback,
     ) -> ActionResult:
         start_time = time.time()

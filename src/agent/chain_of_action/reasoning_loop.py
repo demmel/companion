@@ -15,6 +15,7 @@ from .callbacks import ActionCallback, NoOpCallback
 from agent.state import State
 from agent.conversation_history import ConversationHistory
 from agent.llm import LLM, SupportedModel
+from agent.chain_of_action.trigger_history import TriggerHistory
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +33,12 @@ class ActionBasedReasoningLoop:
         self,
         user_input: str,
         user_name: str,
-        state: "State",
-        conversation_history: "ConversationHistory",
-        llm: "LLM",
-        model: "SupportedModel",
+        state: State,
+        conversation_history: ConversationHistory,
+        llm: LLM,
+        model: SupportedModel,
         callback: ActionCallback,
+        trigger_history: TriggerHistory,
     ) -> List[ActionResult]:
         """
         Process user input through the action-based reasoning system.
@@ -53,6 +55,7 @@ class ActionBasedReasoningLoop:
         logger.debug(f"=== PROCESSING USER INPUT ===")
         logger.debug(f"INPUT: {user_input}")
         logger.debug(f"USER: {user_name}")
+        logger.debug(f"TRIGGER_HISTORY: {trigger_history}")
 
         # Create trigger from user input
         trigger = UserInputTrigger(content=user_input, user_name=user_name)
@@ -144,6 +147,12 @@ class ActionBasedReasoningLoop:
 
         # Notify processing complete
         callback.on_processing_complete(sequence_num, len(context.completed_actions))
+
+        # Add to trigger history
+        logger.debug(
+            f"Adding {len(context.completed_actions)} actions to trigger history"
+        )
+        trigger_history.add_trigger_response(trigger, context.completed_actions)
 
         logger.debug(f"=== PROCESSING COMPLETE ===")
         logger.debug(

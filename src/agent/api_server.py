@@ -45,7 +45,6 @@ def initialize_agent(load_conversation: bool = False) -> Agent:
     agent = Agent(
         model=SupportedModel.MISTRAL_SMALL,
         llm=llm,
-        use_chain_of_action=True,
         enable_image_generation=True,
     )
 

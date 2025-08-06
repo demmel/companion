@@ -13,23 +13,12 @@ from agent.types import (
     AgentMessage,
     ToolCallFinished,
 )
-from agent.reasoning.types import ReasoningResult
-
-
 class TestMessageToLLMConversion:
     """Test conversion of structured messages to LLM format"""
 
-    def create_mock_reasoning(self, text: str) -> ReasoningResult:
+    def create_mock_reasoning(self, text: str) -> str:
         """Create a mock reasoning result for tests"""
-        return ReasoningResult(
-            understanding=f"Understanding: {text}",
-            situational_awareness="Test situation",
-            emotional_context="Neutral",
-            key_information=[],
-            proposed_tools=[],
-            follow_up_opportunities=[],
-            should_end_turn=True,
-        )
+        return f"Understanding: {text}"
 
     def test_user_message_conversion(self):
         """Test that user messages convert correctly"""

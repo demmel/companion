@@ -36,23 +36,23 @@ class BaseAction(ABC):
         self,
         action_plan: ActionPlan,
         context: ExecutionContext,
-        state: "State",
-        conversation_history: "ConversationHistory",
-        llm: "LLM",
-        model: "SupportedModel",
+        state: State,
+        conversation_history: ConversationHistory,
+        llm: LLM,
+        model: SupportedModel,
         progress_callback: Callable[[Any], None],
     ) -> ActionResult:
         """Execute the action and return result"""
         pass
 
     def serialize_conversation_history(
-        self, conversation_history: "ConversationHistory"
+        self, conversation_history: ConversationHistory
     ) -> str:
         """Serialize conversation history when needed for prompts"""
         # This will need to be implemented based on ConversationHistory interface
         return str(conversation_history)
 
-    def build_agent_state_description(self, state: "State") -> str:
+    def build_agent_state_description(self, state: State) -> str:
         """Build fresh state description when needed"""
         from agent.state import build_agent_state_description
 
