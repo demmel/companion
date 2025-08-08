@@ -1,29 +1,9 @@
-import { ToolResult } from "./types";
+import { Trigger, Action } from "./types";
 
 export interface AgentTextEvent {
   content: string;
   is_thought: boolean;
   type: "text";
-}
-
-export interface ToolStartedEvent {
-  tool_name: string;
-  tool_id: string;
-  parameters: Record<string, any>;
-  type: "tool_started";
-}
-
-export interface ToolProgressEvent {
-  tool_id: string;
-  data: string;
-  progress?: number; // 0.0 to 1.0
-  type: "tool_progress";
-}
-
-export interface ToolFinishedEvent {
-  tool_id: string;
-  result: ToolResult;
-  type: "tool_finished";
 }
 
 export interface UserInputRequestEvent {
@@ -53,24 +33,60 @@ export interface SummarizationFinishedEvent {
   type: "summarization_finished";
 }
 
-export interface ResponseCompleteEvent {
-  message_count: number;
-  conversation_messages: number;
-  estimated_tokens: number;
-  context_limit: number;
-  usage_percentage: number;
-  approaching_limit: boolean;
-  type: "response_complete";
+// New trigger-based streaming events
+export interface TriggerStartedEvent {
+  trigger: Trigger;
+  entry_id: string;
+  timestamp: string;
+  type: "trigger_started";
+}
+
+export interface TriggerCompletedEvent {
+  entry_id: string;
+  total_actions: number;
+  successful_actions: number;
+  timestamp: string;
+  type: "trigger_completed";
+}
+
+export interface ActionStartedEvent {
+  entry_id: string;
+  action_type: string;
+  context_given: string;
+  sequence_number: number;
+  action_number: number;
+  timestamp: string;
+  type: "action_started";
+}
+
+export interface ActionProgressEvent {
+  entry_id: string;
+  action_type: string;
+  partial_result: string;
+  sequence_number: number;
+  action_number: number;
+  timestamp: string;
+  type: "action_progress";
+}
+
+export interface ActionCompletedEvent {
+  entry_id: string;
+  action: Action;
+  sequence_number: number;
+  action_number: number;
+  timestamp: string;
+  type: "action_completed";
 }
 
 // Union type for all agent events
 export type AgentEvent =
   | AgentTextEvent
-  | ToolStartedEvent
-  | ToolProgressEvent
-  | ToolFinishedEvent
   | UserInputRequestEvent
   | AgentErrorEvent
   | SummarizationStartedEvent
   | SummarizationFinishedEvent
-  | ResponseCompleteEvent;
+  | TriggerStartedEvent
+  | TriggerCompletedEvent
+  | ActionStartedEvent
+  | ActionProgressEvent
+  | ActionCompletedEvent;

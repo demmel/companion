@@ -121,6 +121,7 @@ What emotions am I experiencing? What reactions am I having? How does this momen
                 context_given=action_plan.context,
                 duration_ms=duration_ms,
                 success=True,
+                metadata=None,  # No additional metadata needed
             )
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
@@ -131,4 +132,5 @@ What emotions am I experiencing? What reactions am I having? How does this momen
                 duration_ms=duration_ms,
                 success=False,
                 error=str(e),
+                metadata=None,  # No metadata on error
             )

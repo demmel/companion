@@ -3,6 +3,7 @@ Main action-based reasoning loop.
 """
 
 import logging
+import uuid
 from typing import List
 
 from .action_registry import ActionRegistry
@@ -58,9 +59,20 @@ class ActionBasedReasoningLoop:
         # Create trigger from user input
         trigger = UserInputTrigger(content=user_input, user_name=user_name)
 
+        # Create trigger history entry (which generates the entry_id)
+        from .trigger_history import TriggerHistoryEntry
+
+        trigger_entry = TriggerHistoryEntry(
+            trigger=trigger,
+            actions_taken=[],  # Will be populated as actions complete
+        )
+        entry_id = trigger_entry.entry_id
+
+        # Notify callback about trigger start
+        callback.on_trigger_started(entry_id, trigger)
+
         # Create execution context for the full chain
         from .context import ExecutionContext
-        import uuid
 
         context = ExecutionContext(
             trigger=trigger, completed_actions=[], session_id=str(uuid.uuid4())
@@ -129,6 +141,7 @@ class ActionBasedReasoningLoop:
                 model=model,
                 sequence_number=sequence_num,
                 callback=callback,
+                trigger_entry=trigger_entry,
             )
 
             # Results are already added to context.completed_actions by executor
@@ -146,11 +159,21 @@ class ActionBasedReasoningLoop:
         # Notify processing complete
         callback.on_processing_complete(sequence_num, len(context.completed_actions))
 
-        # Add to trigger history
-        logger.debug(
-            f"Adding {len(context.completed_actions)} actions to trigger history"
+        # Notify trigger completion
+        successful_count = sum(
+            1 for action in context.completed_actions if action.success
         )
-        trigger_history.add_trigger_response(trigger, context.completed_actions)
+        callback.on_trigger_completed(
+            entry_id, len(context.completed_actions), successful_count
+        )
+
+        # Add completed actions to the trigger entry and add to trigger history
+        trigger_entry.actions_taken = context.completed_actions
+        trigger_history.add_trigger_entry(trigger_entry)
+
+        logger.debug(
+            f"Added trigger entry {entry_id} with {len(context.completed_actions)} actions to trigger history"
+        )
 
         logger.debug(f"=== PROCESSING COMPLETE ===")
         logger.debug(

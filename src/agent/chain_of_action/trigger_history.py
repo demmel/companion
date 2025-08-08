@@ -60,6 +60,10 @@ class TriggerHistory:
             actions_taken=actions,
         )
         self.entries.append(entry)
+    
+    def add_trigger_entry(self, entry: TriggerHistoryEntry):
+        """Add a pre-built trigger history entry"""
+        self.entries.append(entry)
 
     def get_entries(self) -> List[TriggerHistoryEntry]:
         """Get all trigger history entries"""

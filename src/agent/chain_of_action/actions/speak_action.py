@@ -112,6 +112,7 @@ Now I'll respond naturally as myself:"""
                 context_given=action_plan.context,
                 duration_ms=duration_ms,
                 success=True,
+                metadata=None,  # No additional metadata needed
             )
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
@@ -122,4 +123,5 @@ Now I'll respond naturally as myself:"""
                 duration_ms=duration_ms,
                 success=False,
                 error=str(e),
+                metadata=None,  # No metadata on error
             )

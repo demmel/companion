@@ -3,6 +3,8 @@ Callback system for chain_of_action streaming.
 """
 
 from typing import Protocol, Optional, Any
+
+from agent.chain_of_action.trigger import TriggerEvent
 from .action_types import ActionType
 from .context import ActionResult
 
@@ -22,6 +24,7 @@ class ActionCallback(Protocol):
         context: str,
         sequence_number: int,
         action_number: int,
+        entry_id: str,
     ) -> None:
         """Called when an action starts executing"""
         pass
@@ -32,6 +35,7 @@ class ActionCallback(Protocol):
         progress_data: Any,
         sequence_number: int,
         action_number: int,
+        entry_id: str,
     ) -> None:
         """Called during action execution for streaming progress"""
         pass
@@ -42,6 +46,7 @@ class ActionCallback(Protocol):
         result: ActionResult,
         sequence_number: int,
         action_number: int,
+        entry_id: str,
     ) -> None:
         """Called when an action completes"""
         pass
@@ -66,6 +71,16 @@ class ActionCallback(Protocol):
         """Called when all processing is complete"""
         pass
 
+    def on_trigger_started(self, entry_id: str, trigger: TriggerEvent) -> None:
+        """Called when trigger processing starts"""
+        pass
+
+    def on_trigger_completed(
+        self, entry_id: str, total_actions: int, successful_actions: int
+    ) -> None:
+        """Called when trigger processing is complete"""
+        pass
+
 
 class NoOpCallback:
     """Default no-op callback for when streaming is not needed"""
@@ -81,6 +96,7 @@ class NoOpCallback:
         context: str,
         sequence_number: int,
         action_number: int,
+        entry_id: str,
     ) -> None:
         pass
 
@@ -90,6 +106,7 @@ class NoOpCallback:
         progress_data: Any,
         sequence_number: int,
         action_number: int,
+        entry_id: str,
     ) -> None:
         pass
 
@@ -99,6 +116,7 @@ class NoOpCallback:
         result: ActionResult,
         sequence_number: int,
         action_number: int,
+        entry_id: str,
     ) -> None:
         pass
 
@@ -117,4 +135,12 @@ class NoOpCallback:
         pass
 
     def on_processing_complete(self, total_sequences: int, total_actions: int) -> None:
+        pass
+
+    def on_trigger_started(self, entry_id: str, trigger: TriggerEvent) -> None:
+        pass
+
+    def on_trigger_completed(
+        self, entry_id: str, total_actions: int, successful_actions: int
+    ) -> None:
         pass

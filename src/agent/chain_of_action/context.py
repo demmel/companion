@@ -2,23 +2,25 @@
 Execution context for action sequences.
 """
 
-from typing import Any, List, Optional
+from typing import Any, Generic, List, Optional, TypeVar
 from pydantic import BaseModel, Field
 
 from .trigger import TriggerEvent
 from .action_types import ActionType
 
+TMetadata = TypeVar("TMetadata", bound=BaseModel | None)
 
-class ActionResult(BaseModel):
+
+class ActionResult(BaseModel, Generic[TMetadata]):
     """Result of executing an action"""
 
     action: ActionType
     result_summary: str
     context_given: str
     duration_ms: float
+    metadata: TMetadata
     success: bool = True
     error: str = ""
-    metadata: Optional[dict[str, Any]] = None
 
 
 class ExecutionContext(BaseModel):

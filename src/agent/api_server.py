@@ -18,6 +18,11 @@ from pydantic import BaseModel
 
 from agent.core import Agent
 from agent.paths import agent_paths
+from agent.api_types import (
+    TriggerHistoryResponse,
+    convert_trigger_history_entry_to_dto,
+    convert_summary_to_dto,
+)
 
 
 # Response Models
@@ -71,16 +76,6 @@ app.add_middleware(
 )
 
 
-@app.get("/api/conversation", response_model=ConversationResponse)
-async def get_conversation():
-    """Get current conversation history for client hydration"""
-    # Return the structured conversation history
-    agent: Agent = app.state.agent
-    messages = agent.initial_exchange
-    messages.extend(agent.get_conversation_history())
-    return ConversationResponse(messages=messages)
-
-
 @app.get("/api/context")
 async def get_context_info():
     """Get current context information"""
@@ -93,6 +88,38 @@ async def get_context_info():
         "usage_percentage": context_info.usage_percentage,
         "approaching_limit": context_info.approaching_limit,
     }
+
+
+@app.get("/api/trigger-history", response_model=TriggerHistoryResponse)
+async def get_trigger_history():
+    """Get current trigger history for client hydration"""
+    agent: Agent = app.state.agent
+    trigger_history = agent.get_trigger_history()
+
+    # Convert all entries and summaries to DTOs
+    entry_dtos = [
+        convert_trigger_history_entry_to_dto(entry)
+        for entry in trigger_history.get_all_entries()
+    ]
+    
+    # Include initial exchange if it exists (for UI display)
+    if agent.initial_exchange is not None:
+        initial_exchange_dto = convert_trigger_history_entry_to_dto(agent.initial_exchange)
+        entry_dtos.insert(0, initial_exchange_dto)  # Insert at beginning
+
+    summary_dtos = [
+        convert_summary_to_dto(summary)
+        for summary in trigger_history.get_all_summaries()
+    ]
+
+    recent_entries = trigger_history.get_recent_entries()
+
+    return TriggerHistoryResponse(
+        entries=entry_dtos,
+        summaries=summary_dtos,
+        total_entries=len(trigger_history),
+        recent_entries_count=len(recent_entries),
+    )
 
 
 @app.post("/api/reset", response_model=ResetResponse)

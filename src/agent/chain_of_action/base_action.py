@@ -3,7 +3,9 @@ Base action classes.
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Any
+from typing import Callable, Any, Generic, TypeVar
+
+from pydantic import BaseModel
 
 from agent.chain_of_action.trigger_history import TriggerHistory
 
@@ -14,8 +16,10 @@ from .action_plan import ActionPlan
 from agent.state import State
 from agent.llm import LLM, SupportedModel
 
+TMetadata = TypeVar("TMetadata", bound=BaseModel | None)
 
-class BaseAction(ABC):
+
+class BaseAction(ABC, Generic[TMetadata]):
     """Base class for all actions"""
 
     action_type: ActionType
@@ -42,7 +46,7 @@ class BaseAction(ABC):
         llm: LLM,
         model: SupportedModel,
         progress_callback: Callable[[Any], None],
-    ) -> ActionResult:
+    ) -> ActionResult[TMetadata]:
         """Execute the action and return result"""
         pass
 

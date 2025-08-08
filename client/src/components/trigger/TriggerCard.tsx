@@ -1,0 +1,84 @@
+import { css } from "@styled-system/css";
+import { MessageCircle, User, Clock } from "lucide-react";
+import { Trigger } from "@/types";
+
+interface TriggerCardProps {
+  trigger: Trigger;
+}
+
+export function TriggerCard({ trigger }: TriggerCardProps) {
+  const getTriggerIcon = () => {
+    switch (trigger.type) {
+      case "user_input":
+        return <User size={16} className={css({ color: "blue.500" })} />;
+      default:
+        return (
+          <MessageCircle size={16} className={css({ color: "gray.500" })} />
+        );
+    }
+  };
+
+  const getTriggerReason = () => {
+    switch (trigger.type) {
+      case "user_input":
+        return `${trigger.user_name || "User"} said`;
+      default:
+        // Future trigger types would go here
+        return trigger.type;
+    }
+  };
+
+  const getTriggerContent = () => {
+    switch (trigger.type) {
+      case "user_input":
+        return trigger.content;
+      default:
+        return "";
+    }
+  };
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <div className={css({ fontSize: "sm", color: "gray.300" })}>
+      {/* Header with icon/reason and timestamp */}
+      <div
+        className={css({
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2,
+        })}
+      >
+        <div className={css({ display: "flex", alignItems: "center", gap: 2 })}>
+          {getTriggerIcon()}
+          <span>{getTriggerReason()}</span>
+        </div>
+        <div
+          className={css({
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            fontSize: "xs",
+            color: "gray.400",
+          })}
+        >
+          <Clock size={12} />
+          <span>{formatTime(trigger.timestamp)}</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className={css({ color: "gray.200" })}>{getTriggerContent()}</div>
+    </div>
+  );
+}

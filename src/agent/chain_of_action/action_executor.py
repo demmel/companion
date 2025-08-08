@@ -5,7 +5,7 @@ Action executor for running action sequences.
 import logging
 from typing import List
 
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 
 from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
@@ -34,6 +34,7 @@ class ActionExecutor:
         model: SupportedModel,
         sequence_number: int,
         callback: ActionCallback,
+        trigger_entry: TriggerHistoryEntry,
     ) -> List[ActionResult]:
         """Execute a complete action sequence"""
 
@@ -59,7 +60,11 @@ class ActionExecutor:
 
             # Notify action started
             callback.on_action_started(
-                action_plan.action, action_plan.context, sequence_number, i + 1
+                action_plan.action,
+                action_plan.context,
+                sequence_number,
+                i + 1,
+                trigger_entry.entry_id,
             )
 
             try:
@@ -70,7 +75,11 @@ class ActionExecutor:
                 def action_progress_callback(data):
                     # Forward progress events via main callback
                     callback.on_action_progress(
-                        action_plan.action, data, sequence_number, i + 1
+                        action_plan.action,
+                        data,
+                        sequence_number,
+                        i + 1,
+                        trigger_entry.entry_id,
                     )
 
                 result = action.execute(
@@ -91,7 +100,11 @@ class ActionExecutor:
 
                 # Notify action finished
                 callback.on_action_finished(
-                    action_plan.action, result, sequence_number, i + 1
+                    action_plan.action,
+                    result,
+                    sequence_number,
+                    i + 1,
+                    trigger_entry.entry_id,
                 )
 
                 logger.debug(
@@ -115,6 +128,7 @@ class ActionExecutor:
                     duration_ms=0.0,
                     success=False,
                     error=f"Execution exception: {str(e)}",
+                    metadata=None,  # No metadata on error
                 )
 
                 results.append(error_result)
@@ -122,7 +136,11 @@ class ActionExecutor:
 
                 # Notify action finished with error
                 callback.on_action_finished(
-                    action_plan.action, error_result, sequence_number, i + 1
+                    action_plan.action,
+                    error_result,
+                    sequence_number,
+                    i + 1,
+                    trigger_entry.entry_id,
                 )
 
                 # Stop execution - this is a serious system failure

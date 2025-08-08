@@ -8,6 +8,7 @@ import time
 import logging
 
 from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.types import ImageGenerationToolContent, ToolCallError
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
@@ -21,6 +22,15 @@ from agent.structured_llm import direct_structured_llm_call
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+class UpdateAppearanceActionMetadata(BaseModel):
+    """Metadata for the UPDATE_APPEARANCE action"""
+
+    image_description: str
+    old_appearance: str
+    new_appearance: str
+    image_result: ImageGenerationToolContent
 
 
 class AppearanceUpdate(BaseModel):
@@ -70,6 +80,36 @@ class UpdateAppearanceAction(BaseAction):
     @classmethod
     def get_context_description(cls) -> str:
         return "Description of what specific aspects of my appearance should change and how"
+
+    @classmethod
+    def create_result_from_image_generation(
+        cls,
+        image_result: "ImageGenerationToolContent",
+        image_description: str,
+        context_given: str,
+        duration_ms: float,
+        new_appearance: str,
+        old_appearance: str = "",
+        success: bool = True,
+        result_summary: str = "Appearance updated with new image",
+    ) -> "ActionResult[UpdateAppearanceActionMetadata]":
+        """Factory method to create consistent ActionResult for UPDATE_APPEARANCE actions"""
+        from agent.chain_of_action.base_action import ActionResult
+        from agent.chain_of_action.action_types import ActionType
+        
+        return ActionResult(
+            action=ActionType.UPDATE_APPEARANCE,
+            result_summary=result_summary,
+            context_given=context_given,
+            duration_ms=duration_ms,
+            success=success,
+            metadata=UpdateAppearanceActionMetadata(
+                image_description=image_description,
+                old_appearance=old_appearance,
+                new_appearance=new_appearance,
+                image_result=image_result,
+            )
+        )
 
     def execute(
         self,
@@ -138,12 +178,18 @@ The result should be a natural evolution of my current appearance with the reque
             image_result = image_generator.generate_image_for_action(
                 image_description, llm, model, image_progress_callback
             )
+            if isinstance(image_result, ToolCallError):
+                raise Exception(f"Image generation failed: {image_result.error}")
 
             duration_ms = (time.time() - start_time) * 1000
 
             result_summary = (
                 f"Appearance updated: {appearance_update.updated_appearance}"
             )
+
+            assert isinstance(
+                image_result.content, ImageGenerationToolContent
+            ), "Image generation must return ImageGenerationToolContent"
 
             # Create action result with image generation info
             result = ActionResult(
@@ -152,12 +198,12 @@ The result should be a natural evolution of my current appearance with the reque
                 context_given=action_plan.context,
                 duration_ms=duration_ms,
                 success=True,
-                metadata={
-                    "image_description": image_description,
-                    "old_appearance": old_appearance,
-                    "new_appearance": appearance_update.updated_appearance,
-                    "image_result": image_result,
-                },
+                metadata=UpdateAppearanceActionMetadata(
+                    image_description=image_description,
+                    old_appearance=old_appearance,
+                    new_appearance=appearance_update.updated_appearance,
+                    image_result=image_result.content,
+                ),
             )
 
             return result
@@ -172,4 +218,5 @@ The result should be a natural evolution of my current appearance with the reque
                 context_given=action_plan.context,
                 duration_ms=duration_ms,
                 success=False,
+                metadata=None,  # No metadata on error
             )

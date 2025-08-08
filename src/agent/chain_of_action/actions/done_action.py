@@ -56,4 +56,5 @@ class WaitAction(BaseAction):
             context_given=action_plan.context,
             duration_ms=duration_ms,
             success=True,
+            metadata=None,  # No additional metadata needed
         )

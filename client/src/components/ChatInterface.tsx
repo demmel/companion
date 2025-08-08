@@ -1,14 +1,14 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { ClientAgentEvent, useWebSocket } from "@/hooks/useWebSocket";
 import { useStreamBatcher } from "@/hooks/useStreamBatcher";
-import { useConversation } from "@/hooks/useConversation";
+import { useTriggerEvents } from "@/hooks/useTriggerEvents";
 import { useSmartScroll } from "@/hooks/useSmartScroll";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
+import { Timeline } from "@/components/Timeline";
 import { AgentClient } from "@/client";
 import { css } from "@styled-system/css";
 import { debug } from "@/utils/debug";
-import { RoleplayPresenter } from "@/presenters/RoleplayPresenter";
 
 interface ChatInterfaceProps {
   client: AgentClient;
@@ -34,33 +34,14 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   }, [events]);
 
   const {
-    messages,
+    triggerEntries,
     isStreamActive,
-    addUserMessage,
-    loadConversation,
-    clearConversation,
-  } = useConversation(events);
-
-  useEffect(() => {
-    debug.log("Messages:", messages);
-  }, [messages]);
-
-  // Get the appropriate presenter component
-  const PresenterComponent = RoleplayPresenter;
+    loadTriggerHistory,
+    clearTriggerHistory,
+  } = useTriggerEvents(events);
 
   const handleMessage = useCallback(
     (event: ClientAgentEvent) => {
-      // Handle response_complete events to update context info
-      if (event.type === "response_complete") {
-        setContextInfo({
-          estimated_tokens: (event as any).estimated_tokens,
-          context_limit: (event as any).context_limit,
-          usage_percentage: (event as any).usage_percentage,
-          conversation_messages: (event as any).conversation_messages,
-          approaching_limit: (event as any).approaching_limit,
-        });
-      }
-
       queueEvent(event);
     },
     [queueEvent],
@@ -82,13 +63,10 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     handleScroll,
     setUserAtBottom,
   } = useSmartScroll({
-    items: messages,
+    items: triggerEntries,
   });
 
   const handleSubmit = (message: string) => {
-    // Add user message to conversation
-    addUserMessage(message);
-
     // Send to server
     sendMessage(message);
     setInputValue("");
@@ -101,9 +79,9 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Load config, state, conversation, and context info in parallel
-        const [conversationData, contextData] = await Promise.all([
-          client.getConversation(),
+        // Load trigger history and context info in parallel
+        const [triggerData, contextData] = await Promise.all([
+          client.getTriggerHistory(),
           client.getContextInfo(),
         ]);
 
@@ -115,8 +93,9 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
           approaching_limit: contextData.approaching_limit,
         });
 
-        if (conversationData.length > 0) {
-          loadConversation(conversationData);
+        if (triggerData.entries.length > 0) {
+          loadTriggerHistory(triggerData.entries);
+
           // Set initial scroll position to bottom instantly
           requestAnimationFrame(() => {
             if (messagesEndRef.current) {
@@ -130,7 +109,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     };
 
     loadInitialData();
-  }, [client, loadConversation]);
+  }, [client, loadTriggerHistory]);
 
   const handleClear = async () => {
     try {
@@ -140,7 +119,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     }
 
     clearEvents();
-    clearConversation();
+    clearTriggerHistory();
     setContextInfo(null);
     setUserAtBottom(true);
   };
@@ -166,7 +145,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
           py: 4,
         })}
       >
-        {messages.length === 0 && (
+        {triggerEntries.length === 0 && (
           <div
             className={css({
               display: "flex",
@@ -240,9 +219,9 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
           </div>
         )}
 
-        {messages.length > 0 && (
-          <PresenterComponent
-            messages={messages}
+        {triggerEntries.length > 0 && (
+          <Timeline
+            triggerEntries={triggerEntries}
             isStreamActive={isStreamActive}
           />
         )}

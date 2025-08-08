@@ -2,12 +2,23 @@
 Core agent implementation
 """
 
+from datetime import datetime
 import json
 import time
 from typing import List, Optional, Iterator
 from pydantic import BaseModel
 
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.api_types import (
+    ActionProgressEvent,
+    TriggerEvent,
+    convert_action_to_dto,
+    convert_trigger_to_dto,
+)
+from agent.chain_of_action.action_types import ActionType
+from agent.chain_of_action.actions.think_action import ThinkAction
+from agent.chain_of_action.context import ActionResult
+from agent.chain_of_action.trigger import UserInputTrigger
+from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.llm import LLM, SupportedModel
 from agent.state import State
 
@@ -26,6 +37,7 @@ from .tools import ToolRegistry, BaseTool
 from .types import (
     AgentMessage,
     ConversationData,
+    ImageGenerationToolContent,
     Message,
     SummarizationContent,
     TextContent,
@@ -34,15 +46,18 @@ from .types import (
     ToolCall,
     ToolCallContent,
     ToolCallFinished,
+    ToolCallSuccess,
     UserMessage,
 )
-from .agent_events import (
+from agent.api_types import (
+    ActionCompletedEvent,
+    ActionStartedEvent,
     AgentErrorEvent,
-    AgentEvent,
-    AgentTextEvent,
+    TriggerEvent as AgentEvent,
     SummarizationStartedEvent,
     SummarizationFinishedEvent,
-    ResponseCompleteEvent,
+    TriggerCompletedEvent,
+    TriggerStartedEvent,
 )
 import logging
 
@@ -98,7 +113,7 @@ class Agent:
 
         # Initialize the agent's state system (None until configured by first message)
         self.state: Optional[State] = None
-        self.initial_exchange = []
+        self.initial_exchange = None
 
     def get_state(self) -> Optional[State]:
         """Get the agent's current state"""
@@ -107,10 +122,6 @@ class Agent:
     def get_trigger_history(self) -> TriggerHistory:
         """Get the current trigger history"""
         return self.trigger_history
-
-    def get_conversation_history(self) -> List[Message]:
-        """Get the current conversation history (converted from trigger history)"""
-        return self.trigger_history.to_conversation_history()
 
     def save_conversation(self, title: Optional[str] = None) -> Optional[str]:
         """Save the current conversation to disk
@@ -163,7 +174,7 @@ class Agent:
 
         return ContextInfo(
             message_count=len(self.trigger_history.get_recent_entries()),
-            conversation_messages=len(self.trigger_history.to_conversation_history()),
+            conversation_messages=len(self.trigger_history.get_recent_entries()),  # Use trigger count instead
             estimated_tokens=estimated_tokens,
             context_limit=self.context_window,
             usage_percentage=(estimated_tokens / self.context_window) * 100,
@@ -176,112 +187,9 @@ class Agent:
 
         # Check if agent needs character configuration (first message)
         if self.state is None:
-            # First input is character definition, not conversation
-            from agent.state_initialization import derive_initial_state_from_message
-
-            self.initial_exchange.append(
-                UserMessage(content=[TextContent(text=user_input)])
-            )
-
-            try:
-                content = []
-
-                # Derive agent's state from character definition
-                self.state = derive_initial_state_from_message(
-                    user_input, self.llm, self.model
-                )
-
-                # Emit event with serialized state description
-                state_description = build_agent_state_description(self.state)
-                content.append(
-                    ThoughtContent(text=f"Character configured:\n{state_description}")
-                )
-                yield AgentTextEvent(
-                    content=f"Character configured:\n{state_description}",
-                    is_thought=True,
-                )
-
-                # Generate initial image of agent's appearance and environment
-                if self.tools.has_tool("generate_image"):
-                    try:
-                        # Build image description from initial state
-                        from agent.chain_of_action.actions.update_appearance_action import (
-                            _build_image_description,
-                        )
-
-                        image_description = _build_image_description(
-                            self.state.current_appearance,
-                            self.state.current_environment,
-                            self.state.name,
-                            self.llm,
-                            self.model,
-                        )
-
-                        # Emit tool started event
-                        from agent.agent_events import (
-                            ToolStartedEvent,
-                            ToolFinishedEvent,
-                        )
-
-                        yield ToolStartedEvent(
-                            tool_name="generate_image",
-                            tool_id="initial_image",
-                            parameters={"description": image_description},
-                        )
-
-                        # Execute image generation
-                        def progress_callback(progress):
-                            pass
-
-                        image_result = self.tools.execute(
-                            "generate_image",
-                            "initial_image",
-                            {"description": image_description},
-                            progress_callback,
-                        )
-                        print(type(image_result))
-
-                        # Emit tool finished event
-                        yield ToolFinishedEvent(
-                            tool_id="initial_image", result=image_result
-                        )
-                        tool_call_content = ToolCallContent(
-                            tool_name="generate_image",
-                            call_id="initial_image",
-                            parameters={"description": image_description},
-                            result=image_result,
-                        )
-                        content.append(tool_call_content)
-
-                    except Exception as e:
-                        logger.warning(f"Initial image generation failed: {e}")
-                        from traceback import print_exc
-
-                        print_exc()
-
-                # Initialize tool_call_content to None
-                tool_call_content = None
-
-                message = AgentMessage(
-                    role="assistant",
-                    content=content,
-                    tool_calls=[],
-                )
-                if tool_call_content:
-                    message.tool_calls.append(
-                        ToolCallFinished(
-                            tool_name=tool_call_content.tool_name,
-                            tool_id=tool_call_content.call_id,
-                            parameters=tool_call_content.parameters,
-                            result=tool_call_content.result,
-                        )
-                    )
-                self.initial_exchange.append(message)
-
-            except Exception as e:
-                yield AgentErrorEvent(
-                    message=f"Failed to configure agent's character: {str(e)}",
-                )
+            # Run initial exchange with character definition
+            for event in self._run_initial_exchange_with_streaming(user_input):
+                yield event
 
         else:
             # Check if we need auto-summarization before processing
@@ -298,14 +206,6 @@ class Agent:
 
         # Emit response complete event with context info
         context_info = self.get_context_info()
-        yield ResponseCompleteEvent(
-            message_count=context_info.message_count,
-            conversation_messages=context_info.conversation_messages,
-            estimated_tokens=context_info.estimated_tokens,
-            context_limit=context_info.context_limit,
-            usage_percentage=context_info.usage_percentage,
-            approaching_limit=context_info.approaching_limit,
-        )
 
         # Performance logging
         total_time = time.time() - start_time
@@ -314,6 +214,222 @@ class Agent:
         # Auto-save conversation after each turn
         if self.auto_save:
             self.save_conversation()
+
+    def _run_initial_exchange_with_streaming(
+        self, user_input: str
+    ) -> Iterator[AgentEvent]:
+        """Run initial character configuration with streaming events"""
+        from agent.streaming_queue import StreamingQueue
+
+        streaming = StreamingQueue[AgentEvent]()
+
+        def initial_actions_work():
+            # First input is character definition, not conversation
+            from agent.state_initialization import derive_initial_state_from_message
+
+            self.initial_exchange = TriggerHistoryEntry(
+                trigger=UserInputTrigger(content=user_input),
+                actions_taken=[],
+                timestamp=datetime.now(),
+            )
+
+            # Capture entry_id for use in nested callbacks
+            entry_id = self.initial_exchange.entry_id
+
+            streaming.emit(
+                TriggerStartedEvent(
+                    trigger=convert_trigger_to_dto(self.initial_exchange.trigger),
+                    entry_id=entry_id,
+                    timestamp=self.initial_exchange.timestamp.isoformat(),
+                )
+            )
+
+            try:
+                streaming.emit(
+                    ActionStartedEvent(
+                        entry_id=entry_id,
+                        action_type="think",
+                        context_given="Deriving initial state from character definition",
+                        timestamp=datetime.now().isoformat(),
+                        sequence_number=1,
+                        action_number=1,
+                    )
+                )
+                derive_state_start_time = time.time()
+
+                # Derive agent's state from character definition
+                self.state = derive_initial_state_from_message(
+                    user_input, self.llm, self.model
+                )
+
+                # Create and store the action result
+                state_description = build_agent_state_description(self.state)
+                think_action_result = ActionResult(
+                    action=ActionType.THINK,
+                    context_given="Deriving initial state",
+                    result_summary=state_description,
+                    success=True,
+                    duration_ms=int((time.time() - derive_state_start_time) * 1000),
+                    metadata=None,
+                )
+                self.initial_exchange.actions_taken.append(think_action_result)
+
+                # Emit completion event
+                streaming.emit(
+                    ActionCompletedEvent(
+                        entry_id=entry_id,
+                        action=convert_action_to_dto(think_action_result),
+                        sequence_number=1,
+                        action_number=1,
+                        timestamp=datetime.now().isoformat(),
+                    )
+                )
+
+                # Generate initial image of agent's appearance and environment
+                if self.tools.has_tool("generate_image"):
+                    streaming.emit(
+                        ActionStartedEvent(
+                            entry_id=entry_id,
+                            action_type="update_appearance",
+                            context_given=self.state.current_appearance,
+                            timestamp=datetime.now().isoformat(),
+                            sequence_number=1,
+                            action_number=2,
+                        )
+                    )
+                    generate_image_start_time = time.time()
+                    try:
+                        # Build image description from initial state
+                        from agent.chain_of_action.actions.update_appearance_action import (
+                            _build_image_description,
+                        )
+
+                        image_description = _build_image_description(
+                            self.state.current_appearance,
+                            self.state.current_environment,
+                            self.state.name,
+                            self.llm,
+                            self.model,
+                        )
+
+                        # Execute image generation with progress callback
+                        def progress_callback(progress):
+                            # Emit progress events for image generation
+                            streaming.emit(
+                                ActionProgressEvent(
+                                    entry_id=entry_id,
+                                    action_type="update_appearance",
+                                    partial_result=f"Generating image: {progress}%",
+                                    sequence_number=1,
+                                    action_number=2,
+                                    timestamp=datetime.now().isoformat(),
+                                )
+                            )
+
+                        image_result = self.tools.execute(
+                            "generate_image",
+                            "initial_image",
+                            {"description": image_description},
+                            progress_callback,
+                        )
+
+                        if not isinstance(image_result, ToolCallSuccess):
+                            raise ValueError(f"Image generation failed: {image_result}")
+
+                        assert isinstance(
+                            image_result.content, ImageGenerationToolContent
+                        ), "Image generation tool must return ImageGenerationToolContent"
+
+                        # Emit tool finished event
+                        from agent.chain_of_action.actions.update_appearance_action import (
+                            UpdateAppearanceActionMetadata,
+                        )
+
+                        metadata = UpdateAppearanceActionMetadata(
+                            image_description=image_description,
+                            old_appearance="",
+                            new_appearance=self.state.current_appearance,
+                            image_result=image_result.content,
+                        )
+
+                        # Create and store action result
+                        appearance_action_result = ActionResult(
+                            action=ActionType.UPDATE_APPEARANCE,
+                            context_given=image_description,
+                            result_summary="Initial appearance image generated",
+                            success=True,
+                            duration_ms=int(
+                                (time.time() - generate_image_start_time) * 1000
+                            ),
+                            metadata=metadata,
+                        )
+                        self.initial_exchange.actions_taken.append(
+                            appearance_action_result
+                        )
+
+                        # Emit completion event
+                        streaming.emit(
+                            ActionCompletedEvent(
+                                entry_id=entry_id,
+                                action=convert_action_to_dto(appearance_action_result),
+                                sequence_number=1,
+                                action_number=2,
+                                timestamp=datetime.now().isoformat(),
+                            )
+                        )
+
+                    except Exception as e:
+                        logger.warning(f"Initial image generation failed: {e}")
+
+                        # Create and store error action result
+                        error_action_result = ActionResult(
+                            action=ActionType.UPDATE_APPEARANCE,
+                            context_given=(
+                                image_description
+                                if "image_description" in locals()
+                                else "Unknown context"
+                            ),
+                            result_summary="Initial appearance image generation failed",
+                            success=False,
+                            duration_ms=int(
+                                (time.time() - generate_image_start_time) * 1000
+                            ),
+                            error=str(e),
+                            metadata=None,
+                        )
+                        self.initial_exchange.actions_taken.append(error_action_result)
+
+                        # Emit completion event
+                        streaming.emit(
+                            ActionCompletedEvent(
+                                entry_id=entry_id,
+                                action=convert_action_to_dto(error_action_result),
+                                sequence_number=1,
+                                action_number=2,
+                                timestamp=datetime.now().isoformat(),
+                            )
+                        )
+
+            except Exception as e:
+                streaming.emit(
+                    AgentErrorEvent(
+                        message=f"Failed to configure agent's character: {str(e)}",
+                    )
+                )
+
+            streaming.emit(
+                TriggerCompletedEvent(
+                    entry_id=entry_id,
+                    timestamp=datetime.now().isoformat(),
+                    total_actions=len(self.initial_exchange.actions_taken),
+                    successful_actions=len(
+                        [a for a in self.initial_exchange.actions_taken if a.success]
+                    ),
+                )
+            )
+
+        # Stream initial actions using streaming queue
+        yield from streaming.stream_while(initial_actions_work)
 
     def _run_chain_of_action_with_streaming(
         self, user_input: str
@@ -326,19 +442,40 @@ class Agent:
         # Create streaming queue for events
         streaming = StreamingQueue[AgentEvent]()
 
-        # Track content for history
-        content = []
-        tool_calls = []
-
-        # Create callback that emits to streaming queue
+        # Create callback that emits trigger-based events to streaming queue
         class StreamingCallback(ActionCallback):
             def __init__(self, agent):
                 self.agent = agent
 
+            def on_trigger_started(self, entry_id: str, trigger: TriggerEvent) -> None:
+                from datetime import datetime
+
+                streaming.emit(
+                    TriggerStartedEvent(
+                        trigger=convert_trigger_to_dto(trigger),
+                        entry_id=entry_id,
+                        timestamp=datetime.now().isoformat(),
+                    )
+                )
+
+            def on_trigger_completed(
+                self, entry_id: str, total_actions: int, successful_actions: int
+            ) -> None:
+                from datetime import datetime
+
+                streaming.emit(
+                    TriggerCompletedEvent(
+                        entry_id=entry_id,
+                        total_actions=total_actions,
+                        successful_actions=successful_actions,
+                        timestamp=datetime.now().isoformat(),
+                    )
+                )
+
             def on_sequence_started(
                 self, sequence_number: int, total_actions: int, reasoning: str
             ) -> None:
-                pass  # Don't emit to UI
+                pass
 
             def on_action_started(
                 self,
@@ -346,29 +483,20 @@ class Agent:
                 context: str,
                 sequence_number: int,
                 action_number: int,
+                entry_id: str,
             ) -> None:
-                # Emit started events for everything except THINK and SPEAK
-                if action_type == ActionType.UPDATE_APPEARANCE:
-                    # For UPDATE_APPEARANCE, emit image generation tool started
-                    from agent.agent_events import ToolStartedEvent
+                from datetime import datetime
 
-                    streaming.emit(
-                        ToolStartedEvent(
-                            tool_name="generate_image",
-                            tool_id=f"appearance_image_{sequence_number}_{action_number}",
-                            parameters={"description": context},
-                        )
+                streaming.emit(
+                    ActionStartedEvent(
+                        entry_id=entry_id,
+                        action_type=action_type.value,
+                        context_given=context,
+                        sequence_number=sequence_number,
+                        action_number=action_number,
+                        timestamp=datetime.now().isoformat(),
                     )
-                elif action_type not in (ActionType.THINK, ActionType.SPEAK):
-                    from agent.agent_events import ToolStartedEvent
-
-                    streaming.emit(
-                        ToolStartedEvent(
-                            tool_name=action_type.value,
-                            tool_id=f"action_{sequence_number}_{action_number}",
-                            parameters={"context": context},
-                        )
-                    )
+                )
 
             def on_action_progress(
                 self,
@@ -376,34 +504,37 @@ class Agent:
                 progress_data,
                 sequence_number: int,
                 action_number: int,
+                entry_id: str,
             ) -> None:
                 from agent.chain_of_action.action_events import (
                     SpeakProgressData,
                     ThinkProgressData,
                 )
+                from datetime import datetime
 
                 # Handle streaming progress for THINK and SPEAK actions
+                partial_text = ""
                 if action_type == ActionType.THINK:
                     assert isinstance(progress_data, ThinkProgressData)
                     if progress_data.is_partial and progress_data.text:
-                        # Stream thought tokens
-                        streaming.emit(
-                            AgentTextEvent(
-                                content=progress_data.text,
-                                is_thought=True,
-                            )
-                        )
+                        partial_text = progress_data.text
 
                 elif action_type == ActionType.SPEAK:
                     assert isinstance(progress_data, SpeakProgressData)
                     if progress_data.is_partial and progress_data.text:
-                        # Stream speech tokens
-                        streaming.emit(
-                            AgentTextEvent(
-                                content=progress_data.text,
-                                is_thought=False,
-                            )
+                        partial_text = progress_data.text
+
+                if partial_text:
+                    streaming.emit(
+                        ActionProgressEvent(
+                            entry_id=entry_id,
+                            action_type=action_type.value,
+                            partial_result=partial_text,
+                            sequence_number=sequence_number,
+                            action_number=action_number,
+                            timestamp=datetime.now().isoformat(),
                         )
+                    )
 
             def on_action_finished(
                 self,
@@ -411,77 +542,22 @@ class Agent:
                 result,
                 sequence_number: int,
                 action_number: int,
+                entry_id: str,
             ) -> None:
-                if action_type == ActionType.THINK:
-                    # THINK: just capture content (streaming already handled by on_action_progress)
-                    content.append(ThoughtContent(text=result.result_summary))
+                from datetime import datetime
 
-                elif action_type == ActionType.SPEAK:
-                    # SPEAK: just capture content (streaming already handled by on_action_progress)
-                    content.append(TextContent(text=result.result_summary))
+                # Convert ActionResult to ActionDTO
+                action_dto = convert_action_to_dto(result)
 
-                elif action_type == ActionType.UPDATE_APPEARANCE:
-                    # UPDATE_APPEARANCE: Handle image generation tool events and add to tool_calls
-                    if result.metadata and "image_result" in result.metadata:
-                        image_result = result.metadata["image_result"]
-                        tool_id = f"appearance_image_{sequence_number}_{action_number}"
-
-                        # Emit tool started and finished events for image generation
-                        from agent.agent_events import (
-                            ToolStartedEvent,
-                            ToolFinishedEvent,
-                        )
-
-                        streaming.emit(
-                            ToolStartedEvent(
-                                tool_name="generate_image",
-                                tool_id=tool_id,
-                                parameters={
-                                    "description": result.metadata["image_description"]
-                                },
-                            )
-                        )
-
-                        streaming.emit(
-                            ToolFinishedEvent(
-                                tool_id=tool_id,
-                                result=image_result,
-                            )
-                        )
-
-                        # Add to tool_calls for conversation history
-                        from agent.types import ToolCallFinished
-
-                        tool_calls.append(
-                            ToolCallFinished(
-                                tool_name="generate_image",
-                                tool_id=tool_id,
-                                parameters={
-                                    "description": result.metadata["image_description"]
-                                },
-                                result=image_result,
-                            )
-                        )
-
-                elif action_type == ActionType.WAIT:
-                    # WAIT: Don't do anything special for UI
-                    pass
-                else:
-                    # Other actions: emit finished event
-                    from agent.agent_events import ToolFinishedEvent
-                    from agent.types import ToolCallSuccess
-
-                    tool_result = ToolCallSuccess(
-                        content=TextToolContent(text=result.result_summary),
-                        llm_feedback=result.result_summary,
+                streaming.emit(
+                    ActionCompletedEvent(
+                        entry_id=entry_id,
+                        action=action_dto,
+                        sequence_number=sequence_number,
+                        action_number=action_number,
+                        timestamp=datetime.now().isoformat(),
                     )
-
-                    streaming.emit(
-                        ToolFinishedEvent(
-                            tool_id=f"action_{sequence_number}_{action_number}",
-                            result=tool_result,
-                        )
-                    )
+                )
 
             def on_sequence_finished(
                 self, sequence_number: int, total_results: int, successful_actions: int
@@ -541,9 +617,7 @@ class Agent:
             data = json.load(f)
         return ConversationData.model_validate(data)
 
-    def _auto_summarize_with_events(
-        self, keep_recent: int = 10
-    ) -> Iterator[AgentEvent]:
+    def _auto_summarize_with_events(self, keep_recent: int = 3) -> Iterator[AgentEvent]:
         """Auto-summarize with event emission for streaming clients"""
         # Calculate what we're about to do - work on LLM history only
         llm_history = self.trigger_history.get_recent_entries()
@@ -553,8 +627,8 @@ class Agent:
 
         # Emit started event
         yield SummarizationStartedEvent(
-            messages_to_summarize=len(old_triggers),
-            recent_messages_kept=len(recent_triggers),
+            entries_to_summarize=len(old_triggers),
+            recent_entries_kept=len(recent_triggers),
             context_usage_before=context_before.usage_percentage,
         )
 
@@ -581,8 +655,8 @@ class Agent:
         # Emit finished event
         yield SummarizationFinishedEvent(
             summary=summary_response,
-            messages_summarized=len(old_triggers),
-            messages_after=len(self.trigger_history.get_recent_entries()),
+            entries_summarized=len(old_triggers),
+            entries_after=len(self.trigger_history.get_recent_entries()),
             context_usage_after=context_after.usage_percentage,
         )
 

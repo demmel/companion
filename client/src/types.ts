@@ -14,7 +14,7 @@ export interface ImageGenerationToolContent {
   guidance_scale: number;
   negative_prompt?: string;
   seed?: number;
-  
+
   // New optimization metadata
   original_description?: string; // Original natural description from agent
   optimization_confidence?: number; // LLM confidence in optimization
@@ -105,3 +105,73 @@ export interface SystemMessage {
 }
 
 export type Message = UserMessage | AgentMessage | SystemMessage;
+
+// Trigger-based types
+export interface UserInputTrigger {
+  type: "user_input";
+  content: string;
+  user_name: string;
+  timestamp: string;
+}
+
+export type Trigger = UserInputTrigger;
+
+export type ActionStatus =
+  | { type: "streaming"; result: string }
+  | { type: "success"; result: string }
+  | { type: "error"; error: string };
+
+interface BaseAction {
+  context_given: string;
+  status: ActionStatus;
+  duration_ms: number;
+}
+
+export interface ThinkAction extends BaseAction {
+  type: "think";
+}
+
+export interface SpeakAction extends BaseAction {
+  type: "speak";
+}
+
+export interface UpdateAppearanceAction extends BaseAction {
+  type: "update_appearance";
+  image_description: string;
+  image_url: string;
+}
+
+export interface UpdateMoodAction extends BaseAction {
+  type: "update_mood";
+}
+
+export interface WaitAction extends BaseAction {
+  type: "wait";
+}
+
+export type Action =
+  | ThinkAction
+  | SpeakAction
+  | UpdateAppearanceAction
+  | UpdateMoodAction
+  | WaitAction;
+
+export interface Summary {
+  summary_text: string;
+  insert_at_index: number;
+  created_at: string;
+}
+
+export interface TriggerHistoryEntry {
+  trigger: Trigger;
+  actions_taken: Action[];
+  timestamp: string;
+  entry_id: string;
+}
+
+export interface TriggerHistoryResponse {
+  entries: TriggerHistoryEntry[];
+  summaries: Summary[];
+  total_entries: number;
+  recent_entries_count: number;
+}

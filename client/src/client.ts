@@ -1,4 +1,4 @@
-import { Message } from "./types";
+import { Message, TriggerHistoryResponse } from "./types";
 
 interface ClientConfig {
   host?: string;
@@ -76,6 +76,16 @@ export class AgentClient {
 
     if (!response.ok) {
       throw new Error(`Failed to get context info: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getTriggerHistory(): Promise<TriggerHistoryResponse> {
+    const response = await fetch(`${this.httpBaseUrl}/api/trigger-history`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to get trigger history: ${response.statusText}`);
     }
 
     return response.json();
