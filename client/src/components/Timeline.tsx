@@ -154,24 +154,6 @@ export function Timeline({ triggerEntries, isStreamActive }: TimelineProps) {
     });
   };
 
-  if (triggerEntries.length === 0) {
-    return (
-      <div
-        className={css({
-          textAlign: "center",
-          py: 12,
-          color: "gray.400",
-        })}
-      >
-        <div className={css({ fontSize: "lg", mb: 2 })}>
-          No interactions yet
-        </div>
-        <div className={css({ fontSize: "sm" })}>
-          Start a conversation to see the timeline of actions
-        </div>
-      </div>
-    );
-  }
 
   // The last entry is "active" if we're currently streaming
   const activeEntryIndex = isStreamActive ? triggerEntries.length - 1 : -1;

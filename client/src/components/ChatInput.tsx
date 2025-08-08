@@ -78,10 +78,9 @@ export function ChatInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          disabled={disabled}
           rows={1}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === "Enter" && e.ctrlKey) {
               e.preventDefault();
               if (!value.trim() || disabled) return;
               onSubmit(value);
