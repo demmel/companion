@@ -207,7 +207,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
             targetAction.partial_results.push(event.partial_result);
             targetAction.status = {
               type: "streaming",
-              result: event.partial_result,
+              result: targetAction.partial_results.join(""),
             };
           } else {
             debug.warn(`Received action_progress for unknown action: ${actionKey} in entry ${event.entry_id}`);
