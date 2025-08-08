@@ -180,27 +180,25 @@ export function Timeline({ triggerEntries, isStreamActive }: TimelineProps) {
     <div
       className={css({
         maxW: "4xl",
-        mx: "auto",
-        p: 4,
+        // mx: "auto",
       })}
     >
       {/* Timeline entries */}
       <div>
         {triggerEntries.map((entry, index) => {
-            const isActive = index === activeEntryIndex;
+          const isActive = index === activeEntryIndex;
 
-            return (
-              <TimelineEntry
-                key={entry.entry_id}
-                entry={entry}
-                isActive={isActive}
-                isExpanded={!collapsedEntries.has(entry.entry_id)}
-                onToggleExpanded={() => toggleExpanded(entry.entry_id)}
-              />
-            );
-          })}
+          return (
+            <TimelineEntry
+              key={entry.entry_id}
+              entry={entry}
+              isActive={isActive}
+              isExpanded={!collapsedEntries.has(entry.entry_id)}
+              onToggleExpanded={() => toggleExpanded(entry.entry_id)}
+            />
+          );
+        })}
       </div>
-
     </div>
   );
 }

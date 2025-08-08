@@ -21,7 +21,7 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
   const getTriggerReason = () => {
     switch (trigger.type) {
       case "user_input":
-        return `${trigger.user_name || "User"} said`;
+        return trigger.user_name || "User";
       default:
         // Future trigger types would go here
         return trigger.type;
@@ -49,7 +49,7 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
   };
 
   return (
-    <div className={css({ fontSize: "sm", color: "gray.300" })}>
+    <div className={css({ fontSize: "xl", color: "gray.300" })}>
       {/* Header with icon/reason and timestamp */}
       <div
         className={css({
@@ -68,7 +68,7 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
             display: "flex",
             alignItems: "center",
             gap: 1,
-            fontSize: "xs",
+            fontSize: "base",
             color: "gray.400",
           })}
         >

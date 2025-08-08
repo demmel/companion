@@ -22,7 +22,7 @@ export function UpdateMoodActionDisplay({ action }: UpdateMoodActionDisplayProps
         border: "1px solid",
         borderColor: "blue.700",
         rounded: "md",
-        fontSize: "sm",
+        fontSize: "xl",
       })}
     >
       {isStreaming ? (

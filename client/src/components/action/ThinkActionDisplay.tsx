@@ -37,7 +37,7 @@ export function ThinkActionDisplay({ action }: ThinkActionDisplayProps) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          fontSize: "sm",
+          fontSize: "xl",
           fontWeight: "medium",
           color: "gray.400",
           _hover: (hasContent || isStreaming) ? {
@@ -51,7 +51,7 @@ export function ThinkActionDisplay({ action }: ThinkActionDisplayProps) {
           {isStreaming ? (
             <Loader2 size={14} className={css({ animation: "spin 1s linear infinite" })} />
           ) : (
-            <span className={css({ fontSize: "xs", opacity: 0.7 })}>💭</span>
+            <span className={css({ fontSize: "sm", opacity: 0.7 })}>💭</span>
           )}
           <span>{label}</span>
         </div>
@@ -77,7 +77,7 @@ export function ThinkActionDisplay({ action }: ThinkActionDisplayProps) {
         >
           <div
             className={css({
-              fontSize: "sm",
+              fontSize: "xl",
               whiteSpace: "pre-wrap",
               p: 2,
               borderRadius: "sm",

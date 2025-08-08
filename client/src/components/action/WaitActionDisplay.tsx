@@ -21,7 +21,7 @@ export function WaitActionDisplay({ action }: WaitActionDisplayProps) {
         border: "1px solid",
         borderColor: "gray.700",
         rounded: "md",
-        fontSize: "sm",
+        fontSize: "xl",
         color: "gray.400",
       })}
     >

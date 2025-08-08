@@ -21,7 +21,7 @@ export function SpeakActionDisplay({ action }: SpeakActionDisplayProps) {
       <div
         className={css({
           p: 3,
-          fontSize: "sm",
+          fontSize: "xl",
           lineHeight: "relaxed",
           color: action.status.type === "error" ? "red.300" : "gray.200",
           whiteSpace: "pre-wrap",
@@ -49,7 +49,7 @@ export function SpeakActionDisplay({ action }: SpeakActionDisplayProps) {
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              fontSize: "xs",
+              fontSize: "sm",
               color: "gray.500",
               _hover: { bg: "gray.800" },
             })}
@@ -68,7 +68,7 @@ export function SpeakActionDisplay({ action }: SpeakActionDisplayProps) {
             <div className={css({ 
               px: 3, 
               pb: 2, 
-              fontSize: "xs", 
+              fontSize: "sm", 
               color: "gray.400",
               fontStyle: "italic" 
             })}>

@@ -43,7 +43,7 @@ export function UpdateAppearanceActionDisplay({ action }: UpdateAppearanceAction
         )}
         <span
           className={css({
-            fontSize: "sm",
+            fontSize: "xl",
             fontWeight: "medium",
             color: "gray.300",
           })}
@@ -73,7 +73,7 @@ export function UpdateAppearanceActionDisplay({ action }: UpdateAppearanceAction
       {/* Show description */}
       <div
         className={css({
-          fontSize: "sm",
+          fontSize: "xl",
           color: "gray.400",
         })}
       >
@@ -109,7 +109,7 @@ export function UpdateAppearanceActionDisplay({ action }: UpdateAppearanceAction
                 mb: 2,
               })}
             />
-            <div className={css({ fontSize: "sm" })}>Generating image...</div>
+            <div className={css({ fontSize: "xl" })}>Generating image...</div>
           </div>
         </div>
       )}
