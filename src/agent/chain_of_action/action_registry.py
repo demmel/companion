@@ -22,8 +22,9 @@ logger = logging.getLogger(__name__)
 class ActionRegistry:
     """Registry for all available actions"""
 
-    def __init__(self):
+    def __init__(self, enable_image_generation: bool = True):
         self._actions: Dict[ActionType, Type[BaseAction]] = {}
+        self.enable_image_generation = enable_image_generation
         self._register_default_actions()
 
     def _register_default_actions(self):
@@ -67,7 +68,14 @@ class ActionRegistry:
     def create_action(self, action_type: ActionType) -> BaseAction:
         """Create an action instance for the given action type"""
         action_class = self.get_action(action_type)
-        return action_class()
+
+        # Pass enable_image_generation flag to UpdateAppearanceAction
+        if action_class == UpdateAppearanceAction:
+            return UpdateAppearanceAction(
+                enable_image_generation=self.enable_image_generation
+            )
+        else:
+            return action_class()
 
     def get_available_actions_for_prompt(self) -> str:
         """Get formatted string of available actions for prompts"""

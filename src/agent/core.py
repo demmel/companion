@@ -15,7 +15,6 @@ from agent.api_types import (
     convert_trigger_to_dto,
 )
 from agent.chain_of_action.action_types import ActionType
-from agent.chain_of_action.actions.think_action import ThinkAction
 from agent.chain_of_action.context import ActionResult
 from agent.chain_of_action.trigger import UserInputTrigger
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
@@ -41,13 +40,10 @@ from .types import (
     Message,
     SummarizationContent,
     TextContent,
-    TextToolContent,
     ThoughtContent,
     ToolCall,
-    ToolCallContent,
     ToolCallFinished,
     ToolCallSuccess,
-    UserMessage,
 )
 from agent.api_types import (
     ActionCompletedEvent,
@@ -89,6 +85,7 @@ class Agent:
         self.model = model
         self.context_window = llm.models[model].context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
+        self.enable_image_generation = enable_image_generation
 
         # Conversation persistence
         self.auto_save = auto_save
@@ -97,19 +94,12 @@ class Agent:
             self.persistence.generate_conversation_id() if auto_save else None
         )
 
-        # Initialize the agent's tools
-        tools: List[BaseTool] = []
-        if enable_image_generation:
-            from agent.tools.image_generation import get_shared_image_generator
-
-            tools.append(get_shared_image_generator())
-
-        self.tools = ToolRegistry(self, tools)
-
         self.trigger_history = TriggerHistory()
 
         # Initialize reasoning system
-        self.action_reasoning_loop = ActionBasedReasoningLoop()
+        self.action_reasoning_loop = ActionBasedReasoningLoop(
+            enable_image_generation=enable_image_generation
+        )
 
         # Initialize the agent's state system (None until configured by first message)
         self.state: Optional[State] = None
@@ -174,11 +164,13 @@ class Agent:
 
         return ContextInfo(
             message_count=len(self.trigger_history.get_recent_entries()),
-            conversation_messages=len(self.trigger_history.get_recent_entries()),  # Use trigger count instead
+            conversation_messages=len(
+                self.trigger_history.get_recent_entries()
+            ),  # Use trigger count instead
             estimated_tokens=estimated_tokens,
-            context_limit=self.context_window,
-            usage_percentage=(estimated_tokens / self.context_window) * 100,
-            approaching_limit=estimated_tokens > self.auto_summarize_threshold,
+            context_limit=self.auto_summarize_threshold,  # Show summarization limit, not full window
+            usage_percentage=(estimated_tokens / self.auto_summarize_threshold) * 100,
+            approaching_limit=estimated_tokens > (self.auto_summarize_threshold * 0.75),  # 75% of summarization limit
         )
 
     def chat_stream(self, user_input: str) -> Iterator[AgentEvent]:
@@ -194,7 +186,7 @@ class Agent:
         else:
             # Check if we need auto-summarization before processing
             context_info = self.get_context_info()
-            keep_recent = 10  # Conservative retention size
+            keep_recent = 3  # Conservative retention size
             if context_info.approaching_limit:
                 # Perform auto-summarization with event emission
                 for event in self._auto_summarize_with_events(keep_recent):
@@ -203,9 +195,6 @@ class Agent:
             # Use action-based reasoning with callback conversion
             for event in self._run_chain_of_action_with_streaming(user_input):
                 yield event
-
-        # Emit response complete event with context info
-        context_info = self.get_context_info()
 
         # Performance logging
         total_time = time.time() - start_time
@@ -286,7 +275,7 @@ class Agent:
                 )
 
                 # Generate initial image of agent's appearance and environment
-                if self.tools.has_tool("generate_image"):
+                if self.enable_image_generation:
                     streaming.emit(
                         ActionStartedEvent(
                             entry_id=entry_id,
@@ -326,11 +315,10 @@ class Agent:
                                 )
                             )
 
-                        image_result = self.tools.execute(
-                            "generate_image",
-                            "initial_image",
-                            {"description": image_description},
-                            progress_callback,
+                        from agent.tools.image_generation import get_shared_image_generator
+                        image_generator = get_shared_image_generator()
+                        image_result = image_generator.generate_image_direct(
+                            image_description, self, progress_callback
                         )
 
                         if not isinstance(image_result, ToolCallSuccess):
@@ -417,6 +405,7 @@ class Agent:
                     )
                 )
 
+            context_info = self.get_context_info()
             streaming.emit(
                 TriggerCompletedEvent(
                     entry_id=entry_id,
@@ -425,6 +414,10 @@ class Agent:
                     successful_actions=len(
                         [a for a in self.initial_exchange.actions_taken if a.success]
                     ),
+                    estimated_tokens=context_info.estimated_tokens,
+                    context_limit=context_info.context_limit,
+                    usage_percentage=context_info.usage_percentage,
+                    approaching_limit=context_info.approaching_limit,
                 )
             )
 
@@ -463,12 +456,17 @@ class Agent:
             ) -> None:
                 from datetime import datetime
 
+                context_info = self.agent.get_context_info()
                 streaming.emit(
                     TriggerCompletedEvent(
                         entry_id=entry_id,
                         total_actions=total_actions,
                         successful_actions=successful_actions,
                         timestamp=datetime.now().isoformat(),
+                        estimated_tokens=context_info.estimated_tokens,
+                        context_limit=context_info.context_limit,
+                        usage_percentage=context_info.usage_percentage,
+                        approaching_limit=context_info.approaching_limit,
                     )
                 )
 
@@ -775,5 +773,7 @@ def summarize_trigger_history(
     summary = llm.generate_complete(
         model, build_summarization_prompt(old_summary, recent_entries, state)
     )
-    trigger_history.add_summary(summary, entries_to_summarize_end)
+    # Calculate UI position: initial exchange (1) + previous summaries + entries before this summary
+    ui_position = 1 + len(trigger_history.summaries) + entries_to_summarize_end
+    trigger_history.add_summary(summary, ui_position)
     return summary

@@ -1,12 +1,14 @@
 import { css } from "@styled-system/css";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { TriggerHistoryEntry } from "@/types";
+import { TriggerHistoryEntry, Summary } from "@/types";
 import { TriggerCard } from "./trigger/TriggerCard";
 import { ActionDisplay } from "./action/ActionDisplay";
+import { SummaryCard } from "./SummaryCard";
 
 interface TimelineProps {
   triggerEntries: TriggerHistoryEntry[];
+  summaries: Summary[];
   isStreamActive: boolean;
 }
 
@@ -137,7 +139,7 @@ function TimelineEntry({
   );
 }
 
-export function Timeline({ triggerEntries, isStreamActive }: TimelineProps) {
+export function Timeline({ triggerEntries, summaries, isStreamActive }: TimelineProps) {
   const [collapsedEntries, setCollapsedEntries] = useState<Set<string>>(
     new Set(),
   );
@@ -154,6 +156,18 @@ export function Timeline({ triggerEntries, isStreamActive }: TimelineProps) {
     });
   };
 
+  // Merge summaries and entries in chronological order
+  const timelineItems: Array<{ type: 'entry'; entry: TriggerHistoryEntry; index: number } | { type: 'summary'; summary: Summary }> = [];
+  
+  // Add entries with their original indices
+  triggerEntries.forEach((entry, index) => {
+    timelineItems.push({ type: 'entry', entry, index });
+  });
+
+  // Insert summaries at their correct positions
+  summaries.forEach((summary) => {
+    timelineItems.splice(summary.insert_at_index, 0, { type: 'summary', summary });
+  });
 
   // The last entry is "active" if we're currently streaming
   const activeEntryIndex = isStreamActive ? triggerEntries.length - 1 : -1;
@@ -165,20 +179,39 @@ export function Timeline({ triggerEntries, isStreamActive }: TimelineProps) {
         // mx: "auto",
       })}
     >
-      {/* Timeline entries */}
+      {/* Timeline items */}
       <div>
-        {triggerEntries.map((entry, index) => {
-          const isActive = index === activeEntryIndex;
-
-          return (
-            <TimelineEntry
-              key={entry.entry_id}
-              entry={entry}
-              isActive={isActive}
-              isExpanded={!collapsedEntries.has(entry.entry_id)}
-              onToggleExpanded={() => toggleExpanded(entry.entry_id)}
-            />
-          );
+        {timelineItems.map((item, index) => {
+          if (item.type === 'summary') {
+            return (
+              <div
+                key={`summary-${index}`}
+                className={css({
+                  mb: 4,
+                  border: "1px solid",
+                  borderColor: "yellow.700",
+                  rounded: "lg",
+                  overflow: "hidden",
+                  bg: "yellow.900/10",
+                })}
+              >
+                <div className={css({ p: 3, bg: "yellow.800/20" })}>
+                  <SummaryCard summary={item.summary} />
+                </div>
+              </div>
+            );
+          } else {
+            const isActive = item.index === activeEntryIndex;
+            return (
+              <TimelineEntry
+                key={item.entry.entry_id}
+                entry={item.entry}
+                isActive={isActive}
+                isExpanded={!collapsedEntries.has(item.entry.entry_id)}
+                onToggleExpanded={() => toggleExpanded(item.entry.entry_id)}
+              />
+            );
+          }
         })}
       </div>
     </div>

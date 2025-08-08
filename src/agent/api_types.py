@@ -164,6 +164,11 @@ class TriggerCompletedEvent(BaseModel):
     total_actions: int
     successful_actions: int
     timestamp: str
+    # Context information for UI updates
+    estimated_tokens: int
+    context_limit: int
+    usage_percentage: float
+    approaching_limit: bool
 
 
 class TriggerSummaryEvent(BaseModel):

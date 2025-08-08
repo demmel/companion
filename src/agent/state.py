@@ -99,11 +99,6 @@ def build_agent_state_description(state: State) -> str:
     if state.current_environment:
         parts.append(f"**Environment:** {state.current_environment}")
 
-    # Adaptive capabilities
-    parts.append(
-        "**My adaptive nature:** I can adjust my appearance and environment when it feels right for our connection"
-    )
-
     # Show ALL memories - organized by importance for easy scanning
     if state.memories:
         parts.append("\n### My Memories")

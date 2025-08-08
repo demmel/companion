@@ -73,6 +73,9 @@ class UpdateAppearanceAction(BaseAction):
 
     action_type = ActionType.UPDATE_APPEARANCE
 
+    def __init__(self, enable_image_generation: bool = True):
+        self.enable_image_generation = enable_image_generation
+
     @classmethod
     def get_action_description(cls) -> str:
         return "Update my appearance (posture, expression, hair, clothing) and generate a new image"
@@ -84,7 +87,7 @@ class UpdateAppearanceAction(BaseAction):
     @classmethod
     def create_result_from_image_generation(
         cls,
-        image_result: "ImageGenerationToolContent",
+        image_result: ImageGenerationToolContent,
         image_description: str,
         context_given: str,
         duration_ms: float,
@@ -96,7 +99,7 @@ class UpdateAppearanceAction(BaseAction):
         """Factory method to create consistent ActionResult for UPDATE_APPEARANCE actions"""
         from agent.chain_of_action.base_action import ActionResult
         from agent.chain_of_action.action_types import ActionType
-        
+
         return ActionResult(
             action=ActionType.UPDATE_APPEARANCE,
             result_summary=result_summary,
@@ -108,7 +111,7 @@ class UpdateAppearanceAction(BaseAction):
                 old_appearance=old_appearance,
                 new_appearance=new_appearance,
                 image_result=image_result,
-            )
+            ),
         )
 
     def execute(
@@ -166,20 +169,21 @@ The result should be a natural evolution of my current appearance with the reque
 
             logger.debug(f"Generated image description: {image_description}")
 
-            # Actually generate the image using the shared image generator
-            from agent.tools.image_generation import get_shared_image_generator
+            # Generate image if enabled
+            image_result = None
+            if self.enable_image_generation:
+                # Actually generate the image using the shared image generator
+                from agent.tools.image_generation import get_shared_image_generator
 
-            image_generator = get_shared_image_generator()
+                image_generator = get_shared_image_generator()
 
-            def image_progress_callback(progress_data):
-                # Forward progress to the main progress callback
-                progress_callback(progress_data)
+                def image_progress_callback(progress_data):
+                    # Forward progress to the main progress callback
+                    progress_callback(progress_data)
 
-            image_result = image_generator.generate_image_for_action(
-                image_description, llm, model, image_progress_callback
-            )
-            if isinstance(image_result, ToolCallError):
-                raise Exception(f"Image generation failed: {image_result.error}")
+                image_result = image_generator.generate_image_for_action(
+                    image_description, llm, model, image_progress_callback
+                )
 
             duration_ms = (time.time() - start_time) * 1000
 
@@ -187,23 +191,46 @@ The result should be a natural evolution of my current appearance with the reque
                 f"Appearance updated: {appearance_update.updated_appearance}"
             )
 
-            assert isinstance(
-                image_result.content, ImageGenerationToolContent
-            ), "Image generation must return ImageGenerationToolContent"
+            # Create action result with or without image generation
+            if image_result:
+                if isinstance(image_result, ToolCallError):
+                    raise Exception(f"Image generation failed: {image_result.error}")
 
-            # Create action result with image generation info
+                assert isinstance(
+                    image_result.content, ImageGenerationToolContent
+                ), "Image generation must return ImageGenerationToolContent"
+
+                metadata = UpdateAppearanceActionMetadata(
+                    image_description=image_description,
+                    old_appearance=old_appearance,
+                    new_appearance=appearance_update.updated_appearance,
+                    image_result=image_result.content,
+                )
+            else:
+                fake_image_content = ImageGenerationToolContent(
+                    prompt=image_description,
+                    image_path="",
+                    image_url="/placeholder-image.png",
+                    width=512,
+                    height=512,
+                    num_inference_steps=0,
+                    guidance_scale=0.0,
+                )
+
+                metadata = UpdateAppearanceActionMetadata(
+                    image_description=image_description,
+                    old_appearance=old_appearance,
+                    new_appearance=appearance_update.updated_appearance,
+                    image_result=fake_image_content,
+                )
+
             result = ActionResult(
                 action=ActionType.UPDATE_APPEARANCE,
                 result_summary=result_summary,
                 context_given=action_plan.context,
                 duration_ms=duration_ms,
                 success=True,
-                metadata=UpdateAppearanceActionMetadata(
-                    image_description=image_description,
-                    old_appearance=old_appearance,
-                    new_appearance=appearance_update.updated_appearance,
-                    image_result=image_result.content,
-                ),
+                metadata=metadata,
             )
 
             return result

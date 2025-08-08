@@ -160,6 +160,9 @@ export interface Summary {
   summary_text: string;
   insert_at_index: number;
   created_at: string;
+  status: "in_progress" | "completed";
+  messages_to_summarize: number;
+  recent_messages_kept: number;
 }
 
 export interface TriggerHistoryEntry {
@@ -174,4 +177,12 @@ export interface TriggerHistoryResponse {
   summaries: Summary[];
   total_entries: number;
   recent_entries_count: number;
+}
+
+export interface ContextInfo {
+  estimated_tokens: number;
+  context_limit: number;
+  usage_percentage: number;
+  conversation_messages: number;
+  approaching_limit: boolean;
 }

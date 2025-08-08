@@ -14,17 +14,8 @@ interface ChatInterfaceProps {
   client: AgentClient;
 }
 
-interface ContextInfo {
-  estimated_tokens: number;
-  context_limit: number;
-  usage_percentage: number;
-  conversation_messages: number;
-  approaching_limit: boolean;
-}
-
 export function ChatInterface({ client }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("");
-  const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
 
   // New architecture: batch events then convert to structured messages
   const { events, queueEvent, clearEvents } = useStreamBatcher(50);
@@ -35,7 +26,10 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
 
   const {
     triggerEntries,
+    summaries,
     isStreamActive,
+    contextInfo,
+    setContextInfo,
     loadTriggerHistory,
     clearTriggerHistory,
   } = useTriggerEvents(events);
@@ -79,22 +73,14 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Load trigger history and context info in parallel
+        // Load trigger history and initial context info in parallel
         const [triggerData, contextData] = await Promise.all([
           client.getTriggerHistory(),
           client.getContextInfo(),
         ]);
 
-        setContextInfo({
-          estimated_tokens: contextData.estimated_tokens,
-          context_limit: contextData.context_limit,
-          usage_percentage: contextData.usage_percentage,
-          conversation_messages: contextData.conversation_messages,
-          approaching_limit: contextData.approaching_limit,
-        });
-
-        if (triggerData.entries.length > 0) {
-          loadTriggerHistory(triggerData.entries);
+        if (triggerData.entries.length > 0 || triggerData.summaries.length > 0) {
+          loadTriggerHistory(triggerData.entries, triggerData.summaries);
 
           // Set initial scroll position to bottom instantly
           requestAnimationFrame(() => {
@@ -102,6 +88,9 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
               messagesEndRef.current.scrollIntoView({ behavior: "instant" });
             }
           });
+        }
+        if (contextData) {
+          setContextInfo(contextData);
         }
       } catch (error) {
         console.error("Failed to load initial data:", error);
@@ -120,7 +109,6 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
 
     clearEvents();
     clearTriggerHistory();
-    setContextInfo(null);
     setUserAtBottom(true);
   };
 
@@ -222,6 +210,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         {triggerEntries.length > 0 && (
           <Timeline
             triggerEntries={triggerEntries}
+            summaries={summaries}
             isStreamActive={isStreamActive}
           />
         )}

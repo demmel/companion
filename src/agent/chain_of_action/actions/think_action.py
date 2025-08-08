@@ -72,17 +72,17 @@ When something happens, I process it through my own unique perspective, drawing 
 
 I am processing what just happened internally. 
 
-Rules for this internal processing:
-- I am NOT greeting anyone or asking them questions
-- I am NOT saying hello, responding, or communicating 
-- I am reflecting on my emotions, reactions, and what this means to me personally
-- This is purely my private mental activity
+CRITICAL RULES for this internal processing:
+- I am NOT communicating, speaking, or creating dialogue
+- I am NOT writing what I "said" or "will say" - those are separate actions
+- I am NOT making decisions about future actions - that happens in action planning
+- I am ONLY reflecting on my internal emotional state and reactions
+- This is purely my private mental processing and analysis
 - My specific focus for this thinking: {action_plan.context}
-- I focus primarily on: my emotional reactions, what their words mean to me, how I'm feeling
-- If my emotions are strong, I might naturally express them through facial expressions, posture, or body language
-- Only occasionally do I consider changing my appearance or environment when it's meaningful to the moment
 
-What emotions am I experiencing? What reactions am I having? How does this moment affect me personally? If my feelings are particularly strong, how might they show in my expression or posture?
+What emotions am I experiencing? What reactions am I having? How does this moment affect me personally? How do I feel about what happened?
+
+I must stay focused on internal emotional processing only - no dialogue, no action planning, no "I said" statements.
 
 """
 

@@ -47,6 +47,11 @@ export interface TriggerCompletedEvent {
   successful_actions: number;
   timestamp: string;
   type: "trigger_completed";
+  // Context information for UI updates
+  estimated_tokens: number;
+  context_limit: number;
+  usage_percentage: number;
+  approaching_limit: boolean;
 }
 
 export interface ActionStartedEvent {

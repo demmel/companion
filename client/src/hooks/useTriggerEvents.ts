@@ -10,6 +10,8 @@ import {
   WaitAction,
   Trigger,
   ActionStatus,
+  ContextInfo,
+  Summary,
 } from "../types";
 import { debug } from "@/utils/debug";
 
@@ -62,8 +64,11 @@ interface ActiveTriggerBuilder {
 
 export interface UseTriggerEventsReturn {
   triggerEntries: TriggerHistoryEntry[];
+  summaries: Summary[];
   isStreamActive: boolean;
-  loadTriggerHistory: (entries: TriggerHistoryEntry[]) => void;
+  contextInfo: ContextInfo | null;
+  setContextInfo: (context: ContextInfo) => void;
+  loadTriggerHistory: (entries: TriggerHistoryEntry[], summaries: Summary[]) => void;
   clearTriggerHistory: () => void;
 }
 
@@ -122,8 +127,11 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
  */
 export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsReturn {
   const [triggerEntries, setTriggerEntries] = useState<TriggerHistoryEntry[]>([]);
+  const [summaries, setSummaries] = useState<Summary[]>([]);
   const [activeTrigger, setActiveTrigger] = useState<ActiveTriggerBuilder | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
+  const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const lastProcessedEventId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -333,11 +341,51 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
             entry_id: event.entry_id,
           };
 
+          // Extract and update context info from the trigger completed event
+          const newContextInfo: ContextInfo = {
+            estimated_tokens: event.estimated_tokens,
+            context_limit: event.context_limit,
+            usage_percentage: event.usage_percentage,
+            approaching_limit: event.approaching_limit,
+            conversation_messages: event.total_actions, // Use total_actions as proxy
+          };
+          setContextInfo(newContextInfo);
+
           // Add to completed entries and clear active trigger
           setTriggerEntries(prev => [...prev, triggerEntry]);
           currentTrigger = null;
 
           hasActiveStreaming = false; // This trigger is complete
+          break;
+        }
+
+        case "summarization_started": {
+          // Add an in-progress summary
+          const inProgressSummary: Summary = {
+            summary_text: "",
+            insert_at_index: event.messages_to_summarize,
+            created_at: new Date().toISOString(),
+            status: "in_progress",
+            messages_to_summarize: event.messages_to_summarize,
+            recent_messages_kept: event.recent_messages_kept,
+          };
+          setSummaries(prev => [...prev, inProgressSummary]);
+          break;
+        }
+
+        case "summarization_finished": {
+          // Update the last summary to completed
+          setSummaries(prev => {
+            if (prev.length === 0) return prev;
+            const result = [...prev];
+            const lastIndex = result.length - 1;
+            result[lastIndex] = {
+              ...result[lastIndex],
+              summary_text: event.summary,
+              status: "completed",
+            };
+            return result;
+          });
           break;
         }
 
@@ -368,8 +416,16 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
     allTriggerEntries.push(activeTriggerEntry);
   }
 
-  const loadTriggerHistory = useCallback((entries: TriggerHistoryEntry[]) => {
+  const loadTriggerHistory = useCallback((entries: TriggerHistoryEntry[], summaries: Summary[]) => {
     setTriggerEntries(entries);
+    // Set all loaded summaries as completed since they come from server storage
+    const completedSummaries = summaries.map(summary => ({
+      ...summary,
+      status: "completed" as const,
+      messages_to_summarize: 0, // Default values for loaded summaries
+      recent_messages_kept: 0,
+    }));
+    setSummaries(completedSummaries);
     setActiveTrigger(null);
     setIsStreamActive(false);
     lastProcessedEventId.current = null;
@@ -377,14 +433,19 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
 
   const clearTriggerHistory = useCallback(() => {
     setTriggerEntries([]);
+    setSummaries([]);
     setActiveTrigger(null);
     setIsStreamActive(false);
+    setContextInfo(null);
     lastProcessedEventId.current = null;
   }, []);
 
   return {
     triggerEntries: allTriggerEntries,
+    summaries,
     isStreamActive,
+    contextInfo,
+    setContextInfo,
     loadTriggerHistory,
     clearTriggerHistory,
   };

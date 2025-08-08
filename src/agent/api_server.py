@@ -48,7 +48,7 @@ def initialize_agent() -> Agent:
     """
     llm = create_llm()
     agent = Agent(
-        model=SupportedModel.MISTRAL_SMALL,
+        model=SupportedModel.MISTRAL_SMALL_3_2,
         llm=llm,
         enable_image_generation=True,
     )
@@ -101,10 +101,12 @@ async def get_trigger_history():
         convert_trigger_history_entry_to_dto(entry)
         for entry in trigger_history.get_all_entries()
     ]
-    
+
     # Include initial exchange if it exists (for UI display)
     if agent.initial_exchange is not None:
-        initial_exchange_dto = convert_trigger_history_entry_to_dto(agent.initial_exchange)
+        initial_exchange_dto = convert_trigger_history_entry_to_dto(
+            agent.initial_exchange
+        )
         entry_dtos.insert(0, initial_exchange_dto)  # Insert at beginning
 
     summary_dtos = [

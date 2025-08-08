@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 class ActionBasedReasoningLoop:
     """Main orchestrator for action-based agent reasoning"""
 
-    def __init__(self):
-        self.registry = ActionRegistry()
+    def __init__(self, enable_image_generation: bool = True):
+        self.registry = ActionRegistry(enable_image_generation=enable_image_generation)
         self.planner = ActionPlanner(self.registry)
         self.executor = ActionExecutor(self.registry)
         self.action_evaluator = ActionEvaluator(self.registry)
@@ -163,13 +163,15 @@ class ActionBasedReasoningLoop:
         successful_count = sum(
             1 for action in context.completed_actions if action.success
         )
-        callback.on_trigger_completed(
-            entry_id, len(context.completed_actions), successful_count
-        )
 
         # Add completed actions to the trigger entry and add to trigger history
         trigger_entry.actions_taken = context.completed_actions
         trigger_history.add_trigger_entry(trigger_entry)
+
+        # Emit completion event after adding to history
+        callback.on_trigger_completed(
+            entry_id, len(context.completed_actions), successful_count
+        )
 
         logger.debug(
             f"Added trigger entry {entry_id} with {len(context.completed_actions)} actions to trigger history"

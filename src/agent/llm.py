@@ -99,6 +99,7 @@ class SupportedModel(str, Enum):
     """Supported models with backend-specific identifiers"""
 
     MISTRAL_SMALL = "huihui_ai/mistral-small-abliterated"
+    MISTRAL_SMALL_3_2 = "mistral-small3.2:latest"
     MISTRAL_NEMO = "mistral-nemo:latest"
     DOLPHIN_MISTRAL_NEMO = "CognitiveComputations/dolphin-mistral-nemo:latest"
     LLAMA_8B = "llama3.1:8b"
@@ -274,6 +275,9 @@ DEFAULT_MODELS = {
     ),
     SupportedModel.MISTRAL_SMALL: ModelConfig(
         model=SupportedModel.MISTRAL_SMALL,
+    ),
+    SupportedModel.MISTRAL_SMALL_3_2: ModelConfig(
+        model=SupportedModel.MISTRAL_SMALL_3_2,
     ),
     SupportedModel.DOLPHIN_MISTRAL_NEMO: ModelConfig(
         model=SupportedModel.DOLPHIN_MISTRAL_NEMO,

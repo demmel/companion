@@ -78,6 +78,10 @@ describe("useTriggerEvents", () => {
         total_actions: 1,
         successful_actions: 1,
         timestamp: "2024-01-01T10:00:05Z",
+        estimated_tokens: 50,
+        context_limit: 500,
+        usage_percentage: 10,
+        approaching_limit: false,
       },
     ];
 
@@ -258,6 +262,10 @@ describe("useTriggerEvents", () => {
         total_actions: 3,
         successful_actions: 3,
         timestamp: "2024-01-01T12:00:07Z",
+        estimated_tokens: 100,
+        context_limit: 1000,
+        usage_percentage: 10,
+        approaching_limit: false,
       },
     ];
 
@@ -351,6 +359,10 @@ describe("useTriggerEvents", () => {
         total_actions: 2,
         successful_actions: 2,
         timestamp: "2024-01-01T13:00:06Z",
+        estimated_tokens: 50,
+        context_limit: 500,
+        usage_percentage: 10,
+        approaching_limit: false,
       },
     ];
 
@@ -452,6 +464,10 @@ describe("useTriggerEvents", () => {
         total_actions: 2,
         successful_actions: 2,
         timestamp: "2024-01-01T14:00:05Z",
+        estimated_tokens: 75,
+        context_limit: 750,
+        usage_percentage: 10,
+        approaching_limit: false,
       },
     ];
 
@@ -588,6 +604,10 @@ describe("useTriggerEvents", () => {
         total_actions: 1,
         successful_actions: 1,
         timestamp: "2024-01-01T16:00:04Z",
+        estimated_tokens: 100,
+        context_limit: 1000,
+        usage_percentage: 10,
+        approaching_limit: false,
       },
     ];
 
@@ -701,6 +721,10 @@ describe("useTriggerEvents", () => {
         total_actions: 1,
         successful_actions: 1,
         timestamp: "2024-01-01T18:00:04Z",
+        estimated_tokens: 100,
+        context_limit: 1000,
+        usage_percentage: 10,
+        approaching_limit: false,
       },
     ];
 
