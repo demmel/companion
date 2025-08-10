@@ -464,6 +464,7 @@ def direct_structured_llm_call(
     last_error = None
 
     for attempt in range(max_retries + 1):
+        response_text = ""  # Initialize to avoid unbound variable
         try:
             # Use direct generation instead of chat template
             response_text = llm.generate_complete(

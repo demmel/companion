@@ -73,7 +73,7 @@ class ImageGenerationInput(ToolInput):
     )
 
 
-class ImageGenerationTool(BaseTool):
+class ImageGenerationTool:
     """Tool for generating images using diffusers and Civitai models"""
 
     def __init__(self):
@@ -101,7 +101,7 @@ class ImageGenerationTool(BaseTool):
             progress_callback({"stage": "loading_dependencies", "progress": 0.1})
 
             # Import diffusers components - use SDXL for Illustrious models
-            from diffusers import StableDiffusionXLPipeline
+            from diffusers import StableDiffusionXLPipeline  # type: ignore
             import torch
 
             progress_callback({"stage": "checking_model", "progress": 0.2})
@@ -168,12 +168,13 @@ class ImageGenerationTool(BaseTool):
         self,
         description: str,
         progress_callback: Callable[[Any], None],
-        agent,
+        llm: LLM,
+        model: SupportedModel,
     ) -> SDXLPromptOptimization:
         """Convert natural description to SDXL-optimized prompts with camera positioning"""
 
         logger.debug(f"Starting optimization for description: {description[:100]}...")
-        logger.debug(f"Model: {agent.model}")
+        logger.debug(f"Model: {model}")
         progress_callback({"stage": "optimizing_prompts", "progress": 0.1})
 
         system_prompt = """You are an expert at creating multi-chunk prompts for Stable Diffusion XL (SDXL) with strategic attention control.
@@ -285,7 +286,7 @@ The negative_prompt field contains Stable Diffusion keywords for things to AVOID
 Focus on MAXIMUM ATTENTION for critical elements through strategic first-position placement."""
 
         try:
-            logger.debug(f"Calling structured_llm_call with model: {agent.model}")
+            logger.debug(f"Calling structured_llm_call with model: {model}")
             logger.debug(f"Response model: {SDXLPromptOptimization}")
             result = structured_llm_call(
                 system_prompt=system_prompt,
@@ -295,8 +296,8 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     "description_length": len(description),
                     "timestamp": time.time(),
                 },
-                model=agent.model,
-                llm=agent.llm,
+                model=model,
+                llm=llm,
                 caller="optimize_description_for_sdxl",
             )
             logger.debug(
@@ -342,6 +343,9 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         progress_callback: Callable[[Any], None],
     ):
         """Encode multiple prompt chunks using SDXL's dual text encoders"""
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not loaded. Call load_model() first.")
+
         try:
             import torch
 
@@ -510,6 +514,9 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         progress_callback: Callable[[Any], None],
     ) -> Optional[ImageGenerationToolContent]:
         """Generate image and return the file path"""
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not loaded. Call load_model() first.")
+
         try:
             import torch
 
@@ -561,8 +568,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
 
             progress_callback({"stage": "image_generated", "progress": 0.8})
 
-            # Save the image
-            image = result.images[0]
+            image = result.images[0]  # type: ignore
 
             # Generate unique filename
             timestamp = int(time.time())
@@ -619,7 +625,8 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
     def generate_image_direct(
         self,
         description: str,
-        agent: Agent,
+        llm: LLM,
+        model: SupportedModel,
         progress_callback: Callable[[Any], None],
     ) -> ToolResult:
         """Direct image generation method for use by actions (bypasses tool interface)"""
@@ -632,7 +639,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
 
         tool_id = f"appearance_update_{uuid.uuid4().hex[:8]}"
 
-        return self.run(agent, input_data, tool_id, progress_callback)
+        return self.run(llm, model, input_data, tool_id, progress_callback)
 
     def generate_image_for_action(
         self,
@@ -643,18 +650,12 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
     ) -> ToolResult:
         """Generate image for actions (creates minimal agent-like object)"""
 
-        # Create minimal agent-like object with just the needed properties
-        class MinimalAgent:
-            def __init__(self, model, llm):
-                self.model = model
-                self.llm = llm
-
-        minimal_agent = MinimalAgent(model, llm)
-        return self.generate_image_direct(description, minimal_agent, progress_callback)
+        return self.generate_image_direct(description, llm, model, progress_callback)
 
     def run(
         self,
-        agent: Agent,
+        llm: LLM,
+        model: SupportedModel,
         input_data: ImageGenerationInput,
         tool_id: str,
         progress_callback: Callable[[Any], None],
@@ -663,14 +664,14 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
 
         logger.debug(f"ImageGenerationTool.run called with:")
         logger.debug(f"  Description: {input_data.description}")
-        logger.debug(f"  Agent model: {agent.model}")
+        logger.debug(f"  Model: {model}")
         logger.debug(f"  Tool ID: {tool_id}")
 
         # Step 1: Optimize description to SDXL prompts
         progress_callback({"stage": "starting_optimization", "progress": 0.0})
 
         optimization = self._optimize_description_for_sdxl(
-            input_data.description, progress_callback, agent
+            input_data.description, progress_callback, llm, model
         )
 
         # Step 2: Load model if not already loaded

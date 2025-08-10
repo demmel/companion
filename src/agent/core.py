@@ -29,6 +29,7 @@ from agent.state import (
     build_agent_state_description,
 )
 from agent.state import build_agent_state_description
+from agent.types import ToolCallError
 
 from .llm import LLM, SupportedModel, Message as LLMMessage
 from .tools import ToolRegistry, BaseTool
@@ -216,7 +217,7 @@ class Agent:
         # Performance logging
         total_time = time.time() - start_time
         logger.debug(f"Total chat_stream time: {total_time:.3f}s")
-        
+
         # Log LLM call statistics summary
         self.llm.log_stats_summary()
 
@@ -307,6 +308,9 @@ class Agent:
                         )
                     )
                     generate_image_start_time = time.time()
+                    image_description = (
+                        self.state.current_appearance
+                    )  # Default fallback
                     try:
                         # Build image description from initial state
                         from agent.chain_of_action.actions.update_appearance_action import (
@@ -340,8 +344,13 @@ class Agent:
                         )
 
                         image_generator = get_shared_image_generator()
-                        image_result = image_generator.generate_image_direct(
-                            image_description, self, progress_callback
+                        image_result: ToolCallSuccess | ToolCallError = (
+                            image_generator.generate_image_direct(
+                                image_description,
+                                self.llm,
+                                self.model,
+                                progress_callback,
+                            )
                         )
 
                         if not isinstance(image_result, ToolCallSuccess):
@@ -395,11 +404,7 @@ class Agent:
                         # Create and store error action result
                         error_action_result = ActionResult(
                             action=ActionType.UPDATE_APPEARANCE,
-                            context_given=(
-                                image_description
-                                if "image_description" in locals()
-                                else "Unknown context"
-                            ),
+                            context_given=image_description,
                             result_summary="Initial appearance image generation failed",
                             success=False,
                             duration_ms=int(
@@ -463,7 +468,7 @@ class Agent:
             def __init__(self, agent):
                 self.agent = agent
 
-            def on_trigger_started(self, entry_id: str, trigger: TriggerEvent) -> None:
+            def on_trigger_started(self, entry_id: str, trigger) -> None:
                 from datetime import datetime
 
                 streaming.emit(
@@ -625,7 +630,7 @@ class Agent:
         """Reset conversation history and agent's state"""
         self.trigger_history = TriggerHistory()
         self.state = None  # Will be configured by next first message
-        
+
         # Reset LLM call statistics
         self.llm.reset_call_stats()
 
