@@ -87,6 +87,18 @@ class WaitActionDTO(BaseActionDTO):
     type: Literal["wait"] = "wait"
 
 
+class AddPriorityActionDTO(BaseActionDTO):
+    """DTO for add priority actions"""
+
+    type: Literal["add_priority"] = "add_priority"
+
+
+class RemovePriorityActionDTO(BaseActionDTO):
+    """DTO for remove priority actions"""
+
+    type: Literal["remove_priority"] = "remove_priority"
+
+
 # Discriminated union for all action types
 ActionDTO = Union[
     ThinkActionDTO,
@@ -94,6 +106,8 @@ ActionDTO = Union[
     UpdateAppearanceActionDTO,
     UpdateMoodActionDTO,
     WaitActionDTO,
+    AddPriorityActionDTO,
+    RemovePriorityActionDTO,
 ]
 
 
@@ -285,6 +299,10 @@ def convert_action_to_dto(action: ActionResult) -> ActionDTO:
         return UpdateMoodActionDTO(**base_data)
     elif action.action == ActionType.WAIT:
         return WaitActionDTO(**base_data)
+    elif action.action == ActionType.ADD_PRIORITY:
+        return AddPriorityActionDTO(**base_data)
+    elif action.action == ActionType.REMOVE_PRIORITY:
+        return RemovePriorityActionDTO(**base_data)
     else:
         raise ValueError(f"Unsupported action type: {action.action}")
 

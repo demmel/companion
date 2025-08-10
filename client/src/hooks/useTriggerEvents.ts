@@ -155,7 +155,6 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
   const [activeTrigger, setActiveTrigger] = useState<ActiveTriggerBuilder | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
-  const [isSummarizing, setIsSummarizing] = useState(false);
   const lastProcessedEventId = useRef<number | null>(null);
 
   useEffect(() => {

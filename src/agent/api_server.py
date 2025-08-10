@@ -51,7 +51,8 @@ def initialize_agent() -> Agent:
         model=SupportedModel.MISTRAL_SMALL_3_2,
         llm=llm,
         enable_image_generation=True,
-        individual_trigger_compression=True,  # Default enabled
+        individual_trigger_compression=True,
+        enable_action_evaluation=False,
     )
 
     return agent
