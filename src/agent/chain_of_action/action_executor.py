@@ -59,9 +59,12 @@ class ActionExecutor:
             )
 
             # Notify action started
+            input_summary = ", ".join(
+                [f"{k}: {v}" for k, v in action_plan.input.items()]
+            )
             callback.on_action_started(
                 action_plan.action,
-                action_plan.context,
+                input_summary,
                 sequence_number,
                 i + 1,
                 trigger_entry.entry_id,
@@ -82,8 +85,13 @@ class ActionExecutor:
                         trigger_entry.entry_id,
                     )
 
+                # Create the validated action input
+                action_class = self.registry.get_action(action_plan.action)
+                input_type = action_class.get_input_type()
+                action_input = input_type(**action_plan.input)
+
                 result = action.execute(
-                    action_plan=action_plan,
+                    action_input=action_input,
                     context=context,
                     state=state,
                     trigger_history=trigger_history,
@@ -124,7 +132,9 @@ class ActionExecutor:
                 error_result = ActionResult(
                     action=action_plan.action,
                     result_summary="",
-                    context_given=action_plan.context,
+                    context_given=", ".join(
+                        [f"{k}: {v}" for k, v in action_plan.input.items()]
+                    ),
                     duration_ms=0.0,
                     success=False,
                     error=f"Execution exception: {str(e)}",

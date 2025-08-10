@@ -4,12 +4,10 @@ Action planner for generating action sequences from triggers.
 
 import logging
 from typing import List
-from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ActionResult
 from agent.chain_of_action.trigger_history import TriggerHistory
 
-from .action_types import ActionType
 from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
 from ..structured_llm import direct_structured_llm_call
@@ -19,24 +17,6 @@ from agent.llm import LLM, SupportedModel
 from .trigger import TriggerEvent
 
 logger = logging.getLogger(__name__)
-
-
-class PlannedAction(BaseModel):
-    """A single planned action with context"""
-
-    action: ActionType = Field(description="The action type to execute")
-    context: str = Field(description="Specific context or focus for this action")
-
-
-class ActionPlanningResult(BaseModel):
-    """Result of action planning with sequence of actions"""
-
-    reasoning: str = Field(
-        description="My reasoning for why I chose this sequence of actions"
-    )
-    actions: List[PlannedAction] = Field(
-        description="Planned sequence of actions to execute"
-    )
 
 
 class ActionPlanner:
@@ -67,31 +47,71 @@ class ActionPlanner:
             registry=self.registry,
         )
 
-        try:
-            logger.debug("=== ACTION PLANNING PROMPT ===")
-            logger.debug(planning_prompt)
+        max_retries = 2
+        current_prompt = planning_prompt
+
+        for retry_attempt in range(max_retries + 1):
+            logger.debug(
+                f"=== ACTION PLANNING {'RETRY ' + str(retry_attempt) if retry_attempt > 0 else ''} ==="
+            )
+            logger.debug(current_prompt)
 
             # Use structured LLM to plan the actions
             result = direct_structured_llm_call(
-                prompt=planning_prompt,
+                prompt=current_prompt,
                 response_model=ActionSequence,
                 model=model,
                 llm=llm,
                 temperature=0.3,
             )
 
-            logger.debug("=== ACTION PLANNING ===")
-            logger.debug(f"TRIGGER: {trigger}")
-            logger.debug(f"REASONING: {result.reasoning}")
-            logger.debug(f"PLANNED: {len(result.actions)} actions")
-            for i, action in enumerate(result.actions):
-                logger.debug(f"  {i+1}. {action.action.value}: {action.context}")
-            logger.debug("=" * 40)
+            # Validate the structured inputs
+            validation_errors = []
+            for i, action_plan in enumerate(result.actions):
+                try:
+                    action_class = self.registry.get_action(action_plan.action)
+                    input_type = action_class.get_input_type()
+                    validated_input = input_type(**action_plan.input)
+                    logger.debug(f"  {i+1}. {action_plan.action.value}: validated")
 
-            return result
+                except Exception as validation_error:
+                    error_msg = f"Action {i+1} ({action_plan.action.value}): {str(validation_error)}"
+                    validation_errors.append(error_msg)
+                    logger.error(f"Validation error: {error_msg}")
 
-        except Exception as e:
-            logger.error(f"Action planning failed: {e}")
-            raise RuntimeError(
-                "Failed to plan actions due to an error in the LLM response"
-            ) from e
+            # If validation successful, return result
+            if not validation_errors:
+                logger.debug(f"PLANNED: {len(result.actions)} actions successfully")
+                return result
+
+            # If we have retries left, update prompt and continue
+            if retry_attempt < max_retries:
+                error_details = "\n".join([f"- {error}" for error in validation_errors])
+
+                # Show the agent the JSON they produced
+                attempted_json = result.model_dump_json(indent=2)
+
+                current_prompt = f"""{planning_prompt}
+
+**IMPORTANT: Your previous action planning had validation errors.**
+
+**Your previous JSON response was:**
+```json
+{attempted_json}
+```
+
+**Validation errors that occurred:**
+{error_details}
+
+Please fix these validation errors. Make sure each action's input parameters match the required schema exactly. Check field names, types, and required vs optional fields. Provide a corrected action plan."""
+            else:
+                # Final attempt failed
+                error_details = "\n".join([f"- {error}" for error in validation_errors])
+                raise ValueError(
+                    f"Action planning failed validation after {max_retries} retries:\n{error_details}"
+                )
+
+        # If we reach here, something went wrong
+        raise RuntimeError(
+            "Action planning did not complete successfully after retries"
+        )

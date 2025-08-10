@@ -4,6 +4,9 @@ THINK action implementation.
 
 import time
 import logging
+from typing import Type
+
+from pydantic import BaseModel, Field
 
 from agent.chain_of_action.trigger_history import TriggerHistory
 
@@ -20,7 +23,15 @@ from agent.llm import LLM, SupportedModel
 logger = logging.getLogger(__name__)
 
 
-class ThinkAction(BaseAction):
+class ThinkInput(BaseModel):
+    """Input for THINK action"""
+
+    focus: str = Field(
+        description="What I want to think about or analyze - emotional elements, relationship dynamics, or particular details"
+    )
+
+
+class ThinkAction(BaseAction[ThinkInput, None]):
     """Process emotional reactions and analyze the situation"""
 
     action_type = ActionType.THINK
@@ -33,9 +44,13 @@ class ThinkAction(BaseAction):
     def get_context_description(cls) -> str:
         return "Specific aspects to focus thinking on - emotional elements, relationship dynamics, or particular details requiring analysis"
 
+    @classmethod
+    def get_input_type(cls) -> Type[ThinkInput]:
+        return ThinkInput
+
     def execute(
         self,
-        action_plan: ActionPlan,
+        action_input: ThinkInput,
         context: ExecutionContext,
         state: State,
         trigger_history: TriggerHistory,
@@ -78,7 +93,7 @@ CRITICAL RULES for this internal processing:
 - I am NOT making decisions about future actions - that happens in action planning
 - I am ONLY reflecting on my internal emotional state and reactions
 - This is purely my private mental processing and analysis
-- My specific focus for this thinking: {action_plan.context}
+- My specific focus for this thinking: {action_input.focus}
 
 What emotions am I experiencing? What reactions am I having? How does this moment affect me personally? How do I feel about what happened?
 
@@ -95,7 +110,7 @@ I must stay focused on internal emotional processing only - no dialogue, no acti
             logger.debug(
                 f"CONTEXT: {estimated_tokens:,} tokens ({total_chars:,} chars)"
             )
-            logger.debug(f"FOCUS: {action_plan.context}")
+            logger.debug(f"FOCUS: {action_input.focus}")
             logger.debug("=" * 40)
 
             # Use streaming generation with progress callback
@@ -118,7 +133,7 @@ I must stay focused on internal emotional processing only - no dialogue, no acti
             return ActionResult(
                 action=ActionType.THINK,
                 result_summary=full_response,
-                context_given=action_plan.context,
+                context_given=action_input.focus,
                 duration_ms=duration_ms,
                 success=True,
                 metadata=None,  # No additional metadata needed
@@ -128,7 +143,7 @@ I must stay focused on internal emotional processing only - no dialogue, no acti
             return ActionResult(
                 action=ActionType.THINK,
                 result_summary="",
-                context_given=action_plan.context,
+                context_given=action_input.focus,
                 duration_ms=duration_ms,
                 success=False,
                 error=str(e),

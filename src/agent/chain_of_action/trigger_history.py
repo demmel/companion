@@ -39,6 +39,9 @@ class TriggerHistoryEntry(BaseModel):
     actions_taken: List[ActionResult] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)
     entry_id: str = Field(default_factory=lambda: str(datetime.now().timestamp()))
+    compressed_summary: Optional[str] = (
+        None  # Individual compressed summary for this trigger
+    )
 
 
 class TriggerHistory:
@@ -60,7 +63,7 @@ class TriggerHistory:
             actions_taken=actions,
         )
         self.entries.append(entry)
-    
+
     def add_trigger_entry(self, entry: TriggerHistoryEntry):
         """Add a pre-built trigger history entry"""
         self.entries.append(entry)

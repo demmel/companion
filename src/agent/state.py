@@ -52,7 +52,7 @@ class State(BaseModel):
     """Agent's current internal state"""
 
     # Core identity
-    name: str = "Chloe"
+    name: str
     current_mood: str = "curious"
     mood_intensity: str = "medium"
 

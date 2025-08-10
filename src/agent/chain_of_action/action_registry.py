@@ -78,18 +78,31 @@ class ActionRegistry:
             return action_class()
 
     def get_available_actions_for_prompt(self) -> str:
-        """Get formatted string of available actions for prompts"""
-        # Format available actions for the prompt
+        """Get formatted string of available actions with input schemas for prompts"""
         action_descriptions = self.get_action_descriptions()
-        context_descriptions = self.get_context_descriptions()
 
         actions_info = []
         for action_type in self.get_available_actions():
             action_desc = action_descriptions[action_type]
-            context_desc = context_descriptions[action_type]
+            action_class = self.get_action(action_type)
+
+            # Get the input schema
+            input_type = action_class.get_input_type()
+            schema = input_type.model_json_schema()
+
             actions_info.append(f"- {action_type.value}: {action_desc}")
-            actions_info.append(f"  Context needed: {context_desc}")
+
+            # Add input parameters from schema
+            if "properties" in schema:
+                actions_info.append("  Input parameters:")
+                for field_name, field_info in schema["properties"].items():
+                    description = field_info.get("description", "No description")
+                    field_type = field_info.get("type", "unknown")
+                    required = field_name in schema.get("required", [])
+                    req_str = " (required)" if required else " (optional)"
+                    actions_info.append(
+                        f"    - {field_name} ({field_type}){req_str}: {description}"
+                    )
 
         actions_list = "\n".join(actions_info)
-
         return actions_list

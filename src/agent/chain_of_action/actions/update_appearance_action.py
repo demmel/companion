@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import time
 import logging
+from typing import Type
 
 from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.types import ImageGenerationToolContent, ToolCallError
@@ -22,6 +23,15 @@ from agent.structured_llm import direct_structured_llm_call
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+class UpdateAppearanceInput(BaseModel):
+    """Input for UPDATE_APPEARANCE action"""
+
+    change_description: str = Field(
+        description="What specific aspects of my appearance should change and how"
+    )
+    reason: str = Field(description="Why I'm changing my appearance")
 
 
 class UpdateAppearanceActionMetadata(BaseModel):
@@ -68,7 +78,9 @@ Image description:"""
     return response.strip()
 
 
-class UpdateAppearanceAction(BaseAction):
+class UpdateAppearanceAction(
+    BaseAction[UpdateAppearanceInput, UpdateAppearanceActionMetadata]
+):
     """Update the agent's appearance and generate a new image"""
 
     action_type = ActionType.UPDATE_APPEARANCE
@@ -83,6 +95,10 @@ class UpdateAppearanceAction(BaseAction):
     @classmethod
     def get_context_description(cls) -> str:
         return "Description of what specific aspects of my appearance should change and how"
+
+    @classmethod
+    def get_input_type(cls) -> Type[UpdateAppearanceInput]:
+        return UpdateAppearanceInput
 
     @classmethod
     def create_result_from_image_generation(
@@ -116,7 +132,7 @@ class UpdateAppearanceAction(BaseAction):
 
     def execute(
         self,
-        action_plan: ActionPlan,
+        action_input: UpdateAppearanceInput,
         context: ExecutionContext,
         state: State,
         trigger_history: TriggerHistory,
@@ -127,24 +143,27 @@ class UpdateAppearanceAction(BaseAction):
         start_time = time.time()
 
         logger.debug("=== UPDATE_APPEARANCE ACTION ===")
-        logger.debug(f"APPEARANCE CHANGE: {action_plan.context}")
+        logger.debug(f"APPEARANCE CHANGE: {action_input.change_description}")
+        logger.debug(f"REASON: {action_input.reason}")
 
         old_appearance = state.current_appearance
 
         # Use LLM to merge the appearance update with current appearance
-        merge_prompt = f"""I need to update my appearance based on a specific change request. Please merge the requested changes with my current appearance.
+        merge_prompt = f"""I need to update my appearance based on a specific change request. Please merge the requested changes with my current appearance to create an absolute description.
 
 Current appearance: "{old_appearance}"
-Requested change: "{action_plan.context}"
+Requested change: "{action_input.change_description}"
+Reason for change: "{action_input.reason}"
 
 Please provide an updated appearance description that:
 1. Builds on my current appearance 
-2. Incorporates the requested changes
+2. Incorporates the requested changes as absolute states (not comparative language like "more" or "leaning forward than before")
 3. Follows the format: pose/posture, facial expression, hair/body details, clothing/accessories
 4. Uses first-person perspective starting with "I"
 5. Prioritizes emotional expression over clothing details
+6. IMPORTANT: Convert any comparative language to absolute descriptions (e.g., "leaning more forward" becomes "leaning forward", "feeling happier" becomes "smiling warmly")
 
-The result should be a natural evolution of my current appearance with the requested modifications."""
+The result should be a natural evolution of my current appearance with the requested modifications expressed as absolute states."""
 
         try:
             # Get updated appearance using structured LLM call
@@ -187,9 +206,9 @@ The result should be a natural evolution of my current appearance with the reque
 
             duration_ms = (time.time() - start_time) * 1000
 
-            result_summary = (
-                f"Appearance updated: {appearance_update.updated_appearance}"
-            )
+            result_summary = f"Appearance updated: {appearance_update.updated_appearance} (reason: {action_input.reason})"
+
+            context_summary = f"change: {action_input.change_description}, reason: {action_input.reason}"
 
             # Create action result with or without image generation
             if image_result:
@@ -227,7 +246,7 @@ The result should be a natural evolution of my current appearance with the reque
             result = ActionResult(
                 action=ActionType.UPDATE_APPEARANCE,
                 result_summary=result_summary,
-                context_given=action_plan.context,
+                context_given=context_summary,
                 duration_ms=duration_ms,
                 success=True,
                 metadata=metadata,
@@ -239,10 +258,12 @@ The result should be a natural evolution of my current appearance with the reque
             duration_ms = (time.time() - start_time) * 1000
             logger.error(f"Failed to update appearance: {e}")
 
+            context_summary = f"change: {action_input.change_description}, reason: {action_input.reason}"
+
             return ActionResult(
                 action=ActionType.UPDATE_APPEARANCE,
                 result_summary=f"Failed to update appearance: {str(e)}",
-                context_given=action_plan.context,
+                context_given=context_summary,
                 duration_ms=duration_ms,
                 success=False,
                 metadata=None,  # No metadata on error

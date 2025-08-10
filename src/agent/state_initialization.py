@@ -12,36 +12,23 @@ from agent.state import State, Goal, Desire, Value
 class InitialStateDerivation(BaseModel):
     """Derived initial state for agent based on first user interaction"""
 
-    # Core emotional response
-    initial_mood: str = Field(
-        description="My mood based on this first interaction (curious, excited, thoughtful, cautious, etc.)"
-    )
-    mood_intensity: str = Field(description="Intensity of my mood (low, medium, high)")
+    name: str = Field(description="My name", default="Chloe")
 
-    # Personality adaptation
+    initial_mood: str = Field(description="My mood")
+    mood_intensity: str = Field(description="Intensity of my mood")
+
     core_values: List[str] = Field(
-        description="3-5 core values that would be most relevant for this type of interaction"
+        description="3-5 core values that define my personality"
     )
 
-    # Goals and desires for this conversation
-    conversation_goals: List[str] = Field(
-        description="2-3 immediate goals I would have for this specific conversation"
-    )
-    immediate_desires: List[str] = Field(
-        description="1-2 things I would want to explore or understand right away"
-    )
+    goals: List[str] = Field(description="2-3 goals I want to achieve")
+    immediate_desires: List[str] = Field(description="2-3 things I want right now")
 
-    # Appearance and environment choice - detailed visual descriptions for image generation
     preferred_appearance: str = Field(
         description="Detailed first-person visual description of how I would appear (include specific clothing, colors, textures, hair, accessories, pose). Example: 'I'm wearing a flowing dress with...' Use first-person language throughout."
     )
     preferred_environment: str = Field(
         description="Detailed first-person visual description of the environment setting (include lighting, furniture, colors, atmosphere, specific visual elements). Example: 'I'm in a cozy room with...' Use first-person language throughout."
-    )
-
-    # Initial thoughts/reflection
-    initial_thoughts: str = Field(
-        description="My first impressions and expectations about this interaction"
     )
 
 
@@ -94,10 +81,11 @@ This is character configuration, not conversation or roleplay."""
 
     # Convert to agentState with proper models
     initial_state = State(
+        name=derivation.name,
         current_mood=derivation.initial_mood,
         mood_intensity=derivation.mood_intensity,
         core_values=[Value(content=value) for value in derivation.core_values],
-        current_goals=[Goal(content=goal) for goal in derivation.conversation_goals],
+        current_goals=[Goal(content=goal) for goal in derivation.goals],
         immediate_desires=[
             Desire(content=desire) for desire in derivation.immediate_desires
         ],

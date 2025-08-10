@@ -2,7 +2,7 @@
 Action planning structures.
 """
 
-from typing import List
+from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 
 from .action_types import ActionType
@@ -12,7 +12,9 @@ class ActionPlan(BaseModel):
     """Plan for executing a single action"""
 
     action: ActionType
-    context: str = Field(description="Situational details this action should focus on")
+    input: Dict[str, Any] = Field(
+        description="Structured input parameters for this action based on its input schema"
+    )
 
 
 class ActionSequence(BaseModel):

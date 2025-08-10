@@ -37,6 +37,14 @@ class SequenceEvaluation(BaseModel):
     )
 
 
+def format_action_plan_for_prompt(action: ActionPlan) -> str:
+    """
+    Format action plan for prompt, ensuring it includes both action and context.
+    """
+    inputs = "\n".join(f"  - {key}: {value}" for key, value in action.input.items())
+    return f"- {action.action.value}:\n{inputs}"
+
+
 class ActionEvaluator:
     """Analyzes action sequences for repetitive patterns"""
 
@@ -57,7 +65,7 @@ class ActionEvaluator:
         actions_list = self.registry.get_available_actions_for_prompt()
         completed_actions_text = build_completed_action_list(all_completed_actions)
         planned_actions_text = "\n".join(
-            f"- {action.action.value}: {action.context}" for action in planned_actions
+            format_action_plan_for_prompt(action) for action in planned_actions
         )
 
         prompt = f"""Analyze and correct this agent's planned action sequence to avoid repetitive patterns.

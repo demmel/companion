@@ -3,7 +3,7 @@ Base action classes.
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Any, Generic, TypeVar
+from typing import Callable, Any, Generic, TypeVar, Type
 
 from pydantic import BaseModel
 
@@ -16,10 +16,11 @@ from .action_plan import ActionPlan
 from agent.state import State
 from agent.llm import LLM, SupportedModel
 
+TInput = TypeVar("TInput", bound=BaseModel)
 TMetadata = TypeVar("TMetadata", bound=BaseModel | None)
 
 
-class BaseAction(ABC, Generic[TMetadata]):
+class BaseAction(ABC, Generic[TInput, TMetadata]):
     """Base class for all actions"""
 
     action_type: ActionType
@@ -36,10 +37,16 @@ class BaseAction(ABC, Generic[TMetadata]):
         """What context this action needs when planned"""
         pass
 
+    @classmethod
+    @abstractmethod
+    def get_input_type(cls) -> Type[TInput]:
+        """Get the Pydantic model class for this action's input"""
+        pass
+
     @abstractmethod
     def execute(
         self,
-        action_plan: ActionPlan,
+        action_input: TInput,
         context: ExecutionContext,
         state: State,
         trigger_history: TriggerHistory,

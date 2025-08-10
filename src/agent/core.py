@@ -80,12 +80,18 @@ class Agent:
         llm: LLM,
         auto_save: bool = True,
         enable_image_generation: bool = True,
+        continuous_summarization: bool = False,
+        keep_recent: int = 2,
+        individual_trigger_compression: bool = True,
     ):
         self.llm = llm
         self.model = model
         self.context_window = llm.models[model].context_window
         self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
         self.enable_image_generation = enable_image_generation
+        self.continuous_summarization = continuous_summarization
+        self.keep_recent = keep_recent
+        self.individual_trigger_compression = individual_trigger_compression
 
         # Conversation persistence
         self.auto_save = auto_save
@@ -170,7 +176,8 @@ class Agent:
             estimated_tokens=estimated_tokens,
             context_limit=self.auto_summarize_threshold,  # Show summarization limit, not full window
             usage_percentage=(estimated_tokens / self.auto_summarize_threshold) * 100,
-            approaching_limit=estimated_tokens > (self.auto_summarize_threshold * 0.75),  # 75% of summarization limit
+            approaching_limit=estimated_tokens
+            > (self.auto_summarize_threshold * 0.75),  # 75% of summarization limit
         )
 
     def chat_stream(self, user_input: str) -> Iterator[AgentEvent]:
@@ -184,17 +191,25 @@ class Agent:
                 yield event
 
         else:
-            # Check if we need auto-summarization before processing
-            context_info = self.get_context_info()
-            keep_recent = 3  # Conservative retention size
-            if context_info.approaching_limit:
-                # Perform auto-summarization with event emission
-                for event in self._auto_summarize_with_events(keep_recent):
-                    yield event
+            # Check if we need auto-summarization before processing (skip if continuous summarization enabled)
+            if not self.continuous_summarization:
+                context_info = self.get_context_info()
+                if context_info.approaching_limit:
+                    # Perform auto-summarization with event emission
+                    for event in self._auto_summarize_with_events(self.keep_recent):
+                        yield event
 
             # Use action-based reasoning with callback conversion
             for event in self._run_chain_of_action_with_streaming(user_input):
                 yield event
+
+            # Continuous summarization: summarize after every trigger if enabled
+            if (
+                self.continuous_summarization
+                and len(self.trigger_history.entries) > self.keep_recent
+            ):
+                for event in self._auto_summarize_with_events(self.keep_recent):
+                    yield event
 
         # Performance logging
         total_time = time.time() - start_time
@@ -315,7 +330,10 @@ class Agent:
                                 )
                             )
 
-                        from agent.tools.image_generation import get_shared_image_generator
+                        from agent.tools.image_generation import (
+                            get_shared_image_generator,
+                        )
+
                         image_generator = get_shared_image_generator()
                         image_result = image_generator.generate_image_direct(
                             image_description, self, progress_callback
@@ -592,6 +610,7 @@ class Agent:
                 model=self.model,
                 callback=callback,
                 trigger_history=self.trigger_history,
+                individual_trigger_compression=self.individual_trigger_compression,
             )
 
         # Stream events while work executes

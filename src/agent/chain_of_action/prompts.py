@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from agent.chain_of_action.context import ActionResult
 from agent.chain_of_action.trigger import TriggerEvent, format_trigger_for_prompt
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
 from agent.chain_of_action.action_registry import ActionRegistry
 
@@ -46,11 +46,15 @@ def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
 
         parts.append(trigger_desc)
 
-        # Format each action taken in response
-        for action in entry.actions_taken:
-            # TODO: Replace with action.format_for_diary() once implemented on action classes
-            formatted_action = _format_action_for_diary(action)
-            parts.append(formatted_action)
+        # Use compressed summary if available, otherwise show full actions
+        if entry.compressed_summary:
+            # Add compressed summary as part of stream of consciousness
+            parts.append(entry.compressed_summary)
+        else:
+            # Format each action taken in response (for current/recent entries)
+            for action in entry.actions_taken:
+                formatted_action = _format_action_for_diary(action)
+                parts.append(formatted_action)
 
         parts.append("")  # Blank line between entries
 
@@ -58,7 +62,7 @@ def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
     return stream_content
 
 
-def format_single_trigger_entry(entry) -> str:
+def format_single_trigger_entry(entry: TriggerHistoryEntry) -> str:
     """Format a single trigger history entry for prompts"""
     from agent.chain_of_action.trigger import UserInputTrigger
 
@@ -80,25 +84,38 @@ def format_single_trigger_entry(entry) -> str:
     return "\n".join(parts)
 
 
-def _format_action_for_diary(action) -> str:
+def _format_action_for_diary(action: ActionResult) -> str:
     """
     Temporary formatting method until we implement format_for_diary() on action classes.
     """
     from agent.chain_of_action.action_types import ActionType
 
+    def format_multiline_content(content: str) -> str:
+        """Format multi-line content with XML-style tags"""
+        lines = content.split("\n")
+        if len(lines) <= 1:
+            return f'"{content}"'
+        # Use XML-style tags that agent wouldn't naturally produce
+        return f"<content>\n{content}\n</content>"
+
     if action.action == ActionType.THINK:
-        return f'- I thought about: "{action.context_given}" → {action.result_summary}'
+        content = format_multiline_content(action.result_summary)
+        return f'- I thought about "{action.context_given}":\n  {content}'
     elif action.action == ActionType.SPEAK:
-        return f'- I wanted to express: "{action.context_given}" → I said: "{action.result_summary}"'
+        content = format_multiline_content(action.result_summary)
+        return f'- I responded to "{action.context_given}":\n  {content}'
     elif action.action == ActionType.WAIT:
-        return f'- I decided to wait: "{action.context_given}"'
+        return f'- I waited: "{action.context_given}"'
     elif action.action == ActionType.UPDATE_APPEARANCE:
-        return f"- I wanted to {action.context_given} → {action.result_summary}"
+        content = format_multiline_content(action.result_summary)
+        return f"- I updated my appearance ({action.context_given}):\n  {content}"
     elif action.action == ActionType.UPDATE_MOOD:
-        return f"- I felt {action.context_given} → {action.result_summary}"
+        content = format_multiline_content(action.result_summary)
+        return f"- My mood changed ({action.context_given}):\n  {content}"
     else:
         # Generic format for any other actions
-        return f'- I {action.action.value}: "{action.context_given}" → {action.result_summary}'
+        content = format_multiline_content(action.result_summary)
+        return f'- I {action.action.value} "{action.context_given}":\n  {content}'
 
 
 def build_summarization_prompt(

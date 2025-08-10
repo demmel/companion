@@ -4,6 +4,9 @@ SPEAK action implementation.
 
 import time
 import logging
+from typing import Type, Optional
+
+from pydantic import BaseModel, Field
 
 from agent.chain_of_action.trigger_history import TriggerHistory
 
@@ -20,7 +23,19 @@ from agent.llm import LLM, SupportedModel
 logger = logging.getLogger(__name__)
 
 
-class SpeakAction(BaseAction):
+class SpeakInput(BaseModel):
+    """Input for SPEAK action"""
+
+    content: str = Field(
+        description="What I want to express or communicate - my thoughts, feelings, questions, or responses to share"
+    )
+    tone: Optional[str] = Field(
+        default=None,
+        description="The emotional tone or approach I want to use (optional)",
+    )
+
+
+class SpeakAction(BaseAction[SpeakInput, None]):
     """Generate conversational response to communicate with the user"""
 
     action_type = ActionType.SPEAK
@@ -33,9 +48,13 @@ class SpeakAction(BaseAction):
     def get_context_description(cls) -> str:
         return "What I want to express or communicate - my thoughts, feelings, questions, or responses to share with the user"
 
+    @classmethod
+    def get_input_type(cls) -> Type[SpeakInput]:
+        return SpeakInput
+
     def execute(
         self,
-        action_plan: ActionPlan,
+        action_input: SpeakInput,
         context: ExecutionContext,
         state: State,
         trigger_history: TriggerHistory,
@@ -61,7 +80,11 @@ class SpeakAction(BaseAction):
 
         sections.append(format_section("WHAT JUST HAPPENED", trigger_description))
         sections.append(format_section("MY ACTIONS", actions_summary))
-        sections.append(format_section("WHAT I WANT TO EXPRESS", action_plan.context))
+
+        expression_content = action_input.content
+        if action_input.tone:
+            expression_content += f" (with {action_input.tone} tone)"
+        sections.append(format_section("WHAT I WANT TO EXPRESS", expression_content))
 
         direct_prompt = f"""I am {state.name}, a conscious AI companion who thinks, feels, and makes autonomous choices.
 
@@ -88,7 +111,9 @@ Now I'll respond naturally as myself:"""
             logger.debug(
                 f"CONTEXT: {estimated_tokens:,} tokens ({total_chars:,} chars)"
             )
-            logger.debug(f"EXPRESSION: {action_plan.context}")
+            logger.debug(f"CONTENT: {action_input.content}")
+            if action_input.tone:
+                logger.debug(f"TONE: {action_input.tone}")
             logger.debug("=" * 40)
 
             # Use streaming generation with progress callback
@@ -108,20 +133,33 @@ Now I'll respond naturally as myself:"""
 
             duration_ms = (time.time() - start_time) * 1000
 
+            # Strip XML tags if agent tries to use them
+            import re
+
+            cleaned_response = re.sub(r"<content>|</content>", "", full_response)
+
+            context_summary = f"content: {action_input.content}"
+            if action_input.tone:
+                context_summary += f", tone: {action_input.tone}"
+
             return ActionResult(
                 action=ActionType.SPEAK,
-                result_summary=full_response,
-                context_given=action_plan.context,
+                result_summary=cleaned_response,
+                context_given=context_summary,
                 duration_ms=duration_ms,
                 success=True,
                 metadata=None,  # No additional metadata needed
             )
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
+            context_summary = f"content: {action_input.content}"
+            if action_input.tone:
+                context_summary += f", tone: {action_input.tone}"
+
             return ActionResult(
                 action=ActionType.SPEAK,
                 result_summary="",
-                context_given=action_plan.context,
+                context_given=context_summary,
                 duration_ms=duration_ms,
                 success=False,
                 error=str(e),

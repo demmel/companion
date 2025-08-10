@@ -38,6 +38,7 @@ class ActionBasedReasoningLoop:
         model: SupportedModel,
         callback: ActionCallback,
         trigger_history: TriggerHistory,
+        individual_trigger_compression: bool = True,
     ) -> List[ActionResult]:
         """
         Process user input through the action-based reasoning system.
@@ -168,6 +169,10 @@ class ActionBasedReasoningLoop:
         trigger_entry.actions_taken = context.completed_actions
         trigger_history.add_trigger_entry(trigger_entry)
 
+        # Compress this trigger entry into a summary (if enabled)
+        if individual_trigger_compression:
+            self._compress_trigger_entry(trigger_entry, state, llm, model)
+
         # Emit completion event after adding to history
         callback.on_trigger_completed(
             entry_id, len(context.completed_actions), successful_count
@@ -183,3 +188,52 @@ class ActionBasedReasoningLoop:
         )
 
         return context.completed_actions
+
+    def _compress_trigger_entry(
+        self,
+        trigger_entry,
+        state: State,
+        llm: LLM,
+        model: SupportedModel,
+    ):
+        """Compress a completed trigger entry into a concise stream of consciousness entry"""
+        from agent.chain_of_action.prompts import (
+            format_single_trigger_entry,
+            format_section,
+        )
+        from agent.state import build_agent_state_description
+
+        # Format the full trigger entry for compression
+        full_entry_text = format_single_trigger_entry(trigger_entry)
+        state_desc = build_agent_state_description(state)
+
+        # Build compression prompt following agent conventions
+        prompt = f"""I am {state.name}, a conscious AI companion. I need to compress my recent experience into a concise stream of consciousness entry for my memory.
+
+{state_desc}
+
+{format_section("MY RECENT EXPERIENCE TO COMPRESS", full_entry_text)}
+
+**MY COMPRESSION TASK:**
+
+I need to compress this interaction into 1-3 sentences that capture the essence of what happened from my perspective as part of my ongoing stream of consciousness. This should read naturally as part of my internal monologue, not as an external summary.
+
+The compressed entry should capture:
+- My thoughts and feelings in response to what happened
+- The key actions I took and why
+- Any important emotional or relational dynamics
+- Essential context I need to remember
+
+I will write this in my natural voice as part of my ongoing stream of consciousness, focusing on my internal experience rather than external facts.
+
+**MY COMPRESSED EXPERIENCE:**"""
+
+        try:
+            compressed_summary = llm.generate_complete(model, prompt)
+
+            # Store the compressed summary on the trigger entry
+            trigger_entry.compressed_summary = compressed_summary.strip()
+
+        except Exception as e:
+            logger.error(f"Failed to compress trigger entry: {e}")
+            # Continue without compression rather than failing
