@@ -23,11 +23,15 @@ logger = logging.getLogger(__name__)
 class ActionBasedReasoningLoop:
     """Main orchestrator for action-based agent reasoning"""
 
-    def __init__(self, enable_image_generation: bool = True):
+    def __init__(self, enable_image_generation: bool = True, enable_action_evaluation: bool = True):
         self.registry = ActionRegistry(enable_image_generation=enable_image_generation)
         self.planner = ActionPlanner(self.registry)
         self.executor = ActionExecutor(self.registry)
-        self.action_evaluator = ActionEvaluator(self.registry)
+        self.enable_action_evaluation = enable_action_evaluation
+        if enable_action_evaluation:
+            self.action_evaluator = ActionEvaluator(self.registry)
+        else:
+            self.action_evaluator = None
 
     def process_user_input(
         self,
@@ -99,35 +103,38 @@ class ActionBasedReasoningLoop:
                 logger.debug("No more actions planned, stopping chain")
                 break
 
-            # Evaluate sequence for repetitive patterns and correct if needed
-            logger.debug("Evaluating sequence for repetitive patterns...")
-            evaluation = self.action_evaluator.analyze_and_correct_sequence(
-                planned_actions=sequence.actions,
-                all_completed_actions=context.completed_actions,
-                trigger=trigger,
-                llm=llm,
-                model=model,
-            )
-
-            # Notify about evaluation
-            callback.on_evaluation(
-                evaluation.has_repetition,
-                evaluation.pattern_detected,
-                len(sequence.actions),
-                len(evaluation.corrected_actions),
-            )
-
-            # Use corrected sequence if evaluation found genuine repetition
-            if evaluation.has_repetition:
-                logger.debug(
-                    f"Repetitive pattern detected: {evaluation.pattern_detected}"
+            # Evaluate sequence for repetitive patterns and correct if needed (if enabled)
+            if self.enable_action_evaluation and self.action_evaluator:
+                logger.debug("Evaluating sequence for repetitive patterns...")
+                evaluation = self.action_evaluator.analyze_and_correct_sequence(
+                    planned_actions=sequence.actions,
+                    all_completed_actions=context.completed_actions,
+                    trigger=trigger,
+                    llm=llm,
+                    model=model,
                 )
-                logger.debug(
-                    f"Using corrected sequence with {len(evaluation.corrected_actions)} actions"
+
+                # Notify about evaluation
+                callback.on_evaluation(
+                    evaluation.has_repetition,
+                    evaluation.pattern_detected,
+                    len(sequence.actions),
+                    len(evaluation.corrected_actions),
                 )
-                sequence.actions = evaluation.corrected_actions
+
+                # Use corrected sequence if evaluation found genuine repetition
+                if evaluation.has_repetition:
+                    logger.debug(
+                        f"Repetitive pattern detected: {evaluation.pattern_detected}"
+                    )
+                    logger.debug(
+                        f"Using corrected sequence with {len(evaluation.corrected_actions)} actions"
+                    )
+                    sequence.actions = evaluation.corrected_actions
+                else:
+                    logger.debug("No repetitive patterns detected, using original sequence")
             else:
-                logger.debug("No repetitive patterns detected, using original sequence")
+                logger.debug("Action evaluation disabled, using original sequence")
 
             # Execute the planned sequence, updating the shared context
             logger.debug(
@@ -229,7 +236,9 @@ I will write this in my natural voice as part of my ongoing stream of consciousn
 **MY COMPRESSED EXPERIENCE:**"""
 
         try:
-            compressed_summary = llm.generate_complete(model, prompt)
+            compressed_summary = llm.generate_complete(
+                model, prompt, caller="compress_trigger_entry"
+            )
 
             # Store the compressed summary on the trigger entry
             trigger_entry.compressed_summary = compressed_summary.strip()

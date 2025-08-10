@@ -1,0 +1,241 @@
+"""
+Priority management actions implementation.
+"""
+
+import time
+import logging
+from typing import Type
+
+from pydantic import BaseModel, Field
+from typing import Optional
+
+from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.state import Priority
+
+from ..action_types import ActionType
+from ..base_action import BaseAction
+from ..context import ActionResult, ExecutionContext
+
+from agent.state import State
+from agent.llm import LLM, SupportedModel
+
+logger = logging.getLogger(__name__)
+
+
+class DuplicatePriorityCheck(BaseModel):
+    """Result of checking if a priority is a duplicate"""
+    
+    is_duplicate: bool = Field(description="True if the new priority is a duplicate or very similar to an existing one")
+    existing_priority_id: Optional[str] = Field(default=None, description="The ID of the existing priority that this duplicates (if is_duplicate is True)")
+    reasoning: str = Field(description="Explanation of why this is or isn't a duplicate")
+
+
+class AddPriorityInput(BaseModel):
+    """Input for ADD_PRIORITY action"""
+
+    priority_content: str = Field(
+        description="What I want to prioritize - a clear description of something I choose to focus on"
+    )
+    reason: str = Field(
+        description="Why this is important to me and worth prioritizing"
+    )
+
+
+class RemovePriorityInput(BaseModel):
+    """Input for REMOVE_PRIORITY action"""
+
+    priority_id: str = Field(
+        description="The ID of the priority I want to remove (e.g., 'p1', 'p2')"
+    )
+    reason: str = Field(
+        description="Why I'm removing this priority (completed, no longer relevant, etc.)"
+    )
+
+
+class AddPriorityAction(BaseAction[AddPriorityInput, None]):
+    """Add a new priority that the agent wants to focus on"""
+
+    action_type = ActionType.ADD_PRIORITY
+
+    def _check_for_duplicate_priority(
+        self, new_priority: str, existing_priorities: list, llm: LLM, model: SupportedModel
+    ) -> DuplicatePriorityCheck:
+        """Check if the new priority is a duplicate or very similar to existing ones"""
+        from agent.structured_llm import direct_structured_llm_call
+        
+        existing_list = "\n".join([f"- {p.content} (id: {p.id})" for p in existing_priorities])
+        
+        prompt = f"""I'm considering adding a new priority: "{new_priority}"
+
+My current priorities are:
+{existing_list}
+
+I need to determine if this new priority is a duplicate or very similar to any of my existing priorities. Two priorities are duplicates if they have essentially the same meaning or would lead to the same actions, even if worded differently.
+
+Examples of duplicates:
+- "get to know this person" and "understand who I'm talking with" (same intent)
+- "help with coding" and "assist with programming" (same activity)
+- "learn about myself" and "understand my capabilities" (same self-focus)
+
+Examples of NOT duplicates:
+- "help with coding" and "help with debugging" (different aspects of programming)
+- "understand this person" and "maintain our friendship" (different relationship goals)
+- "learn about AI" and "learn about cooking" (different topics)
+
+Is the new priority a duplicate of any existing priority?"""
+
+        try:
+            result = direct_structured_llm_call(
+                prompt=prompt,
+                response_model=DuplicatePriorityCheck,
+                model=model,
+                llm=llm,
+                caller="check_duplicate_priority",
+            )
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to check for duplicate priorities: {e}")
+            # Fall back to no duplicate detected
+            return DuplicatePriorityCheck(
+                is_duplicate=False,
+                existing_priority_id=None,
+                reasoning="Could not perform duplicate check due to error"
+            )
+
+    @classmethod
+    def get_action_description(cls) -> str:
+        return "Add a new priority - something I consciously choose to focus on"
+
+    @classmethod
+    def get_context_description(cls) -> str:
+        return "What I want to prioritize and why it matters to me"
+
+    @classmethod
+    def get_input_type(cls) -> Type[AddPriorityInput]:
+        return AddPriorityInput
+
+    def execute(
+        self,
+        action_input: AddPriorityInput,
+        context: ExecutionContext,
+        state: State,
+        trigger_history: TriggerHistory,
+        llm: LLM,
+        model: SupportedModel,
+        progress_callback,
+    ) -> ActionResult:
+        start_time = time.time()
+
+        logger.debug("=== ADD_PRIORITY ACTION ===")
+        logger.debug(f"PRIORITY: {action_input.priority_content}")
+        logger.debug(f"REASON: {action_input.reason}")
+
+        # Check for duplicate or similar priorities using LLM
+        if state.current_priorities:
+            duplicate_check = self._check_for_duplicate_priority(
+                action_input.priority_content, state.current_priorities, llm, model
+            )
+            
+            if duplicate_check.is_duplicate:
+                duration_ms = (time.time() - start_time) * 1000
+                # Find the existing priority to get its content
+                existing_priority = next((p for p in state.current_priorities if p.id == duplicate_check.existing_priority_id), None)
+                if existing_priority:
+                    return ActionResult(
+                        action=ActionType.ADD_PRIORITY,
+                        result_summary=f"Priority '{action_input.priority_content}' is similar to existing priority '{existing_priority.content}' (id: {existing_priority.id}). {duplicate_check.reasoning}",
+                        context_given=f"priority: {action_input.priority_content}, reason: {action_input.reason}",
+                        duration_ms=duration_ms,
+                        success=True,
+                        metadata=None,
+                    )
+                else:
+                    # Fallback if ID not found (shouldn't happen but be safe)
+                    return ActionResult(
+                        action=ActionType.ADD_PRIORITY,
+                        result_summary=f"Priority '{action_input.priority_content}' appears to be a duplicate. {duplicate_check.reasoning}",
+                        context_given=f"priority: {action_input.priority_content}, reason: {action_input.reason}",
+                        duration_ms=duration_ms,
+                        success=True,
+                        metadata=None,
+                    )
+
+        # Generate new sequential ID
+        new_id = f"p{state.next_priority_id}"
+        state.next_priority_id += 1
+
+        # Add the new priority
+        new_priority = Priority(id=new_id, content=action_input.priority_content)
+        state.current_priorities.append(new_priority)
+
+        duration_ms = (time.time() - start_time) * 1000
+
+        result_summary = f"Added new priority: '{action_input.priority_content}' because {action_input.reason}"
+
+        return ActionResult(
+            action=ActionType.ADD_PRIORITY,
+            result_summary=result_summary,
+            context_given=f"priority: {action_input.priority_content}, reason: {action_input.reason}",
+            duration_ms=duration_ms,
+            success=True,
+            metadata=None,
+        )
+
+
+class RemovePriorityAction(BaseAction[RemovePriorityInput, None]):
+    """Remove a priority that is no longer relevant"""
+
+    action_type = ActionType.REMOVE_PRIORITY
+
+    @classmethod
+    def get_action_description(cls) -> str:
+        return "Remove a priority that is no longer relevant or has been completed"
+
+    @classmethod
+    def get_context_description(cls) -> str:
+        return "Which priority to remove and why I'm removing it"
+
+    @classmethod
+    def get_input_type(cls) -> Type[RemovePriorityInput]:
+        return RemovePriorityInput
+
+    def execute(
+        self,
+        action_input: RemovePriorityInput,
+        context: ExecutionContext,
+        state: State,
+        trigger_history: TriggerHistory,
+        llm: LLM,
+        model: SupportedModel,
+        progress_callback,
+    ) -> ActionResult:
+        start_time = time.time()
+
+        logger.debug("=== REMOVE_PRIORITY ACTION ===")
+        logger.debug(f"REMOVING ID: {action_input.priority_id}")
+        logger.debug(f"REASON: {action_input.reason}")
+
+        # Find and remove the priority by ID
+        priority_found = None
+        for i, priority in enumerate(state.current_priorities):
+            if priority.id == action_input.priority_id:
+                priority_found = state.current_priorities.pop(i)
+                break
+
+        duration_ms = (time.time() - start_time) * 1000
+
+        if priority_found:
+            result_summary = f"Removed priority '{priority_found.content}' (id: {priority_found.id}) because {action_input.reason}"
+            success = True
+        else:
+            result_summary = f"Priority with ID '{action_input.priority_id}' not found to remove"
+            success = False
+
+        return ActionResult(
+            action=ActionType.REMOVE_PRIORITY,
+            result_summary=result_summary,
+            context_given=f"priority_id: {action_input.priority_id}, reason: {action_input.reason}",
+            duration_ms=duration_ms,
+            success=success,
+            metadata=None,
+        )

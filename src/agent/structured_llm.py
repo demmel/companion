@@ -53,6 +53,7 @@ class StructuredLLMClient:
         system_prompt: str,
         user_input: str,
         response_model: Type[T],
+        caller: str,
         context: Optional[Dict[str, Any]] = None,
         temperature: float = 0.1,
         format: ResponseFormat = ResponseFormat.JSON,
@@ -102,6 +103,7 @@ class StructuredLLMClient:
                     messages=messages,
                     temperature=temperature,
                     num_predict=4096,
+                    caller=caller,
                 )
 
                 response_text = response or ""
@@ -394,6 +396,7 @@ def structured_llm_call(
     response_model: Type[T],
     model: SupportedModel,
     llm: LLM,
+    caller: str,
     context: Optional[Dict[str, Any]] = None,
     temperature: float = 0.1,
     format: ResponseFormat = ResponseFormat.JSON,
@@ -415,7 +418,7 @@ def structured_llm_call(
     """
     structured_client = StructuredLLMClient(model=model, llm=llm)
     return structured_client.call(
-        system_prompt, user_input, response_model, context, temperature, format
+        system_prompt, user_input, response_model, caller, context, temperature, format
     )
 
 
@@ -424,6 +427,7 @@ def direct_structured_llm_call(
     response_model: Type[T],
     model: SupportedModel,
     llm: LLM,
+    caller: str,
     context: Optional[Dict[str, Any]] = None,
     temperature: float = 0.1,
     format: ResponseFormat = ResponseFormat.JSON,
@@ -467,6 +471,7 @@ def direct_structured_llm_call(
                 prompt=full_prompt,
                 temperature=temperature,
                 num_predict=4096,
+                caller=caller,
             )
 
             if not response_text:
@@ -785,6 +790,7 @@ def main():
             context=context,
             model=SupportedModel.MISTRAL_SMALL,
             llm=llm,
+            caller="structured_llm_test",
         )
 
         print(f"✅ Successfully extracted {len(result.preferences)} preferences")

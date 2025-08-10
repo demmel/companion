@@ -83,6 +83,7 @@ class Agent:
         continuous_summarization: bool = False,
         keep_recent: int = 2,
         individual_trigger_compression: bool = True,
+        enable_action_evaluation: bool = True,
     ):
         self.llm = llm
         self.model = model
@@ -104,7 +105,8 @@ class Agent:
 
         # Initialize reasoning system
         self.action_reasoning_loop = ActionBasedReasoningLoop(
-            enable_image_generation=enable_image_generation
+            enable_image_generation=enable_image_generation,
+            enable_action_evaluation=enable_action_evaluation,
         )
 
         # Initialize the agent's state system (None until configured by first message)
@@ -214,6 +216,9 @@ class Agent:
         # Performance logging
         total_time = time.time() - start_time
         logger.debug(f"Total chat_stream time: {total_time:.3f}s")
+        
+        # Log LLM call statistics summary
+        self.llm.log_stats_summary()
 
         # Auto-save conversation after each turn
         if self.auto_save:
@@ -620,6 +625,9 @@ class Agent:
         """Reset conversation history and agent's state"""
         self.trigger_history = TriggerHistory()
         self.state = None  # Will be configured by next first message
+        
+        # Reset LLM call statistics
+        self.llm.reset_call_stats()
 
         # Generate new conversation ID for the fresh conversation
         if self.auto_save:
@@ -790,7 +798,9 @@ def summarize_trigger_history(
 
     # Use structured prompt with separated sections
     summary = llm.generate_complete(
-        model, build_summarization_prompt(old_summary, recent_entries, state)
+        model,
+        build_summarization_prompt(old_summary, recent_entries, state),
+        caller="summarize_trigger_history",
     )
     # Calculate UI position: initial exchange (1) + previous summaries + entries before this summary
     ui_position = 1 + len(trigger_history.summaries) + entries_to_summarize_end

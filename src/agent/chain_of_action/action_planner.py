@@ -63,6 +63,7 @@ class ActionPlanner:
                 model=model,
                 llm=llm,
                 temperature=0.3,
+                caller="action_planner",
             )
 
             # Validate the structured inputs

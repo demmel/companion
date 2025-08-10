@@ -97,6 +97,8 @@ CRITICAL RULES for this internal processing:
 
 What emotions am I experiencing? What reactions am I having? How does this moment affect me personally? How do I feel about what happened?
 
+How does this situation relate to my core values and what I care about? Are any of my current priorities relevant here? What does this moment mean to me given what I'm focusing on and what matters to me?
+
 I must stay focused on internal emotional processing only - no dialogue, no action planning, no "I said" statements.
 
 """
@@ -115,7 +117,9 @@ I must stay focused on internal emotional processing only - no dialogue, no acti
 
             # Use streaming generation with progress callback
             full_response = ""
-            for response_chunk in llm.generate_streaming(model, direct_prompt):
+            for response_chunk in llm.generate_streaming(
+                model, direct_prompt, caller="think_action"
+            ):
                 if "response" in response_chunk:
                     chunk_text = response_chunk["response"]
                     full_response += chunk_text

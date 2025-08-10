@@ -116,6 +116,7 @@ For DONE actions, provide a context explaining why completion is appropriate."""
                 model=model,
                 llm=llm,
                 temperature=0.3,  # Lower temperature for consistent analysis
+                caller="action_evaluator",
             )
 
             logger.debug(f"=== SEQUENCE ANALYSIS ===")

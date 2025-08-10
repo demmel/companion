@@ -8,6 +8,8 @@ import {
   UpdateAppearanceAction,
   UpdateMoodAction,
   WaitAction,
+  AddPriorityAction,
+  RemovePriorityAction,
   Trigger,
   ActionStatus,
   ContextInfo,
@@ -47,12 +49,22 @@ interface WaitActionBuilder extends BaseActionBuilder {
   action_type: "wait";
 }
 
+interface AddPriorityActionBuilder extends BaseActionBuilder {
+  action_type: "add_priority";
+}
+
+interface RemovePriorityActionBuilder extends BaseActionBuilder {
+  action_type: "remove_priority";
+}
+
 type ActionBuilder =
   | ThinkActionBuilder
   | SpeakActionBuilder
   | UpdateAppearanceActionBuilder
   | UpdateMoodActionBuilder
-  | WaitActionBuilder;
+  | WaitActionBuilder
+  | AddPriorityActionBuilder
+  | RemovePriorityActionBuilder;
 
 // Single active trigger builder (only one trigger can be active at a time)
 interface ActiveTriggerBuilder {
@@ -114,6 +126,18 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
         type: "wait",
         ...baseAction,
       } as WaitAction;
+
+    case "add_priority":
+      return {
+        type: "add_priority",
+        ...baseAction,
+      } as AddPriorityAction;
+
+    case "remove_priority":
+      return {
+        type: "remove_priority",
+        ...baseAction,
+      } as RemovePriorityAction;
 
     default:
       throw new Error(`Unknown action type: ${(actionBuilder as ActionBuilder).action_type}`);
@@ -187,7 +211,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
               type: "streaming",
               result: "",
             },
-            action_type: event.action_type as "think" | "speak" | "update_appearance" | "update_mood" | "wait",
+            action_type: event.action_type as "think" | "speak" | "update_appearance" | "update_mood" | "wait" | "add_priority" | "remove_priority",
             context_given: event.context_given,
             duration_ms: 0, // Duration will be updated later
             partial_results: [],
@@ -325,6 +349,20 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
                     type: "wait",
                     ...baseAction,
                   } as WaitAction);
+                  break;
+
+                case "add_priority":
+                  actions.push({
+                    type: "add_priority",
+                    ...baseAction,
+                  } as AddPriorityAction);
+                  break;
+
+                case "remove_priority":
+                  actions.push({
+                    type: "remove_priority",
+                    ...baseAction,
+                  } as RemovePriorityAction);
                   break;
 
                 default:

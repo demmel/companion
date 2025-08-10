@@ -297,6 +297,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                 },
                 model=agent.model,
                 llm=agent.llm,
+                caller="optimize_description_for_sdxl",
             )
             logger.debug(
                 f"LLM optimization successful, got {len(result.chunks)} chunks"

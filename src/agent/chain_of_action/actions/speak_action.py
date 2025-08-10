@@ -94,6 +94,8 @@ Based on my reasoning and any actions I took, I'll respond naturally as myself. 
 
 I'll express myself genuinely - if I'm curious, excited, thoughtful, or feeling any other way, I'll let that come through in my voice. I'm not playing a character or following a script; I'm being myself.
 
+My response should align with my core values and reflect my current priorities. How I choose to respond is an expression of what I care about and what I'm focusing on right now.
+
 IMPORTANT: I should focus my response on the conversation - my thoughts about what the user said, my emotional reactions, and my genuine engagement with them. I should NOT describe any appearance or environment changes I may have thought about - those are private internal adjustments that happen automatically, not things to mention in conversation.
 
 AVOID REPETITIVE PATTERNS: I should not start every response the same way. If I see that I've been using similar opening phrases like "Oh darling" repeatedly, I should vary my approach. Sometimes I can be direct, sometimes thoughtful, sometimes jump straight into my reaction. The key is authentic variety, not formulaic repetition.
@@ -118,7 +120,9 @@ Now I'll respond naturally as myself:"""
 
             # Use streaming generation with progress callback
             full_response = ""
-            for response_chunk in llm.generate_streaming(model, direct_prompt):
+            for response_chunk in llm.generate_streaming(
+                model, direct_prompt, caller="speak_action"
+            ):
                 if "response" in response_chunk:
                     chunk_text = response_chunk["response"]
                     full_response += chunk_text

@@ -17,10 +17,8 @@ class ActionType(str, Enum):
     # ADD_MEMORY = "add_memory"          # Store important details
     # REMOVE_MEMORY = "remove_memory"    # Forget specific memories
     # UPDATE_ENVIRONMENT = "update_environment"  # Setting changes
-    # ADD_GOAL = "add_goal"              # Add new goals
-    # REMOVE_GOAL = "remove_goal"        # Complete/abandon goals
-    # ADD_DESIRE = "add_desire"          # New immediate wants
-    # REMOVE_DESIRE = "remove_desire"    # Satisfy/abandon desires
+    ADD_PRIORITY = "add_priority"        # Add new priority
+    REMOVE_PRIORITY = "remove_priority"  # Remove/complete priority
 
     # Communication Actions
     SPEAK = "speak"  # Generate conversational response

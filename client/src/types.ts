@@ -149,12 +149,22 @@ export interface WaitAction extends BaseAction {
   type: "wait";
 }
 
+export interface AddPriorityAction extends BaseAction {
+  type: "add_priority";
+}
+
+export interface RemovePriorityAction extends BaseAction {
+  type: "remove_priority";
+}
+
 export type Action =
   | ThinkAction
   | SpeakAction
   | UpdateAppearanceAction
   | UpdateMoodAction
-  | WaitAction;
+  | WaitAction
+  | AddPriorityAction
+  | RemovePriorityAction;
 
 export interface Summary {
   summary_text: string;

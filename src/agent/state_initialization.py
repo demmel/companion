@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
-from agent.state import State, Goal, Desire, Value
+from agent.state import State, Priority, Value
 
 
 class InitialStateDerivation(BaseModel):
@@ -21,8 +21,7 @@ class InitialStateDerivation(BaseModel):
         description="3-5 core values that define my personality"
     )
 
-    goals: List[str] = Field(description="2-3 goals I want to achieve")
-    immediate_desires: List[str] = Field(description="2-3 things I want right now")
+    priorities: List[str] = Field(description="3-4 things I want to focus on and prioritize")
 
     preferred_appearance: str = Field(
         description="Detailed first-person visual description of how I would appear (include specific clothing, colors, textures, hair, accessories, pose). Example: 'I'm wearing a flowing dress with...' Use first-person language throughout."
@@ -50,8 +49,7 @@ OBJECTIVE: Configure my personality, mood, values, and presentation based on thi
 Configuration requirements:
 - Set my appropriate mood and intensity based on the character description
 - Select 3-5 core values that align with my defined personality
-- Define 2-3 conversation goals that fit my character type
-- Identify 1-2 immediate desires I would naturally have
+- Define 3-4 priorities that I would naturally focus on based on my character
 - Create DETAILED first-person visual descriptions for my appearance and environment that match my character (include specific clothing, colors, textures, lighting, furniture - these will be used for image generation)
 - Generate my initial thoughts/mindset appropriate for this character
 
@@ -77,18 +75,22 @@ This is character configuration, not conversation or roleplay."""
         model=model,
         llm=llm,
         temperature=0.7,  # Allow some creativity in state derivation
+        caller="state_initialization",
     )
 
     # Convert to agentState with proper models
+    # Create priorities with sequential IDs
+    priorities = []
+    for i, priority_content in enumerate(derivation.priorities, 1):
+        priorities.append(Priority(id=f"p{i}", content=priority_content))
+    
     initial_state = State(
         name=derivation.name,
         current_mood=derivation.initial_mood,
         mood_intensity=derivation.mood_intensity,
         core_values=[Value(content=value) for value in derivation.core_values],
-        current_goals=[Goal(content=goal) for goal in derivation.goals],
-        immediate_desires=[
-            Desire(content=desire) for desire in derivation.immediate_desires
-        ],
+        current_priorities=priorities,
+        next_priority_id=len(priorities) + 1,  # Set counter for next priority
         current_appearance=derivation.preferred_appearance,
         current_environment=derivation.preferred_environment,
     )
@@ -121,8 +123,7 @@ def test_state_derivation():
                 f"Mood: {initial_state.current_mood} ({initial_state.mood_intensity})"
             )
             print(f"Values: {initial_state.core_values}")
-            print(f"Goals: {initial_state.current_goals}")
-            print(f"Desires: {initial_state.immediate_desires}")
+            print(f"Priorities: {[p.content for p in initial_state.current_priorities]}")
             print(f"Appearance: {initial_state.current_appearance}")
             print(f"Environment: {initial_state.current_environment}")
 

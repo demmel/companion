@@ -14,6 +14,7 @@ from .actions import (
     UpdateMoodAction,
     UpdateAppearanceAction,
 )
+from .actions.priority_actions import AddPriorityAction, RemovePriorityAction
 
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,8 @@ class ActionRegistry:
         self.register(SpeakAction)
         self.register(UpdateMoodAction)
         self.register(UpdateAppearanceAction)
+        self.register(AddPriorityAction)
+        self.register(RemovePriorityAction)
         # etc.
 
     def register(self, action_class: Type[BaseAction]):

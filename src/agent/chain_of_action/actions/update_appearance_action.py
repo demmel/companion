@@ -74,7 +74,7 @@ Convert to third-person and combine into a coherent image description suitable f
 
 Image description:"""
 
-    response = llm.generate_complete(model, prompt)
+    response = llm.generate_complete(model, prompt, caller="build_image_description")
     return response.strip()
 
 
@@ -172,6 +172,7 @@ The result should be a natural evolution of my current appearance with the reque
                 response_model=AppearanceUpdate,
                 model=model,
                 llm=llm,
+                caller="update_appearance_action",
             )
 
             # Update state with new appearance

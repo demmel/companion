@@ -3,96 +3,30 @@ LLM client for interfacing with Ollama
 """
 
 import ollama
+import time
+import logging
+from collections import defaultdict
 from typing import Iterator, List, Dict, Optional
 from pydantic import BaseModel
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CallStats:
+    """Statistics for LLM calls by caller"""
+    count: int = 0
+    total_time: float = 0.0
+    times: List[float] = field(default_factory=list)
+
+
 
 
 class Message(BaseModel):
     role: str
     content: str
-
-
-class LLMClient:
-    """Client for interfacing with Ollama LLM"""
-
-    def __init__(
-        self,
-        client: ollama.Client,
-        model: str,
-        context_window: int = 32768,
-    ):
-        self.context_window = context_window
-        self.client = client
-        self.model = model
-
-    def chat(self, messages: List[Message]) -> Iterator[ollama.ChatResponse]:
-        """Send streaming chat request to LLM"""
-        # Convert messages to dict format
-        message_dicts = [{"role": msg.role, "content": msg.content} for msg in messages]
-
-        response = self.client.chat(
-            model=self.model,
-            messages=message_dicts,
-            stream=True,
-            options={
-                "num_gpu": -1,  # Use all available GPU layers
-                "num_thread": 16,  # More CPU threads for large context processing
-                "num_ctx": self.context_window,  # Configurable context window
-                "temperature": 0.3,  # Lower temp for better coherence
-                "top_p": 0.8,  # Slightly more focused sampling
-                "top_k": 40,  # Add top-k sampling for stability
-                "repeat_penalty": 1.1,  # Prevent repetition
-                "num_predict": 512,  # Allow longer responses
-            },
-            keep_alive="30m",  # Keep model loaded for 10 minutes
-        )
-
-        return response
-
-    def chat_complete(self, messages: List[Message]) -> str:
-        """Send non-streaming chat request for background operations like summarization"""
-
-        # Convert messages to dict format
-        message_dicts = [{"role": msg.role, "content": msg.content} for msg in messages]
-
-        response = self.client.chat(
-            model=self.model,
-            messages=message_dicts,
-            stream=False,
-            options={
-                "num_gpu": -1,  # Use all available GPU layers
-                "num_thread": 16,  # More CPU threads for large context processing
-                "num_ctx": self.context_window,  # Configurable context window
-                "temperature": 0.3,  # Lower temp for better coherence
-                "top_p": 0.8,  # Slightly more focused sampling
-                "top_k": 40,  # Add top-k sampling for stability
-                "repeat_penalty": 1.1,  # Prevent repetition
-                "num_predict": 512,  # Allow longer responses
-            },
-            keep_alive="10m",  # Keep model loaded for 10 minutes
-        )
-
-        return response["message"]["content"]
-
-    def is_available(self) -> bool:
-        """Check if the model is available"""
-        try:
-            models = self.client.list()
-            model_names = [model["name"] for model in models["models"]]
-            return self.model in model_names
-        except:
-            return False
-
-    def pull_model(self) -> bool:
-        """Pull the model if not available"""
-        try:
-            self.client.pull(self.model)
-            return True
-        except Exception as e:
-            print(f"Error pulling model: {e}")
-            return False
 
 
 class SupportedModel(str, Enum):
@@ -130,11 +64,13 @@ class LLM:
     ):
         self.client = client
         self.models = models
+        self.call_stats: Dict[str, CallStats] = defaultdict(CallStats)
 
     def chat(
         self,
         model: SupportedModel,
         messages: List[Message],
+        caller: str,
         stream: bool = False,
         keep_alive: Optional[str] = None,
         temperature: Optional[float] = None,
@@ -178,18 +114,29 @@ class LLM:
         )
 
     def chat_streaming(
-        self, model: SupportedModel, messages: List[Message], **kwargs
+        self, model: SupportedModel, messages: List[Message], caller: str, **kwargs
     ) -> Iterator[ollama.ChatResponse]:
         """Convenience method for streaming chat"""
-        return self.chat(model, messages, stream=True, **kwargs)  # type: ignore
+        return self.chat(model, messages, stream=True, caller=caller, **kwargs)  # type: ignore
 
     def chat_complete(
-        self, model: SupportedModel, messages: List[Message], **kwargs
+        self, model: SupportedModel, messages: List[Message], caller: str, **kwargs
     ) -> Optional[str]:
         """Convenience method for non-streaming chat"""
+        start_time = time.time()
         response: ollama.ChatResponse = self.chat(
-            model, messages, stream=False, **kwargs
+            model, messages, stream=False, caller=caller, **kwargs
         )  # type: ignore
+        
+        # Track the call
+        duration = time.time() - start_time
+        stats = self.call_stats[caller]
+        stats.count += 1
+        stats.total_time += duration
+        stats.times.append(duration)
+        
+        logger.info(f"LLM call [{caller}]: {duration:.2f}s")
+        
         return response["message"]["content"]
 
     def is_model_available(self, model: SupportedModel) -> bool:
@@ -214,6 +161,7 @@ class LLM:
         self,
         model: SupportedModel,
         prompt: str,
+        caller: str,
         stream: bool = False,
         keep_alive: Optional[str] = None,
         temperature: Optional[float] = None,
@@ -254,15 +202,49 @@ class LLM:
         )
 
     def generate_streaming(
-        self, model: SupportedModel, prompt: str, **kwargs
+        self, model: SupportedModel, prompt: str, caller: str, **kwargs
     ) -> Iterator[ollama.GenerateResponse]:
         """Convenience method for streaming direct generation"""
-        return self.generate(model, prompt, stream=True, **kwargs)  # type: ignore
+        return self.generate(model, prompt, caller, stream=True, **kwargs)  # type: ignore
 
-    def generate_complete(self, model: SupportedModel, prompt: str, **kwargs) -> str:
+    def generate_complete(
+        self, model: SupportedModel, prompt: str, caller: str, **kwargs
+    ) -> str:
         """Convenience method for non-streaming direct generation"""
-        response = self.generate(model, prompt, stream=False, **kwargs)
+        start_time = time.time()
+        response = self.generate(model, prompt, caller, stream=False, **kwargs)
+        
+        # Track the call
+        duration = time.time() - start_time
+        stats = self.call_stats[caller]
+        stats.count += 1
+        stats.total_time += duration
+        stats.times.append(duration)
+        
+        logger.info(f"LLM call [{caller}]: {duration:.2f}s")
+        
         return response["response"]  # type: ignore
+
+    def reset_call_stats(self) -> None:
+        """Reset all LLM call statistics"""
+        self.call_stats.clear()
+
+    def log_stats_summary(self) -> None:
+        """Log a summary of LLM call statistics"""
+        if not self.call_stats:
+            return
+        
+        total_calls = sum(stats.count for stats in self.call_stats.values())
+        total_time = sum(stats.total_time for stats in self.call_stats.values())
+        
+        logger.info(f"LLM call statistics: {total_calls} calls, {total_time:.2f}s total")
+        
+        # Sort by total time (most expensive first)
+        sorted_stats = sorted(self.call_stats.items(), key=lambda x: x[1].total_time, reverse=True)
+        
+        for caller, stats in sorted_stats:
+            avg_time = stats.total_time / stats.count if stats.count > 0 else 0
+            logger.info(f"  {caller}: {stats.count} calls, {stats.total_time:.2f}s, {avg_time:.2f}s avg")
 
 
 # Default model configurations
