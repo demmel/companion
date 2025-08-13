@@ -4,6 +4,7 @@ FastAPI server for single-user agent system
 
 import json
 import logging
+import os
 
 from agent.types import Message
 from agent.llm import create_llm, SupportedModel
@@ -23,6 +24,9 @@ from agent.api_types import (
     convert_trigger_history_entry_to_dto,
     convert_summary_to_dto,
 )
+from agent.conversation_persistence import TriggerHistoryData
+from agent.state import State
+from agent.chain_of_action.trigger_history import TriggerHistory
 
 
 # Response Models
@@ -40,12 +44,36 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def initialize_agent() -> Agent:
-    """Initialize the agent
+def load_conversation_files(
+    conversation_prefix: str = "conversations/conversation_20250810_225159_516774"
+) -> tuple[TriggerHistory, State]:
+    """Load trigger history and state from conversation files with given prefix"""
+    
+    trigger_file = f"{conversation_prefix}_triggers.json"
+    state_file = f"{conversation_prefix}_state.json"
+    
+    # Load trigger history
+    trigger_history = TriggerHistory()
+    if os.path.exists(trigger_file):
+        with open(trigger_file, "r") as f:
+            trigger_data = TriggerHistoryData.model_validate(json.load(f))
+            # Populate the trigger history
+            for entry in trigger_data.entries:
+                trigger_history.add_trigger_entry(entry)
+            for summary in trigger_data.summaries:
+                trigger_history.summaries.append(summary)
+    
+    # Load state
+    state = None
+    if os.path.exists(state_file):
+        with open(state_file, "r") as f:
+            state = State.model_validate(json.load(f))
+    
+    return trigger_history, state
 
-    Args:
-        load_conversation: Whether to load conversation.json up to first summary
-    """
+
+def initialize_agent() -> Agent:
+    """Initialize the agent with specific conversation files for development"""
     llm = create_llm()
     agent = Agent(
         model=SupportedModel.MISTRAL_SMALL_3_2,
@@ -53,7 +81,17 @@ def initialize_agent() -> Agent:
         enable_image_generation=True,
         individual_trigger_compression=True,
         enable_action_evaluation=False,
+        auto_save=False,  # Disable auto-save for development
     )
+
+    # Load the specific conversation files
+    trigger_history, state = load_conversation_files()
+    
+    # Replace the empty trigger history and state
+    if trigger_history:
+        agent.trigger_history = trigger_history
+    if state:
+        agent.state = state
 
     return agent
 

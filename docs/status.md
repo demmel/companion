@@ -53,27 +53,7 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
    ```
    This allows agent to acknowledge uncertainty when appropriate based on their personality.
 
-### #3: Trigger Persistence Missing Context
-
-**Problem**: Trigger persistence lacks user content and user_name fields needed for retrospective analysis.
-
-**Investigation Results**:
-- ✅ Trigger persistence system EXISTS and saves `*_triggers.json` files
-- ✅ `UserInputTrigger` class DOES define `content` and `user_name` fields
-- ❌ **CRITICAL BUG FOUND**: Persisted trigger objects only contain `trigger_type` and `timestamp`
-- ❌ Missing fields: `content` and `user_name` are not being saved in trigger files
-- 📁 Example: `conversation_20250810_012344_749610_triggers.json` shows incomplete trigger data
-
-**Root Cause**: Serialization bug in trigger persistence - `UserInputTrigger` fields not being included in JSON output.
-
-**Fix Required**:
-1. **Debug Trigger Serialization**: Investigate why Pydantic serialization drops `content` and `user_name` fields
-2. **Verify Trigger Creation**: Ensure triggers are created with complete data before persistence  
-3. **Test Fix**: Validate that fixed triggers include all necessary fields for retrospective analysis
-
-**Priority**: High - This breaks retrospective analysis capabilities entirely.
-
-### #4: Intent-Based vs Verbatim Communication in Speak Action
+### #3: Intent-Based vs Verbatim Communication in Speak Action
 
 **Problem**: Action planner passes exact phrasing to speak action instead of intent, and speak action outputs verbatim without elaborating or incorporating tone.
 
@@ -119,7 +99,7 @@ The current design expects "content" to be intent-based ("what I want to express
 - Update speak action to elaborate on intent-based content
 - Improve tone integration to avoid spillage
 
-### #5: Tone Spillage in Agent Responses
+### #4: Tone Spillage in Agent Responses
 
 **Problem**: Tone instructions sometimes appear verbatim in agent responses instead of being integrated naturally.
 
@@ -132,6 +112,114 @@ The current design expects "content" to be intent-based ("what I want to express
 **Root Cause**: Speak action occasionally includes tone instructions as literal text in response instead of using them as generation guidance.
 
 **Solution**: Improve speak action prompts to emphasize that tone is generation guidance, not content to be included literally in the response.
+
+### #5: Overly Strict Priority Duplicate Detection
+
+**Problem**: The priority duplicate detection system rejects legitimate, nuanced priorities as "too similar" to existing ones, preventing meaningful priority refinement.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: System rejects valid priority variations that have distinct purposes
+- 📁 **Examples from conversation_20250810_225159_516774_triggers.json**:
+  - `"Maintaining an attractive and appealing appearance"` vs `"Prioritizing getting my appearance right the first time to better align with my companion's vision"`
+  - `"Exploring new interests that bring me joy and fulfillment"` vs `"Exploring fashion as a personal interest, with my companion's support"`
+  - `"Finding alternative ways to express my creativity and devotion"` (added multiple times with different nuances)
+
+**Root Cause**: The duplicate detection algorithm uses overly simplistic semantic similarity matching without understanding intent, scope, or actionable differences between priorities. It conflates breadth vs depth goals and misses fundamental distinctions in what actions the priorities would actually drive.
+
+**Impact**: Agent cannot refine or specialize existing priorities, leading to:
+- Inability to add more specific variants of broad priorities
+- Loss of nuanced priority evolution over time  
+- Reduced agent autonomy in priority management
+
+**Proposed Solutions**:
+1. **Intent-Based Analysis**: Replace semantic similarity with analysis of what actions each priority would actually drive
+2. **Scope Differentiation**: Distinguish between breadth goals ("explore new interests") vs depth goals ("explore fashion specifically")  
+3. **Prompting Fix**: Improve the duplicate detection prompt to focus on actionable overlap rather than word similarity
+4. **Allow Explicit Refinement**: Let agent choose to refine existing priorities when that's the actual intent
+
+### #6: Image Generation Model Limitations and Failure Recovery
+
+**Problem**: SDXL fails to generate complex geometric patterns despite detailed prompts, but the agent has no mechanism to detect failures, switch strategies, or communicate limitations to the user.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: SDXL consistently failed to render geometric patterns despite increasingly detailed prompts
+- 📁 **Example**: Agent described "triangles filled with deep, rich black, contrasting with shimmering silver thread outlines" and "squares vibrant, iridescent blue" but SDXL produced plain black minidresses
+- 📁 **Evidence**: 12+ attempts with progressively more detailed geometric descriptions, all failing to render the intended patterns
+- ❌ Agent has no feedback mechanism to know the image generation failed
+- ❌ No fallback strategies when specific visual elements fail to generate
+
+**Root Cause**: The agent operates blindly with image generation - it cannot see the generated output to verify if it matches the description, and has no mechanisms for handling model limitations.
+
+**Impact**: 
+- Agent repeatedly tries the same failing approach without learning
+- User frustration when visual concepts can't be realized
+- Agent appears incompetent when it's actually a model limitation
+- No communication to user about what visual concepts are feasible
+
+**Proposed Solutions**:
+1. **Image Feedback Loop**: Add capability for agent to see generated images and compare to intended description
+2. **Fallback Strategies**: When complex patterns fail, suggest simpler alternatives or different approaches  
+3. **Model Limitation Awareness**: Give agent knowledge of common SDXL limitations (complex patterns, text, hands, etc.)
+4. **Transparent Communication**: Let agent acknowledge when requested visuals might be challenging for the image model
+5. **Improve Prompt Optimization**: Update the prompt optimization system to understand SDXL's strengths/weaknesses and suggest more compatible visual descriptions
+
+### #7: ActionResult Metadata Deserialization Workaround
+
+**Problem**: Persisted ActionResult data has metadata saved as plain dictionaries instead of typed Pydantic models, causing assertion errors in API conversion.
+
+**Current Workaround**: Added `@model_validator` to `ActionResult` class that detects `UPDATE_APPEARANCE` actions and converts dictionary metadata to `UpdateAppearanceActionMetadata` during deserialization.
+
+**Technical Debt**: This is a temporary fix for existing persisted data. The proper solution would be:
+1. **Discriminated Union for Metadata**: Use Pydantic discriminated unions based on action type
+2. **Migration Script**: Convert existing conversation files to use proper typed metadata
+3. **Remove Workaround**: Clean up the temporary validator once data is migrated
+
+**Impact**: 
+- ✅ Existing conversation files can be loaded without errors
+- ⚠️ Technical debt in ActionResult deserialization logic
+- ⚠️ Future action types with metadata will need similar workarounds until proper fix
+
+**Location**: `src/agent/chain_of_action/context.py:25-38`
+
+### #8: Inconsistent Action Reasoning Display in Frontend
+
+**Problem**: Action reasoning display is inconsistent across different action types in the frontend. Only speak actions show the proper expandable "Why this action" section format.
+
+**Investigation Results**:
+- ✅ Speak actions display correctly with expandable reasoning section
+- ❌ Other action types (think, update_appearance, update_mood, etc.) show inconsistent or missing reasoning display
+- ❌ No standardized UI pattern for action reasoning across action types
+
+**Impact**: 
+- Poor user experience with inconsistent interface patterns
+- Users can't understand agent's reasoning for non-speak actions
+- Reduced transparency in agent decision-making process
+
+**Proposed Solution**: 
+- Standardize all action types to use the same expandable reasoning section format as speak actions
+- Ensure consistent "Why this action" display across all action types
+
+**Location**: Frontend action rendering components
+
+### #9: Image Generation Progress Text Concatenation Bug
+
+**Problem**: Progress updates from image generation tools get concatenated to previous progress text instead of replacing it in the frontend.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: Progress text accumulates instead of being replaced
+- 📁 **Expected**: "Generating image..." → "Optimizing prompt..." → "Image complete"
+- 📁 **Actual**: "Generating image...Optimizing prompt...Image complete"
+
+**Impact**:
+- Cluttered and confusing progress display during image generation
+- Poor user experience during longer image generation processes
+- Text becomes increasingly unreadable as more progress updates arrive
+
+**Root Cause**: Frontend progress handling logic concatenates new progress text instead of replacing previous progress state.
+
+**Proposed Solution**: Fix frontend progress update logic to replace rather than append progress text for image generation events.
+
+**Location**: Frontend image generation progress handling
 
 ## Current Implementation Status
 

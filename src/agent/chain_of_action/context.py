@@ -3,7 +3,7 @@ Execution context for action sequences.
 """
 
 from typing import Any, Generic, List, Optional, TypeVar
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .trigger import BaseTriger
 from .action_types import ActionType
@@ -21,6 +21,21 @@ class ActionResult(BaseModel, Generic[TMetadata]):
     metadata: TMetadata
     success: bool = True
     error: str = ""
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_metadata(cls, data):
+        """Convert metadata dict to proper type based on action type"""
+        if isinstance(data, dict) and 'action' in data and 'metadata' in data:
+            action = data['action']
+            metadata = data['metadata']
+            
+            # Only handle UPDATE_APPEARANCE for now since it's the only one using metadata
+            if action == ActionType.UPDATE_APPEARANCE and isinstance(metadata, dict):
+                from .actions.update_appearance_action import UpdateAppearanceActionMetadata
+                data['metadata'] = UpdateAppearanceActionMetadata.model_validate(metadata)
+        
+        return data
 
 
 class ExecutionContext(BaseModel):
