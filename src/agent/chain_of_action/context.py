@@ -5,7 +5,7 @@ Execution context for action sequences.
 from typing import Any, Generic, List, Optional, TypeVar
 from pydantic import BaseModel, Field
 
-from .trigger import TriggerEvent
+from .trigger import BaseTriger
 from .action_types import ActionType
 
 TMetadata = TypeVar("TMetadata", bound=BaseModel | None)
@@ -26,7 +26,7 @@ class ActionResult(BaseModel, Generic[TMetadata]):
 class ExecutionContext(BaseModel):
     """Context information for action execution"""
 
-    trigger: TriggerEvent
+    trigger: BaseTriger
     completed_actions: List[ActionResult] = Field(default_factory=list)
     session_id: str
 

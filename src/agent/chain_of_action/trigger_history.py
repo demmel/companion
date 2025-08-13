@@ -9,7 +9,7 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.trigger import TriggerEvent, UserInputTrigger
+from agent.chain_of_action.trigger import BaseTriger, UserInputTrigger, Trigger
 from agent.chain_of_action.context import ActionResult
 from agent.chain_of_action.action_types import ActionType
 from agent.types import (
@@ -35,7 +35,7 @@ class SummaryRecord(BaseModel):
 class TriggerHistoryEntry(BaseModel):
     """Single entry in trigger-based history - a trigger and agent's response to it"""
 
-    trigger: TriggerEvent
+    trigger: Trigger
     actions_taken: List[ActionResult] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)
     entry_id: str = Field(default_factory=lambda: str(datetime.now().timestamp()))
@@ -56,7 +56,7 @@ class TriggerHistory:
         self.entries: List[TriggerHistoryEntry] = []
         self.summaries: List[SummaryRecord] = []
 
-    def add_trigger_response(self, trigger: TriggerEvent, actions: List[ActionResult]):
+    def add_trigger_response(self, trigger: Trigger, actions: List[ActionResult]):
         """Add a new trigger and the agent's response to it"""
         entry = TriggerHistoryEntry(
             trigger=trigger,

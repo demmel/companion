@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from agent.chain_of_action.context import ActionResult
-from agent.chain_of_action.trigger import TriggerEvent, format_trigger_for_prompt
+from agent.chain_of_action.trigger import BaseTriger, format_trigger_for_prompt
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
 from agent.chain_of_action.action_registry import ActionRegistry
@@ -42,7 +42,7 @@ def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
         if isinstance(entry.trigger, UserInputTrigger):
             trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] {entry.trigger.user_name} said: "{entry.trigger.content}"'
         else:
-            trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] Trigger: {entry.trigger.trigger_type}'
+            trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] Trigger: {entry.trigger.type}'
 
         parts.append(trigger_desc)
 
@@ -72,7 +72,7 @@ def format_single_trigger_entry(entry: TriggerHistoryEntry) -> str:
     if isinstance(entry.trigger, UserInputTrigger):
         trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] {entry.trigger.user_name} said: "{entry.trigger.content}"'
     else:
-        trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] Trigger: {entry.trigger.trigger_type}'
+        trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] Trigger: {entry.trigger.type}'
 
     parts.append(trigger_desc)
 
@@ -161,7 +161,7 @@ I will write this summary in first-person from my perspective, creating a flowin
 
 def build_action_planning_prompt(
     state: State,
-    trigger: TriggerEvent,
+    trigger: BaseTriger,
     completed_actions: List[ActionResult],
     trigger_history: TriggerHistory,
     registry: ActionRegistry,

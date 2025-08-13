@@ -6,7 +6,7 @@ the monolithic reasoning loop with modular, composable actions.
 """
 
 from .action_types import ActionType
-from .trigger import TriggerEvent, UserInputTrigger
+from .trigger import BaseTriger, UserInputTrigger
 from .context import ExecutionContext
 from .action_plan import ActionPlan, ActionSequence
 from .action_registry import ActionRegistry
@@ -14,7 +14,7 @@ from .reasoning_loop import ActionBasedReasoningLoop
 
 __all__ = [
     "ActionType",
-    "TriggerEvent",
+    "BaseTriger",
     "UserInputTrigger",
     "ExecutionContext",
     "ActionPlan",

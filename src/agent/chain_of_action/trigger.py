@@ -3,33 +3,30 @@ Trigger system for initiating action sequences.
 """
 
 from datetime import datetime
-from enum import Enum
 from pydantic import BaseModel, Field
+from typing import Union, Annotated, Literal
 
 
-class TriggerType(str, Enum):
-    """Types of triggers that can initiate action sequences"""
-
-    USER_INPUT = "user_input"
-    # Future: SELF_REFLECTION, TIMER_BASED, etc.
-
-
-class TriggerEvent(BaseModel):
+class BaseTriger(BaseModel):
     """Base class for all trigger events"""
 
-    trigger_type: TriggerType
+    type: str
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
-class UserInputTrigger(TriggerEvent):
+class UserInputTrigger(BaseTriger):
     """Trigger caused by user input"""
 
-    trigger_type: TriggerType = TriggerType.USER_INPUT
+    type: Literal["user_input"] = "user_input"
     content: str
     user_name: str = "User"  # Name of the person speaking
 
 
-def format_trigger_for_prompt(trigger: TriggerEvent) -> str:
+# Create discriminated union for proper polymorphic serialization
+Trigger = UserInputTrigger
+
+
+def format_trigger_for_prompt(trigger: BaseTriger) -> str:
     """Format the trigger with proper context about what happened"""
     if isinstance(trigger, UserInputTrigger):
         # For user input, show who spoke to the agent
@@ -41,5 +38,5 @@ def format_trigger_for_prompt(trigger: TriggerEvent) -> str:
         # e.g., "A timer went off: {timer_info}"
         # e.g., "I decided to reflect on: {topic}"
         raise NotImplementedError(
-            f"Trigger formatting not implemented for type: {trigger.trigger_type}"
+            f"Trigger formatting not implemented for type: {trigger.type}"
         )

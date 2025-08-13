@@ -238,7 +238,7 @@ class Agent:
             from agent.state_initialization import derive_initial_state_from_message
 
             self.initial_exchange = TriggerHistoryEntry(
-                trigger=UserInputTrigger(content=user_input),
+                trigger=UserInputTrigger(content=user_input, user_name="User"),
                 actions_taken=[],
                 timestamp=datetime.now(),
             )
