@@ -221,6 +221,263 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: Frontend image generation progress handling
 
+### #10: Agent Processing Architecture - Generator Dependency Issue
+
+**Problem**: Current generator-based `chat_stream()` architecture makes critical agent operations (like auto-save) dependent on external code properly consuming the iterator, creating risk of data loss.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: Agent's auto-save only happens at end of generator function
+- ❌ **CONFIRMED**: If iterator consumption is interrupted (WebSocket failures, exceptions, incomplete draining), agent state updates in memory but never saves
+- ❌ **CONFIRMED**: Agent completion depends on external WebSocket/streaming code behavior
+- ⚠️ **Risk**: Buggy consumer code can cause silent data loss
+
+**Root Cause**: Generator pattern couples agent's core processing with event streaming, making critical operations conditional on iterator consumption.
+
+**Impact**:
+- Data loss risk when streaming is interrupted
+- Agent reliability depends on external streaming code quality
+- Difficult to guarantee agent operations complete independently
+- Poor separation of concerns between processing and streaming
+
+**Proposed Solution**: **StreamingQueue + Background Thread Architecture**
+1. **Background Thread**: Agent spawns all processing work to background thread that emits events to StreamingQueue
+2. **Main Thread**: `chat_stream()` just yields events from queue - cannot interrupt agent processing
+3. **State Protection**: Add `is_processing` flag to prevent concurrent state mutations during background processing
+4. **Guaranteed Completion**: Auto-save and state updates happen on background thread regardless of streaming consumption
+
+**Benefits**:
+- Agent processing guaranteed to complete and save
+- Real-time streaming maintained through queue
+- Clean separation of processing from streaming
+- WebSocket failures cannot interrupt agent work
+
+**Location**: `src/agent/core.py:190` (chat_stream method)
+
+### #11: Image Generation Blocking Process - Poor Streaming UX
+
+**Problem**: SDXL image generation pipeline runs synchronously and blocks the entire Python process, preventing event streaming and creating poor user experience during image generation.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: SDXL pipeline blocks entire process during generation (unlike LLM network requests which yield)
+- ❌ **CONFIRMED**: Users see complete freeze during image generation instead of progress updates
+- ❌ **CONFIRMED**: No events can be streamed while image generation is running
+- 📁 **Impact**: Poor UX especially for longer/complex image generations
+
+**Root Cause**: SDXL pipeline is CPU/GPU intensive synchronous operation that doesn't yield control back to event loop, blocking all other processing.
+
+**Current Workaround**: Image generation sends progress events, but they get queued and delivered in batch after completion rather than real-time.
+
+**Proposed Solution**: **Separate Image Generation Process**
+1. **Dedicated Process**: Spawn separate Python process for image generation with pre-loaded SDXL pipeline
+2. **IPC Communication**: Use queues/pipes for non-blocking communication between main process and image process
+3. **Pipeline Persistence**: Keep SDXL pipeline loaded in separate process to avoid reload overhead
+4. **Async Interface**: Main process sends requests and receives progress/results asynchronously
+5. **Process Lifecycle**: Start image process on server startup, keep alive for subsequent requests
+
+**Benefits**:
+- Unblocked event streaming during image generation
+- Real-time progress updates instead of batched delivery
+- Better resource isolation between LLM and image generation
+- Improved overall system responsiveness
+
+**Implementation Considerations**:
+- Process startup/shutdown management
+- Error handling across process boundaries  
+- Memory management for GPU resources in separate process
+- Queue sizing and backpressure handling
+
+**Location**: `src/agent/tools/image_generation_tools.py`
+
+### #12: Trigger Summarization Loses Critical Details for Coherence
+
+**Problem**: Agent summarization of trigger entries loses critical details needed for referencing previous actions, thoughts, and statements, harming coherence in follow-up interactions.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: Compressed summaries are overly poetic/flowery and lose concrete details
+- ❌ **CONFIRMED**: Missing specific information about actions taken, words spoken, priorities referenced
+- ❌ **CONFIRMED**: Agent cannot effectively reference "what I just said/did/thought" due to vague summaries
+- 📁 **Example**: Detailed mood update and specific response gets summarized as "heart swell" and "words wrapping around his like a promise"
+
+**Root Cause**: Summarization prompt produces appropriate emotional/poetic voice but fails to preserve concrete facts about what was actually said, thought, and done.
+
+**Impact**:
+- Reduced conversational coherence when agent needs to reference recent actions
+- Loss of important details about priorities, mood changes, specific statements
+- Agent appears to "forget" what it just did or said
+- Difficulty maintaining conversation threads that depend on previous context
+
+**Proposed Solutions**:
+1. **Fact-Preserving Emotional Narrative**: Keep the poetic/emotional voice but ensure it includes what was actually said, thought, and done
+2. **Concrete Detail Integration**: Weave specific words spoken, priorities referenced, and actions taken into the emotional retelling
+3. **Improved Summarization Prompt**: Guide agent to include factual content within its natural emotional perspective
+4. **Content Coverage Requirements**: Ensure summaries cover key referential details even when filtered through emotional lens
+
+**Example of Current Issue**:
+- **Original**: Thanked user, asked "How has your day been?", updated mood to "Affectionate (High)", referenced priority p2
+- **Current Summary**: "heart swell, wanting to give that same joy back, words wrapping around his like a promise"
+- **Needed**: Same emotional tone but including "I thanked him and asked about his day, feeling my affection deepen..."
+
+**Location**: Trigger summarization system, `conversations/baseline_triggers.json` for examples
+
+### #13: Action Planning Context Staleness - Batch vs Single Planning Tradeoff
+
+**Problem**: Batch action planning (e.g., "think -> update_appearance") requires planning all action inputs upfront, preventing later actions from incorporating context discovered during earlier action execution.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: Later actions in planned sequence cannot benefit from earlier action results
+- ❌ **CONFIRMED**: "update_appearance" planned before "think" executes, missing thought-based appearance decisions
+- ⚠️ **Workaround**: Think and speak actions get full context in prompts, but this is slow and can't scale to all actions
+- 📁 **Tradeoff**: Batch planning (fast) vs single action planning (fresh context) vs full context for all (very slow)
+
+**Root Cause**: Action planner must specify inputs for entire sequence at planning time, before any actions execute and update context.
+
+**Impact**:
+- Missed connections between sequential actions (e.g., thought influencing appearance changes)
+- Reduced coherence when actions should build on each other
+- Workaround complexity with partial full-context solutions
+- Performance vs context freshness tradeoffs
+
+**Current Approach**:
+- Batch planning for efficiency
+- Full context only for think/speak actions
+- Other actions use stale planning-time context
+
+**Proposed Solutions**:
+1. **Hybrid Planning**: Identify action dependencies and use single planning for dependent sequences
+2. **Conditional Re-planning**: Re-plan remaining actions when earlier actions produce significant context changes  
+3. **Action Result Injection**: Pass previous action results to subsequent actions without full re-planning
+4. **Smart Batching**: Group independent actions only, force single planning for dependent chains
+
+**Example Scenario**:
+- Plan: "think about outfit preferences -> update_appearance"  
+- Issue: Appearance update planned before thinking completes, misses thought insights
+- Current: Only think/speak get full context workaround
+- Needed: Appearance update should incorporate thought results
+
+**Location**: Action planning system, `src/agent/chain_of_action/action_planner.py`
+
+### #14: Generic "Emotional Elements" Context for Think Actions
+
+**Problem**: Action planner provides generic "emotional elements" context for think actions in vast majority of cases, failing to give specific guidance about what the agent should focus on thinking about.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: 90%+ of think actions receive generic "emotional elements" context
+- ❌ **CONFIRMED**: Lack of specific thinking guidance reduces thought quality and relevance
+- ✅ **Occasional Success**: Rare specific contexts like "How to best support him during his workday" produce much better thinking
+- 📁 **Pattern**: Default fallback to generic context instead of situation-specific thinking prompts
+
+**Root Cause**: Action planner defaults to lazy generic context instead of analyzing what the agent should specifically be thinking about in each situation.
+
+**Impact**:
+- Reduced thinking quality due to vague prompting
+- Missed opportunities for targeted, relevant thoughts
+- Generic thinking that doesn't address specific situational needs
+- Poor connection between thinking context and actual conversation/situation demands
+
+**Examples**:
+- **Generic (Common)**: "emotional elements" 
+- **Specific (Rare)**: "How to create a fashion design that reflects my style and his preferences"
+- **Specific (Rare)**: "How to best support him during his workday, especially if he goes on call"
+
+**Proposed Solutions**:
+1. **Context Analysis**: Improve planner's ability to identify what specifically needs thinking about
+2. **Situation-Specific Prompts**: Generate thinking contexts based on conversation content and agent's current priorities
+3. **Fallback Improvement**: Even generic contexts should be more specific than "emotional elements"
+4. **Template System**: Use context templates for common thinking scenarios instead of generic fallback
+
+**Location**: Action planning system, think action context generation
+
+### #15: Multi-Action Image Generation Coordination - Update Environment Design
+
+**Problem**: Implementing `update_environment` action creates complex image generation coordination when both `update_appearance` and `update_environment` are in the same action sequence - each should generate images individually, but together should produce one combined image.
+
+**Investigation Results**:
+- 📁 **Simple Case**: `update_environment` alone should generate environment image
+- 📁 **Simple Case**: `update_appearance` alone should generate appearance image  
+- ❌ **Complex Case**: Both in same sequence should generate single combined image, not two separate images
+- 🤔 **Design Question**: Should `update_environment` be separate action or integrated into `update_appearance`?
+
+**Root Cause**: No coordination mechanism between actions for shared image generation resources.
+
+**Impact**:
+- Potential for redundant/conflicting image generation
+- Poor user experience with multiple images when one comprehensive image expected
+- Unclear action boundaries when appearance and environment updates interact
+
+**Design Considerations**:
+
+**Option 1: Separate Actions with Coordination**
+- Pros: Clean separation of concerns, flexible individual use
+- Cons: Complex coordination logic, potential for conflicts
+- Implementation: Cross-action communication for image generation batching
+
+**Option 2: Unified Appearance+Environment Action**
+- Pros: Single image generation point, no coordination needed
+- Cons: Large action scope, less flexible for environment-only updates
+- Implementation: Expanded `update_appearance` with optional environment updates
+
+**Option 3: Image Generation Service Deduplication**
+- Pros: Actions remain simple, coordination handled at image generation level
+- Cons: Complex image service logic, potential timing issues
+- Implementation: Smart image generation that combines concurrent requests
+
+**Questions for Resolution**:
+1. How would agent naturally think about environment vs appearance updates?
+2. Are environment-only updates common enough to justify separate action?
+3. Should image generation be smart enough to handle coordination automatically?
+
+**Location**: Future `update_environment` action design, relationship with `update_appearance`
+
+### #16: Action Planning/Execution Abstraction - Combining Planned Actions
+
+**Problem**: Need to decouple agent's logical action planning from optimized execution strategies, allowing multiple planned actions to be combined into efficient execution units while maintaining clean agent reasoning and frontend presentation.
+
+**Use Case**: Agent plans "update_appearance" + "update_environment" but system executes as single combined image generation, returning unified result that can be rendered as one coherent visual update.
+
+**Current State**: Direct 1:1 mapping between planned actions and execution, leading to coordination complexity for related actions.
+
+**Proposed Architecture**:
+
+**Planning Layer**: Agent plans discrete logical actions naturally
+- `update_appearance`: "I want to change my outfit"  
+- `update_environment`: "I want to move to the garden"
+
+**Execution Layer**: System analyzes and optimizes execution
+- Detects combinable actions (both generate images)
+- Executes single combined image generation
+- Handles resource coordination automatically
+
+**Response Layer**: Returns semantic execution results
+```json
+{
+  "action": "visual_update",
+  "scope": ["appearance", "environment"],
+  "image_url": "combined_scene.jpg", 
+  "appearance_changes": "...",
+  "environment_changes": "...",
+  "represents_planned_actions": ["update_appearance", "update_environment"]
+}
+```
+
+**Benefits**:
+- Clean agent reasoning (granular, logical actions)
+- Optimized execution (single image generation)
+- Flexible frontend rendering (semantic units)
+- Extensible to other action combinations
+
+**Implementation Approach**:
+- Start with explicit boilerplate for first few combinations
+- Let real usage patterns guide abstraction design
+- Avoid premature optimization of combination logic
+
+**Considerations**:
+- Mapping complexity between planned and executed actions
+- Error handling when combined execution fails
+- Frontend logic for rendering combined vs individual results
+- Maintaining action attribution for user understanding
+
+**Location**: Action execution pipeline, future `update_environment` implementation
+
 ## Current Implementation Status
 
 ### Architecture Overview
