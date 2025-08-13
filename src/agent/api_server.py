@@ -45,13 +45,13 @@ logging.basicConfig(level=logging.INFO)
 
 
 def load_conversation_files(
-    conversation_prefix: str = "conversations/conversation_20250810_225159_516774"
+    conversation_prefix: str = "conversations/conversation_20250810_225159_516774",
 ) -> tuple[TriggerHistory, State]:
     """Load trigger history and state from conversation files with given prefix"""
-    
+
     trigger_file = f"{conversation_prefix}_triggers.json"
     state_file = f"{conversation_prefix}_state.json"
-    
+
     # Load trigger history
     trigger_history = TriggerHistory()
     if os.path.exists(trigger_file):
@@ -62,13 +62,13 @@ def load_conversation_files(
                 trigger_history.add_trigger_entry(entry)
             for summary in trigger_data.summaries:
                 trigger_history.summaries.append(summary)
-    
+
     # Load state
     state = None
     if os.path.exists(state_file):
         with open(state_file, "r") as f:
             state = State.model_validate(json.load(f))
-    
+
     return trigger_history, state
 
 
@@ -81,12 +81,12 @@ def initialize_agent() -> Agent:
         enable_image_generation=True,
         individual_trigger_compression=True,
         enable_action_evaluation=False,
-        auto_save=False,  # Disable auto-save for development
+        auto_save=True,
     )
 
     # Load the specific conversation files
     trigger_history, state = load_conversation_files()
-    
+
     # Replace the empty trigger history and state
     if trigger_history:
         agent.trigger_history = trigger_history
