@@ -128,18 +128,22 @@ class Agent:
         Returns:
             The conversation ID if saved, None if auto_save is disabled
         """
+        logger.info(f"save_conversation called: auto_save={self.auto_save}, conversation_id={self.conversation_id}, state={self.state is not None}")
         if not self.auto_save or not self.conversation_id:
+            logger.info(f"Not saving: auto_save={self.auto_save}, conversation_id={self.conversation_id}")
             return None
 
         assert (
             self.state is not None
         ), "Cannot save conversation without initialized state"
+        logger.info(f"Saving conversation {self.conversation_id} with {len(self.trigger_history)} entries")
         self.persistence.save_conversation(
             self.conversation_id,
             self.state,
             self.trigger_history,
             title,
         )
+        logger.info(f"Successfully saved conversation {self.conversation_id}")
         return self.conversation_id
 
     def get_conversation_id(self) -> Optional[str]:
@@ -222,7 +226,9 @@ class Agent:
         self.llm.log_stats_summary()
 
         # Auto-save conversation after each turn
+        logger.info(f"Checking auto-save: auto_save={self.auto_save}")
         if self.auto_save:
+            logger.info("Triggering auto-save after chat stream")
             self.save_conversation()
 
     def _run_initial_exchange_with_streaming(

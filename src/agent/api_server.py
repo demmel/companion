@@ -45,8 +45,8 @@ logging.basicConfig(level=logging.INFO)
 
 
 def load_conversation_files(
-    conversation_prefix: str = "conversations/conversation_20250810_225159_516774",
-) -> tuple[TriggerHistory, State]:
+    conversation_prefix: str,
+) -> tuple[TriggerHistory, State | None]:
     """Load trigger history and state from conversation files with given prefix"""
 
     trigger_file = f"{conversation_prefix}_triggers.json"
@@ -85,7 +85,7 @@ def initialize_agent() -> Agent:
     )
 
     # Load the specific conversation files
-    trigger_history, state = load_conversation_files()
+    trigger_history, state = load_conversation_files("conversations/baseline")
 
     # Replace the empty trigger history and state
     if trigger_history:
@@ -195,20 +195,34 @@ async def websocket_chat(websocket: WebSocket):
             # Stream agent response
             try:
                 logger.info(f"Processing message: {message}")
+                websocket_failed = False
+
                 for event in app.state.agent.chat_stream(message):
-                    await websocket.send_text(event.model_dump_json())
+                    if not websocket_failed:
+                        try:
+                            await websocket.send_text(event.model_dump_json())
+                        except (WebSocketDisconnect, Exception) as e:
+                            logger.info(
+                                f"WebSocket send failed, draining remaining events: {e}"
+                            )
+                            websocket_failed = True
+                            # Continue iterating to let agent complete processing
 
                 # Agent will emit ResponseCompleteEvent automatically
 
             except Exception as e:
-                # Send error event
-                error_event = {
-                    "type": "agent_error",
-                    "message": f"Internal error: {str(e)}",
-                    "tool_name": None,
-                    "tool_id": None,
-                }
-                await websocket.send_text(json.dumps(error_event))
+                # Send error event only if websocket is still working
+                if not websocket_failed:
+                    try:
+                        error_event = {
+                            "type": "agent_error",
+                            "message": f"Internal error: {str(e)}",
+                            "tool_name": None,
+                            "tool_id": None,
+                        }
+                        await websocket.send_text(json.dumps(error_event))
+                    except:
+                        pass  # WebSocket already dead, ignore
 
     except WebSocketDisconnect:
         pass
