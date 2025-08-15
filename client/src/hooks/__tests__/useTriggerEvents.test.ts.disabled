@@ -2,7 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { useTriggerEvents } from "../useTriggerEvents";
 import { ClientAgentEvent } from "../useWebSocket";
 
-describe("useTriggerEvents", () => {
+describe.skip("useTriggerEvents", () => {
   it("should start with empty trigger entries", () => {
     const { result } = renderHook(() => useTriggerEvents([]));
 

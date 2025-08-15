@@ -342,3 +342,40 @@ def convert_trigger_history_entry_to_dto(entry) -> TriggerHistoryEntryDTO:
         timestamp=entry.timestamp.isoformat(),
         entry_id=entry.entry_id,
     )
+
+
+# Timeline pagination types
+class TimelineEntryTrigger(BaseModel):
+    """Timeline entry for a trigger (complete trigger-response pair)"""
+    
+    type: Literal["trigger"] = "trigger"
+    entry: TriggerHistoryEntryDTO
+
+
+class TimelineEntrySummary(BaseModel):
+    """Timeline entry for a summary"""
+    
+    type: Literal["summary"] = "summary"
+    summary: SummaryDTO
+
+
+# Union type for timeline entries
+TimelineEntry = Union[TimelineEntryTrigger, TimelineEntrySummary]
+
+
+class PaginationInfo(BaseModel):
+    """Pagination information for timeline responses"""
+    
+    total_items: int
+    page_size: int
+    has_next: bool
+    has_previous: bool
+    next_cursor: Optional[str] = None
+    previous_cursor: Optional[str] = None
+
+
+class TimelineResponse(BaseModel):
+    """Response model for paginated timeline data"""
+    
+    entries: List[TimelineEntry]
+    pagination: PaginationInfo

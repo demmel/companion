@@ -1,4 +1,4 @@
-import { Message, TriggerHistoryResponse } from "./types";
+import { Message, TriggerHistoryResponse, TimelineResponse } from "./types";
 
 interface ClientConfig {
   host?: string;
@@ -86,6 +86,22 @@ export class AgentClient {
 
     if (!response.ok) {
       throw new Error(`Failed to get trigger history: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getTimeline(pageSize: number = 20, before?: string): Promise<TimelineResponse> {
+    const params = new URLSearchParams();
+    params.set('page_size', pageSize.toString());
+    if (before) {
+      params.set('before', before);
+    }
+
+    const response = await fetch(`${this.httpBaseUrl}/api/timeline?${params}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to get timeline: ${response.statusText}`);
     }
 
     return response.json();

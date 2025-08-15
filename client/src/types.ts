@@ -203,3 +203,30 @@ export interface ContextInfo {
   conversation_messages: number;
   approaching_limit: boolean;
 }
+
+// Timeline pagination types
+export interface TimelineEntryTrigger {
+  type: "trigger";
+  entry: TriggerHistoryEntry;
+}
+
+export interface TimelineEntrySummary {
+  type: "summary";
+  summary: Summary;
+}
+
+export type TimelineEntry = TimelineEntryTrigger | TimelineEntrySummary;
+
+export interface PaginationInfo {
+  total_items: number;
+  page_size: number;
+  has_next: boolean;
+  has_previous: boolean;
+  next_cursor?: string;
+  previous_cursor?: string;
+}
+
+export interface TimelineResponse {
+  entries: TimelineEntry[];
+  pagination: PaginationInfo;
+}

@@ -21,6 +21,11 @@ from agent.core import Agent
 from agent.paths import agent_paths
 from agent.api_types import (
     TriggerHistoryResponse,
+    TimelineResponse,
+    TimelineEntry,
+    TimelineEntryTrigger,
+    TimelineEntrySummary,
+    PaginationInfo,
     convert_trigger_history_entry_to_dto,
     convert_summary_to_dto,
 )
@@ -161,6 +166,101 @@ async def get_trigger_history():
         summaries=summary_dtos,
         total_entries=len(trigger_history),
         recent_entries_count=len(recent_entries),
+    )
+
+
+@app.get("/api/timeline", response_model=TimelineResponse)
+async def get_timeline(
+    page_size: int = 20,
+    after: Optional[str] = None,
+    before: Optional[str] = None,
+):
+    """Get paginated timeline in chronological order, defaulting to most recent page"""
+    agent: Agent = app.state.agent
+    trigger_history = agent.get_trigger_history()
+
+    # Build timeline entries in chronological order
+    timeline_entries: List[TimelineEntry] = []
+    
+    # Add initial exchange if it exists
+    if agent.initial_exchange is not None:
+        initial_dto = convert_trigger_history_entry_to_dto(agent.initial_exchange)
+        timeline_entries.append(TimelineEntryTrigger(entry=initial_dto))
+
+    # Add trigger entries (already in chronological order)
+    entries = trigger_history.get_all_entries()
+    
+    for entry in entries:
+        entry_dto = convert_trigger_history_entry_to_dto(entry)
+        timeline_entries.append(TimelineEntryTrigger(entry=entry_dto))
+
+    # Add summaries (for now just trigger type, summaries will be added later)
+    # summaries = trigger_history.get_all_summaries()
+    # for summary in summaries:
+    #     summary_dto = convert_summary_to_dto(summary)
+    #     timeline_entries.append(TimelineEntrySummary(summary=summary_dto))
+
+    total_items = len(timeline_entries)
+    
+    # Debug pagination logic
+    logger.info(f"Timeline request: page_size={page_size}, after={after}, before={before}, total_items={total_items}")
+    
+    # Handle pagination with after/before cursors
+    if before is not None:
+        # Get entries before the specified index (older entries)
+        try:
+            before_index = int(before)
+            end_index = min(before_index, total_items)
+            start_index = max(0, end_index - page_size)
+        except (ValueError, TypeError):
+            # Invalid before cursor, default to last page
+            start_index = max(0, total_items - page_size)
+            end_index = total_items
+    elif after is not None:
+        # Get entries after the specified index (newer entries)
+        try:
+            after_index = int(after)
+            start_index = min(after_index, total_items)
+            end_index = min(start_index + page_size, total_items)
+        except (ValueError, TypeError):
+            # Invalid after cursor, default to last page
+            start_index = max(0, total_items - page_size)
+            end_index = total_items
+    else:
+        # Default to showing the last page (most recent items)
+        start_index = max(0, total_items - page_size)
+        end_index = total_items
+    
+    # Get page of items
+    page_entries = timeline_entries[start_index:end_index]
+    
+    # Debug pagination results
+    logger.info(f"Pagination: start_index={start_index}, end_index={end_index}, returning {len(page_entries)} entries")
+    page_entry_ids = [entry.entry.entry_id for entry in page_entries if hasattr(entry, 'entry')]
+    logger.info(f"Page entry IDs: {page_entry_ids}")
+    
+    # Calculate pagination info
+    has_next = end_index < total_items  # Can go forward to newer items
+    has_previous = start_index > 0      # Can go back to older items
+    
+    # Next cursor (after): entries after the current page end
+    next_cursor = str(end_index) if has_next else None
+    
+    # Previous cursor (before): entries before the current page start  
+    previous_cursor = str(start_index) if has_previous else None
+
+    pagination = PaginationInfo(
+        total_items=total_items,
+        page_size=page_size,
+        has_next=has_next,
+        has_previous=has_previous,
+        next_cursor=next_cursor,
+        previous_cursor=previous_cursor,
+    )
+
+    return TimelineResponse(
+        entries=page_entries,
+        pagination=pagination,
     )
 
 

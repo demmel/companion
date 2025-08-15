@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { ClientAgentEvent, useWebSocket } from "@/hooks/useWebSocket";
 import { useStreamBatcher } from "@/hooks/useStreamBatcher";
-import { useTriggerEvents } from "@/hooks/useTriggerEvents";
+import { useTimeline } from "@/hooks/useTimeline";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
 import { Timeline } from "@/components/Timeline";
@@ -25,13 +25,16 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
 
   const {
     triggerEntries,
-    summaries,
     isStreamActive,
     contextInfo,
     setContextInfo,
-    loadTriggerHistory,
-    clearTriggerHistory,
-  } = useTriggerEvents(events);
+    canLoadMore,
+    isLoadingMore,
+    // hasLoadedAnyData,
+    loadMore,
+    loadInitialData,
+    clearData,
+  } = useTimeline(client, events);
 
   const handleMessage = useCallback(
     (event: ClientAgentEvent) => {
@@ -56,7 +59,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     // Send to server
     sendMessage(message);
     setInputValue("");
-    
+
     // Scroll to bottom after sending message
     setTimeout(() => {
       if (messagesEndRef.current) {
@@ -67,24 +70,14 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
 
   // Load initial data on mount
   useEffect(() => {
-    const loadInitialData = async () => {
+    const loadData = async () => {
       try {
-        // Load trigger history and initial context info in parallel
-        const [triggerData, contextData] = await Promise.all([
-          client.getTriggerHistory(),
+        // Load timeline and context info in parallel
+        const [_, contextData] = await Promise.all([
+          loadInitialData(),
           client.getContextInfo(),
         ]);
 
-        if (triggerData.entries.length > 0 || triggerData.summaries.length > 0) {
-          loadTriggerHistory(triggerData.entries, triggerData.summaries);
-
-          // Set initial scroll position to bottom instantly
-          requestAnimationFrame(() => {
-            if (messagesEndRef.current) {
-              messagesEndRef.current.scrollIntoView({ behavior: "instant" });
-            }
-          });
-        }
         if (contextData) {
           setContextInfo(contextData);
         }
@@ -93,8 +86,22 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
       }
     };
 
-    loadInitialData();
-  }, [client, loadTriggerHistory]);
+    loadData();
+  }, [client, loadInitialData, setContextInfo]);
+
+  // Scroll to bottom when entries are first loaded
+  const hasLoadedInitialData = useRef(false);
+  useEffect(() => {
+    if (triggerEntries.length > 0 && !hasLoadedInitialData.current) {
+      hasLoadedInitialData.current = true;
+      // Wait for DOM to update, then scroll
+      requestAnimationFrame(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "instant" });
+        }
+      });
+    }
+  }, [triggerEntries]);
 
   const handleClear = async () => {
     try {
@@ -104,7 +111,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     }
 
     clearEvents();
-    clearTriggerHistory();
+    clearData();
   };
 
   return (
@@ -201,11 +208,45 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         )}
 
         {triggerEntries.length > 0 && (
-          <Timeline
-            triggerEntries={triggerEntries}
-            summaries={summaries}
-            isStreamActive={isStreamActive}
-          />
+          <>
+            {/* Load Previous button */}
+            {canLoadMore && (
+              <div
+                className={css({
+                  display: "flex",
+                  justifyContent: "center",
+                  mb: 4,
+                })}
+              >
+                <button
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className={css({
+                    px: 4,
+                    py: 2,
+                    bg: "blue.600",
+                    color: "white",
+                    rounded: "md",
+                    fontSize: "sm",
+                    fontWeight: "medium",
+                    transition: "all 0.2s",
+                    cursor: isLoadingMore ? "not-allowed" : "pointer",
+                    opacity: isLoadingMore ? 0.5 : 1,
+                    _hover: {
+                      bg: isLoadingMore ? "blue.600" : "blue.700",
+                    },
+                  })}
+                >
+                  {isLoadingMore ? "Loading..." : "Load Previous"}
+                </button>
+              </div>
+            )}
+
+            <Timeline
+              triggerEntries={triggerEntries}
+              isStreamActive={isStreamActive}
+            />
+          </>
         )}
 
         <div ref={messagesEndRef} />

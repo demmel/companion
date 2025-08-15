@@ -14,7 +14,6 @@ import {
   Trigger,
   ActionStatus,
   ContextInfo,
-  Summary,
 } from "../types";
 import { debug } from "@/utils/debug";
 
@@ -83,13 +82,12 @@ interface ActiveTriggerBuilder {
 }
 
 export interface UseTriggerEventsReturn {
-  triggerEntries: TriggerHistoryEntry[];
-  summaries: Summary[];
+  // Streaming-only entries (no historical data)
+  streamingEntries: TriggerHistoryEntry[];
   isStreamActive: boolean;
   contextInfo: ContextInfo | null;
   setContextInfo: (context: ContextInfo) => void;
-  loadTriggerHistory: (entries: TriggerHistoryEntry[], summaries: Summary[]) => void;
-  clearTriggerHistory: () => void;
+  clearStreamingData: () => void;
 }
 
 /**
@@ -166,8 +164,8 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
  * Only one trigger can be active at a time.
  */
 export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsReturn {
-  const [triggerEntries, setTriggerEntries] = useState<TriggerHistoryEntry[]>([]);
-  const [summaries, setSummaries] = useState<Summary[]>([]);
+  // Only streaming entries - no historical data
+  const [streamingEntries, setStreamingEntries] = useState<TriggerHistoryEntry[]>([]);
   const [activeTrigger, setActiveTrigger] = useState<ActiveTriggerBuilder | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
@@ -417,43 +415,18 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
           };
           setContextInfo(newContextInfo);
 
-          // Add to completed entries and clear active trigger
-          setTriggerEntries(prev => [...prev, triggerEntry]);
+          // Add to streaming entries and clear active trigger
+          setStreamingEntries(prev => [...prev, triggerEntry]);
           currentTrigger = null;
 
           hasActiveStreaming = false; // This trigger is complete
           break;
         }
 
-        case "summarization_started": {
-          // Add an in-progress summary
-          const inProgressSummary: Summary = {
-            summary_text: "",
-            insert_at_index: event.messages_to_summarize,
-            created_at: new Date().toISOString(),
-            status: "in_progress",
-            messages_to_summarize: event.messages_to_summarize,
-            recent_messages_kept: event.recent_messages_kept,
-          };
-          setSummaries(prev => [...prev, inProgressSummary]);
+        case "summarization_started":
+        case "summarization_finished":
+          // Ignore summarization events - handled elsewhere
           break;
-        }
-
-        case "summarization_finished": {
-          // Update the last summary to completed
-          setSummaries(prev => {
-            if (prev.length === 0) return prev;
-            const result = [...prev];
-            const lastIndex = result.length - 1;
-            result[lastIndex] = {
-              ...result[lastIndex],
-              summary_text: event.summary,
-              status: "completed",
-            };
-            return result;
-          });
-          break;
-        }
 
         default:
           // Ignore other event types for trigger processing
@@ -465,8 +438,8 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
     setIsStreamActive(hasActiveStreaming);
   }, [events, activeTrigger]);
 
-  // Combine completed triggers with active trigger
-  const allTriggerEntries = [...triggerEntries];
+  // Combine completed streaming entries with active trigger
+  const allStreamingEntries = [...streamingEntries];
 
   if (activeTrigger) {
     // Convert active trigger to TriggerHistoryEntry
@@ -479,27 +452,11 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
       entry_id: activeTrigger.entry_id,
     };
 
-    allTriggerEntries.push(activeTriggerEntry);
+    allStreamingEntries.push(activeTriggerEntry);
   }
 
-  const loadTriggerHistory = useCallback((entries: TriggerHistoryEntry[], summaries: Summary[]) => {
-    setTriggerEntries(entries);
-    // Set all loaded summaries as completed since they come from server storage
-    const completedSummaries = summaries.map(summary => ({
-      ...summary,
-      status: "completed" as const,
-      messages_to_summarize: 0, // Default values for loaded summaries
-      recent_messages_kept: 0,
-    }));
-    setSummaries(completedSummaries);
-    setActiveTrigger(null);
-    setIsStreamActive(false);
-    lastProcessedEventId.current = null;
-  }, []);
-
-  const clearTriggerHistory = useCallback(() => {
-    setTriggerEntries([]);
-    setSummaries([]);
+  const clearStreamingData = useCallback(() => {
+    setStreamingEntries([]);
     setActiveTrigger(null);
     setIsStreamActive(false);
     setContextInfo(null);
@@ -507,12 +464,10 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
   }, []);
 
   return {
-    triggerEntries: allTriggerEntries,
-    summaries,
+    streamingEntries: allStreamingEntries,
     isStreamActive,
     contextInfo,
     setContextInfo,
-    loadTriggerHistory,
-    clearTriggerHistory,
+    clearStreamingData,
   };
 }
