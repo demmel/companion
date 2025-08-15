@@ -1,10 +1,58 @@
 from typing import List, Optional
+from datetime import datetime
 
 from agent.chain_of_action.context import ActionResult
 from agent.chain_of_action.trigger import BaseTriger, format_trigger_for_prompt
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
 from agent.chain_of_action.action_registry import ActionRegistry
+
+
+def build_temporal_context(trigger_history: TriggerHistory) -> str:
+    """Build temporal context for prompts to enable accurate temporal reasoning"""
+    now = datetime.now()
+    current_time = now.strftime("%Y-%m-%d %H:%M")
+    
+    # Get the first trigger to calculate conversation start time
+    all_entries = trigger_history.get_all_entries()
+    if all_entries:
+        conversation_start = all_entries[0].timestamp
+        duration = now - conversation_start
+        
+        # Format duration in a human-readable way
+        if duration.days > 0:
+            if duration.days == 1:
+                duration_desc = "1 day"
+            else:
+                duration_desc = f"{duration.days} days"
+        else:
+            hours = duration.seconds // 3600
+            minutes = (duration.seconds % 3600) // 60
+            
+            if hours > 0:
+                if hours == 1 and minutes == 0:
+                    duration_desc = "1 hour"
+                elif hours == 1:
+                    duration_desc = f"1 hour and {minutes} minutes"
+                elif minutes == 0:
+                    duration_desc = f"{hours} hours"
+                else:
+                    duration_desc = f"{hours} hours and {minutes} minutes"
+            else:
+                if minutes == 1:
+                    duration_desc = "1 minute"
+                else:
+                    duration_desc = f"{minutes} minutes"
+        
+        conversation_start_str = conversation_start.strftime("%Y-%m-%d %H:%M")
+        
+        return f"""CURRENT TIME: {current_time}
+CONVERSATION STARTED: {conversation_start_str}
+CONVERSATION DURATION: {duration_desc}"""
+    else:
+        return f"""CURRENT TIME: {current_time}
+CONVERSATION STARTED: Just now
+CONVERSATION DURATION: Just started"""
 
 
 def build_completed_action_list(completed_actions: List[ActionResult]) -> Optional[str]:
@@ -171,12 +219,22 @@ def build_action_planning_prompt(
 
     # Build state and history context
     state_desc = build_agent_state_description(state)
+    temporal_context = build_temporal_context(trigger_history)
     trigger_description = format_trigger_for_prompt(trigger)
 
     # Build summary of completed actions
     completed_actions_text = build_completed_action_list(completed_actions)
 
     sections = []
+    
+    # Add temporal context first
+    sections.append(
+        format_section(
+            "TIME CONTEXT",
+            temporal_context,
+        )
+    )
+    
     summary = trigger_history.get_recent_summary()
     if summary:
         sections.append(

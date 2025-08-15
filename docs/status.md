@@ -6,27 +6,6 @@ This document tracks current implementation status, identified problems, and inv
 
 Based on conversation analysis from `conversations/conversation_20250810_012344_749610_*.json`, several critical agent behavior flaws have been identified:
 
-### #1: Agent Temporal Reasoning Failures
-
-**Problem**: Agent accepted claims about "two years" of relationship when conversation was less than 13 hours old, showing fundamental temporal reasoning failures.
-
-**Investigation Results**:
-- ✅ Agent DOES have access to timestamps via `format_trigger_history()` in "MY STREAM OF CONSCIOUSNESS" 
-- ✅ Timestamps are properly formatted as `[2025-08-10 14:30] User said: "..."`
-- ❌ Agent lacks explicit prompting to verify temporal claims against available timestamp data
-- ❌ No dedicated temporal verification actions or tools available
-
-**Root Cause**: While temporal data is available, the agent isn't prompted to actively cross-reference temporal claims with conversation history timestamps.
-
-**Proposed Solutions**:
-
-1. **Add Current Time Context**: Include current timestamp in action planning prompt:
-   ```
-   CURRENT TIME: {datetime.now().strftime("%Y-%m-%d %H:%M")}
-   CONVERSATION STARTED: {first_trigger_timestamp}
-   CONVERSATION DURATION: {duration_description}
-   ```
-   This gives the agent concrete temporal reference points to naturally reason against.
 
 ### #2: Agent Memory/History Verification Issues
 
@@ -99,19 +78,6 @@ The current design expects "content" to be intent-based ("what I want to express
 - Update speak action to elaborate on intent-based content
 - Improve tone integration to avoid spillage
 
-### #4: Tone Spillage in Agent Responses
-
-**Problem**: Tone instructions sometimes appear verbatim in agent responses instead of being integrated naturally.
-
-**Investigation Results**:
-- ❌ **CONFIRMED**: Tone spillage found in actual agent responses
-- 📁 **Example Found**: `"... I need to understand your feelings and share mine openly. (with Gentle, empathetic, and open tone)"`  
-- ✅ Most responses integrate tone naturally without spillage
-- 🔍 **Pattern**: Spillage appears to be intermittent, not systematic
-
-**Root Cause**: Speak action occasionally includes tone instructions as literal text in response instead of using them as generation guidance.
-
-**Solution**: Improve speak action prompts to emphasize that tone is generation guidance, not content to be included literally in the response.
 
 ### #5: Overly Strict Priority Duplicate Detection
 

@@ -58,7 +58,7 @@ class ThinkAction(BaseAction[ThinkInput, None]):
         model: SupportedModel,
         progress_callback,
     ) -> ActionResult:
-        from agent.chain_of_action.prompts import format_section, format_trigger_history
+        from agent.chain_of_action.prompts import format_section, format_trigger_history, build_temporal_context
 
         start_time = time.time()
 
@@ -68,6 +68,11 @@ class ThinkAction(BaseAction[ThinkInput, None]):
         trigger_description = format_trigger_for_prompt(context.trigger)
 
         sections = []
+        
+        # Add temporal context first
+        temporal_context = build_temporal_context(trigger_history)
+        sections.append(format_section("TIME CONTEXT", temporal_context))
+        
         if history_str:
             sections.append(format_section("MY STREAM OF CONSCIOUSNESS", history_str))
         sections.append(format_section("WHAT JUST HAPPENED", trigger_description))
