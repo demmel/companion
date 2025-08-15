@@ -478,6 +478,49 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: Action execution pipeline, future `update_environment` implementation
 
+### #17: Multi-Pass URL Content Reading for Long Articles
+
+**Problem**: Many web articles exceed the 55kb context budget but contain valuable information throughout. Current single-pass reading truncates long articles mid-content, losing important details that appear later in comprehensive guides.
+
+**Context**: The fetch_url action now successfully extracts clean article content (removing navigation/ads, converting to markdown), but comprehensive articles like "35+ Types of Mini Dresses" still get truncated at 55kb, losing 50%+ of the content.
+
+**Current Workaround**: Truncate at 55kb to reserve context space for instructions and output generation.
+
+**Proposed Solution**: **Iterative Summary Building**
+1. **First Pass**: Read initial chunk of article (within 55kb budget), agent creates initial summary
+2. **Subsequent Passes**: Read next chunk + show current summary + remaining content indicator
+3. **Agent Updates**: Agent refines/expands summary incorporating new information from each chunk
+4. **Continue**: Repeat until all content processed, building comprehensive summary incrementally
+
+**Implementation Approach**:
+- Chunk article content into 55kb segments (accounting for summary + instruction space)
+- Each pass: `current_summary + new_chunk + "More content available: Yes/No"`
+- Agent updates summary by integrating new details with existing understanding
+- No section selection needed - agent sees everything eventually
+- Simple linear processing through entire article
+
+**Benefits**:
+- Access to complete long-form content without exceeding context budget
+- Agent gets focused, relevant information instead of truncated content
+- More efficient context usage by skipping irrelevant sections
+- Maintains rich formatting and detailed information
+
+**Use Cases**:
+- Comprehensive guides (fashion, tech, how-to articles)
+- Long-form journalism and analysis pieces
+- Educational content with multiple topics
+- Reference materials with extensive sections
+
+**Technical Considerations**:
+- Chunk size calculation (content + summary + instructions must fit in context window)
+- Summary growth management (prevent summary from becoming too long over iterations)
+- Graceful handling when summary itself approaches context limits
+- Progress indication for user during multi-pass processing
+
+**Priority**: Medium - improves content depth but current single-pass approach works adequately
+
+**Location**: `src/agent/chain_of_action/actions/fetch_url_action.py`, future multi-pass enhancement
+
 ## Current Implementation Status
 
 ### Architecture Overview

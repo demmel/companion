@@ -13,6 +13,7 @@ from .actions import (
     SpeakAction,
     UpdateMoodAction,
     UpdateAppearanceAction,
+    FetchUrlAction,
 )
 from .actions.priority_actions import AddPriorityAction, RemovePriorityAction
 
@@ -35,6 +36,7 @@ class ActionRegistry:
         self.register(SpeakAction)
         self.register(UpdateMoodAction)
         self.register(UpdateAppearanceAction)
+        self.register(FetchUrlAction)
         self.register(AddPriorityAction)
         self.register(RemovePriorityAction)
         # etc.

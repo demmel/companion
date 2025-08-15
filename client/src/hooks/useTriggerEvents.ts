@@ -10,6 +10,7 @@ import {
   WaitAction,
   AddPriorityAction,
   RemovePriorityAction,
+  FetchUrlAction,
   Trigger,
   ActionStatus,
   ContextInfo,
@@ -57,6 +58,12 @@ interface RemovePriorityActionBuilder extends BaseActionBuilder {
   action_type: "remove_priority";
 }
 
+interface FetchUrlActionBuilder extends BaseActionBuilder {
+  action_type: "fetch_url";
+  url?: string;
+  looking_for?: string;
+}
+
 type ActionBuilder =
   | ThinkActionBuilder
   | SpeakActionBuilder
@@ -64,7 +71,8 @@ type ActionBuilder =
   | UpdateMoodActionBuilder
   | WaitActionBuilder
   | AddPriorityActionBuilder
-  | RemovePriorityActionBuilder;
+  | RemovePriorityActionBuilder
+  | FetchUrlActionBuilder;
 
 // Single active trigger builder (only one trigger can be active at a time)
 interface ActiveTriggerBuilder {
@@ -139,6 +147,14 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
         ...baseAction,
       } as RemovePriorityAction;
 
+    case "fetch_url":
+      return {
+        type: "fetch_url",
+        ...baseAction,
+        url: actionBuilder.url || "",
+        looking_for: actionBuilder.looking_for || "",
+      } as FetchUrlAction;
+
     default:
       throw new Error(`Unknown action type: ${(actionBuilder as ActionBuilder).action_type}`);
   }
@@ -210,7 +226,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
               type: "streaming",
               result: "",
             },
-            action_type: event.action_type as "think" | "speak" | "update_appearance" | "update_mood" | "wait" | "add_priority" | "remove_priority",
+            action_type: event.action_type as "think" | "speak" | "update_appearance" | "update_mood" | "wait" | "add_priority" | "remove_priority" | "fetch_url",
             context_given: event.context_given,
             duration_ms: 0, // Duration will be updated later
             partial_results: [],
@@ -272,6 +288,10 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
               const appearanceBuilder = targetAction as UpdateAppearanceActionBuilder;
               appearanceBuilder.image_description = action.image_description;
               appearanceBuilder.image_url = action.image_url;
+            } else if (action.type === "fetch_url" && targetAction.action_type === "fetch_url") {
+              const fetchUrlBuilder = targetAction as FetchUrlActionBuilder;
+              fetchUrlBuilder.url = action.url;
+              fetchUrlBuilder.looking_for = action.looking_for;
             }
           } else {
             debug.warn(`Received action_completed for unknown action: ${actionKey} in entry ${event.entry_id}`);
@@ -362,6 +382,15 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
                     type: "remove_priority",
                     ...baseAction,
                   } as RemovePriorityAction);
+                  break;
+
+                case "fetch_url":
+                  actions.push({
+                    type: "fetch_url",
+                    ...baseAction,
+                    url: actionBuilder.url || "",
+                    looking_for: actionBuilder.looking_for || "",
+                  } as FetchUrlAction);
                   break;
 
                 default:

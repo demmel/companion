@@ -64,24 +64,31 @@ class ConversationPersistence:
         state: State,
         trigger_history: TriggerHistory,
         title: Optional[str] = None,
+        save_baseline: bool = True,
     ) -> None:
         """Save a conversation with its state and optional trigger history"""
 
-        # Save the agent's state separately
-        state_file = self.conversations_dir / f"{conversation_id}_state.json"
+        self._save_state_and_triggers(conversation_id, state, trigger_history)
+        if save_baseline:
+            self._save_state_and_triggers("baseline", state, trigger_history)
+
+        # Update metadata index
+        self._update_metadata(conversation_id, len(trigger_history.entries), title)
+
+    def _save_state_and_triggers(
+        self, prefix: str, state: State, trigger_history: TriggerHistory
+    ) -> None:
+        """Save the state and trigger history for a conversation"""
+        state_file = self.conversations_dir / f"{prefix}_state.json"
         with open(state_file, "w") as f:
             f.write(state.model_dump_json(indent=2))
 
-        # Save trigger history if provided
-        trigger_file = self.conversations_dir / f"{conversation_id}_triggers.json"
+        trigger_file = self.conversations_dir / f"{prefix}_triggers.json"
         trigger_data = TriggerHistoryData(
             entries=trigger_history.entries, summaries=trigger_history.summaries
         )
         with open(trigger_file, "w") as f:
             f.write(trigger_data.model_dump_json(indent=2))
-
-        # Update metadata index
-        self._update_metadata(conversation_id, len(trigger_history.entries), title)
 
     def load_conversation(self, conversation_id: str) -> tuple[ConversationData, State]:
         """Load a conversation and its state"""

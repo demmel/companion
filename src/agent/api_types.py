@@ -99,6 +99,14 @@ class RemovePriorityActionDTO(BaseActionDTO):
     type: Literal["remove_priority"] = "remove_priority"
 
 
+class FetchUrlActionDTO(BaseActionDTO):
+    """DTO for fetch URL actions"""
+
+    type: Literal["fetch_url"] = "fetch_url"
+    url: str
+    looking_for: str
+
+
 # Discriminated union for all action types
 ActionDTO = Union[
     ThinkActionDTO,
@@ -107,6 +115,7 @@ ActionDTO = Union[
     UpdateMoodActionDTO,
     WaitActionDTO,
     AddPriorityActionDTO,
+    FetchUrlActionDTO,
     RemovePriorityActionDTO,
 ]
 
@@ -303,6 +312,15 @@ def convert_action_to_dto(action: ActionResult) -> ActionDTO:
         return AddPriorityActionDTO(**base_data)
     elif action.action == ActionType.REMOVE_PRIORITY:
         return RemovePriorityActionDTO(**base_data)
+    elif action.action == ActionType.FETCH_URL:
+        # Extract URL and looking_for from context_given
+        context_parts = action.context_given.split(", looking_for: ")
+        url = context_parts[0].replace("url: ", "")
+        looking_for = context_parts[1] if len(context_parts) > 1 else ""
+        
+        return FetchUrlActionDTO(
+            **base_data, url=url, looking_for=looking_for
+        )
     else:
         raise ValueError(f"Unsupported action type: {action.action}")
 

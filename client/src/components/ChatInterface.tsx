@@ -1,8 +1,7 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { ClientAgentEvent, useWebSocket } from "@/hooks/useWebSocket";
 import { useStreamBatcher } from "@/hooks/useStreamBatcher";
 import { useTriggerEvents } from "@/hooks/useTriggerEvents";
-import { useSmartScroll } from "@/hooks/useSmartScroll";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
 import { Timeline } from "@/components/Timeline";
@@ -51,22 +50,19 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     onError: handleError,
   });
 
-  const {
-    messagesEndRef,
-    messagesContainerRef,
-    handleScroll,
-    setUserAtBottom,
-  } = useSmartScroll({
-    items: triggerEntries,
-  });
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleSubmit = (message: string) => {
     // Send to server
     sendMessage(message);
     setInputValue("");
-
-    // When user sends a message, they probably want to see the response
-    setUserAtBottom(true);
+    
+    // Scroll to bottom after sending message
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 100);
   };
 
   // Load initial data on mount
@@ -109,7 +105,6 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
 
     clearEvents();
     clearTriggerHistory();
-    setUserAtBottom(true);
   };
 
   return (
@@ -124,8 +119,6 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
       <ChatHeader isConnected={isConnected} isConnecting={isConnecting} />
 
       <div
-        ref={messagesContainerRef}
-        onScroll={handleScroll}
         className={css({
           flex: 1,
           overflowY: "auto",

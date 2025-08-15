@@ -7,6 +7,7 @@ import { UpdateMoodActionDisplay } from "./UpdateMoodActionDisplay";
 import { WaitActionDisplay } from "./WaitActionDisplay";
 import { AddPriorityActionDisplay } from "./AddPriorityActionDisplay";
 import { RemovePriorityActionDisplay } from "./RemovePriorityActionDisplay";
+import { FetchUrlActionDisplay } from "./FetchUrlActionDisplay";
 
 interface ActionDisplayProps {
   action: Action;
@@ -29,6 +30,8 @@ export function ActionDisplay({ action }: ActionDisplayProps) {
         return <AddPriorityActionDisplay action={action} />;
       case "remove_priority":
         return <RemovePriorityActionDisplay action={action} />;
+      case "fetch_url":
+        return <FetchUrlActionDisplay action={action} />;
       default:
         return (
           <div className={css({ p: 2, color: "gray.500", fontSize: "sm" })}>

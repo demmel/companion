@@ -157,6 +157,12 @@ export interface RemovePriorityAction extends BaseAction {
   type: "remove_priority";
 }
 
+export interface FetchUrlAction extends BaseAction {
+  type: "fetch_url";
+  url: string;
+  looking_for: string;
+}
+
 export type Action =
   | ThinkAction
   | SpeakAction
@@ -164,7 +170,8 @@ export type Action =
   | UpdateMoodAction
   | WaitAction
   | AddPriorityAction
-  | RemovePriorityAction;
+  | RemovePriorityAction
+  | FetchUrlAction;
 
 export interface Summary {
   summary_text: string;

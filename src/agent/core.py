@@ -128,15 +128,21 @@ class Agent:
         Returns:
             The conversation ID if saved, None if auto_save is disabled
         """
-        logger.info(f"save_conversation called: auto_save={self.auto_save}, conversation_id={self.conversation_id}, state={self.state is not None}")
+        logger.info(
+            f"save_conversation called: auto_save={self.auto_save}, conversation_id={self.conversation_id}, state={self.state is not None}"
+        )
         if not self.auto_save or not self.conversation_id:
-            logger.info(f"Not saving: auto_save={self.auto_save}, conversation_id={self.conversation_id}")
+            logger.info(
+                f"Not saving: auto_save={self.auto_save}, conversation_id={self.conversation_id}"
+            )
             return None
 
         assert (
             self.state is not None
         ), "Cannot save conversation without initialized state"
-        logger.info(f"Saving conversation {self.conversation_id} with {len(self.trigger_history)} entries")
+        logger.info(
+            f"Saving conversation {self.conversation_id} with {len(self.trigger_history)} entries"
+        )
         self.persistence.save_conversation(
             self.conversation_id,
             self.state,
@@ -201,7 +207,7 @@ class Agent:
             # Check if we need auto-summarization before processing (skip if continuous summarization enabled)
             if not self.continuous_summarization:
                 context_info = self.get_context_info()
-                if context_info.approaching_limit:
+                if context_info.estimated_tokens >= context_info.context_limit:
                     # Perform auto-summarization with event emission
                     for event in self._auto_summarize_with_events(self.keep_recent):
                         yield event

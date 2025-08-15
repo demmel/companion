@@ -23,5 +23,8 @@ class ActionType(str, Enum):
     # Communication Actions
     SPEAK = "speak"  # Generate conversational response
 
+    # Information Actions  
+    FETCH_URL = "fetch_url"  # Fetch and analyze content from a web URL
+
     # Meta Actions
     WAIT = "wait"  # Wait for response before continuing
