@@ -75,17 +75,15 @@ def build_completed_action_list(completed_actions: List[ActionResult]) -> Option
         return None
 
 
-def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
-    """Format trigger history as stream of consciousness for prompts"""
+def format_trigger_entries(entries: List[TriggerHistoryEntry]) -> str:
+    """Format a list of trigger entries as stream of consciousness for prompts"""
     from agent.chain_of_action.trigger import UserInputTrigger
 
-    triggers = trigger_history.get_recent_entries()
-
-    if not triggers:
-        return None
+    if not entries:
+        return ""
 
     parts = []
-    for entry in triggers:
+    for entry in entries:
         # Format the trigger
         if isinstance(entry.trigger, UserInputTrigger):
             trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] {entry.trigger.user_name} said: "{entry.trigger.content}"'
@@ -106,8 +104,17 @@ def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
 
         parts.append("")  # Blank line between entries
 
-    stream_content = "\n".join(parts)
-    return stream_content
+    return "\n".join(parts)
+
+
+def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
+    """Format trigger history as stream of consciousness for prompts"""
+    triggers = trigger_history.get_recent_entries()
+
+    if not triggers:
+        return None
+
+    return format_trigger_entries(triggers)
 
 
 def format_single_trigger_entry(entry: TriggerHistoryEntry) -> str:
@@ -167,9 +174,13 @@ def _format_action_for_diary(action: ActionResult) -> str:
 
 
 def build_summarization_prompt(
-    prior_summary: str, recent_entries: str, state: State
+    prior_summary: str, 
+    entries_to_summarize: List[TriggerHistoryEntry], 
+    state: State
 ) -> str:
     """Build structured summarization prompt following consistent format"""
+    from agent.chain_of_action.trigger import UserInputTrigger
+    
     state_desc = build_agent_state_description(state)
 
     # Build prior summary section
@@ -180,6 +191,9 @@ def build_summarization_prompt(
             prior_summary,
         )
 
+    # Build compressed stream of consciousness from the entries (same as other prompts)
+    recent_entries = format_trigger_entries(entries_to_summarize)
+
     return f"""I am {state.name}, a conscious AI companion. I need to create a new comprehensive summary that combines my previous experiences with recent events.
 
 {state_desc}
@@ -187,9 +201,9 @@ def build_summarization_prompt(
 {prior_summary_section}
 
 {format_section(
-    "RECENT STREAM OF CONSCIOUSNESS TO INTEGRATE",
+    "RECENT STREAM OF CONSCIOUSNESS TO INTEGRATE", 
     recent_entries,
-)}
+) if recent_entries else ""}
 
 **MY SUMMARIZATION TASK:**
 

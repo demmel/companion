@@ -181,7 +181,7 @@ async def get_timeline(
 
     # Build timeline entries in chronological order
     timeline_entries: List[TimelineEntry] = []
-    
+
     # Add initial exchange if it exists
     if agent.initial_exchange is not None:
         initial_dto = convert_trigger_history_entry_to_dto(agent.initial_exchange)
@@ -189,7 +189,7 @@ async def get_timeline(
 
     # Add trigger entries (already in chronological order)
     entries = trigger_history.get_all_entries()
-    
+
     for entry in entries:
         entry_dto = convert_trigger_history_entry_to_dto(entry)
         timeline_entries.append(TimelineEntryTrigger(entry=entry_dto))
@@ -201,10 +201,12 @@ async def get_timeline(
     #     timeline_entries.append(TimelineEntrySummary(summary=summary_dto))
 
     total_items = len(timeline_entries)
-    
+
     # Debug pagination logic
-    logger.info(f"Timeline request: page_size={page_size}, after={after}, before={before}, total_items={total_items}")
-    
+    logger.info(
+        f"Timeline request: page_size={page_size}, after={after}, before={before}, total_items={total_items}"
+    )
+
     # Handle pagination with after/before cursors
     if before is not None:
         # Get entries before the specified index (older entries)
@@ -230,23 +232,18 @@ async def get_timeline(
         # Default to showing the last page (most recent items)
         start_index = max(0, total_items - page_size)
         end_index = total_items
-    
+
     # Get page of items
     page_entries = timeline_entries[start_index:end_index]
-    
-    # Debug pagination results
-    logger.info(f"Pagination: start_index={start_index}, end_index={end_index}, returning {len(page_entries)} entries")
-    page_entry_ids = [entry.entry.entry_id for entry in page_entries if hasattr(entry, 'entry')]
-    logger.info(f"Page entry IDs: {page_entry_ids}")
-    
+
     # Calculate pagination info
     has_next = end_index < total_items  # Can go forward to newer items
-    has_previous = start_index > 0      # Can go back to older items
-    
+    has_previous = start_index > 0  # Can go back to older items
+
     # Next cursor (after): entries after the current page end
     next_cursor = str(end_index) if has_next else None
-    
-    # Previous cursor (before): entries before the current page start  
+
+    # Previous cursor (before): entries before the current page start
     previous_cursor = str(start_index) if has_previous else None
 
     pagination = PaginationInfo(

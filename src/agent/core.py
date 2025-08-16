@@ -803,20 +803,15 @@ def summarize_trigger_history(
         else 0
     )
 
-    # Format entries to summarize
-    entries_to_format = trigger_history.entries[summary_start:entries_to_summarize_end]
-    if not entries_to_format:
+    # Get entries to summarize
+    entries_to_summarize = trigger_history.entries[summary_start:entries_to_summarize_end]
+    if not entries_to_summarize:
         return ""
 
-    formatted_entries = [
-        format_single_trigger_entry(entry) for entry in entries_to_format
-    ]
-    recent_entries = "\n\n".join(formatted_entries)
-
-    # Use structured prompt with separated sections
+    # Use structured prompt with compressed formatting
     summary = llm.generate_complete(
         model,
-        build_summarization_prompt(old_summary, recent_entries, state),
+        build_summarization_prompt(old_summary, entries_to_summarize, state),
         caller="summarize_trigger_history",
     )
     # Calculate UI position: initial exchange (1) + previous summaries + entries before this summary
