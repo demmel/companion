@@ -254,7 +254,35 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: `src/agent/tools/image_generation_tools.py`
 
-### #12: Trigger Summarization Loses Critical Details for Coherence
+### #12: Context Usage Spikes Above 100% After Summarization
+
+**Problem**: Frontend shows context usage spiking to very high percentages (>100%) for a few messages immediately after summarization, when it should actually decrease after summarization.
+
+**Investigation Results**:
+- ❌ **CONFIRMED**: Context usage jumps to unrealistic high values right after summarization
+- ❌ **TIMING**: Issue appears in the first few messages after summarization completes
+- 🤔 **UNCLEAR**: Whether this is actual context usage or a calculation bug
+- 📁 **Expected**: Context usage should drop significantly after summarization, not spike
+
+**Root Cause**: Likely a bug in context calculation logic, either:
+1. Summarization process temporarily inflates context size calculations
+2. Context estimation doesn't account for summarized vs full history properly
+3. Frontend receiving incorrect context data from backend
+
+**Impact**:
+- Confusing/misleading context usage display for users
+- Potential false alarms about context limits
+- Unclear whether actual context usage is problematic or just calculation
+
+**Investigation Needed**:
+1. Check if backend `get_context_info()` returns correct values post-summarization
+2. Verify frontend context display logic handles summarization transitions
+3. Compare actual prompt sizes vs estimated context usage after summarization
+4. Determine if issue is calculation bug or actual context bloat
+
+**Location**: Context calculation logic, frontend context display
+
+### #13: Trigger Summarization Loses Critical Details for Coherence
 
 **Problem**: Agent summarization of trigger entries loses critical details needed for referencing previous actions, thoughts, and statements, harming coherence in follow-up interactions.
 
