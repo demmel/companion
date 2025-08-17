@@ -2,11 +2,11 @@ import { renderHook } from "@testing-library/react";
 import { useTriggerEvents } from "../useTriggerEvents";
 import { ClientAgentEvent } from "../useWebSocket";
 
-describe.skip("useTriggerEvents", () => {
-  it("should start with empty trigger entries", () => {
+describe("useTriggerEvents", () => {
+  it("should start with empty streaming entries", () => {
     const { result } = renderHook(() => useTriggerEvents([]));
 
-    expect(result.current.triggerEntries).toEqual([]);
+    expect(result.current.streamingEntries).toEqual([]);
     expect(result.current.isStreamActive).toBe(false);
   });
 
@@ -87,10 +87,10 @@ describe.skip("useTriggerEvents", () => {
 
     const { result } = renderHook(() => useTriggerEvents(events));
 
-    expect(result.current.triggerEntries).toHaveLength(1);
+    expect(result.current.streamingEntries).toHaveLength(1);
     expect(result.current.isStreamActive).toBe(false);
 
-    const trigger = result.current.triggerEntries[0];
+    const trigger = result.current.streamingEntries[0];
     expect(trigger.entry_id).toBe("entry_1");
     expect(trigger.trigger.type).toBe("user_input");
     expect(trigger.trigger.content).toBe("Hello, how are you?");
@@ -144,10 +144,10 @@ describe.skip("useTriggerEvents", () => {
 
     const { result } = renderHook(() => useTriggerEvents(events));
 
-    expect(result.current.triggerEntries).toHaveLength(1);
+    expect(result.current.streamingEntries).toHaveLength(1);
     expect(result.current.isStreamActive).toBe(true);
 
-    const activeTrigger = result.current.triggerEntries[0];
+    const activeTrigger = result.current.streamingEntries[0];
     expect(activeTrigger.entry_id).toBe("entry_2");
     expect(activeTrigger.trigger.content).toBe("Tell me about yourself");
     expect(activeTrigger.actions_taken).toHaveLength(1);
@@ -271,8 +271,8 @@ describe.skip("useTriggerEvents", () => {
 
     const { result } = renderHook(() => useTriggerEvents(events));
 
-    expect(result.current.triggerEntries).toHaveLength(1);
-    const trigger = result.current.triggerEntries[0];
+    expect(result.current.streamingEntries).toHaveLength(1);
+    const trigger = result.current.streamingEntries[0];
 
     expect(trigger.actions_taken).toHaveLength(3);
 
@@ -368,8 +368,8 @@ describe.skip("useTriggerEvents", () => {
 
     const { result } = renderHook(() => useTriggerEvents(events));
 
-    expect(result.current.triggerEntries).toHaveLength(1);
-    const trigger = result.current.triggerEntries[0];
+    expect(result.current.streamingEntries).toHaveLength(1);
+    const trigger = result.current.streamingEntries[0];
 
     expect(trigger.actions_taken).toHaveLength(2);
 
@@ -473,8 +473,8 @@ describe.skip("useTriggerEvents", () => {
 
     const { result } = renderHook(() => useTriggerEvents(events));
 
-    expect(result.current.triggerEntries).toHaveLength(1);
-    const trigger = result.current.triggerEntries[0];
+    expect(result.current.streamingEntries).toHaveLength(1);
+    const trigger = result.current.streamingEntries[0];
 
     expect(trigger.actions_taken).toHaveLength(2);
 
@@ -536,13 +536,17 @@ describe.skip("useTriggerEvents", () => {
         total_actions: 1,
         successful_actions: 1,
         timestamp: "2024-01-01T15:00:03Z",
+        estimated_tokens: 100,
+        context_limit: 1000,
+        usage_percentage: 10,
+        approaching_limit: false,
       },
     ];
 
     const { result } = renderHook(() => useTriggerEvents(events));
 
-    expect(result.current.triggerEntries).toHaveLength(1);
-    expect(result.current.triggerEntries[0].actions_taken).toHaveLength(1);
+    expect(result.current.streamingEntries).toHaveLength(1);
+    expect(result.current.streamingEntries[0].actions_taken).toHaveLength(1);
   });
 
   it("should handle events with mismatched entry_ids", () => {
@@ -613,8 +617,8 @@ describe.skip("useTriggerEvents", () => {
 
     const { result } = renderHook(() => useTriggerEvents(events));
 
-    expect(result.current.triggerEntries).toHaveLength(1);
-    const trigger = result.current.triggerEntries[0];
+    expect(result.current.streamingEntries).toHaveLength(1);
+    const trigger = result.current.streamingEntries[0];
 
     expect(trigger.actions_taken).toHaveLength(1);
     // The progress event with wrong entry_id should be ignored
@@ -655,8 +659,8 @@ describe.skip("useTriggerEvents", () => {
       }
     );
 
-    expect(result.current.triggerEntries).toHaveLength(1);
-    expect(result.current.triggerEntries[0].actions_taken).toHaveLength(1);
+    expect(result.current.streamingEntries).toHaveLength(1);
+    expect(result.current.streamingEntries[0].actions_taken).toHaveLength(1);
 
     // Add the same events again (simulating duplicate WebSocket messages)
     events = [
@@ -667,8 +671,8 @@ describe.skip("useTriggerEvents", () => {
     rerender({ events });
 
     // Should still only have one trigger with one action
-    expect(result.current.triggerEntries).toHaveLength(1);
-    expect(result.current.triggerEntries[0].actions_taken).toHaveLength(1);
+    expect(result.current.streamingEntries).toHaveLength(1);
+    expect(result.current.streamingEntries[0].actions_taken).toHaveLength(1);
   });
 
   it("should handle action with metadata correctly", () => {
@@ -730,8 +734,8 @@ describe.skip("useTriggerEvents", () => {
 
     const { result } = renderHook(() => useTriggerEvents(events));
 
-    expect(result.current.triggerEntries).toHaveLength(1);
-    const trigger = result.current.triggerEntries[0];
+    expect(result.current.streamingEntries).toHaveLength(1);
+    const trigger = result.current.streamingEntries[0];
 
     expect(trigger.actions_taken).toHaveLength(1);
     const action = trigger.actions_taken[0] as any;
