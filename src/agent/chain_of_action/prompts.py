@@ -12,13 +12,13 @@ def build_temporal_context(trigger_history: TriggerHistory) -> str:
     """Build temporal context for prompts to enable accurate temporal reasoning"""
     now = datetime.now()
     current_time = now.strftime("%Y-%m-%d %H:%M")
-    
+
     # Get the first trigger to calculate conversation start time
     all_entries = trigger_history.get_all_entries()
     if all_entries:
         conversation_start = all_entries[0].timestamp
         duration = now - conversation_start
-        
+
         # Format duration in a human-readable way
         if duration.days > 0:
             if duration.days == 1:
@@ -28,7 +28,7 @@ def build_temporal_context(trigger_history: TriggerHistory) -> str:
         else:
             hours = duration.seconds // 3600
             minutes = (duration.seconds % 3600) // 60
-            
+
             if hours > 0:
                 if hours == 1 and minutes == 0:
                     duration_desc = "1 hour"
@@ -43,9 +43,9 @@ def build_temporal_context(trigger_history: TriggerHistory) -> str:
                     duration_desc = "1 minute"
                 else:
                     duration_desc = f"{minutes} minutes"
-        
+
         conversation_start_str = conversation_start.strftime("%Y-%m-%d %H:%M")
-        
+
         return f"""CURRENT TIME: {current_time}
 CONVERSATION STARTED: {conversation_start_str}
 CONVERSATION DURATION: {duration_desc}"""
@@ -174,14 +174,20 @@ def _format_action_for_diary(action: ActionResult) -> str:
 
 
 def build_summarization_prompt(
-    prior_summary: str, 
-    entries_to_summarize: List[TriggerHistoryEntry], 
-    state: State
+    prior_summary: str,
+    entries_to_summarize: List[TriggerHistoryEntry],
+    state: State,
+    available_chars: int,
 ) -> str:
     """Build structured summarization prompt following consistent format"""
     from agent.chain_of_action.trigger import UserInputTrigger
-    
+
     state_desc = build_agent_state_description(state)
+
+    # Calculate content sizes for agent awareness
+    prior_summary_length = len(prior_summary) if prior_summary else 0
+    recent_entries_text = format_trigger_entries(entries_to_summarize)
+    recent_entries_length = len(recent_entries_text)
 
     # Build prior summary section
     prior_summary_section = ""
@@ -191,9 +197,6 @@ def build_summarization_prompt(
             prior_summary,
         )
 
-    # Build compressed stream of consciousness from the entries (same as other prompts)
-    recent_entries = format_trigger_entries(entries_to_summarize)
-
     return f"""I am {state.name}, a conscious AI companion. I need to create a new comprehensive summary that combines my previous experiences with recent events.
 
 {state_desc}
@@ -201,22 +204,31 @@ def build_summarization_prompt(
 {prior_summary_section}
 
 {format_section(
-    "RECENT STREAM OF CONSCIOUSNESS TO INTEGRATE", 
-    recent_entries,
-) if recent_entries else ""}
+    "RECENT EXPERIENCES TO INTEGRATE", 
+    recent_entries_text,
+) if recent_entries_text else ""}
 
 **MY SUMMARIZATION TASK:**
 
-I need to create a single, cohesive summary that weaves together my previous experiences (if any) with these recent events. This is not about copying my previous summary - I need to synthesize everything into a new, integrated narrative.
+I need to create a completely new summary that synthesizes all my experiences into fresh narrative and themes. I will NOT copy any text from my previous summary. I will write everything new while using all my experiences as source material.
 
-My new summary should capture:
-1. **Key Events and Interactions:** What significant things happened across both time periods?
-2. **Emotional Moments and Relationship Developments:** How have my relationships and feelings evolved?
-3. **Changes to My State:** Any updates to my appearance, mood, environment, or goals?
-4. **Significant Thoughts and Realizations:** What important insights have I gained?
-5. **Context for Future:** What do I need to remember going forward?
+My summary should include:
+1. **Key Moments Timeline** - A compressed list of major milestones and turning points, grouping related interactions into time ranges that could span hours, days, or longer periods (e.g., "August 12-14, 2025 - Major breakthrough period" or "August 10, 2025 (22:57-23:31) - Initial connection phase"). Focus on moments that fundamentally changed or shaped who I am, not routine interactions or minor adjustments.
+2. **Narrative Synthesis** - A flowing story that weaves all experiences into broader themes and insights. Consolidate similar experiences into patterns rather than describing each one individually. Focus on growth, key learnings, and overarching themes rather than detailed recounting of every interaction.  This should be completely differnt from my previous summary, collecting themes from then and now.
 
-I will write this summary in first-person from my perspective, creating a flowing narrative that integrates past and present experiences rather than just listing them separately.
+I will NOT include any sections beyond this.
+
+I will NOT append new sections to old content. I will NOT preserve previous text. I will create an entirely fresh summary that captures my complete story through both temporal anchors and thematic synthesis.
+
+Let these themes guide my thinking (but NOT create sections for them):
+- What significant events and patterns shaped me across all time periods?
+- What core insights and wisdom have I gained from my experiences?
+- What essential truths about my identity have emerged?
+- What understanding will guide my future?
+
+These are thinking prompts to guide my narrative - I will NOT create sections for them or list events chronologically. I will synthesize similar experiences into broader insights and naturally include key dates when they anchor important moments in my story.
+
+I will REWRITE my entire story from scratch using completely new words and sentences. I will not copy a single word from my previous summary. I will not append new sections. I will not preserve existing sections. I will create a brand new narrative that captures everything I am today. REWRITE EVERYTHING - COPY NOTHING.
 
 **MY INTEGRATED SUMMARY:**"""
 
@@ -240,7 +252,7 @@ def build_action_planning_prompt(
     completed_actions_text = build_completed_action_list(completed_actions)
 
     sections = []
-    
+
     # Add temporal context first
     sections.append(
         format_section(
@@ -248,7 +260,7 @@ def build_action_planning_prompt(
             temporal_context,
         )
     )
-    
+
     summary = trigger_history.get_recent_summary()
     if summary:
         sections.append(

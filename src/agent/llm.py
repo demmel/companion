@@ -17,11 +17,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CallStats:
     """Statistics for LLM calls by caller"""
+
     count: int = 0
     total_time: float = 0.0
     times: List[float] = field(default_factory=list)
-
-
 
 
 class Message(BaseModel):
@@ -54,6 +53,7 @@ class ModelConfig:
     default_repeat_penalty: float = 1.1
     default_num_predict: int = 4096
     context_window: int = 32768
+    estimated_token_size: float = 3.4
 
 
 class LLM:
@@ -127,16 +127,16 @@ class LLM:
         response: ollama.ChatResponse = self.chat(
             model, messages, stream=False, caller=caller, **kwargs
         )  # type: ignore
-        
+
         # Track the call
         duration = time.time() - start_time
         stats = self.call_stats[caller]
         stats.count += 1
         stats.total_time += duration
         stats.times.append(duration)
-        
+
         logger.info(f"LLM call [{caller}]: {duration:.2f}s")
-        
+
         return response["message"]["content"]
 
     def is_model_available(self, model: SupportedModel) -> bool:
@@ -208,21 +208,28 @@ class LLM:
         return self.generate(model, prompt, caller, stream=True, **kwargs)  # type: ignore
 
     def generate_complete(
-        self, model: SupportedModel, prompt: str, caller: str, **kwargs
+        self,
+        model: SupportedModel,
+        prompt: str,
+        caller: str,
+        num_predict: Optional[int] = None,
+        **kwargs,
     ) -> str:
         """Convenience method for non-streaming direct generation"""
         start_time = time.time()
-        response = self.generate(model, prompt, caller, stream=False, **kwargs)
-        
+        response = self.generate(
+            model, prompt, caller, stream=False, num_predict=num_predict, **kwargs
+        )
+
         # Track the call
         duration = time.time() - start_time
         stats = self.call_stats[caller]
         stats.count += 1
         stats.total_time += duration
         stats.times.append(duration)
-        
+
         logger.info(f"LLM call [{caller}]: {duration:.2f}s")
-        
+
         return response["response"]  # type: ignore
 
     def reset_call_stats(self) -> None:
@@ -233,18 +240,24 @@ class LLM:
         """Log a summary of LLM call statistics"""
         if not self.call_stats:
             return
-        
+
         total_calls = sum(stats.count for stats in self.call_stats.values())
         total_time = sum(stats.total_time for stats in self.call_stats.values())
-        
-        logger.info(f"LLM call statistics: {total_calls} calls, {total_time:.2f}s total")
-        
+
+        logger.info(
+            f"LLM call statistics: {total_calls} calls, {total_time:.2f}s total"
+        )
+
         # Sort by total time (most expensive first)
-        sorted_stats = sorted(self.call_stats.items(), key=lambda x: x[1].total_time, reverse=True)
-        
+        sorted_stats = sorted(
+            self.call_stats.items(), key=lambda x: x[1].total_time, reverse=True
+        )
+
         for caller, stats in sorted_stats:
             avg_time = stats.total_time / stats.count if stats.count > 0 else 0
-            logger.info(f"  {caller}: {stats.count} calls, {stats.total_time:.2f}s, {avg_time:.2f}s avg")
+            logger.info(
+                f"  {caller}: {stats.count} calls, {stats.total_time:.2f}s, {avg_time:.2f}s avg"
+            )
 
 
 # Default model configurations
@@ -257,9 +270,11 @@ DEFAULT_MODELS = {
     ),
     SupportedModel.MISTRAL_SMALL: ModelConfig(
         model=SupportedModel.MISTRAL_SMALL,
+        estimated_token_size=3.4,
     ),
     SupportedModel.MISTRAL_SMALL_3_2: ModelConfig(
         model=SupportedModel.MISTRAL_SMALL_3_2,
+        estimated_token_size=3.4,
     ),
     SupportedModel.DOLPHIN_MISTRAL_NEMO: ModelConfig(
         model=SupportedModel.DOLPHIN_MISTRAL_NEMO,

@@ -804,15 +804,31 @@ def summarize_trigger_history(
     )
 
     # Get entries to summarize
-    entries_to_summarize = trigger_history.entries[summary_start:entries_to_summarize_end]
+    entries_to_summarize = trigger_history.entries[
+        summary_start:entries_to_summarize_end
+    ]
     if not entries_to_summarize:
         return ""
+
+    # Use 25% of context window for summary
+    available_chars = int((llm.models[model].context_window * 0.25) * llm.models[model].estimated_token_size)
+    
+    summarization_prompt = build_summarization_prompt(
+        old_summary, entries_to_summarize, state, available_chars
+    )
+    prompt_tokens = int(
+        len(summarization_prompt) / llm.models[model].estimated_token_size
+    )
+    max_tokens = llm.models[model].context_window
+    logger.info(f"Summarization prompt token count: {prompt_tokens} / {max_tokens}")
+    num_predict = max_tokens - prompt_tokens
 
     # Use structured prompt with compressed formatting
     summary = llm.generate_complete(
         model,
-        build_summarization_prompt(old_summary, entries_to_summarize, state),
+        summarization_prompt,
         caller="summarize_trigger_history",
+        num_predict=num_predict,
     )
     # Calculate UI position: initial exchange (1) + previous summaries + entries before this summary
     ui_position = 1 + len(trigger_history.summaries) + entries_to_summarize_end
