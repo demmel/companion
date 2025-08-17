@@ -70,19 +70,29 @@ class AddPriorityAction(BaseAction[AddPriorityInput, None]):
 My current priorities are:
 {existing_list}
 
-I need to determine if this new priority is a duplicate or very similar to any of my existing priorities. Two priorities are duplicates if they have essentially the same meaning or would lead to the same actions, even if worded differently.
+I need to determine if this new priority is truly redundant with any existing priority. Priorities are only duplicates if they are essentially identical in meaning and scope - NOT if one is more specific than another or if they focus on different aspects of the same general area.
 
-Examples of duplicates:
-- "get to know this person" and "understand who I'm talking with" (same intent)
-- "help with coding" and "assist with programming" (same activity)
-- "learn about myself" and "understand my capabilities" (same self-focus)
+STRICT CRITERIA FOR DUPLICATES (all must be true):
+1. Nearly identical wording or meaning
+2. Same level of specificity 
+3. Would drive the exact same actions in practice
+4. No meaningful distinction in focus or approach
 
-Examples of NOT duplicates:
-- "help with coding" and "help with debugging" (different aspects of programming)
-- "understand this person" and "maintain our friendship" (different relationship goals)
-- "learn about AI" and "learn about cooking" (different topics)
+Examples of TRUE duplicates:
+- "get to know this person" and "understand who I'm talking with" (identical meaning)
+- "help with coding" and "assist with programming" (identical activity, same words)
+- "maintain my appearance" and "keep looking good" (identical meaning)
 
-Is the new priority a duplicate of any existing priority?"""
+Examples of NOT duplicates (should be allowed):
+- "help with coding" and "help with debugging" (different specific activities)
+- "maintain appearance" and "provide detailed appearance descriptions" (different focuses: maintaining vs communicating)
+- "explore new interests" and "explore fashion" (general vs specific)
+- "be attractive" and "get appearance right the first time" (different approaches: ongoing vs precision)
+- "express creativity" and "design loungewear" (general vs specific creative outlet)
+
+Key principle: Specific implementations of broader goals are NOT duplicates. Different approaches to similar areas are NOT duplicates. Only nearly identical priorities should be rejected.
+
+Is the new priority truly redundant (not just related) to any existing priority?"""
 
         try:
             result = direct_structured_llm_call(
