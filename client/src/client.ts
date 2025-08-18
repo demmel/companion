@@ -1,4 +1,4 @@
-import { Message, TriggerHistoryResponse, TimelineResponse } from "./types";
+import { TimelineResponse } from "./types";
 
 interface ClientConfig {
   host?: string;
@@ -43,27 +43,6 @@ export class AgentClient {
     }
   }
 
-  async getConversation(): Promise<Message[]> {
-    const response = await fetch(`${this.httpBaseUrl}/api/conversation`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to get conversation: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.messages;
-  }
-
-  async getState(): Promise<Record<string, any>> {
-    const response = await fetch(`${this.httpBaseUrl}/api/state`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to get state: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
   async getContextInfo(): Promise<{
     message_count: number;
     conversation_messages: number;
@@ -76,16 +55,6 @@ export class AgentClient {
 
     if (!response.ok) {
       throw new Error(`Failed to get context info: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  async getTriggerHistory(): Promise<TriggerHistoryResponse> {
-    const response = await fetch(`${this.httpBaseUrl}/api/trigger-history`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to get trigger history: ${response.statusText}`);
     }
 
     return response.json();
