@@ -247,7 +247,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
             )}
 
             <Timeline
-              triggerEntries={triggerEntries}
+              entries={triggerEntries}
               isStreamActive={isStreamActive}
             />
           </>

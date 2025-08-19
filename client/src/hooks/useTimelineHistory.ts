@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react";
 import { AgentClient } from "../client";
-import { TriggerHistoryEntry, TimelineResponse } from "../types";
+import { TimelineEntry, TimelineResponse } from "../types";
 
 export interface UseTimelineHistoryReturn {
   // Historical data
-  entries: TriggerHistoryEntry[];
+  entries: TimelineEntry[];
 
   // Pagination state
   canLoadMore: boolean;
@@ -18,21 +18,15 @@ export interface UseTimelineHistoryReturn {
 }
 
 export function useTimelineHistory(client: AgentClient): UseTimelineHistoryReturn {
-  const [entries, setEntries] = useState<TriggerHistoryEntry[]>([]);
+  const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [previousCursor, setPreviousCursor] = useState<string | null>(null);
   const [canLoadMore, setCanLoadMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasLoadedAnyData, setHasLoadedAnyData] = useState(false);
 
   const processTimelineResponse = useCallback((response: TimelineResponse, isPrepend: boolean = false) => {
-    const newEntries: TriggerHistoryEntry[] = [];
-
-    // Extract trigger entries only
-    for (const timelineEntry of response.entries) {
-      if (timelineEntry.type === "trigger") {
-        newEntries.push(timelineEntry.entry);
-      }
-    }
+    // Use all timeline entries (triggers and summaries)
+    const newEntries = response.entries;
 
     // Update entries
     if (isPrepend) {

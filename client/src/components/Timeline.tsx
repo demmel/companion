@@ -1,12 +1,13 @@
 import { css } from "@styled-system/css";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { TriggerHistoryEntry } from "@/types";
+import { TriggerHistoryEntry, TimelineEntry } from "@/types";
 import { TriggerCard } from "./trigger/TriggerCard";
 import { ActionDisplay } from "./action/ActionDisplay";
+import { SummaryCard } from "./SummaryCard";
 
 interface TimelineProps {
-  triggerEntries: TriggerHistoryEntry[];
+  entries: TimelineEntry[];
   isStreamActive: boolean;
 }
 
@@ -137,7 +138,44 @@ function TimelineEntry({
   );
 }
 
-export function Timeline({ triggerEntries, isStreamActive }: TimelineProps) {
+interface TimelineItemProps {
+  timelineEntry: TimelineEntry;
+  isActive?: boolean;
+  isExpanded?: boolean;
+  onToggleExpanded?: () => void;
+}
+
+function TimelineItem({ timelineEntry, isActive, isExpanded, onToggleExpanded }: TimelineItemProps) {
+  switch (timelineEntry.type) {
+    case "trigger": {
+      const entry = timelineEntry.entry;
+      return (
+        <TimelineEntry
+          entry={entry}
+          isActive={isActive}
+          isExpanded={isExpanded}
+          onToggleExpanded={onToggleExpanded}
+        />
+      );
+    }
+    case "summary": {
+      return (
+        <SummaryCard 
+          summary={timelineEntry.summary} 
+          isExpanded={isExpanded}
+          onToggleExpanded={onToggleExpanded}
+        />
+      );
+    }
+    default: {
+      // TypeScript ensures we handle all cases
+      const _exhaustive: never = timelineEntry;
+      return _exhaustive;
+    }
+  }
+}
+
+export function Timeline({ entries, isStreamActive }: TimelineProps) {
   const [collapsedEntries, setCollapsedEntries] = useState<Set<string>>(
     new Set(),
   );
@@ -154,7 +192,8 @@ export function Timeline({ triggerEntries, isStreamActive }: TimelineProps) {
     });
   };
 
-  // The last entry is "active" if we're currently streaming
+  // Find the last trigger entry for active streaming
+  const triggerEntries = entries.filter((entry): entry is { type: "trigger"; entry: TriggerHistoryEntry } => entry.type === "trigger");
   const activeEntryIndex = isStreamActive ? triggerEntries.length - 1 : -1;
 
   return (
@@ -164,17 +203,32 @@ export function Timeline({ triggerEntries, isStreamActive }: TimelineProps) {
         // mx: "auto",
       })}
     >
-      {/* Timeline entries */}
       <div>
-        {triggerEntries.map((entry, index) => {
-          const isActive = index === activeEntryIndex;
+        {entries.map((timelineEntry) => {
+          // Determine if this trigger entry is active
+          let isActive = false;
+          let isExpanded = undefined;
+          let onToggleExpanded = undefined;
+          
+          if (timelineEntry.type === "trigger") {
+            const entry = timelineEntry.entry;
+            const triggerIndex = triggerEntries.findIndex(te => te.entry.entry_id === entry.entry_id);
+            isActive = triggerIndex === activeEntryIndex;
+            isExpanded = !collapsedEntries.has(entry.entry_id);
+            onToggleExpanded = () => toggleExpanded(entry.entry_id);
+          } else if (timelineEntry.type === "summary") {
+            const summaryKey = `summary-${timelineEntry.summary.insert_at_index}`;
+            isExpanded = !collapsedEntries.has(summaryKey);
+            onToggleExpanded = () => toggleExpanded(summaryKey);
+          }
+
           return (
-            <TimelineEntry
-              key={entry.entry_id}
-              entry={entry}
+            <TimelineItem
+              key={timelineEntry.type === "trigger" ? timelineEntry.entry.entry_id : `summary-${timelineEntry.summary.insert_at_index}`}
+              timelineEntry={timelineEntry}
               isActive={isActive}
-              isExpanded={!collapsedEntries.has(entry.entry_id)}
-              onToggleExpanded={() => toggleExpanded(entry.entry_id)}
+              isExpanded={isExpanded}
+              onToggleExpanded={onToggleExpanded}
             />
           );
         })}

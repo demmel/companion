@@ -179,26 +179,45 @@ async def get_timeline(
     agent: Agent = app.state.agent
     trigger_history = agent.get_trigger_history()
 
-    # Build timeline entries in chronological order
+    # Build timeline entries in proper chronological order with summaries interspersed
     timeline_entries: List[TimelineEntry] = []
-
-    # Add initial exchange if it exists
+    
+    # Get all the data we need
+    entries = trigger_history.get_all_entries()
+    summaries = trigger_history.get_all_summaries()
+    
+    # Create a map of insert positions to summaries for efficient lookup
+    summary_map = {summary.insert_at_index: summary for summary in summaries}
+    
+    # Current position in the timeline (0-based to match insert_at_index)
+    current_position = 0
+    
+    # Add initial exchange if it exists (position 0)
     if agent.initial_exchange is not None:
         initial_dto = convert_trigger_history_entry_to_dto(agent.initial_exchange)
         timeline_entries.append(TimelineEntryTrigger(entry=initial_dto))
-
-    # Add trigger entries (already in chronological order)
-    entries = trigger_history.get_all_entries()
-
+        current_position += 1
+    
+    # Process trigger entries and insert summaries at correct positions
     for entry in entries:
+        # Check if there's a summary that should be inserted at this position
+        if current_position in summary_map:
+            summary = summary_map[current_position]
+            summary_dto = convert_summary_to_dto(summary)
+            timeline_entries.append(TimelineEntrySummary(summary=summary_dto))
+            current_position += 1
+        
+        # Add the trigger entry
         entry_dto = convert_trigger_history_entry_to_dto(entry)
         timeline_entries.append(TimelineEntryTrigger(entry=entry_dto))
-
-    # Add summaries (for now just trigger type, summaries will be added later)
-    # summaries = trigger_history.get_all_summaries()
-    # for summary in summaries:
-    #     summary_dto = convert_summary_to_dto(summary)
-    #     timeline_entries.append(TimelineEntrySummary(summary=summary_dto))
+        current_position += 1
+    
+    # Check for any remaining summaries that should be at the end
+    while current_position in summary_map:
+        summary = summary_map[current_position]
+        summary_dto = convert_summary_to_dto(summary)
+        timeline_entries.append(TimelineEntrySummary(summary=summary_dto))
+        current_position += 1
 
     total_items = len(timeline_entries)
 

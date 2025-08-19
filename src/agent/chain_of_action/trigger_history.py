@@ -77,8 +77,11 @@ class TriggerHistory:
         count = len(self.entries)
         if self.summaries:
             # Show all entries after the last summary
+            # insert_at_index includes UI offset (1 + len(summaries)), 
+            # but we only want to subtract the actual entries summarized
             last_summary_index = self.summaries[-1].insert_at_index
-            count -= last_summary_index
+            entries_summarized = last_summary_index - len(self.summaries)
+            count -= entries_summarized
         return self.entries[-count:] if count > 0 else self.entries.copy()
 
     def get_entries_before_index(self, end_index: int) -> List[TriggerHistoryEntry]:

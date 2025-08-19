@@ -3,11 +3,11 @@ import { ClientAgentEvent } from "./useWebSocket";
 import { useTriggerEvents } from "./useTriggerEvents";
 import { useTimelineHistory } from "./useTimelineHistory";
 import { AgentClient } from "../client";
-import { TriggerHistoryEntry, ContextInfo } from "../types";
+import { TimelineEntry, TimelineEntryTrigger, ContextInfo } from "../types";
 
 export interface UseTimelineReturn {
   // Combined timeline data
-  triggerEntries: TriggerHistoryEntry[];
+  triggerEntries: TimelineEntry[];
   
   // Stream state
   isStreamActive: boolean;
@@ -34,14 +34,22 @@ export function useTimeline(client: AgentClient, events: ClientAgentEvent[]): Us
   
   // Combine historical + streaming entries
   const combinedEntries = useMemo(() => {
-    const combined = [...historyData.entries, ...streamingData.streamingEntries];
+    // Convert streaming trigger entries to timeline entries
+    const streamingTimelineEntries: TimelineEntry[] = streamingData.streamingEntries.map(entry => ({
+      type: "trigger" as const,
+      entry
+    }));
     
-    // Debug: check for duplicates
-    const entryIds = combined.map(e => e.entry_id);
+    const combined = [...historyData.entries, ...streamingTimelineEntries];
+    
+    // Debug: check for duplicates by extracting entry_id from TimelineEntry
+    const entryIds = combined
+      .filter((e): e is TimelineEntryTrigger => e.type === "trigger")
+      .map(e => e.entry.entry_id);
     const duplicates = entryIds.filter((id, index) => entryIds.indexOf(id) !== index);
     if (duplicates.length > 0) {
       console.warn('Duplicate entry IDs found:', duplicates);
-      console.log('Historical entries:', historyData.entries.map(e => e.entry_id));
+      console.log('Historical trigger entries:', historyData.entries.filter((e): e is TimelineEntryTrigger => e.type === "trigger").map(e => e.entry.entry_id));
       console.log('Streaming entries:', streamingData.streamingEntries.map(e => e.entry_id));
     }
     
