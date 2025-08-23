@@ -28,7 +28,7 @@ class ThinkInput(BaseModel):
     """Input for THINK action"""
 
     focus: str = Field(
-        description="What I want to think about or analyze - emotional elements, relationship dynamics, or particular details"
+        description="Specific topic or question to think through (e.g., 'How to best support them during their stressful week', 'Whether to share my creative idea or wait', 'What this change means for my priorities') - NOT generic like 'emotional elements'"
     )
 
 
@@ -39,7 +39,7 @@ class ThinkAction(BaseAction[ThinkInput, None]):
 
     @classmethod
     def get_action_description(cls) -> str:
-        return "Process emotional reactions and analyze the situation"
+        return "Think through a specific question, decision, or situation that needs internal processing"
 
     @classmethod
     def get_input_type(cls) -> Type[ThinkInput]:
