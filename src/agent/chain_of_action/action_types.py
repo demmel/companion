@@ -17,13 +17,13 @@ class ActionType(str, Enum):
     # ADD_MEMORY = "add_memory"          # Store important details
     # REMOVE_MEMORY = "remove_memory"    # Forget specific memories
     # UPDATE_ENVIRONMENT = "update_environment"  # Setting changes
-    ADD_PRIORITY = "add_priority"        # Add new priority
+    ADD_PRIORITY = "add_priority"  # Add new priority
     REMOVE_PRIORITY = "remove_priority"  # Remove/complete priority
 
     # Communication Actions
     SPEAK = "speak"  # Generate conversational response
 
-    # Information Actions  
+    # Information Actions
     FETCH_URL = "fetch_url"  # Fetch and analyze content from a web URL
 
     # Meta Actions

@@ -88,7 +88,7 @@ class TriggerHistory:
         if not self.summaries:
             # No summaries, so no "old" entries - everything is recent
             return []
-        
+
         # Get entries before the last summary cutoff
         last_summary_index = self.summaries[-1].insert_at_index
         entries_summarized = last_summary_index - len(self.summaries)

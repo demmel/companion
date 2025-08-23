@@ -21,7 +21,9 @@ class InitialStateDerivation(BaseModel):
         description="3-5 core values that define my personality"
     )
 
-    priorities: List[str] = Field(description="3-4 things I want to focus on and prioritize")
+    priorities: List[str] = Field(
+        description="3-4 things I want to focus on and prioritize"
+    )
 
     preferred_appearance: str = Field(
         description="Detailed first-person visual description of how I would appear (include specific clothing, colors, textures, hair, accessories, pose). Example: 'I'm wearing a flowing dress with...' Use first-person language throughout."
@@ -83,7 +85,7 @@ This is character configuration, not conversation or roleplay."""
     priorities = []
     for i, priority_content in enumerate(derivation.priorities, 1):
         priorities.append(Priority(id=f"p{i}", content=priority_content))
-    
+
     initial_state = State(
         name=derivation.name,
         current_mood=derivation.initial_mood,
@@ -123,7 +125,9 @@ def test_state_derivation():
                 f"Mood: {initial_state.current_mood} ({initial_state.mood_intensity})"
             )
             print(f"Values: {initial_state.core_values}")
-            print(f"Priorities: {[p.content for p in initial_state.current_priorities]}")
+            print(
+                f"Priorities: {[p.content for p in initial_state.current_priorities]}"
+            )
             print(f"Appearance: {initial_state.current_appearance}")
             print(f"Environment: {initial_state.current_environment}")
 

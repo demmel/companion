@@ -283,26 +283,26 @@ I will write this in my natural voice as part of my ongoing stream of consciousn
         # Continue without compression rather than failing
 
 
-
-
 def _extract_memory_embedding(trigger_entry):
     """Extract embedding vector from a trigger entry for memory similarity"""
     from agent.chain_of_action.prompts import format_single_trigger_entry
     from agent.memory.embedding_service import get_embedding_service
-    
+
     try:
         # Format the full trigger entry for embedding
         full_entry_text = format_single_trigger_entry(trigger_entry)
-        
+
         # Get embedding service and generate embedding
         embedding_service = get_embedding_service()
         embedding_vector = embedding_service.encode(full_entry_text)
-        
+
         # Store embedding in trigger entry
         trigger_entry.embedding_vector = embedding_vector
-        
-        logger.info(f"Generated embedding vector ({len(embedding_vector)} dimensions) for memory")
-        
+
+        logger.info(
+            f"Generated embedding vector ({len(embedding_vector)} dimensions) for memory"
+        )
+
     except Exception as e:
         logger.warning(f"Failed to extract memory embedding: {e}")
         # Continue without embedding rather than failing
