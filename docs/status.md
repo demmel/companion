@@ -252,41 +252,6 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 
 **Location**: Action planning system, `src/agent/chain_of_action/action_planner.py`
 
-### #15: Generic "Emotional Elements" Context for Think Actions
-
-**Problem**: Action planner provides generic "emotional elements" context for think actions in vast majority of cases, failing to give specific guidance about what the agent should focus on thinking about.
-
-**Investigation Results**:
-
-- ❌ **CONFIRMED**: 90%+ of think actions receive generic "emotional elements" context
-- ❌ **CONFIRMED**: Lack of specific thinking guidance reduces thought quality and relevance
-- ✅ **Occasional Success**: Rare specific contexts like "How to best support him during his workday" produce much better thinking
-- 📁 **Pattern**: Default fallback to generic context instead of situation-specific thinking prompts
-
-**Root Cause**: Action planner defaults to lazy generic context instead of analyzing what the agent should specifically be thinking about in each situation.
-
-**Impact**:
-
-- Reduced thinking quality due to vague prompting
-- Missed opportunities for targeted, relevant thoughts
-- Generic thinking that doesn't address specific situational needs
-- Poor connection between thinking context and actual conversation/situation demands
-
-**Examples**:
-
-- **Generic (Common)**: "emotional elements"
-- **Specific (Rare)**: "How to create a fashion design that reflects my style and his preferences"
-- **Specific (Rare)**: "How to best support him during his workday, especially if he goes on call"
-
-**Proposed Solutions**:
-
-1. **Context Analysis**: Improve planner's ability to identify what specifically needs thinking about
-2. **Situation-Specific Prompts**: Generate thinking contexts based on conversation content and agent's current priorities
-3. **Fallback Improvement**: Even generic contexts should be more specific than "emotional elements"
-4. **Template System**: Use context templates for common thinking scenarios instead of generic fallback
-
-**Location**: Action planning system, think action context generation
-
 ### #16: Multi-Action Image Generation Coordination - Update Environment Design
 
 **Problem**: Implementing `update_environment` action creates complex image generation coordination when both `update_appearance` and `update_environment` are in the same action sequence - each should generate images individually, but together should produce one combined image.
