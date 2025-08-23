@@ -6,54 +6,6 @@ This document tracks current implementation status, identified problems, and inv
 
 Based on conversation analysis from `conversations/conversation_20250810_012344_749610_*.json`, several critical agent behavior flaws have been identified:
 
-### #3: Intent-Based vs Verbatim Communication in Speak Action
-
-**Problem**: Action planner passes exact phrasing to speak action instead of intent, and speak action outputs verbatim without elaborating or incorporating tone.
-
-**Investigation Results**:
-
-- ❌ **CONFIRMED**: Action planner generates full responses, not intents
-- ❌ **CONFIRMED**: Speak action mostly uses verbatim text with minor additions
-- 📁 **Example**: Planner passes `"How does this system work? I'd love to understand..."` (full response)
-- 📁 **Should be**: Planner passes `"express curiosity about how priority system works"` (intent)
-- 🎭 Speak action adds flowery openings but core content remains verbatim
-
-**Root Cause**: Action planner is doing response generation work instead of intent planning, leaving speak action with little room for natural elaboration.
-
-**Proposed Solutions**:
-
-1. **Redesign Action Planning**: Planner should generate high-level intents, not full responses
-2. **Enhance Speak Action**: Give speak action responsibility for natural language generation from intents
-3. **Intent-Based Schema**: Update `SpeakInput.content` description to emphasize intent over verbatim text
-
-**Current Implementation Analysis**:
-Looking at `src/agent/chain_of_action/actions/speak_action.py`:
-
-```python
-class SpeakInput(BaseModel):
-    content: str = Field(
-        description="What I want to express or communicate - my thoughts, feelings, questions, or responses to share"
-    )
-    tone: Optional[str] = Field(
-        default=None,
-        description="The emotional tone or approach I want to use (optional)",
-    )
-```
-
-The current design expects "content" to be intent-based ("what I want to express") but the action planner may be passing literal phrasing instead.
-
-**Investigation Needed**:
-
-- How does the action planner generate SpeakInput content?
-- Should the speak action elaborate on brief intents?
-- How should tone instructions be integrated into the response?
-
-**Potential Solutions**:
-
-- Modify action planner to pass high-level intent rather than specific phrasing
-- Update speak action to elaborate on intent-based content
-- Improve tone integration to avoid spillage
-
 ### #6: Image Generation Model Limitations and Failure Recovery
 
 **Problem**: SDXL fails to generate complex geometric patterns despite detailed prompts, but the agent has no mechanism to detect failures, switch strategies, or communicate limitations to the user.
@@ -223,38 +175,6 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: `src/agent/tools/image_generation_tools.py`
 
-### #12: Context Usage Spikes Above 100% After Summarization
-
-**Problem**: Frontend shows context usage spiking to very high percentages (>100%) for a few messages immediately after summarization, when it should actually decrease after summarization.
-
-**Investigation Results**:
-
-- ❌ **CONFIRMED**: Context usage jumps to unrealistic high values right after summarization
-- ❌ **TIMING**: Issue appears in the first few messages after summarization completes
-- 🤔 **UNCLEAR**: Whether this is actual context usage or a calculation bug
-- 📁 **Expected**: Context usage should drop significantly after summarization, not spike
-
-**Root Cause**: Likely a bug in context calculation logic, either:
-
-1. Summarization process temporarily inflates context size calculations
-2. Context estimation doesn't account for summarized vs full history properly
-3. Frontend receiving incorrect context data from backend
-
-**Impact**:
-
-- Confusing/misleading context usage display for users
-- Potential false alarms about context limits
-- Unclear whether actual context usage is problematic or just calculation
-
-**Investigation Needed**:
-
-1. Check if backend `get_context_info()` returns correct values post-summarization
-2. Verify frontend context display logic handles summarization transitions
-3. Compare actual prompt sizes vs estimated context usage after summarization
-4. Determine if issue is calculation bug or actual context bloat
-
-**Location**: Context calculation logic, frontend context display
-
 ### #13: Trigger Summarization Loses Critical Details for Coherence
 
 **Problem**: Agent summarization of trigger entries loses critical details needed for referencing previous actions, thoughts, and statements, harming coherence in follow-up interactions.
@@ -290,7 +210,7 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: Trigger summarization system, `conversations/baseline_triggers.json` for examples
 
-### #13: Action Planning Context Staleness - Batch vs Single Planning Tradeoff
+### #14: Action Planning Context Staleness - Batch vs Single Planning Tradeoff
 
 **Problem**: Batch action planning (e.g., "think -> update_appearance") requires planning all action inputs upfront, preventing later actions from incorporating context discovered during earlier action execution.
 
@@ -332,7 +252,7 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: Action planning system, `src/agent/chain_of_action/action_planner.py`
 
-### #14: Generic "Emotional Elements" Context for Think Actions
+### #15: Generic "Emotional Elements" Context for Think Actions
 
 **Problem**: Action planner provides generic "emotional elements" context for think actions in vast majority of cases, failing to give specific guidance about what the agent should focus on thinking about.
 
@@ -367,7 +287,7 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: Action planning system, think action context generation
 
-### #15: Multi-Action Image Generation Coordination - Update Environment Design
+### #16: Multi-Action Image Generation Coordination - Update Environment Design
 
 **Problem**: Implementing `update_environment` action creates complex image generation coordination when both `update_appearance` and `update_environment` are in the same action sequence - each should generate images individually, but together should produce one combined image.
 
@@ -414,7 +334,7 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: Future `update_environment` action design, relationship with `update_appearance`
 
-### #16: Action Planning/Execution Abstraction - Combining Planned Actions
+### #17: Action Planning/Execution Abstraction - Combining Planned Actions
 
 **Problem**: Need to decouple agent's logical action planning from optimized execution strategies, allowing multiple planned actions to be combined into efficient execution units while maintaining clean agent reasoning and frontend presentation.
 
@@ -470,7 +390,7 @@ The current design expects "content" to be intent-based ("what I want to express
 
 **Location**: Action execution pipeline, future `update_environment` implementation
 
-### #17: Multi-Pass URL Content Reading for Long Articles
+### #18: Multi-Pass URL Content Reading for Long Articles
 
 **Problem**: Many web articles exceed the 55kb context budget but contain valuable information throughout. Current single-pass reading truncates long articles mid-content, losing important details that appear later in comprehensive guides.
 
