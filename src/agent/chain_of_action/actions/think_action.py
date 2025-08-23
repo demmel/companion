@@ -12,7 +12,8 @@ from agent.chain_of_action.trigger_history import TriggerHistory
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..context import ActionResult, ExecutionContext
+from ..action_result import ActionResult
+from ..context import ExecutionContext
 from ..action_plan import ActionPlan
 from ..trigger import format_trigger_for_prompt
 from ..action_events import ThinkProgressData
@@ -58,7 +59,11 @@ class ThinkAction(BaseAction[ThinkInput, None]):
         model: SupportedModel,
         progress_callback,
     ) -> ActionResult:
-        from agent.chain_of_action.prompts import format_section, format_trigger_history, build_temporal_context
+        from agent.chain_of_action.prompts import (
+            format_section,
+            format_trigger_history,
+            build_temporal_context,
+        )
 
         start_time = time.time()
 
@@ -68,11 +73,25 @@ class ThinkAction(BaseAction[ThinkInput, None]):
         trigger_description = format_trigger_for_prompt(context.trigger)
 
         sections = []
-        
+
         # Add temporal context first
         temporal_context = build_temporal_context(trigger_history)
         sections.append(format_section("TIME CONTEXT", temporal_context))
-        
+
+        # Add summary if available
+        summary = trigger_history.get_recent_summary()
+        if summary:
+            sections.append(
+                format_section("SUMMARY OF MY EXPERIENCES", summary.summary_text)
+            )
+
+        # Add relevant memories if available
+        if context.relevant_memories:
+            from agent.chain_of_action.prompts import format_trigger_entries
+
+            relevant_memories_text = format_trigger_entries(context.relevant_memories)
+            sections.append(format_section("RELEVANT MEMORIES", relevant_memories_text))
+
         if history_str:
             sections.append(format_section("MY STREAM OF CONSCIOUSNESS", history_str))
         sections.append(format_section("WHAT JUST HAPPENED", trigger_description))

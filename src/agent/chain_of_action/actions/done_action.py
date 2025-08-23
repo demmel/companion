@@ -12,7 +12,8 @@ from agent.chain_of_action.trigger_history import TriggerHistory
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..context import ActionResult, ExecutionContext
+from ..action_result import ActionResult
+from ..context import ExecutionContext
 from ..action_plan import ActionPlan
 
 from agent.state import State

@@ -4,7 +4,7 @@ Event system for chain_of_action streaming.
 
 from pydantic import BaseModel
 from .action_types import ActionType
-from .context import ActionResult
+from .action_result import ActionResult
 
 
 class ActionEvent(BaseModel):

@@ -6,7 +6,7 @@ from typing import Protocol, Optional, Any
 
 from agent.chain_of_action.trigger import BaseTriger
 from .action_types import ActionType
-from .context import ActionResult
+from .action_result import ActionResult
 
 
 class ActionCallback(Protocol):

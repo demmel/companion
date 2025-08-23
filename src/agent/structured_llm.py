@@ -111,7 +111,7 @@ class StructuredLLMClient:
                     raise StructuredLLMError("LLM response is empty")
 
                 # Log raw response for debugging
-                logger.info("Raw LLM response:\n%s", response_text)
+                logger.debug("Raw LLM response:\n%s", response_text)
 
                 # Parse response based on format
                 if format == ResponseFormat.JSON:
@@ -479,7 +479,7 @@ def direct_structured_llm_call(
                 raise StructuredLLMError("LLM response is empty")
 
             # Log raw response for debugging
-            logger.info("Raw LLM response (direct generation):\n%s", response_text)
+            logger.debug("Raw LLM response (direct generation):\n%s", response_text)
 
             # Parse response based on format
             if format == ResponseFormat.JSON:

@@ -17,7 +17,8 @@ from agent.chain_of_action.trigger_history import TriggerHistory
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..context import ActionResult, ExecutionContext
+from ..action_result import ActionResult
+from ..context import ExecutionContext
 
 from agent.state import State
 from agent.llm import LLM, SupportedModel
@@ -97,40 +98,63 @@ class FetchUrlAction(BaseAction[FetchUrlInput, None]):
             # Parse HTML and extract clean content
             try:
                 soup = BeautifulSoup(response.text, "html.parser")
-                
+
                 # Remove non-content elements (navigation, headers, footers, ads)
                 unwanted_selectors = [
-                    'nav', 'header', 'footer', 
-                    '.navigation', '.nav', '.menu', '.header', '.footer',
-                    '.sidebar', '.aside', '.widget', '.ad', '.ads', '.advertisement',
-                    '[role="navigation"]', '[role="banner"]', '[role="contentinfo"]',
-                    '#header', '#footer', '#nav', '#navigation', '#sidebar',
-                    '.site-header', '.site-footer', '.main-navigation'
+                    "nav",
+                    "header",
+                    "footer",
+                    ".navigation",
+                    ".nav",
+                    ".menu",
+                    ".header",
+                    ".footer",
+                    ".sidebar",
+                    ".aside",
+                    ".widget",
+                    ".ad",
+                    ".ads",
+                    ".advertisement",
+                    '[role="navigation"]',
+                    '[role="banner"]',
+                    '[role="contentinfo"]',
+                    "#header",
+                    "#footer",
+                    "#nav",
+                    "#navigation",
+                    "#sidebar",
+                    ".site-header",
+                    ".site-footer",
+                    ".main-navigation",
                 ]
-                
+
                 elements_removed = 0
                 for selector in unwanted_selectors:
                     for element in soup.select(selector):
                         element.decompose()  # Remove from soup
                         elements_removed += 1
-                
+
                 logger.debug(f"Removed {elements_removed} non-content elements")
-                
+
                 # Get remaining body content
-                body = soup.find('body')
+                body = soup.find("body")
                 if body:
                     content_html = str(body)
                 else:
                     content_html = str(soup)
-                
+
                 # Convert to markdown for cleaner structure
                 content_markdown = md(content_html, heading_style="ATX")
-                
+
                 # Remove large base64 images to save space for actual content
-                content = re.sub(r'data:[^)]{100,}', '[large-image-removed]', content_markdown)
-                
-                logger.debug(f"Extracted content: {len(content)} chars after processing")
-                
+                content = re.sub(
+                    r"data:[^)]{100,}", "[large-image-removed]", content_markdown
+                )
+
+                logger.debug(
+                    f"Extracted content: {len(content)} chars after processing"
+                )
+
             except Exception as parse_error:
                 logger.warning(f"HTML parsing failed, using raw text: {parse_error}")
                 content = response.text

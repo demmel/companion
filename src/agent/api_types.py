@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from agent.chain_of_action.actions.update_appearance_action import (
     UpdateAppearanceActionMetadata,
 )
-from agent.chain_of_action.context import ActionResult
+from agent.chain_of_action.action_result import ActionResult
 
 
 # Trigger DTOs
@@ -317,10 +317,8 @@ def convert_action_to_dto(action: ActionResult) -> ActionDTO:
         context_parts = action.context_given.split(", looking_for: ")
         url = context_parts[0].replace("url: ", "")
         looking_for = context_parts[1] if len(context_parts) > 1 else ""
-        
-        return FetchUrlActionDTO(
-            **base_data, url=url, looking_for=looking_for
-        )
+
+        return FetchUrlActionDTO(**base_data, url=url, looking_for=looking_for)
     else:
         raise ValueError(f"Unsupported action type: {action.action}")
 
@@ -347,14 +345,14 @@ def convert_trigger_history_entry_to_dto(entry) -> TriggerHistoryEntryDTO:
 # Timeline pagination types
 class TimelineEntryTrigger(BaseModel):
     """Timeline entry for a trigger (complete trigger-response pair)"""
-    
+
     type: Literal["trigger"] = "trigger"
     entry: TriggerHistoryEntryDTO
 
 
 class TimelineEntrySummary(BaseModel):
     """Timeline entry for a summary"""
-    
+
     type: Literal["summary"] = "summary"
     summary: SummaryDTO
 
@@ -365,7 +363,7 @@ TimelineEntry = Union[TimelineEntryTrigger, TimelineEntrySummary]
 
 class PaginationInfo(BaseModel):
     """Pagination information for timeline responses"""
-    
+
     total_items: int
     page_size: int
     has_next: bool
@@ -376,6 +374,6 @@ class PaginationInfo(BaseModel):
 
 class TimelineResponse(BaseModel):
     """Response model for paginated timeline data"""
-    
+
     entries: List[TimelineEntry]
     pagination: PaginationInfo

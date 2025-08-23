@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 
-from agent.chain_of_action.context import ActionResult
+from agent.chain_of_action.action_result import ActionResult
 from agent.chain_of_action.trigger import BaseTriger, format_trigger_for_prompt
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
@@ -239,6 +239,7 @@ def build_action_planning_prompt(
     completed_actions: List[ActionResult],
     trigger_history: TriggerHistory,
     registry: ActionRegistry,
+    relevant_memories: List[TriggerHistoryEntry],
 ) -> str:
     """Build the action planning prompt"""
     actions_list = registry.get_available_actions_for_prompt()
@@ -267,6 +268,16 @@ def build_action_planning_prompt(
             format_section(
                 "SUMMARY OF MY EXPERIENCES",
                 summary.summary_text,
+            )
+        )
+
+    # Add relevant memories section
+    if relevant_memories:
+        relevant_memories_text = format_trigger_entries(relevant_memories)
+        sections.append(
+            format_section(
+                "RELEVANT MEMORIES",
+                relevant_memories_text,
             )
         )
 
@@ -330,6 +341,77 @@ Then I'll decide what actions to take based on my situation analysis and values:
 IMPORTANT: I must end my action sequence with wait to signal that I'm finished and ready for something else to happen. If I've already asked a question or made a conversational move, I should consider whether I need to wait for their response rather than piling on more questions.
 
 Each action should have specific context about what to focus on - even the wait action should include context about what I'm waiting for or why I'm choosing to wait. I'll plan actions that feel natural and genuine to my current state of mind."""
+
+
+def build_memory_extraction_prompt(
+    state: State,
+    trigger: BaseTriger,
+    trigger_history: TriggerHistory,
+) -> str:
+    """Build prompt for extracting memory queries from current context"""
+    state_desc = build_agent_state_description(state)
+    temporal_context = build_temporal_context(trigger_history)
+    trigger_description = format_trigger_for_prompt(trigger)
+
+    sections = []
+
+    # Add temporal context
+    sections.append(
+        format_section(
+            "TIME CONTEXT",
+            temporal_context,
+        )
+    )
+
+    # Add summary if available
+    summary = trigger_history.get_recent_summary()
+    if summary:
+        sections.append(
+            format_section(
+                "SUMMARY OF MY EXPERIENCES",
+                summary.summary_text,
+            )
+        )
+
+    # Add stream of consciousness
+    trigger_history_text = format_trigger_history(trigger_history)
+    if trigger_history_text:
+        sections.append(
+            format_section(
+                "MY STREAM OF CONSCIOUSNESS",
+                trigger_history_text,
+            )
+        )
+
+    # Add current trigger
+    sections.append(
+        format_section(
+            "WHAT I'M REACTING TO",
+            trigger_description,
+        )
+    )
+
+    return f"""I am {state.name}, analyzing my current situation to determine what past memories might be relevant.
+
+{state_desc}
+
+{"\n".join(sections)}
+
+**MEMORY QUERY ANALYSIS:**
+
+Based on my current context, what would help me find relevant past memories?
+
+Guidelines for conceptual_query:
+- Write a natural language description of what memories would be relevant
+- Describe the topics, themes, or experiences that would be helpful to recall
+- Think about what past conversations or situations would inform my response
+- Be specific enough to find relevant memories but broad enough to catch related experiences
+
+Guidelines for time_query:
+- Only include time constraints if there's a clear temporal aspect
+- Use relative time format: -1d, -3d, -1w, -1m for past times, "now" for current time
+- Use absolute time format: 2024-01-15T10:30:00 for specific dates/times
+- Set time fields to null if no time constraint is needed"""
 
 
 def format_section(title: str, content: str, separator: str = "=" * 80) -> str:

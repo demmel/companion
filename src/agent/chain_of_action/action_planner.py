@@ -5,8 +5,8 @@ Action planner for generating action sequences from triggers.
 import logging
 from typing import List
 
-from agent.chain_of_action.context import ActionResult
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.action_result import ActionResult
+from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 
 from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
@@ -33,6 +33,7 @@ class ActionPlanner:
         trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
+        relevant_memories: List[TriggerHistoryEntry],
     ) -> ActionSequence:
         """Plan a sequence of actions to respond to the trigger"""
 
@@ -45,6 +46,7 @@ class ActionPlanner:
             completed_actions=completed_actions,
             trigger_history=trigger_history,
             registry=self.registry,
+            relevant_memories=relevant_memories,
         )
 
         max_retries = 2

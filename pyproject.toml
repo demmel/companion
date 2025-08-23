@@ -30,6 +30,7 @@ dependencies = [
     "diffusers>=0.34.0",
     "beautifulsoup4>=4.13.4",
     "markdownify>=1.2.0",
+    "sentence-transformers>=5.1.0",
 ]
 
 [tool.uv.sources]

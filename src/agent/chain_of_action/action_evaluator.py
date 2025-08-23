@@ -10,7 +10,7 @@ from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.prompts import build_completed_action_list
 from agent.chain_of_action.trigger import format_trigger_for_prompt
 
-from .context import ActionResult
+from .action_result import ActionResult
 from .action_plan import ActionPlan
 from ..structured_llm import direct_structured_llm_call
 

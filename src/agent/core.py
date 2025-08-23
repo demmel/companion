@@ -15,7 +15,7 @@ from agent.api_types import (
     convert_trigger_to_dto,
 )
 from agent.chain_of_action.action_types import ActionType
-from agent.chain_of_action.context import ActionResult
+from agent.chain_of_action.action_result import ActionResult
 from agent.chain_of_action.trigger import UserInputTrigger
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.llm import LLM, SupportedModel
@@ -172,6 +172,9 @@ class Agent:
                 completed_actions=[],  # Empty for estimation
                 trigger_history=self.trigger_history,
                 registry=self.action_reasoning_loop.registry,
+                relevant_memories=self.trigger_history.get_recent_entries()[
+                    -5:
+                ],  # Use last 5 entries for estimation
             )
 
             # Calculate total prompt size
@@ -811,8 +814,11 @@ def summarize_trigger_history(
         return ""
 
     # Use 25% of context window for summary
-    available_chars = int((llm.models[model].context_window * 0.25) * llm.models[model].estimated_token_size)
-    
+    available_chars = int(
+        (llm.models[model].context_window * 0.25)
+        * llm.models[model].estimated_token_size
+    )
+
     summarization_prompt = build_summarization_prompt(
         old_summary, entries_to_summarize, state, available_chars
     )

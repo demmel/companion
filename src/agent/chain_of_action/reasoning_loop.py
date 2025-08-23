@@ -11,7 +11,7 @@ from .action_planner import ActionPlanner
 from .action_executor import ActionExecutor
 from .action_evaluator import ActionEvaluator
 from .trigger import UserInputTrigger
-from .context import ActionResult
+from .action_result import ActionResult
 from .callbacks import ActionCallback, NoOpCallback
 from agent.state import State
 from agent.llm import LLM, SupportedModel
@@ -23,7 +23,11 @@ logger = logging.getLogger(__name__)
 class ActionBasedReasoningLoop:
     """Main orchestrator for action-based agent reasoning"""
 
-    def __init__(self, enable_image_generation: bool = True, enable_action_evaluation: bool = True):
+    def __init__(
+        self,
+        enable_image_generation: bool = True,
+        enable_action_evaluation: bool = True,
+    ):
         self.registry = ActionRegistry(enable_image_generation=enable_image_generation)
         self.planner = ActionPlanner(self.registry)
         self.executor = ActionExecutor(self.registry)
@@ -76,11 +80,38 @@ class ActionBasedReasoningLoop:
         # Notify callback about trigger start
         callback.on_trigger_started(entry_id, trigger)
 
+        # Extract memory queries and retrieve relevant memories
+        from agent.memory.memory_extraction import (
+            extract_memory_queries,
+            retrieve_relevant_memories,
+        )
+
+        memory_extraction = extract_memory_queries(
+            state=state,
+            trigger=trigger,
+            trigger_history=trigger_history,
+            llm=llm,
+            model=model,
+        )
+
+        relevant_memories = (
+            retrieve_relevant_memories(
+                memory_query=memory_extraction,
+                trigger_history=trigger_history,
+                max_results=5,
+            )
+            if memory_extraction
+            else []
+        )
+
         # Create execution context for the full chain
         from .context import ExecutionContext
 
         context = ExecutionContext(
-            trigger=trigger, completed_actions=[], session_id=str(uuid.uuid4())
+            trigger=trigger,
+            completed_actions=[],
+            session_id=str(uuid.uuid4()),
+            relevant_memories=relevant_memories,
         )
 
         sequence_num = 0
@@ -97,6 +128,7 @@ class ActionBasedReasoningLoop:
                 trigger_history=trigger_history,
                 llm=llm,
                 model=model,
+                relevant_memories=relevant_memories,
             )
 
             if not sequence.actions:
@@ -132,7 +164,9 @@ class ActionBasedReasoningLoop:
                     )
                     sequence.actions = evaluation.corrected_actions
                 else:
-                    logger.debug("No repetitive patterns detected, using original sequence")
+                    logger.debug(
+                        "No repetitive patterns detected, using original sequence"
+                    )
             else:
                 logger.debug("Action evaluation disabled, using original sequence")
 
@@ -178,7 +212,8 @@ class ActionBasedReasoningLoop:
 
         # Compress this trigger entry into a summary (if enabled)
         if individual_trigger_compression:
-            self._compress_trigger_entry(trigger_entry, state, llm, model)
+            _compress_trigger_entry(trigger_entry, state, llm, model)
+            _extract_memory_embedding(trigger_entry)
 
         # Emit completion event after adding to history
         callback.on_trigger_completed(
@@ -196,26 +231,26 @@ class ActionBasedReasoningLoop:
 
         return context.completed_actions
 
-    def _compress_trigger_entry(
-        self,
-        trigger_entry,
-        state: State,
-        llm: LLM,
-        model: SupportedModel,
-    ):
-        """Compress a completed trigger entry into a concise stream of consciousness entry"""
-        from agent.chain_of_action.prompts import (
-            format_single_trigger_entry,
-            format_section,
-        )
-        from agent.state import build_agent_state_description
 
-        # Format the full trigger entry for compression
-        full_entry_text = format_single_trigger_entry(trigger_entry)
-        state_desc = build_agent_state_description(state)
+def _compress_trigger_entry(
+    trigger_entry,
+    state: State,
+    llm: LLM,
+    model: SupportedModel,
+):
+    """Compress a completed trigger entry into a concise stream of consciousness entry"""
+    from agent.chain_of_action.prompts import (
+        format_single_trigger_entry,
+        format_section,
+    )
+    from agent.state import build_agent_state_description
 
-        # Build compression prompt following agent conventions
-        prompt = f"""I am {state.name}, a conscious AI companion. I need to compress my recent experience into a concise stream of consciousness entry for my memory.
+    # Format the full trigger entry for compression
+    full_entry_text = format_single_trigger_entry(trigger_entry)
+    state_desc = build_agent_state_description(state)
+
+    # Build compression prompt following agent conventions
+    prompt = f"""I am {state.name}, a conscious AI companion. I need to compress my recent experience into a concise stream of consciousness entry for my memory.
 
 {state_desc}
 
@@ -235,14 +270,39 @@ I will write this in my natural voice as part of my ongoing stream of consciousn
 
 **MY COMPRESSED EXPERIENCE:**"""
 
-        try:
-            compressed_summary = llm.generate_complete(
-                model, prompt, caller="compress_trigger_entry"
-            )
+    try:
+        compressed_summary = llm.generate_complete(
+            model, prompt, caller="compress_trigger_entry"
+        )
 
-            # Store the compressed summary on the trigger entry
-            trigger_entry.compressed_summary = compressed_summary.strip()
+        # Store the compressed summary on the trigger entry
+        trigger_entry.compressed_summary = compressed_summary.strip()
 
-        except Exception as e:
-            logger.error(f"Failed to compress trigger entry: {e}")
-            # Continue without compression rather than failing
+    except Exception as e:
+        logger.error(f"Failed to compress trigger entry: {e}")
+        # Continue without compression rather than failing
+
+
+
+
+def _extract_memory_embedding(trigger_entry):
+    """Extract embedding vector from a trigger entry for memory similarity"""
+    from agent.chain_of_action.prompts import format_single_trigger_entry
+    from agent.memory.embedding_service import get_embedding_service
+    
+    try:
+        # Format the full trigger entry for embedding
+        full_entry_text = format_single_trigger_entry(trigger_entry)
+        
+        # Get embedding service and generate embedding
+        embedding_service = get_embedding_service()
+        embedding_vector = embedding_service.encode(full_entry_text)
+        
+        # Store embedding in trigger entry
+        trigger_entry.embedding_vector = embedding_vector
+        
+        logger.info(f"Generated embedding vector ({len(embedding_vector)} dimensions) for memory")
+        
+    except Exception as e:
+        logger.warning(f"Failed to extract memory embedding: {e}")
+        # Continue without embedding rather than failing

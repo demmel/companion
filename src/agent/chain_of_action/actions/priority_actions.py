@@ -14,7 +14,8 @@ from agent.state import Priority
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..context import ActionResult, ExecutionContext
+from ..action_result import ActionResult
+from ..context import ExecutionContext
 
 from agent.state import State
 from agent.llm import LLM, SupportedModel
@@ -24,10 +25,17 @@ logger = logging.getLogger(__name__)
 
 class DuplicatePriorityCheck(BaseModel):
     """Result of checking if a priority is a duplicate"""
-    
-    is_duplicate: bool = Field(description="True if the new priority is a duplicate or very similar to an existing one")
-    existing_priority_id: Optional[str] = Field(default=None, description="The ID of the existing priority that this duplicates (if is_duplicate is True)")
-    reasoning: str = Field(description="Explanation of why this is or isn't a duplicate")
+
+    is_duplicate: bool = Field(
+        description="True if the new priority is a duplicate or very similar to an existing one"
+    )
+    existing_priority_id: Optional[str] = Field(
+        default=None,
+        description="The ID of the existing priority that this duplicates (if is_duplicate is True)",
+    )
+    reasoning: str = Field(
+        description="Explanation of why this is or isn't a duplicate"
+    )
 
 
 class AddPriorityInput(BaseModel):
@@ -58,13 +66,19 @@ class AddPriorityAction(BaseAction[AddPriorityInput, None]):
     action_type = ActionType.ADD_PRIORITY
 
     def _check_for_duplicate_priority(
-        self, new_priority: str, existing_priorities: list, llm: LLM, model: SupportedModel
+        self,
+        new_priority: str,
+        existing_priorities: list,
+        llm: LLM,
+        model: SupportedModel,
     ) -> DuplicatePriorityCheck:
         """Check if the new priority is a duplicate or very similar to existing ones"""
         from agent.structured_llm import direct_structured_llm_call
-        
-        existing_list = "\n".join([f"- {p.content} (id: {p.id})" for p in existing_priorities])
-        
+
+        existing_list = "\n".join(
+            [f"- {p.content} (id: {p.id})" for p in existing_priorities]
+        )
+
         prompt = f"""I'm considering adding a new priority: "{new_priority}"
 
 My current priorities are:
@@ -109,7 +123,7 @@ Is the new priority truly redundant (not just related) to any existing priority?
             return DuplicatePriorityCheck(
                 is_duplicate=False,
                 existing_priority_id=None,
-                reasoning="Could not perform duplicate check due to error"
+                reasoning="Could not perform duplicate check due to error",
             )
 
     @classmethod
@@ -145,11 +159,18 @@ Is the new priority truly redundant (not just related) to any existing priority?
             duplicate_check = self._check_for_duplicate_priority(
                 action_input.priority_content, state.current_priorities, llm, model
             )
-            
+
             if duplicate_check.is_duplicate:
                 duration_ms = (time.time() - start_time) * 1000
                 # Find the existing priority to get its content
-                existing_priority = next((p for p in state.current_priorities if p.id == duplicate_check.existing_priority_id), None)
+                existing_priority = next(
+                    (
+                        p
+                        for p in state.current_priorities
+                        if p.id == duplicate_check.existing_priority_id
+                    ),
+                    None,
+                )
                 if existing_priority:
                     return ActionResult(
                         action=ActionType.ADD_PRIORITY,
@@ -238,7 +259,9 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, None]):
             result_summary = f"Removed priority '{priority_found.content}' (id: {priority_found.id}) because {action_input.reason}"
             success = True
         else:
-            result_summary = f"Priority with ID '{action_input.priority_id}' not found to remove"
+            result_summary = (
+                f"Priority with ID '{action_input.priority_id}' not found to remove"
+            )
             success = False
 
         return ActionResult(

@@ -10,7 +10,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.trigger import BaseTriger, UserInputTrigger, Trigger
-from agent.chain_of_action.context import ActionResult
+from agent.chain_of_action.action_result import ActionResult
 from agent.chain_of_action.action_types import ActionType
 from agent.types import (
     Message,
@@ -39,9 +39,8 @@ class TriggerHistoryEntry(BaseModel):
     actions_taken: List[ActionResult] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)
     entry_id: str = Field(default_factory=lambda: str(datetime.now().timestamp()))
-    compressed_summary: Optional[str] = (
-        None  # Individual compressed summary for this trigger
-    )
+    compressed_summary: Optional[str] = Field(default=None)
+    embedding_vector: Optional[List[float]] = Field(default=None)
 
 
 class TriggerHistory:
@@ -77,12 +76,23 @@ class TriggerHistory:
         count = len(self.entries)
         if self.summaries:
             # Show all entries after the last summary
-            # insert_at_index includes UI offset (1 + len(summaries)), 
+            # insert_at_index includes UI offset (1 + len(summaries)),
             # but we only want to subtract the actual entries summarized
             last_summary_index = self.summaries[-1].insert_at_index
             entries_summarized = last_summary_index - len(self.summaries)
             count -= entries_summarized
         return self.entries[-count:] if count > 0 else self.entries.copy()
+
+    def get_old_entries(self) -> List[TriggerHistoryEntry]:
+        """Get entries that are not in the recent/stream of consciousness section"""
+        if not self.summaries:
+            # No summaries, so no "old" entries - everything is recent
+            return []
+        
+        # Get entries before the last summary cutoff
+        last_summary_index = self.summaries[-1].insert_at_index
+        entries_summarized = last_summary_index - len(self.summaries)
+        return self.entries[:entries_summarized]
 
     def get_entries_before_index(self, end_index: int) -> List[TriggerHistoryEntry]:
         """Get all entries before the specified index for summarization"""
