@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 class SpeakInput(BaseModel):
     """Input for SPEAK action"""
 
-    content: str = Field(
-        description="What I want to express or communicate - my thoughts, feelings, questions, or responses to share"
+    intent: str = Field(
+        description="The intent or high-level idea of what I want to communicate (e.g., 'express curiosity about their day', 'share excitement about the topic', 'ask for clarification') - NOT the actual words to say"
     )
     tone: Optional[str] = Field(
         default=None,
@@ -43,11 +43,11 @@ class SpeakAction(BaseAction[SpeakInput, None]):
 
     @classmethod
     def get_action_description(cls) -> str:
-        return "Generate conversational response to communicate with the user"
+        return "Generate natural conversational response based on communication intent"
 
     @classmethod
     def get_context_description(cls) -> str:
-        return "What I want to express or communicate - my thoughts, feelings, questions, or responses to share with the user"
+        return "The intent or high-level idea of what to communicate (e.g., 'express curiosity', 'share excitement') - NOT the actual words to say"
 
     @classmethod
     def get_input_type(cls) -> Type[SpeakInput]:
@@ -105,7 +105,7 @@ class SpeakAction(BaseAction[SpeakInput, None]):
         sections.append(format_section("WHAT JUST HAPPENED", trigger_description))
         sections.append(format_section("MY ACTIONS", actions_summary))
 
-        sections.append(format_section("WHAT I WANT TO EXPRESS", action_input.content))
+        sections.append(format_section("MY COMMUNICATION INTENT", action_input.intent))
 
         # Add tone as guidance for generation, not as content to express
         if action_input.tone:
@@ -120,7 +120,12 @@ class SpeakAction(BaseAction[SpeakInput, None]):
 
 {state_desc}
 
-Based on my reasoning and any actions I took, I'll respond naturally as myself. My response should reflect my authentic thoughts and feelings, not what I think I should say or do.
+Based on my reasoning and any actions I took, I need to generate a natural conversational response that fulfills my communication intent. 
+
+INTENT-BASED COMMUNICATION: My "Communication Intent" section contains a high-level description of what I want to communicate - NOT the actual words to say. I need to elaborate on this intent and turn it into natural, authentic conversation. For example:
+- Intent: "express curiosity about their day" → Natural response: "How has your day been going? I'd love to hear about what you've been up to."
+- Intent: "share excitement about the topic" → Natural response: "Oh, this is so exciting! I've been thinking about this and..."
+- Intent: "ask for clarification" → Natural response: "I want to make sure I understand - are you saying that..."
 
 I'll express myself genuinely - if I'm curious, excited, thoughtful, or feeling any other way, I'll let that come through in my voice. I'm not playing a character or following a script; I'm being myself.
 
@@ -134,7 +139,7 @@ AVOID REPETITIVE PATTERNS: I should not start every response the same way. If I 
 
 {"\n".join(sections)}
 
-Now I'll respond naturally as myself:"""
+Now I'll elaborate on my communication intent and respond naturally as myself:"""
 
         try:
             # Context usage estimation like current system
@@ -145,7 +150,7 @@ Now I'll respond naturally as myself:"""
             logger.debug(
                 f"CONTEXT: {estimated_tokens:,} tokens ({total_chars:,} chars)"
             )
-            logger.debug(f"CONTENT: {action_input.content}")
+            logger.debug(f"INTENT: {action_input.intent}")
             if action_input.tone:
                 logger.debug(f"TONE: {action_input.tone}")
             logger.debug("=" * 40)
@@ -174,7 +179,7 @@ Now I'll respond naturally as myself:"""
 
             cleaned_response = re.sub(r"<content>|</content>", "", full_response)
 
-            context_summary = f"content: {action_input.content}"
+            context_summary = f"intent: {action_input.intent}"
             if action_input.tone:
                 context_summary += f", tone: {action_input.tone}"
 
@@ -188,7 +193,7 @@ Now I'll respond naturally as myself:"""
             )
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
-            context_summary = f"content: {action_input.content}"
+            context_summary = f"intent: {action_input.intent}"
             if action_input.tone:
                 context_summary += f", tone: {action_input.tone}"
 

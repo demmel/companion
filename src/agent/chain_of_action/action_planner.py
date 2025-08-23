@@ -84,7 +84,7 @@ class ActionPlanner:
 
             # If validation successful, return result
             if not validation_errors:
-                logger.debug(f"PLANNED: {len(result.actions)} actions successfully")
+                logger.info(f"Actions Planned: {result.model_dump_json(indent=2)}")
                 return result
 
             # If we have retries left, update prompt and continue
