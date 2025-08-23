@@ -1,276 +1,298 @@
-# Agent Project - Modular AI Assistant
+# AI Agent System
 
-A modular AI agent system with both Python CLI and React web interfaces. Built with pluggable configurations, tools, and LLM backends supporting different agent types (roleplay, coding, general) through a clean configuration system.
+A sophisticated AI agent system built with a modern action-based architecture, featuring real-time streaming, intelligent memory management, and advanced image generation capabilities.
 
-## Features
+## 🌟 Key Features
 
-### Core System
-- **Modular Architecture**: Configuration-driven agent types with specialized prompts and tools
-- **Configurable Context Management**: Smart context window tracking with auto-summarization
-- **Advanced Tool System**: Pydantic-based tools with automatic schema generation
-- **Multiple Agent Types**: Roleplay, coding, and general-purpose configurations
-- **Dual Interfaces**: Rich CLI interface and modern React web client
-- **Real-time Streaming**: WebSocket-based streaming for both CLI and web clients
+### 🧠 Advanced Agent Architecture
+- **Action-Based Reasoning**: Structured action planning with think, speak, update_mood, update_appearance, and utility actions
+- **Intent-Based Communication**: Intelligent separation between high-level communication intents and natural language generation
+- **Trigger-Based History**: Stream-of-consciousness approach that tracks stimuli and responses rather than simple conversation turns
+- **Autonomous Decision Making**: Agent makes authentic choices based on values, priorities, and emotional state
 
-### Roleplay Agent
-- **Immersive Character Embodiment**: Full character consistency with personality, mood, and memory tracking
-- **Advanced State Management**: Per-character memories, relationships, and emotional states
-- **Visual Flair**: Emoji-enhanced responses with mood-based styling
-- **Multi-Character Support**: Switch between characters in single conversations
-- **Correction System**: User can correct established facts with automatic memory updates
-- **Scene Management**: Location, atmosphere, and time tracking
+### 🔮 Intelligent Memory System
+- **Semantic Memory Retrieval**: Embedding-based similarity search using sentence transformers for contextual memory recall
+- **Automatic Compression**: Intelligent summarization that preserves key details while maintaining emotional continuity  
+- **Long-Term Memory**: Persistent memory across sessions with efficient context management
+- **Memory-Augmented Responses**: Relevant past experiences automatically inform current interactions
 
-### Context Management
-- **Real-time Tracking**: Always-visible context window usage with color-coded warnings
-- **Intelligent Summarization**: Config-specific summarization strategies for different agent types
-- **Auto-management**: Automatic summarization when approaching context limits
-- **Configurable Windows**: Adjustable context window sizes for different models
+### 🎨 Advanced Image Generation
+- **SDXL Integration**: High-quality image generation with Stable Diffusion XL
+- **Intelligent Prompt Optimization**: Multi-chunk strategic prompt engineering for optimal attention control
+- **Civitai Model Support**: Compatible with custom models from Civitai
+- **Dynamic Visual Updates**: Agent can update appearance and environment contextually
 
-### LLM Support
-- **Ollama Integration**: Optimized local inference with smart parameter tuning
-- **Model Flexibility**: Easy model switching with automatic parameter adjustment
-- **Performance Tuning**: Temperature, sampling, and context settings optimized for coherence
+### ⚡ Real-Time Streaming
+- **WebSocket Communication**: Real-time bidirectional communication
+- **Streaming Events**: Live progress updates for actions, image generation, and thinking processes
+- **Background Processing**: Non-blocking architecture for responsive user experience
+- **Event-Driven Architecture**: Structured event system for frontend integration
 
-## Quick Start
+### 🌐 Modern Web Interface
+- **React Frontend**: Modern, responsive web interface built with React and TypeScript
+- **Real-Time Updates**: Live streaming of agent thoughts, actions, and responses
+- **Visual Timeline**: Interactive timeline showing agent's stream of consciousness
+- **Progress Indicators**: Real-time progress for image generation and long-running tasks
+
+## 🏗️ Architecture
+
+### Core Components
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Frontend (React)                        │
+├─────────────────────────────────────────────────────────────────┤
+│                      FastAPI Server                            │
+├─────────────────────────────────────────────────────────────────┤
+│  Agent Core  │  Action System  │  Memory System  │  LLM Client │
+├──────────────┼─────────────────┼─────────────────┼─────────────┤
+│ Trigger      │ Action Planner  │ Embedding       │ Ollama      │
+│ History      │ Action Registry │ Service         │ Client      │
+│ State Mgmt   │ Action Executor │ Similarity      │ Streaming   │
+│ Streaming    │ Base Actions    │ Retrieval       │ Generation  │
+└──────────────┴─────────────────┴─────────────────┴─────────────┘
+```
+
+### Action System
+The agent uses a structured action system where each action has:
+- **Specific Purpose**: Think, speak, update mood/appearance, manage priorities
+- **Typed Inputs**: Pydantic models with validation and clear descriptions  
+- **Context Awareness**: Access to full conversation history and relevant memories
+- **Progress Streaming**: Real-time updates during execution
+
+### Memory Architecture
+- **Trigger-Based Storage**: Each interaction stored as trigger + agent response
+- **Embedding Generation**: Automatic semantic embeddings for all interactions
+- **Similarity Search**: Cosine similarity matching for relevant memory retrieval
+- **Temporal Filtering**: Time-based memory filtering with relative and absolute queries
+- **Compression Pipeline**: Intelligent summarization preserving key details
+
+## 🚀 Getting Started
 
 ### Prerequisites
-
-1. **Install Ollama**: 
-   ```bash
-   curl -fsSL https://ollama.com/install.sh | sh
-   ```
-
-2. **Pull the recommended model**:
-   ```bash
-   ollama pull aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m
-   ```
+- Python 3.12+
+- Node.js 18+
+- CUDA-compatible GPU (recommended for image generation)
+- [Ollama](https://ollama.ai/) with supported models
 
 ### Installation
 
-1. Clone this repository
-2. Install dependencies:
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd agent
+   ```
+
+2. **Install Python dependencies**
    ```bash
    uv sync
    ```
 
-### Basic Usage
+3. **Install frontend dependencies**
+   ```bash
+   cd client
+   npm install
+   cd ..
+   ```
 
-```bash
-# Run with default roleplay agent
-uv run python main.py
+4. **Set up Ollama models**
+   ```bash
+   # Install recommended models
+   ollama pull mistral-small3.2:latest
+   ollama pull mistral-nemo:latest
+   ```
 
-# Check if model is available
-uv run python main.py --check
+5. **Optional: Set up image generation**
+   - Download SDXL-compatible models to `models/` directory
+   - Supported formats: `.safetensors` files from Civitai or Hugging Face
 
-# Use a different model
-uv run python main.py --model llama3.1:8b
+### Running the System
 
-# Enable verbose output
-uv run python main.py --verbose
+1. **Start the backend server**
+   ```bash
+   uv run python -m agent.api_server
+   ```
+   Server runs on `http://localhost:8000`
+
+2. **Start the frontend** (in a new terminal)
+   ```bash
+   cd client
+   npm run dev
+   ```
+   Frontend runs on `http://localhost:5173`
+
+3. **Access the application**
+   Open `http://localhost:5173` in your browser
+
+## 🎯 Usage Examples
+
+### Basic Interaction
+The agent responds naturally to conversation while maintaining internal state:
+```
+User: "I'm feeling overwhelmed with work lately."
+Agent: [thinks] How to best support them through this stressful period
+Agent: [speaks] I can hear the weight in your words. Work stress can be really draining...
+Agent: [updates mood] Concerned and supportive
 ```
 
-## Agent Types
-
-### Roleplay Agent (Default)
-Perfect for character-driven conversations and immersive storytelling:
-
+### Memory Integration
+The agent recalls relevant past conversations:
 ```
-You: Please roleplay as Elena, a mysterious vampire librarian
-Agent: [Uses assume_character tool automatically]
-
-🎭 **Elena** 😏 *(mysterious - moderate)*
-📍 *Ancient library filled with dusty tomes*
-
-*I look up from an ancient manuscript, my pale fingers tracing the faded text. The candlelight flickers across my sharp features as I notice your presence.*
-
-"Welcome to my sanctuary... Few mortals find their way here. Tell me, what knowledge do you seek in these forgotten halls?"
-
-*I close the book with a soft thud, my dark eyes studying you with centuries of wisdom behind them.*
+User: "Remember that project I mentioned last week?"
+Agent: [retrieves memories] "project discussion, work challenges, timeline concerns"
+Agent: [speaks] Yes, you were worried about the tight deadline and team coordination...
 ```
 
-### Context Display
-The CLI automatically shows context usage:
-- `Context: 2048/8192 tokens (25.0%)` - Green (healthy)
-- `Context: 5000/8192 tokens (61.0%)` - Yellow (moderate)
-- `⚠ Approaching context limit, auto-summarizing...` - Auto-management
+### Visual Updates
+The agent can generate contextual images:
+```
+User: "I'm redecorating my living room with a cozy theme."
+Agent: [thinks] How to reflect a warm, comfortable environment
+Agent: [updates appearance] *Generates image of agent in cozy sweater*
+Agent: [speaks] That sounds wonderful! I love creating warm, inviting spaces...
+```
 
-## Interactive Commands
+## 🛠️ Configuration
 
-- Type your message to chat with the agent
-- `tools` - Show available tools  
-- `reset` - Clear conversation history
-- `exit` - Quit the agent
+### LLM Models
+Supported models in `src/agent/llm.py`:
+- `mistral-small3.2:latest` (recommended)
+- `mistral-nemo:latest`  
+- `llama3.1:8b`
+- Custom models via Ollama
 
-## Architecture
+### Memory Settings
+- **Embedding Model**: `all-MiniLM-L6-v2` (configurable)
+- **Context Window**: 32k tokens (model-dependent)
+- **Memory Retrieval**: 5 similar memories by default
+- **Compression Trigger**: Automatic based on context usage
 
-### Core Components
+### Image Generation
+- **Model Support**: SDXL-compatible `.safetensors` files
+- **Resolution**: Portrait (768x1024), Landscape (1024x768), Square (1024x1024)
+- **Optimization**: Multi-chunk prompt strategy for attention control
+- **Negative Prompts**: Automatic quality enhancement
 
-1. **Agent Core** (`src/agent/core.py`)
-   - Generic agent class with no domain-specific logic
-   - Handles conversation flow, tool execution, and response formatting
-   - Configuration-driven prompts and tools
-   - Smart context management with auto-summarization
-
-2. **Configuration System** (`src/agent/config.py` + `src/agent/configs/`)
-   - `AgentConfig` base class with prompt template and tool definitions
-   - `RoleplayConfig` for character roleplay with visual flair
-   - `CodingConfig` and `GeneralConfig` (placeholder implementations)
-   - Configuration-specific response formatters and summarization strategies
-
-3. **Tool System** (`src/agent/tools/`)
-   - `BaseTool` abstract class with Pydantic validation
-   - Tool classes with `name`, `description`, `input_schema`, and `run()` method
-   - `ToolRegistry` for managing tool instances
-   - Clean separation between tool logic and agent core
-
-4. **LLM Backend** (`src/agent/llm.py`)
-   - `LLMClient` for Ollama integration with configurable context windows
-   - Optimized parameters for coherence and performance
-   - Smart parameter tuning for different model sizes
-
-### Roleplay Tools
-
-- `AssumeCharacterTool` - Create/switch characters with personality and background
-- `SetMoodTool` - Set character emotional state with intensity levels
-- `RememberDetailTool` - Store conversation memories in categorized system
-- `InternalThoughtTool` - Character internal thoughts and motivations
-- `SceneSettingTool` - Set scene location, atmosphere, and time
-- `CharacterActionTool` - Physical actions with reasoning
-- `SwitchCharacterTool` - Multi-character scenarios
-- `CorrectDetailTool` - Fix or change established story details
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 agent/
-├── src/agent/
-│   ├── core.py              # Generic agent implementation
-│   ├── config.py            # Configuration base classes
-│   ├── configs/             # Agent-specific configurations
-│   │   ├── roleplay.py      # Roleplay agent config
-│   │   ├── coding.py        # Coding agent config (placeholder)
-│   │   └── general.py       # General agent config (placeholder)
-│   ├── tools/               # Tool system
-│   │   ├── __init__.py      # Tool base classes and registry
-│   │   └── roleplay_tools.py # Roleplay tool implementations
-│   ├── character_state.py   # Character state management
-│   └── llm.py              # Ollama client
-├── main.py                  # CLI interface
-├── pyproject.toml          # Dependencies
-└── README.md               # This file
+├── src/agent/                  # Core agent system
+│   ├── chain_of_action/        # Action-based reasoning system
+│   │   ├── actions/            # Individual action implementations  
+│   │   ├── action_planner.py   # Plans action sequences
+│   │   └── reasoning_loop.py   # Main processing loop
+│   ├── memory/                 # Memory and retrieval system
+│   │   ├── embedding_service.py
+│   │   └── similarity_retrieval.py
+│   ├── tools/                  # External tools (image generation)
+│   ├── api_server.py           # FastAPI backend
+│   ├── core.py                 # Main agent class
+│   └── llm.py                  # LLM client interface
+├── client/                     # React frontend
+│   ├── src/components/         # UI components
+│   ├── src/hooks/              # React hooks for WebSocket
+│   └── src/types.ts            # TypeScript definitions
+├── conversations/              # Persistent conversation storage
+├── generated_images/           # Generated images
+├── docs/                       # Documentation
+└── tests/                      # Test files
 ```
 
-## Configuration Examples
+## 🧪 Testing
 
-### Creating Custom Agent Types
-
-```python
-from agent.config import AgentConfig
-from my_tools import MyCustomTool
-
-class MyAgentConfig(AgentConfig):
-    def __init__(self):
-        super().__init__(
-            name="custom",
-            description="Custom agent type",
-            prompt_template="You are a {specialty} assistant.\n{tools_description}",
-            tools=[MyCustomTool()],
-            default_state={"specialty": "helpful"},
-            summarization_prompt="Custom summary prompt for {conversation_text}"
-        )
+### Run All Tests
+```bash
+uv run pytest
 ```
 
-### Adding New Tools
+### Specific Test Categories
+```bash
+# Unit tests
+uv run pytest -m unit
 
-```python
-from agent.tools import BaseTool, ToolInput
-from pydantic import Field
+# Integration tests  
+uv run pytest -m integration
 
-class MyToolInput(ToolInput):
-    message: str = Field(description="Message to process")
-
-class MyTool(BaseTool):
-    @property
-    def name(self) -> str:
-        return "my_tool"
-    
-    @property 
-    def description(self) -> str:
-        return "Processes a message"
-    
-    @property
-    def input_schema(self):
-        return MyToolInput
-    
-    def run(self, agent, input_data):
-        return f"Processed: {input_data.message}"
+# Test specific functionality
+uv run python test_think_action_contexts.py
+uv run python llm_performance_test.py
 ```
 
-## Advanced Features
-
-### Character Correction System
-Users can correct established facts naturally:
-```
-User: "Actually, Elena isn't a librarian, she's a museum curator"
-Agent: [Uses correct_detail tool automatically]
-       "Ah yes, of course - the museum archives. My apologies for the confusion."
+### Performance Testing
+Test LLM performance across different input/output sizes:
+```bash
+uv run python llm_performance_test.py
 ```
 
-### Multi-Character Scenarios
-```
-User: "Now switch to playing Marcus, Elena's vampire rival"
-Agent: [Uses switch_character tool]
-       🎭 **Marcus** 😠 *(annoyed - high)*
-       "Elena thinks she's so clever with her precious artifacts..."
-```
+## 🔧 Development
 
-### Smart Context Management
-- Automatic summarization preserves character details, relationships, and plot
-- Roleplay-specific summaries focus on narrative continuity
-- Configurable context windows for different model capabilities
+### Key Development Files
+- **Action Implementation**: Add new actions in `src/agent/chain_of_action/actions/`
+- **Memory System**: Extend memory capabilities in `src/agent/memory/`
+- **Frontend Components**: React components in `client/src/components/`
+- **API Endpoints**: Extend API in `src/agent/api_server.py`
 
-## Dependencies
+### Adding New Actions
+1. Create action class in `actions/` directory
+2. Implement `execute()` method with typed inputs
+3. Register in `action_registry.py`
+4. Add frontend support in React components
 
-- **Core**: `click`, `rich`, `pydantic`, `requests`, `ollama`
-- **Package Manager**: `uv` for fast dependency management
-- **Python**: 3.8+ required
+### Memory System Extension
+- Embedding models configurable in `embedding_service.py`
+- Retrieval strategies in `similarity_retrieval.py`
+- Memory extraction logic in `memory_extraction.py`
 
-## Performance & Model Recommendations
+## 📊 Monitoring & Debugging
 
-### Recommended Models
-- **Primary**: `aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m` (16GB, good balance)
-- **Fallback**: `llama3.1:8b` (4.9GB, faster but less coherent)
-- **High-end**: `llama3.3:70b` (42GB, best quality, requires significant RAM)
+### Logging
+- **Backend Logs**: Structured logging with performance metrics
+- **LLM Call Tracking**: Automatic timing and usage statistics
+- **Memory Performance**: Embedding generation and retrieval metrics
+- **Action Execution**: Detailed action timing and success rates
 
-### Performance Notes
-- 27B model: ~15-25 tokens/sec with 8192 context window
-- Optimized for long conversations with automatic context management
-- Smart parameter tuning reduces hallucination and improves coherence
+### Performance Metrics
+- Token generation speed (tokens/second)
+- Memory retrieval timing
+- Image generation progress
+- WebSocket connection health
 
-## Troubleshooting
+## 🚧 Known Issues & Limitations
 
-1. **Model not found**: Run `ollama pull <model-name>` to download
-2. **Ollama connection error**: Make sure Ollama is running (`ollama serve`)
-3. **Context issues**: Monitor the real-time context display for automatic management
-4. **Character consistency**: Use the correction tools if the agent makes mistakes
-5. **Memory usage**: Use smaller models for systems with limited RAM
+See `docs/status.md` for detailed issue tracking including:
+- Image generation blocking (being addressed)
+- Context usage optimization opportunities  
+- Action planning context staleness
+- Memory summarization improvements
 
-## Current Status
+## 🤝 Contributing
 
-### Working Features
-✅ Modular configuration system  
-✅ Roleplay agent with full character management  
-✅ Tool call parsing and execution  
-✅ Visual flair for roleplay responses  
-✅ Multi-character scenarios  
-✅ Context window management with auto-summarization  
-✅ User correction system  
-✅ Configurable summarization strategies  
-✅ Real-time context tracking  
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with tests
+4. Submit a pull request
 
-### Future Enhancements
-- Implement coding and general tool sets
-- Add conversation persistence
-- Web interface for easier interaction
-- Additional LLM backend options
-- Enhanced character relationship tracking
+### Code Style
+- Python: Black formatting, type hints required
+- TypeScript: ESLint configuration in `client/`
+- Tests: Pytest with good coverage
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- **Ollama**: Local LLM inference
+- **Sentence Transformers**: Semantic embeddings
+- **Stable Diffusion XL**: Image generation
+- **FastAPI**: Modern API framework
+- **React**: Frontend framework
+
+---
+
+**Version**: 0.1.0  
+**Python**: 3.12+  
+**Node.js**: 18+  
+**Last Updated**: January 2025
