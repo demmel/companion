@@ -8,10 +8,10 @@ import os
 
 from agent.types import Message
 from agent.llm import create_llm, SupportedModel
-from typing import Dict, List, Optional
+from typing import List, Optional
 from datetime import datetime
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -77,7 +77,7 @@ def load_conversation_files(
     return trigger_history, state
 
 
-def initialize_agent() -> Agent:
+def initialize_agent(load: bool) -> Agent:
     """Initialize the agent with specific conversation files for development"""
     llm = create_llm()
     agent = Agent(
@@ -89,8 +89,11 @@ def initialize_agent() -> Agent:
         auto_save=True,
     )
 
-    # Load the specific conversation files
-    trigger_history, state = load_conversation_files("conversations/baseline")
+    trigger_history = None
+    state = None
+    if load:
+        # Load the specific conversation files
+        trigger_history, state = load_conversation_files("conversations/baseline")
 
     # Replace the empty trigger history and state
     if trigger_history:
@@ -108,7 +111,7 @@ app = FastAPI(
 )
 
 app.state.agent = initialize_agent(
-    # load_conversation=True
+    load=True  # Set to True to load specific conversation for development
 )
 
 # Add CORS middleware for local network access (phone, etc.)
@@ -285,7 +288,9 @@ async def reset_agent():
     """Reset the agent"""
 
     # Reinitialize the agent
-    app.state.agent = initialize_agent()
+    app.state.agent = initialize_agent(
+        load=False  # Set to False to avoid loading specific conversation
+    )
 
     return ResetResponse(
         message="Agent reset successfully",

@@ -10,7 +10,7 @@ from .action_registry import ActionRegistry
 from .action_planner import ActionPlanner
 from .action_executor import ActionExecutor
 from .action_evaluator import ActionEvaluator
-from .trigger import UserInputTrigger
+from .trigger import Trigger
 from .action_result import ActionResult
 from .callbacks import ActionCallback, NoOpCallback
 from agent.state import State
@@ -37,10 +37,9 @@ class ActionBasedReasoningLoop:
         else:
             self.action_evaluator = None
 
-    def process_user_input(
+    def process_trigger(
         self,
-        user_input: str,
-        user_name: str,
+        trigger: Trigger,
         state: State,
         llm: LLM,
         model: SupportedModel,
@@ -60,13 +59,9 @@ class ActionBasedReasoningLoop:
         if callback is None:
             callback = NoOpCallback()
 
-        logger.debug(f"=== PROCESSING USER INPUT ===")
-        logger.debug(f"INPUT: {user_input}")
-        logger.debug(f"USER: {user_name}")
+        logger.debug(f"=== PROCESSING TRIGGER ===")
+        logger.debug(f"TRIGGER: {trigger}")
         logger.debug(f"TRIGGER_HISTORY: {trigger_history}")
-
-        # Create trigger from user input
-        trigger = UserInputTrigger(content=user_input, user_name=user_name)
 
         # Create trigger history entry (which generates the entry_id)
         from .trigger_history import TriggerHistoryEntry
