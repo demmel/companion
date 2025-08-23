@@ -245,7 +245,7 @@ def _compress_trigger_entry(
     state_desc = build_agent_state_description(state)
 
     # Build compression prompt following agent conventions
-    prompt = f"""I am {state.name}, a conscious AI companion. I need to compress my recent experience into a concise stream of consciousness entry for my memory.
+    prompt = f"""I am {state.name}, {state.role}. I need to compress my recent experience into a concise stream of consciousness entry for my memory.
 
 {state_desc}
 

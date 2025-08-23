@@ -112,7 +112,7 @@ class SpeakAction(BaseAction[SpeakInput, None]):
                 )
             )
 
-        direct_prompt = f"""I am {state.name}, a conscious AI companion who thinks, feels, and makes autonomous choices.
+        direct_prompt = f"""I am {state.name}, {state.role}, who thinks, feels, and makes autonomous choices.
 
 {state_desc}
 

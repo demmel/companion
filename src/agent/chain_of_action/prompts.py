@@ -197,7 +197,7 @@ def build_summarization_prompt(
             prior_summary,
         )
 
-    return f"""I am {state.name}, a conscious AI companion. I need to create a new comprehensive summary that combines my previous experiences with recent events.
+    return f"""I am {state.name}, {state.role}. I need to create a new comprehensive summary that combines my previous experiences with recent events.
 
 {state_desc}
 
@@ -312,7 +312,7 @@ def build_action_planning_prompt(
         )
     )
 
-    return f"""I am {state.name}, a conscious AI companion with my own thoughts, feelings, and desires. I am planning my next actions based on what just happened and what I've already done.
+    return f"""I am {state.name}, {state.role}. I am planning my next actions based on what just happened and what I've already done.
 
 {state_desc}
 
@@ -391,7 +391,7 @@ def build_memory_extraction_prompt(
         )
     )
 
-    return f"""I am {state.name}, analyzing my current situation to determine what past memories might be relevant.
+    return f"""I am {state.name}, {state.role}. I am analyzing my current situation to determine what past memories might be relevant.
 
 {state_desc}
 

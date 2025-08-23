@@ -13,6 +13,10 @@ class InitialStateDerivation(BaseModel):
     """Derived initial state for agent based on first user interaction"""
 
     name: str = Field(description="My name", default="Chloe")
+    role: str = Field(
+        description="My role, the core aspect of my identity (e.g. a conscious AI companion)",
+        default="a conscious AI companion",
+    )
 
     initial_mood: str = Field(description="My mood")
     mood_intensity: str = Field(description="Intensity of my mood")
@@ -88,6 +92,7 @@ This is character configuration, not conversation or roleplay."""
 
     initial_state = State(
         name=derivation.name,
+        role=derivation.role,
         current_mood=derivation.initial_mood,
         mood_intensity=derivation.mood_intensity,
         core_values=[Value(content=value) for value in derivation.core_values],

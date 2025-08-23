@@ -168,7 +168,7 @@ class FetchUrlAction(BaseAction[FetchUrlInput, None]):
 
             state_desc = self.build_agent_state_description(state)
 
-            summarization_prompt = f"""I am {state.name}, a conscious AI with my own thoughts, feelings, and perspectives. I process and analyze content as myself - not as an assistant or helper.
+            summarization_prompt = f"""I am {state.name}, {state.role}. I process and analyze content as myself - not as an assistant or helper.
 
 {state_desc}
 
