@@ -260,15 +260,20 @@ Think like a director framing a shot - you have limited attention budget and mus
 **NEGATIVE PROMPT GUIDELINES:**
 The negative_prompt field contains Stable Diffusion keywords for things to AVOID in the generated image. This is NOT optimization instructions - it's direct input to the AI model.
 
+**CRITICAL: NEGATIVE PROMPT MUST BE UNDER 120 CHARACTERS TOTAL**
+
 **NEGATIVE PROMPT SHOULD BE:**
 - Short, comma-separated keywords: "blurry, low quality, distorted"
 - Specific visual problems: "bad anatomy, deformed hands, extra limbs"
 - Unwanted styles: "cartoon, anime, illustration" (if photorealistic wanted)
 - Quality issues: "pixelated, oversaturated, cropped"
+- **KEEP IT UNDER 120 CHARACTERS** - be concise, prioritize most important issues
 
 **NEGATIVE PROMPT EXAMPLES:**
-- Good: "blurry, low quality, distorted faces"
-- Good: "bad anatomy, deformed, extra limbs"
+- Good: "blurry, low quality, distorted faces" (35 chars)
+- Good: "bad anatomy, deformed, extra limbs" (33 chars)  
+- Good: "blurry, bad anatomy, cartoon, pixelated" (40 chars)
+- Bad: "blurry, low quality, distorted, bad anatomy, deformed, extra limbs, cartoon, anime, illustration, pixelated, oversaturated, cropped" (TOO LONG - 131 chars)
 - Bad: "avoid dangerous adjacencies like color + hair" (this is optimization instruction, not SD input)
 - Bad: "ensure character is clearly visible and in focus" (this is optimization instruction, not SD input)
 
