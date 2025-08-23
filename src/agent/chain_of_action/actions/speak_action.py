@@ -46,10 +46,6 @@ class SpeakAction(BaseAction[SpeakInput, None]):
         return "Generate natural conversational response based on communication intent"
 
     @classmethod
-    def get_context_description(cls) -> str:
-        return "The intent or high-level idea of what to communicate (e.g., 'express curiosity', 'share excitement') - NOT the actual words to say"
-
-    @classmethod
     def get_input_type(cls) -> Type[SpeakInput]:
         return SpeakInput
 

@@ -60,10 +60,6 @@ class FetchUrlAction(BaseAction[FetchUrlInput, None]):
         return "Fetch content from a web URL to learn about something the user shared"
 
     @classmethod
-    def get_context_description(cls) -> str:
-        return "The URL to fetch and why I want to access it"
-
-    @classmethod
     def get_input_type(cls) -> Type[FetchUrlInput]:
         return FetchUrlInput
 

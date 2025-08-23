@@ -94,10 +94,6 @@ class UpdateAppearanceAction(
         return "Update my appearance (posture, expression, hair, clothing) and generate a new image"
 
     @classmethod
-    def get_context_description(cls) -> str:
-        return "Description of what specific aspects of my appearance should change and how"
-
-    @classmethod
     def get_input_type(cls) -> Type[UpdateAppearanceInput]:
         return UpdateAppearanceInput
 

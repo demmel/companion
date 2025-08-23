@@ -42,10 +42,6 @@ class ThinkAction(BaseAction[ThinkInput, None]):
         return "Process emotional reactions and analyze the situation"
 
     @classmethod
-    def get_context_description(cls) -> str:
-        return "Specific aspects to focus thinking on - emotional elements, relationship dynamics, or particular details requiring analysis"
-
-    @classmethod
     def get_input_type(cls) -> Type[ThinkInput]:
         return ThinkInput
 

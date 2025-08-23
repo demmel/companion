@@ -34,12 +34,6 @@ class BaseAction(ABC, Generic[TInput, TMetadata]):
 
     @classmethod
     @abstractmethod
-    def get_context_description(cls) -> str:
-        """What context this action needs when planned"""
-        pass
-
-    @classmethod
-    @abstractmethod
     def get_input_type(cls) -> Type[TInput]:
         """Get the Pydantic model class for this action's input"""
         pass

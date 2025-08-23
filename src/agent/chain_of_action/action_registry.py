@@ -63,13 +63,6 @@ class ActionRegistry:
             descriptions[action_type] = action_class.get_action_description()
         return descriptions
 
-    def get_context_descriptions(self) -> Dict[ActionType, str]:
-        """Get context descriptions for all actions for planning prompts"""
-        descriptions = {}
-        for action_type, action_class in self._actions.items():
-            descriptions[action_type] = action_class.get_context_description()
-        return descriptions
-
     def create_action(self, action_type: ActionType) -> BaseAction:
         """Create an action instance for the given action type"""
         action_class = self.get_action(action_type)

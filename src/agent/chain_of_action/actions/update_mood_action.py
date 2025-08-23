@@ -42,10 +42,6 @@ class UpdateMoodAction(BaseAction[UpdateMoodInput, None]):
         return "Update my current mood to reflect how I'm feeling"
 
     @classmethod
-    def get_context_description(cls) -> str:
-        return "Rich description of my new mood - how I'm feeling and why"
-
-    @classmethod
     def get_input_type(cls) -> Type[UpdateMoodInput]:
         return UpdateMoodInput
 

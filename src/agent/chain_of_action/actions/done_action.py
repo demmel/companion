@@ -40,10 +40,6 @@ class WaitAction(BaseAction[WaitInput, None]):
         return "Wait for something else to happen"
 
     @classmethod
-    def get_context_description(cls) -> str:
-        return "Brief reflection on what I've accomplished and why I'm ready for whatever comes next"
-
-    @classmethod
     def get_input_type(cls) -> Type[WaitInput]:
         return WaitInput
 

@@ -131,10 +131,6 @@ Is the new priority truly redundant (not just related) to any existing priority?
         return "Add a new priority - something I consciously choose to focus on"
 
     @classmethod
-    def get_context_description(cls) -> str:
-        return "What I want to prioritize and why it matters to me"
-
-    @classmethod
     def get_input_type(cls) -> Type[AddPriorityInput]:
         return AddPriorityInput
 
@@ -221,10 +217,6 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, None]):
     @classmethod
     def get_action_description(cls) -> str:
         return "Remove a priority that is no longer relevant or has been completed"
-
-    @classmethod
-    def get_context_description(cls) -> str:
-        return "Which priority to remove and why I'm removing it"
 
     @classmethod
     def get_input_type(cls) -> Type[RemovePriorityInput]:
