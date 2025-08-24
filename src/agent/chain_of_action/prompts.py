@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from agent.chain_of_action.action_result import ActionResult
-from agent.chain_of_action.trigger import BaseTriger, format_trigger_for_prompt
+from agent.chain_of_action.trigger import BaseTrigger, format_trigger_for_prompt
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
 from agent.chain_of_action.action_registry import ActionRegistry
@@ -100,9 +100,11 @@ def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
     return format_trigger_entries(triggers)
 
 
-def format_single_trigger_entry(entry: TriggerHistoryEntry, use_summary: bool = False) -> str:
+def format_single_trigger_entry(
+    entry: TriggerHistoryEntry, use_summary: bool = False
+) -> str:
     """Format a single trigger history entry for prompts
-    
+
     Args:
         entry: The trigger history entry to format
         use_summary: If True, use compressed summary instead of full actions when available
@@ -224,7 +226,7 @@ I will REWRITE my entire story from scratch using completely new words and sente
 
 def build_action_planning_prompt(
     state: State,
-    trigger: BaseTriger,
+    trigger: BaseTrigger,
     completed_actions: List[ActionResult],
     trigger_history: TriggerHistory,
     registry: ActionRegistry,
@@ -334,7 +336,7 @@ Each action should have specific context about what to focus on - even the wait 
 
 def build_memory_extraction_prompt(
     state: State,
-    trigger: BaseTriger,
+    trigger: BaseTrigger,
     trigger_history: TriggerHistory,
 ) -> str:
     """Build prompt for extracting memory queries from current context"""

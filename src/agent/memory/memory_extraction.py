@@ -9,7 +9,7 @@ import time
 from typing import List, Optional
 from agent.memory.memory_query import LLMMemoryExtraction
 from agent.state import State
-from agent.chain_of_action.trigger import BaseTriger
+from agent.chain_of_action.trigger import BaseTrigger
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.chain_of_action.prompts import build_memory_extraction_prompt
 from agent.structured_llm import direct_structured_llm_call
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def extract_memory_queries(
     state: State,
-    trigger: BaseTriger,
+    trigger: BaseTrigger,
     trigger_history: TriggerHistory,
     llm: LLM,
     model: SupportedModel,

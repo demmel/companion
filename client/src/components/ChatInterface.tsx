@@ -17,7 +17,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("");
 
   // New architecture: batch events then convert to structured messages
-  const { events, queueEvent, clearEvents } = useStreamBatcher(50);
+  const { events, queueEvent, clearEvents, orphanedEventCount } = useStreamBatcher(50);
 
   useMemo(() => {
     debug.log("Events:", events);
@@ -127,7 +127,24 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         bg: "gray.900",
       })}
     >
-      <ChatHeader isConnected={isConnected} isConnecting={isConnecting} />
+      <ChatHeader isConnected={isConnected} isConnecting={isConnecting} client={client} />
+
+      {/* Show orphaned event notification */}
+      {orphanedEventCount > 0 && (
+        <div
+          className={css({
+            bg: "orange.700",
+            borderBottom: "1px solid",
+            borderColor: "orange.600",
+            px: 4,
+            py: 2,
+            fontSize: "sm",
+            color: "orange.100",
+          })}
+        >
+          ⚠️ Connected mid-stream: {orphanedEventCount} event{orphanedEventCount === 1 ? '' : 's'} skipped to maintain consistency
+        </div>
+      )}
 
       <div
         className={css({

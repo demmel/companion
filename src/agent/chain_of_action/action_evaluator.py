@@ -15,7 +15,7 @@ from .action_plan import ActionPlan
 from ..structured_llm import direct_structured_llm_call
 
 from agent.llm import LLM, SupportedModel
-from .trigger import BaseTriger
+from .trigger import BaseTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class ActionEvaluator:
         self,
         planned_actions: List[ActionPlan],
         all_completed_actions: List[ActionResult],
-        trigger: BaseTriger,
+        trigger: BaseTrigger,
         llm: LLM,
         model: SupportedModel,
     ) -> SequenceEvaluation:

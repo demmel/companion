@@ -5,6 +5,8 @@ Core agent implementation
 from datetime import datetime
 import json
 import time
+import threading
+import queue
 from typing import List, Optional, Iterator
 from pydantic import BaseModel
 
@@ -113,6 +115,19 @@ class Agent:
         self.state: Optional[State] = None
         self.initial_exchange = None
 
+        # Single client queue for WebSocket communication
+        self.current_client_queue: Optional[queue.Queue[AgentEvent]] = None
+        self.client_queue_lock = threading.Lock()
+
+        # Auto-wakeup timer functionality
+        self.auto_wakeup_enabled = False
+        self.auto_wakeup_timer: Optional[threading.Timer] = None
+        self.processing_condition = (
+            threading.Condition()
+        )  # Condition for processing coordination
+        self.is_processing = False
+        self.wakeup_delay_seconds = 5 * 60  # 5 minutes
+
     def get_state(self) -> Optional[State]:
         """Get the agent's current state"""
         return self.state
@@ -155,6 +170,77 @@ class Agent:
         """Get the current conversation ID"""
         return self.conversation_id
 
+    def set_auto_wakeup_enabled(self, enabled: bool) -> None:
+        """Enable or disable auto-wakeup timer"""
+        with self.processing_condition:
+            self.auto_wakeup_enabled = enabled
+            if not enabled:
+                self._cancel_wakeup_timer()
+            else:
+                self._schedule_wakeup_timer()
+
+    def get_auto_wakeup_enabled(self) -> bool:
+        """Get current auto-wakeup enabled state"""
+        return self.auto_wakeup_enabled
+
+    def emit_event(self, event: AgentEvent) -> None:
+        """Emit an event to the current client (if any)"""
+        with self.client_queue_lock:
+            if self.current_client_queue:
+                self.current_client_queue.put(event)
+            # else: drop event (no client connected)
+
+    def set_client_queue(self, client_queue: queue.Queue[AgentEvent]) -> None:
+        """Set the current client queue (replaces existing client)"""
+        with self.client_queue_lock:
+            self.current_client_queue = client_queue
+
+    def clear_client_queue(self, queue_to_clear: queue.Queue[AgentEvent]) -> None:
+        """Clear the current client queue only if it matches the provided queue"""
+        with self.client_queue_lock:
+            if self.current_client_queue is queue_to_clear:
+                self.current_client_queue = None
+            # else: different client's queue is active, don't clear
+
+    def _cancel_wakeup_timer(self) -> None:
+        """Cancel the current wakeup timer if it exists"""
+        logger.info("Cancelling existing wakeup timer if any")
+        if self.auto_wakeup_timer:
+            self.auto_wakeup_timer.cancel()
+            self.auto_wakeup_timer = None
+
+    def _schedule_wakeup_timer(self) -> None:
+        """Schedule a wakeup timer if auto-wakeup is enabled"""
+        logger.info("Scheduling wakeup timer")
+        with self.processing_condition:
+            if not self.auto_wakeup_enabled or self.is_processing:
+                return
+
+            self._cancel_wakeup_timer()  # Cancel any existing timer
+
+            def wakeup_callback():
+                logger.info("Auto-wakeup timer triggered")
+
+                # Trigger a wakeup by calling chat_stream with None in background thread
+                def trigger_wakeup():
+                    try:
+                        self.chat_stream(
+                            None
+                        )  # None = WakeupTrigger - will wait if processing
+                    except Exception as e:
+                        logger.error(f"Auto-wakeup processing error: {e}")
+
+                # Run in separate thread to avoid blocking timer thread
+                import threading
+
+                wakeup_thread = threading.Thread(target=trigger_wakeup, daemon=True)
+                wakeup_thread.start()
+
+            self.auto_wakeup_timer = threading.Timer(
+                self.wakeup_delay_seconds, wakeup_callback
+            )
+            self.auto_wakeup_timer.start()
+
     def get_context_info(self) -> ContextInfo:
         """Get information about current context usage based on action planning prompt size"""
         if self.state is not None:
@@ -195,10 +281,20 @@ class Agent:
             > (self.auto_summarize_threshold * 0.75),  # 75% of summarization limit
         )
 
-    def chat_stream(self, user_input: Optional[str]) -> Iterator[AgentEvent]:
+    def chat_stream(self, user_input: Optional[str]) -> None:
         """Streaming chat interface that yields typed events using reasoning loop"""
+        # Wait for any existing processing to complete, then acquire processing
+        with self.processing_condition:
+            # Wait until not processing
+            while self.is_processing:
+                logger.info("chat_stream waiting for existing processing to complete")
+                self.processing_condition.wait()
+
+            # Now we can start processing
+            self.is_processing = True
+            self._cancel_wakeup_timer()
+
         start_time = time.time()
-        streaming = StreamingQueue[AgentEvent]()
 
         def run_agent():
             # Check if agent needs character configuration (first message)
@@ -207,14 +303,14 @@ class Agent:
                     # Ignore wakeup triggers during initialization - just return
                     return
                 # Run initial exchange with character definition
-                self._run_initial_exchange_with_streaming(user_input, streaming)
+                self._run_initial_exchange_with_streaming(user_input)
             else:
                 # Check if we need auto-summarization before processing (skip if continuous summarization enabled)
                 if not self.continuous_summarization:
                     context_info = self.get_context_info()
                     if context_info.estimated_tokens >= context_info.context_limit:
                         # Perform auto-summarization with event emission
-                        self._auto_summarize_with_events(self.keep_recent, streaming)
+                        self._auto_summarize_with_events(self.keep_recent)
 
                 # Create appropriate trigger type
                 if user_input is not None:
@@ -223,16 +319,16 @@ class Agent:
                     trigger = WakeupTrigger()
 
                 # Use action-based reasoning with callback conversion
-                self._run_chain_of_action_with_streaming(trigger, streaming)
+                self._run_chain_of_action_with_streaming(trigger)
 
                 # Continuous summarization: summarize after every trigger if enabled
                 if (
                     self.continuous_summarization
                     and len(self.trigger_history.entries) > self.keep_recent
                 ):
-                    self._auto_summarize_with_events(self.keep_recent, streaming)
+                    self._auto_summarize_with_events(self.keep_recent)
 
-        yield from streaming.stream_while(run_agent)
+        run_agent()
 
         # Auto-save conversation after each turn
         logger.info(f"Checking auto-save: auto_save={self.auto_save}")
@@ -245,9 +341,14 @@ class Agent:
         total_time = time.time() - start_time
         logger.debug(f"Total chat_stream time: {total_time:.3f}s")
 
-    def _run_initial_exchange_with_streaming(
-        self, user_input: str, streaming: StreamingQueue[AgentEvent]
-    ):
+        # Clear processing flag, schedule next wakeup timer, and notify waiting threads
+        with self.processing_condition:
+            self.is_processing = False
+            self._schedule_wakeup_timer()
+            # Notify any threads waiting for processing to complete
+            self.processing_condition.notify_all()
+
+    def _run_initial_exchange_with_streaming(self, user_input: str):
         """Run initial character configuration with streaming events"""
 
         # First input is character definition, not conversation
@@ -262,7 +363,7 @@ class Agent:
         # Capture entry_id for use in nested callbacks
         entry_id = self.initial_exchange.entry_id
 
-        streaming.emit(
+        self.emit_event(
             TriggerStartedEvent(
                 trigger=convert_trigger_to_dto(self.initial_exchange.trigger),
                 entry_id=entry_id,
@@ -271,7 +372,7 @@ class Agent:
         )
 
         try:
-            streaming.emit(
+            self.emit_event(
                 ActionStartedEvent(
                     entry_id=entry_id,
                     action_type="think",
@@ -317,7 +418,7 @@ class Agent:
             self.initial_exchange.actions_taken.append(think_action_result)
 
             # Emit completion event
-            streaming.emit(
+            self.emit_event(
                 ActionCompletedEvent(
                     entry_id=entry_id,
                     action=convert_action_to_dto(think_action_result),
@@ -329,7 +430,7 @@ class Agent:
 
             # Generate initial image of agent's appearance and environment
             if self.enable_image_generation:
-                streaming.emit(
+                self.emit_event(
                     ActionStartedEvent(
                         entry_id=entry_id,
                         action_type="update_appearance",
@@ -358,7 +459,7 @@ class Agent:
                     # Execute image generation with progress callback
                     def progress_callback(progress):
                         # Emit progress events for image generation
-                        streaming.emit(
+                        self.emit_event(
                             ActionProgressEvent(
                                 entry_id=entry_id,
                                 action_type="update_appearance",
@@ -416,7 +517,7 @@ class Agent:
                     self.initial_exchange.actions_taken.append(appearance_action_result)
 
                     # Emit completion event
-                    streaming.emit(
+                    self.emit_event(
                         ActionCompletedEvent(
                             entry_id=entry_id,
                             action=convert_action_to_dto(appearance_action_result),
@@ -444,7 +545,7 @@ class Agent:
                     self.initial_exchange.actions_taken.append(error_action_result)
 
                     # Emit completion event
-                    streaming.emit(
+                    self.emit_event(
                         ActionCompletedEvent(
                             entry_id=entry_id,
                             action=convert_action_to_dto(error_action_result),
@@ -458,14 +559,14 @@ class Agent:
             self.trigger_history.add_summary(backstory, 1)
 
         except Exception as e:
-            streaming.emit(
+            self.emit_event(
                 AgentErrorEvent(
                     message=f"Failed to configure agent's character: {str(e)}",
                 )
             )
 
         context_info = self.get_context_info()
-        streaming.emit(
+        self.emit_event(
             TriggerCompletedEvent(
                 entry_id=entry_id,
                 timestamp=datetime.now().isoformat(),
@@ -480,9 +581,7 @@ class Agent:
             )
         )
 
-    def _run_chain_of_action_with_streaming(
-        self, trigger: Trigger, streaming: StreamingQueue[AgentEvent]
-    ):
+    def _run_chain_of_action_with_streaming(self, trigger: Trigger):
         """Run chain_of_action with callback conversion to AgentEvents"""
         from agent.chain_of_action.callbacks import ActionCallback
         from agent.chain_of_action.action_types import ActionType
@@ -495,7 +594,7 @@ class Agent:
             def on_trigger_started(self, entry_id: str, trigger) -> None:
                 from datetime import datetime
 
-                streaming.emit(
+                self.agent.emit_event(
                     TriggerStartedEvent(
                         trigger=convert_trigger_to_dto(trigger),
                         entry_id=entry_id,
@@ -509,7 +608,7 @@ class Agent:
                 from datetime import datetime
 
                 context_info = self.agent.get_context_info()
-                streaming.emit(
+                self.agent.emit_event(
                     TriggerCompletedEvent(
                         entry_id=entry_id,
                         total_actions=total_actions,
@@ -537,7 +636,7 @@ class Agent:
             ) -> None:
                 from datetime import datetime
 
-                streaming.emit(
+                self.agent.emit_event(
                     ActionStartedEvent(
                         entry_id=entry_id,
                         action_type=action_type.value,
@@ -575,7 +674,7 @@ class Agent:
                         partial_text = progress_data.text
 
                 if partial_text:
-                    streaming.emit(
+                    self.agent.emit_event(
                         ActionProgressEvent(
                             entry_id=entry_id,
                             action_type=action_type.value,
@@ -599,7 +698,7 @@ class Agent:
                 # Convert ActionResult to ActionDTO
                 action_dto = convert_action_to_dto(result)
 
-                streaming.emit(
+                self.agent.emit_event(
                     ActionCompletedEvent(
                         entry_id=entry_id,
                         action=action_dto,
@@ -665,9 +764,7 @@ class Agent:
             data = json.load(f)
         return ConversationData.model_validate(data)
 
-    def _auto_summarize_with_events(
-        self, keep_recent: int, streaming: StreamingQueue[AgentEvent]
-    ):
+    def _auto_summarize_with_events(self, keep_recent: int):
         """Auto-summarize with event emission for streaming clients"""
         # Calculate what we're about to do - work on LLM history only
         llm_history = self.trigger_history.get_recent_entries()
@@ -676,7 +773,7 @@ class Agent:
         context_before = self.get_context_info()
 
         # Emit started event
-        streaming.emit(
+        self.emit_event(
             SummarizationStartedEvent(
                 entries_to_summarize=len(old_triggers),
                 recent_entries_kept=len(recent_triggers),
@@ -705,7 +802,7 @@ class Agent:
         summarization_content.title = f"✅ Summarized {len(old_triggers)} messages. Context usage: {context_before.usage_percentage:.1f}% → {context_after.usage_percentage:.1f}%"
 
         # Emit finished event
-        streaming.emit(
+        self.emit_event(
             SummarizationFinishedEvent(
                 summary=summary_response,
                 entries_summarized=len(old_triggers),

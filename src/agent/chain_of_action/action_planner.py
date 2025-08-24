@@ -14,7 +14,7 @@ from ..structured_llm import direct_structured_llm_call
 
 from agent.state import State
 from agent.llm import LLM, SupportedModel
-from .trigger import BaseTriger
+from .trigger import BaseTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class ActionPlanner:
 
     def plan_actions(
         self,
-        trigger: BaseTriger,
+        trigger: BaseTrigger,
         completed_actions: List[ActionResult],
         state: State,
         trigger_history: TriggerHistory,

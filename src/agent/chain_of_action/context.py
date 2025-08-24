@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from agent.chain_of_action.action_types import ActionType
 
-from .trigger import BaseTriger
+from .trigger import BaseTrigger
 from .action_result import ActionResult
 from .trigger_history import TriggerHistoryEntry
 
@@ -15,7 +15,7 @@ from .trigger_history import TriggerHistoryEntry
 class ExecutionContext(BaseModel):
     """Context information for action execution"""
 
-    trigger: BaseTriger
+    trigger: BaseTrigger
     completed_actions: List[ActionResult] = Field(default_factory=list)
     session_id: str
     relevant_memories: List[TriggerHistoryEntry] = Field(default_factory=list)

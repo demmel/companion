@@ -9,7 +9,7 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.trigger import BaseTriger, UserInputTrigger, Trigger
+from agent.chain_of_action.trigger import BaseTrigger, UserInputTrigger, Trigger
 from agent.chain_of_action.action_result import ActionResult
 from agent.chain_of_action.action_types import ActionType
 from agent.types import (

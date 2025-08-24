@@ -7,14 +7,13 @@ from pydantic import BaseModel, Field
 from typing import Union, Annotated, Literal
 
 
-class BaseTriger(BaseModel):
+class BaseTrigger(BaseModel):
     """Base class for all trigger events"""
 
-    type: str
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
-class UserInputTrigger(BaseTriger):
+class UserInputTrigger(BaseTrigger):
     """Trigger caused by user input"""
 
     type: Literal["user_input"] = "user_input"
@@ -22,7 +21,7 @@ class UserInputTrigger(BaseTriger):
     user_name: str = "User"  # Name of the person speaking
 
 
-class WakeupTrigger(BaseTriger):
+class WakeupTrigger(BaseTrigger):
     """Trigger for agent's autonomous reflection/continuation"""
 
     type: Literal["wakeup"] = "wakeup"
@@ -32,7 +31,7 @@ class WakeupTrigger(BaseTriger):
 Trigger = Union[UserInputTrigger, WakeupTrigger]
 
 
-def format_trigger_for_prompt(trigger: BaseTriger) -> str:
+def format_trigger_for_prompt(trigger: BaseTrigger) -> str:
     """Format the trigger with proper context about what happened"""
     if isinstance(trigger, UserInputTrigger):
         # For user input, show who spoke to the agent
@@ -47,5 +46,5 @@ def format_trigger_for_prompt(trigger: BaseTriger) -> str:
         # e.g., "A timer went off: {timer_info}"
         # e.g., "I decided to reflect on: {topic}"
         raise NotImplementedError(
-            f"Trigger formatting not implemented for type: {trigger.type}"
+            f"Trigger formatting not implemented for type: {trigger}"
         )

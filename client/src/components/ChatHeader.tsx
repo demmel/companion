@@ -1,28 +1,15 @@
-import { Wifi, WifiOff } from "lucide-react";
 import { css } from "@styled-system/css";
+import { AutoWakeupToggle } from "@/components/AutoWakeupToggle";
+import { AgentClient } from "@/client";
 
 interface ChatHeaderProps {
   title?: string;
   isConnected?: boolean;
   isConnecting?: boolean;
+  client: AgentClient;
 }
 
-export function ChatHeader({
-  title = "Agent Chat",
-  isConnected = false,
-  isConnecting = false,
-}: ChatHeaderProps) {
-  const getConnectionStatus = () => {
-    if (isConnecting)
-      return { icon: Wifi, text: "Connecting...", color: "text-yellow-500" };
-    if (isConnected)
-      return { icon: Wifi, text: "Connected", color: "text-green-500" };
-    return { icon: WifiOff, text: "Disconnected", color: "text-red-500" };
-  };
-
-  const status = getConnectionStatus();
-  const StatusIcon = status.icon;
-
+export function ChatHeader({ title = "Agent Chat", client }: ChatHeaderProps) {
   return (
     <div
       className={css({
@@ -77,13 +64,10 @@ export function ChatHeader({
         className={css({
           display: "flex",
           alignItems: "center",
-          gap: 2,
+          gap: 3,
         })}
       >
-        <StatusIcon size={14} className={status.color} />
-        <span className={`${css({ fontSize: "xs" })} ${status.color}`}>
-          {status.text}
-        </span>
+        <AutoWakeupToggle client={client} />
       </div>
     </div>
   );

@@ -127,3 +127,19 @@ export interface TimelineResponse {
   entries: TimelineEntry[];
   pagination: PaginationInfo;
 }
+
+// Auto-wakeup types
+export interface AutoWakeupStatusResponse {
+  enabled: boolean;
+  delay_seconds: number;
+}
+
+export interface AutoWakeupSetRequest {
+  enabled: boolean;
+}
+
+export interface AutoWakeupSetResponse {
+  enabled: boolean;
+  message: string;
+  timestamp: string;
+}

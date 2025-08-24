@@ -100,41 +100,6 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 
 **Location**: Frontend image generation progress handling
 
-### #10: Agent Processing Architecture - Generator Dependency Issue
-
-**Problem**: Current generator-based `chat_stream()` architecture makes critical agent operations (like auto-save) dependent on external code properly consuming the iterator, creating risk of data loss.
-
-**Investigation Results**:
-
-- ❌ **CONFIRMED**: Agent's auto-save only happens at end of generator function
-- ❌ **CONFIRMED**: If iterator consumption is interrupted (WebSocket failures, exceptions, incomplete draining), agent state updates in memory but never saves
-- ❌ **CONFIRMED**: Agent completion depends on external WebSocket/streaming code behavior
-- ⚠️ **Risk**: Buggy consumer code can cause silent data loss
-
-**Root Cause**: Generator pattern couples agent's core processing with event streaming, making critical operations conditional on iterator consumption.
-
-**Impact**:
-
-- Data loss risk when streaming is interrupted
-- Agent reliability depends on external streaming code quality
-- Difficult to guarantee agent operations complete independently
-- Poor separation of concerns between processing and streaming
-
-**Proposed Solution**: **StreamingQueue + Background Thread Architecture**
-
-1. **Background Thread**: Agent spawns all processing work to background thread that emits events to StreamingQueue
-2. **Main Thread**: `chat_stream()` just yields events from queue - cannot interrupt agent processing
-3. **State Protection**: Add `is_processing` flag to prevent concurrent state mutations during background processing
-4. **Guaranteed Completion**: Auto-save and state updates happen on background thread regardless of streaming consumption
-
-**Benefits**:
-
-- Agent processing guaranteed to complete and save
-- Real-time streaming maintained through queue
-- Clean separation of processing from streaming
-- WebSocket failures cannot interrupt agent work
-
-**Location**: `src/agent/core.py:190` (chat_stream method)
 
 ### #11: Image Generation Blocking Process - Poor Streaming UX
 
@@ -437,6 +402,42 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 - `client/src/components/ChatInput.tsx` - button disabled state logic
 - `client/src/hooks/useTriggerEvents.ts` - streaming state management
 - `client/src/hooks/useStreamBatcher.ts` - event batching that may contribute to timing
+
+### #20: Orphaned Event Detection Not Working After WebSocket Reconnect
+
+**Problem**: The orphaned event detection and notification system doesn't work as expected when clients disconnect and reconnect mid-stream.
+
+**Investigation Results**:
+
+- ❌ **CONFIRMED**: Disconnecting mid-stream and reconnecting doesn't show orphaned events banner
+- ❌ **CONFIRMED**: Expected behavior: new client should receive orphaned events (action_progress, action_completed) without seeing trigger_started, triggering orphaned event filtering and banner display
+- 📁 **Current Implementation**: `useStreamBatcher` tracks `activeTriggerIds` and filters events without matching trigger_started events
+
+**Root Cause**: Unknown - could be multiple issues:
+
+1. **No events reaching new client** - Agent may not be emitting events to new client queue after reconnect
+2. **Filtering logic bug** - `activeTriggerIds` tracking may not work correctly across event streams  
+3. **Counter not updating** - Events filtered but `orphanedEventCount` state not incrementing
+4. **Event timing** - Agent processing may complete before new client connects
+
+**Impact**:
+
+- Users connecting mid-stream don't get notified about skipped events
+- Poor user experience - no explanation for missing context
+- Debugging difficult without browser console access on mobile devices
+
+**Investigation Needed**:
+
+- Add debug logging to identify if events are reaching client after reconnect
+- Verify orphaned event filtering logic is executing correctly
+- Test counter state updates in orphaned event scenarios
+- Consider adding visible debug info for mobile debugging
+
+**Priority**: Low-Medium - functional feature but user experience gap
+
+**Location**: 
+- `client/src/hooks/useStreamBatcher.ts` - orphaned event filtering logic
+- `client/src/components/ChatInterface.tsx` - orphaned event banner display
 
 ## Current Implementation Status
 

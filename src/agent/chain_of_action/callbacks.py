@@ -4,7 +4,7 @@ Callback system for chain_of_action streaming.
 
 from typing import Protocol, Optional, Any
 
-from agent.chain_of_action.trigger import BaseTriger
+from agent.chain_of_action.trigger import BaseTrigger
 from .action_types import ActionType
 from .action_result import ActionResult
 
@@ -71,7 +71,7 @@ class ActionCallback(Protocol):
         """Called when all processing is complete"""
         pass
 
-    def on_trigger_started(self, entry_id: str, trigger: BaseTriger) -> None:
+    def on_trigger_started(self, entry_id: str, trigger: BaseTrigger) -> None:
         """Called when trigger processing starts"""
         pass
 
@@ -137,7 +137,7 @@ class NoOpCallback:
     def on_processing_complete(self, total_sequences: int, total_actions: int) -> None:
         pass
 
-    def on_trigger_started(self, entry_id: str, trigger: BaseTriger) -> None:
+    def on_trigger_started(self, entry_id: str, trigger: BaseTrigger) -> None:
         pass
 
     def on_trigger_completed(

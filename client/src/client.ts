@@ -1,4 +1,4 @@
-import { TimelineResponse } from "./types";
+import { TimelineResponse, AutoWakeupStatusResponse, AutoWakeupSetResponse } from "./types";
 
 interface ClientConfig {
   host?: string;
@@ -71,6 +71,32 @@ export class AgentClient {
 
     if (!response.ok) {
       throw new Error(`Failed to get timeline: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getAutoWakeupStatus(): Promise<AutoWakeupStatusResponse> {
+    const response = await fetch(`${this.httpBaseUrl}/api/auto-wakeup`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to get auto-wakeup status: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async setAutoWakeupEnabled(enabled: boolean): Promise<AutoWakeupSetResponse> {
+    const response = await fetch(`${this.httpBaseUrl}/api/auto-wakeup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ enabled }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to set auto-wakeup status: ${response.statusText}`);
     }
 
     return response.json();

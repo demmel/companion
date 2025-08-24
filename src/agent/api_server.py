@@ -44,6 +44,21 @@ class ResetResponse(BaseModel):
     timestamp: str
 
 
+class AutoWakeupStatusResponse(BaseModel):
+    enabled: bool
+    delay_seconds: int
+
+
+class AutoWakeupSetRequest(BaseModel):
+    enabled: bool
+
+
+class AutoWakeupSetResponse(BaseModel):
+    enabled: bool
+    message: str
+    timestamp: str
+
+
 # Set up logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -303,54 +318,126 @@ async def websocket_chat(websocket: WebSocket):
     """WebSocket endpoint for streaming chat"""
     await websocket.accept()
 
+    import asyncio
+    import threading
+    import queue as queue_module
+
+    # Create client-specific queue and register with agent (replaces any existing client)
+    client_queue: queue_module.Queue = queue_module.Queue()
+    app.state.agent.set_client_queue(client_queue)
+
+    logger.info("WebSocket client connected, queue registered")
+
     try:
-        while True:
-            # Receive message from client
-            data = await websocket.receive_text()
-            message_data = json.loads(data)
-            message = message_data.get("message", "")
 
-            # Handle empty message as wakeup trigger
-            if not message.strip():
-                # Create wakeup trigger instead of user input trigger
-                message = None  # Signal to use wakeup trigger
-            
-            # Stream agent response
+        async def handle_incoming_messages():
+            """Handle incoming messages from client"""
             try:
-                logger.info(f"Processing message: {message}")
-                websocket_failed = False
+                while True:
+                    # Receive message from client
+                    data = await websocket.receive_text()
+                    message_data = json.loads(data)
+                    message = message_data.get("message", "")
 
-                for event in app.state.agent.chat_stream(message):
-                    if not websocket_failed:
+                    # Handle empty message as wakeup trigger
+                    if not message.strip():
+                        # Create wakeup trigger instead of user input trigger
+                        message = None  # Signal to use wakeup trigger
+
+                    # Process message in background thread
+                    logger.info(f"Processing message: {message}")
+
+                    def process_message():
                         try:
-                            await websocket.send_text(event.model_dump_json())
-                        except (WebSocketDisconnect, Exception) as e:
-                            logger.info(
-                                f"WebSocket send failed, draining remaining events: {e}"
+                            app.state.agent.chat_stream(message)
+                        except Exception as e:
+                            # Put error event in queue
+                            from agent.api_types import AgentErrorEvent
+
+                            error_event = AgentErrorEvent(
+                                message=f"Internal error: {str(e)}"
                             )
-                            websocket_failed = True
-                            # Continue iterating to let agent complete processing
+                            app.state.agent.emit_event(error_event)
 
-                # Agent will emit ResponseCompleteEvent automatically
-
+                    # Run agent processing in background thread
+                    thread = threading.Thread(target=process_message)
+                    thread.start()
+            except WebSocketDisconnect:
+                pass
             except Exception as e:
-                # Send error event only if websocket is still working
-                if not websocket_failed:
-                    try:
-                        error_event = {
-                            "type": "agent_error",
-                            "message": f"Internal error: {str(e)}",
-                            "tool_name": None,
-                            "tool_id": None,
-                        }
-                        await websocket.send_text(json.dumps(error_event))
-                    except:
-                        pass  # WebSocket already dead, ignore
+                logger.error(f"WebSocket message handling error: {e}")
 
+        async def handle_outgoing_events():
+            """Handle outgoing events to client"""
+            try:
+                while True:
+                    # Get event from our local client queue with timeout
+                    try:
+                        event = await asyncio.to_thread(client_queue.get, True, 1.0)
+                        await websocket.send_text(event.model_dump_json())
+                    except queue_module.Empty:
+                        # Timeout - check if WebSocket is still alive
+                        if (
+                            websocket.client_state
+                            == websocket.client_state.DISCONNECTED
+                        ):
+                            logger.info(
+                                "WebSocket disconnected during timeout, stopping event handler"
+                            )
+                            break
+                        continue
+                    except WebSocketDisconnect:
+                        logger.info("WebSocket disconnect detected in outgoing events")
+                        break
+                    except Exception as e:
+                        # Log the error but check if it's due to closed connection
+                        if "websocket.close" in str(
+                            e
+                        ) or "response already completed" in str(e):
+                            logger.info("WebSocket closed, stopping event handler")
+                            break
+                        else:
+                            logger.error(f"Queue/WebSocket error: {e}")
+                            break
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnect in event handler")
+            except Exception as e:
+                logger.error(f"WebSocket event sending error: {e}")
+
+        # Run both handlers concurrently
+        await asyncio.gather(handle_incoming_messages(), handle_outgoing_events())
     except WebSocketDisconnect:
-        pass
+        logger.info("WebSocket disconnected")
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        # Clear our queue from the agent (only if it's still ours)
+        app.state.agent.clear_client_queue(client_queue)
+        logger.info("WebSocket client disconnected, queue cleared")
+
+
+@app.get("/api/auto-wakeup", response_model=AutoWakeupStatusResponse)
+async def get_auto_wakeup_status():
+    """Get current auto-wakeup status"""
+    agent: Agent = app.state.agent
+    return AutoWakeupStatusResponse(
+        enabled=agent.get_auto_wakeup_enabled(),
+        delay_seconds=agent.wakeup_delay_seconds,
+    )
+
+
+@app.post("/api/auto-wakeup", response_model=AutoWakeupSetResponse)
+async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
+    """Set auto-wakeup enabled state"""
+    agent: Agent = app.state.agent
+
+    agent.set_auto_wakeup_enabled(request.enabled)
+
+    return AutoWakeupSetResponse(
+        enabled=agent.get_auto_wakeup_enabled(),
+        message=f"Auto-wakeup {'enabled' if request.enabled else 'disabled'}",
+        timestamp=datetime.now().isoformat(),
+    )
 
 
 @app.get("/api/health")
