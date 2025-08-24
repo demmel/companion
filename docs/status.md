@@ -403,6 +403,41 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 
 **Location**: `src/agent/chain_of_action/actions/fetch_url_action.py`, future multi-pass enhancement
 
+### #19: Submit Button Disabled State Visual Lag During Streaming
+
+**Problem**: The submit button in ChatInput appears enabled when streaming starts, but becomes visually disabled only after user interacts with the input field (e.g., clicking the text area), suggesting a React re-render timing issue.
+
+**Investigation Results**:
+
+- ❌ **CONFIRMED**: Button visually appears enabled when user clicks submit during streaming
+- ❌ **CONFIRMED**: Button correctly shows disabled state after clicking/focusing the input field 
+- 📁 **Behavior**: State updates appear to be working correctly but not triggering immediate visual updates
+- 📁 **Timing**: 50ms event batching in `useStreamBatcher` may contribute but shouldn't prevent eventual re-render
+
+**Root Cause**: Likely a React state update/re-render timing issue where `isStreamActive` state updates in `useTriggerEvents` hook but doesn't immediately trigger ChatInterface component re-render.
+
+**Impact**:
+
+- Poor user experience - users may think they can submit multiple messages during streaming
+- Confusing visual feedback during agent processing
+- Button appears functional when it should be disabled
+
+**Current Workaround**: None - manual interaction with input field forces correct visual update.
+
+**Proposed Solutions**:
+
+1. **Immediate Visual Feedback**: Add explicit streaming state indicator to button (spinner/loading state)
+2. **Fix Re-render Issue**: Debug React dependency arrays and state flow to ensure immediate re-renders
+3. **Process Critical Events Immediately**: Make `trigger_started`/`trigger_completed` events bypass 50ms batching
+4. **Force Re-render**: Add key prop or other mechanism to force component updates
+
+**Priority**: Low-Medium - functional but poor UX
+
+**Location**: 
+- `client/src/components/ChatInput.tsx` - button disabled state logic
+- `client/src/hooks/useTriggerEvents.ts` - streaming state management
+- `client/src/hooks/useStreamBatcher.ts` - event batching that may contribute to timing
+
 ## Current Implementation Status
 
 ### Architecture Overview

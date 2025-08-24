@@ -264,6 +264,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         onClear={handleClear}
         clearDisabled={isStreamActive}
         contextInfo={contextInfo}
+        allowEmptySubmit={triggerEntries.length > 0}
       />
     </div>
   );

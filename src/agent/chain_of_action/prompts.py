@@ -77,31 +77,14 @@ def build_completed_action_list(completed_actions: List[ActionResult]) -> Option
 
 def format_trigger_entries(entries: List[TriggerHistoryEntry]) -> str:
     """Format a list of trigger entries as stream of consciousness for prompts"""
-    from agent.chain_of_action.trigger import UserInputTrigger
-
     if not entries:
         return ""
 
     parts = []
     for entry in entries:
-        # Format the trigger
-        if isinstance(entry.trigger, UserInputTrigger):
-            trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] {entry.trigger.user_name} said: "{entry.trigger.content}"'
-        else:
-            trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] Trigger: {entry.trigger.type}'
-
-        parts.append(trigger_desc)
-
-        # Use compressed summary if available, otherwise show full actions
-        if entry.compressed_summary:
-            # Add compressed summary as part of stream of consciousness
-            parts.append(entry.compressed_summary)
-        else:
-            # Format each action taken in response (for current/recent entries)
-            for action in entry.actions_taken:
-                formatted_action = _format_action_for_diary(action)
-                parts.append(formatted_action)
-
+        # Use the centralized formatting function with summary preference
+        formatted_entry = format_single_trigger_entry(entry, use_summary=True)
+        parts.append(formatted_entry)
         parts.append("")  # Blank line between entries
 
     return "\n".join(parts)
@@ -117,24 +100,30 @@ def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
     return format_trigger_entries(triggers)
 
 
-def format_single_trigger_entry(entry: TriggerHistoryEntry) -> str:
-    """Format a single trigger history entry for prompts"""
-    from agent.chain_of_action.trigger import UserInputTrigger
-
+def format_single_trigger_entry(entry: TriggerHistoryEntry, use_summary: bool = False) -> str:
+    """Format a single trigger history entry for prompts
+    
+    Args:
+        entry: The trigger history entry to format
+        use_summary: If True, use compressed summary instead of full actions when available
+    """
     parts = []
 
-    # Format the trigger
-    if isinstance(entry.trigger, UserInputTrigger):
-        trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] {entry.trigger.user_name} said: "{entry.trigger.content}"'
-    else:
-        trigger_desc = f'[{entry.timestamp.strftime("%Y-%m-%d %H:%M")}] Trigger: {entry.trigger.type}'
+    # Format the trigger using the centralized function
+    timestamp = entry.timestamp.strftime("%Y-%m-%d %H:%M")
+    trigger_text = format_trigger_for_prompt(entry.trigger)
+    trigger_desc = f"[{timestamp}] {trigger_text}"
 
     parts.append(trigger_desc)
 
-    # Format each action taken in response
-    for action in entry.actions_taken:
-        formatted_action = _format_action_for_diary(action)
-        parts.append(formatted_action)
+    # Use compressed summary if available and requested, otherwise show full actions
+    if use_summary and entry.compressed_summary:
+        parts.append(entry.compressed_summary)
+    else:
+        # Format each action taken in response
+        for action in entry.actions_taken:
+            formatted_action = _format_action_for_diary(action)
+            parts.append(formatted_action)
 
     return "\n".join(parts)
 

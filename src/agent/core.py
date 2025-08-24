@@ -15,7 +15,7 @@ from agent.api_types import (
 )
 from agent.chain_of_action.action_types import ActionType
 from agent.chain_of_action.action_result import ActionResult
-from agent.chain_of_action.trigger import UserInputTrigger
+from agent.chain_of_action.trigger import Trigger, UserInputTrigger, WakeupTrigger
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.llm import LLM, SupportedModel
 from agent.state import State
@@ -195,7 +195,7 @@ class Agent:
             > (self.auto_summarize_threshold * 0.75),  # 75% of summarization limit
         )
 
-    def chat_stream(self, user_input: str) -> Iterator[AgentEvent]:
+    def chat_stream(self, user_input: Optional[str]) -> Iterator[AgentEvent]:
         """Streaming chat interface that yields typed events using reasoning loop"""
         start_time = time.time()
         streaming = StreamingQueue[AgentEvent]()
@@ -203,6 +203,9 @@ class Agent:
         def run_agent():
             # Check if agent needs character configuration (first message)
             if self.state is None:
+                if user_input is None:
+                    # Ignore wakeup triggers during initialization - just return
+                    return
                 # Run initial exchange with character definition
                 self._run_initial_exchange_with_streaming(user_input, streaming)
             else:
@@ -213,8 +216,14 @@ class Agent:
                         # Perform auto-summarization with event emission
                         self._auto_summarize_with_events(self.keep_recent, streaming)
 
+                # Create appropriate trigger type
+                if user_input is not None:
+                    trigger = UserInputTrigger(content=user_input, user_name="User")
+                else:
+                    trigger = WakeupTrigger()
+
                 # Use action-based reasoning with callback conversion
-                self._run_chain_of_action_with_streaming(user_input, streaming)
+                self._run_chain_of_action_with_streaming(trigger, streaming)
 
                 # Continuous summarization: summarize after every trigger if enabled
                 if (
@@ -472,7 +481,7 @@ class Agent:
         )
 
     def _run_chain_of_action_with_streaming(
-        self, user_input: str, streaming: StreamingQueue[AgentEvent]
+        self, trigger: Trigger, streaming: StreamingQueue[AgentEvent]
     ):
         """Run chain_of_action with callback conversion to AgentEvents"""
         from agent.chain_of_action.callbacks import ActionCallback
@@ -626,7 +635,7 @@ class Agent:
 
         # Process with trigger history integration
         self.action_reasoning_loop.process_trigger(
-            trigger=UserInputTrigger(content=user_input, user_name="User"),
+            trigger=trigger,
             state=self.state,
             llm=self.llm,
             model=self.model,
@@ -787,7 +796,6 @@ def summarize_trigger_history(
     """Pure function to summarize trigger history entries"""
     from agent.chain_of_action.prompts import (
         build_summarization_prompt,
-        format_single_trigger_entry,
     )
 
     total_entries = len(trigger_history.get_all_entries())

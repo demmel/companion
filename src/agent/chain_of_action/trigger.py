@@ -22,8 +22,14 @@ class UserInputTrigger(BaseTriger):
     user_name: str = "User"  # Name of the person speaking
 
 
+class WakeupTrigger(BaseTriger):
+    """Trigger for agent's autonomous reflection/continuation"""
+
+    type: Literal["wakeup"] = "wakeup"
+
+
 # Create discriminated union for proper polymorphic serialization
-Trigger = UserInputTrigger
+Trigger = Union[UserInputTrigger, WakeupTrigger]
 
 
 def format_trigger_for_prompt(trigger: BaseTriger) -> str:
@@ -32,6 +38,9 @@ def format_trigger_for_prompt(trigger: BaseTriger) -> str:
         # For user input, show who spoke to the agent
         user_trigger = trigger  # Type: UserInputTrigger
         return f'{user_trigger.user_name} said to me: "{user_trigger.content}"'
+    elif isinstance(trigger, WakeupTrigger):
+        # For wakeup, simple continuity of experience
+        return "I continue to exist and experience"
     else:
         # Future trigger types would be formatted differently
         # e.g., "A tool finished executing: {result}"

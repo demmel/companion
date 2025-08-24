@@ -6,7 +6,12 @@ export interface UserInputTrigger {
   timestamp: string;
 }
 
-export type Trigger = UserInputTrigger;
+export interface WakeupTrigger {
+  type: "wakeup";
+  timestamp: string;
+}
+
+export type Trigger = UserInputTrigger | WakeupTrigger;
 
 export type ActionStatus =
   | { type: "streaming"; result: string }

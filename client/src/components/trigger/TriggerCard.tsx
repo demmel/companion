@@ -1,5 +1,5 @@
 import { css } from "@styled-system/css";
-import { MessageCircle, User, Clock } from "lucide-react";
+import { MessageCircle, User, Clock, Coffee } from "lucide-react";
 import { Trigger } from "@/types";
 
 interface TriggerCardProps {
@@ -11,6 +11,8 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
     switch (trigger.type) {
       case "user_input":
         return <User size={16} className={css({ color: "blue.500" })} />;
+      case "wakeup":
+        return <Coffee size={16} className={css({ color: "orange.500" })} />;
       default:
         return (
           <MessageCircle size={16} className={css({ color: "gray.500" })} />
@@ -22,9 +24,11 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
     switch (trigger.type) {
       case "user_input":
         return trigger.user_name || "User";
+      case "wakeup":
+        return "Wakeup";
       default:
-        // Future trigger types would go here
-        return trigger.type;
+        const _exhaustiveCheck: never = trigger;
+        return _exhaustiveCheck;
     }
   };
 
@@ -32,6 +36,8 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
     switch (trigger.type) {
       case "user_input":
         return trigger.content;
+      case "wakeup":
+        return "Continuing to exist and experience...";
       default:
         return "";
     }

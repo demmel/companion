@@ -24,8 +24,15 @@ class UserInputTriggerDTO(BaseModel):
     timestamp: str
 
 
-# Discriminated union for all trigger types (only user_input for now)
-TriggerDTO = UserInputTriggerDTO
+class WakeupTriggerDTO(BaseModel):
+    """DTO for wakeup triggers"""
+
+    type: Literal["wakeup"] = "wakeup"
+    timestamp: str
+
+
+# Discriminated union for all trigger types
+TriggerDTO = Union[UserInputTriggerDTO, WakeupTriggerDTO]
 
 
 # Action DTOs
@@ -252,12 +259,16 @@ AgentEvent = TriggerEvent
 # Conversion functions from backend types to DTOs
 def convert_trigger_to_dto(trigger) -> TriggerDTO:
     """Convert backend TriggerEvent to DTO"""
-    from agent.chain_of_action.trigger import UserInputTrigger
+    from agent.chain_of_action.trigger import UserInputTrigger, WakeupTrigger
 
     if isinstance(trigger, UserInputTrigger):
         return UserInputTriggerDTO(
             content=trigger.content,
             user_name=trigger.user_name,
+            timestamp=trigger.timestamp.isoformat(),
+        )
+    elif isinstance(trigger, WakeupTrigger):
+        return WakeupTriggerDTO(
             timestamp=trigger.timestamp.isoformat(),
         )
     else:

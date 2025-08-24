@@ -310,9 +310,11 @@ async def websocket_chat(websocket: WebSocket):
             message_data = json.loads(data)
             message = message_data.get("message", "")
 
+            # Handle empty message as wakeup trigger
             if not message.strip():
-                continue
-
+                # Create wakeup trigger instead of user input trigger
+                message = None  # Signal to use wakeup trigger
+            
             # Stream agent response
             try:
                 logger.info(f"Processing message: {message}")

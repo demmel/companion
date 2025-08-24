@@ -93,7 +93,9 @@ describe("useTriggerEvents", () => {
     const trigger = result.current.streamingEntries[0];
     expect(trigger.entry_id).toBe("entry_1");
     expect(trigger.trigger.type).toBe("user_input");
-    expect(trigger.trigger.content).toBe("Hello, how are you?");
+    if (trigger.trigger.type === "user_input") {
+      expect(trigger.trigger.content).toBe("Hello, how are you?");
+    }
     expect(trigger.actions_taken).toHaveLength(1);
 
     const action = trigger.actions_taken[0];
@@ -149,7 +151,9 @@ describe("useTriggerEvents", () => {
 
     const activeTrigger = result.current.streamingEntries[0];
     expect(activeTrigger.entry_id).toBe("entry_2");
-    expect(activeTrigger.trigger.content).toBe("Tell me about yourself");
+    if (activeTrigger.trigger.type === "user_input") {
+      expect(activeTrigger.trigger.content).toBe("Tell me about yourself");
+    }
     expect(activeTrigger.actions_taken).toHaveLength(1);
 
     const activeAction = activeTrigger.actions_taken[0];

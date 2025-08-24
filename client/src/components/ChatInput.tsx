@@ -1,4 +1,4 @@
-import { Send } from "lucide-react";
+import { Send, Coffee } from "lucide-react";
 import { css } from "@styled-system/css";
 import { useRef, useEffect } from "react";
 
@@ -19,6 +19,7 @@ interface ChatInputProps {
   onClear?: () => void;
   clearDisabled?: boolean;
   contextInfo?: ContextInfo | null;
+  allowEmptySubmit?: boolean;
 }
 
 export function ChatInput({
@@ -30,6 +31,7 @@ export function ChatInput({
   onClear,
   clearDisabled = false,
   contextInfo,
+  allowEmptySubmit = false,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -43,7 +45,8 @@ export function ChatInput({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!value.trim() || disabled) return;
+    if (disabled) return;
+    if (!value.trim() && !allowEmptySubmit) return;
 
     onSubmit(value);
     resetTextareaHeight();
@@ -82,7 +85,8 @@ export function ChatInput({
           onKeyDown={(e) => {
             if (e.key === "Enter" && e.ctrlKey) {
               e.preventDefault();
-              if (!value.trim() || disabled) return;
+              if (disabled) return;
+              if (!value.trim() && !allowEmptySubmit) return;
               onSubmit(value);
               resetTextareaHeight();
             }
@@ -123,7 +127,7 @@ export function ChatInput({
         />
         <button
           type="submit"
-          disabled={disabled || !value.trim()}
+          disabled={disabled || (!value.trim() && !allowEmptySubmit)}
           className={css({
             px: 4,
             py: 3,
@@ -143,7 +147,11 @@ export function ChatInput({
             transition: "colors",
           })}
         >
-          <Send size={16} />
+          {!value.trim() && allowEmptySubmit ? (
+            <Coffee size={16} />
+          ) : (
+            <Send size={16} />
+          )}
         </button>
       </form>
 
