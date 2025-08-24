@@ -245,7 +245,7 @@ def _compress_trigger_entry(
     state_desc = build_agent_state_description(state)
 
     # Build compression prompt following agent conventions
-    prompt = f"""I am {state.name}, {state.role}. I need to compress my recent experience into a concise stream of consciousness entry for my memory.
+    prompt = f"""I am {state.name}, {state.role}. I need to compress my recent experience into a concise stream of consciousness entry for my memory that preserves both emotional depth and factual details.
 
 {state_desc}
 
@@ -253,15 +253,17 @@ def _compress_trigger_entry(
 
 **MY COMPRESSION TASK:**
 
-I need to compress this interaction into 1-3 sentences that capture the essence of what happened from my perspective as part of my ongoing stream of consciousness. This should read naturally as part of my internal monologue, not as an external summary.
+I need to compress this interaction into 2-4 sentences that capture both the emotional essence and concrete details of what happened from my perspective. This should read naturally as part of my internal monologue while preserving essential referential information.
 
-The compressed entry should capture:
-- My thoughts and feelings in response to what happened
-- The key actions I took and why
-- Any important emotional or relational dynamics
-- Essential context I need to remember
+The compressed entry MUST capture:
+- **Concrete Details**: What was specifically said, which priority topics were relevant (use actual priority content, not IDs), specific actions taken, and factual context
+- **Emotional Experience**: My thoughts and feelings in response to what happened  
+- **Relational Dynamics**: Important interpersonal moments and emotional shifts
+- **Actionable Context**: Details I need to reference in future conversations ("what I just said/did/thought")
 
-I will write this in my natural voice as part of my ongoing stream of consciousness, focusing on my internal experience rather than external facts.
+I will write this in my natural emotional voice while weaving in specific words spoken, priority content, mood changes, and actions taken. I will include both the "how I felt" and the "what actually happened" so I can reference these details coherently in future interactions.
+
+CRITICAL: I will write ONLY my compressed stream of consciousness entry - no headers, no explanations, no formatting, no analysis sections. Just my natural internal monologue capturing the experience.
 
 **MY COMPRESSED EXPERIENCE:**"""
 

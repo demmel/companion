@@ -136,32 +136,26 @@ def _format_action_for_diary(action: ActionResult) -> str:
     """
     from agent.chain_of_action.action_types import ActionType
 
-    def format_multiline_content(content: str) -> str:
-        """Format multi-line content with XML-style tags"""
-        lines = content.split("\n")
-        if len(lines) <= 1:
-            return f'"{content}"'
-        # Use XML-style tags that agent wouldn't naturally produce
-        return f"<content>\n{content}\n</content>"
-
+    action_parts = []
     if action.action == ActionType.THINK:
-        content = format_multiline_content(action.result_summary)
-        return f'- I thought about "{action.context_given}":\n  {content}'
+        action_parts.append(f'- I thought about "{action.context_given}')
     elif action.action == ActionType.SPEAK:
-        content = format_multiline_content(action.result_summary)
-        return f'- I responded to "{action.context_given}":\n  {content}'
+        action_parts.append(f'- I responded to "{action.context_given}":')
     elif action.action == ActionType.WAIT:
-        return f'- I waited: "{action.context_given}"'
+        action_parts.append(f'- I waited: "{action.context_given}"')
     elif action.action == ActionType.UPDATE_APPEARANCE:
-        content = format_multiline_content(action.result_summary)
-        return f"- I updated my appearance ({action.context_given}):\n  {content}"
+        action_parts.append(f"- I updated my appearance ({action.context_given}):")
     elif action.action == ActionType.UPDATE_MOOD:
-        content = format_multiline_content(action.result_summary)
-        return f"- My mood changed ({action.context_given}):\n  {content}"
+        action_parts.append(f"- My mood changed ({action.context_given}):")
     else:
-        # Generic format for any other actions
-        content = format_multiline_content(action.result_summary)
-        return f'- I {action.action.value} "{action.context_given}":\n  {content}'
+        action_parts.append(f'- I {action.action.value} "{action.context_given}":')
+
+    action_parts.append("  <content>")
+    for line in action.result_summary.split("\n"):
+        action_parts.append(f"    {line}")
+    action_parts.append("  </content>")
+
+    return "\n".join(action_parts)
 
 
 def build_summarization_prompt(
