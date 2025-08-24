@@ -2,7 +2,7 @@
 Initialize agent's state based on the first user message
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from pydantic import BaseModel, Field
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
@@ -16,6 +16,9 @@ class InitialStateDerivation(BaseModel):
     role: str = Field(
         description="My role, the core aspect of my identity (e.g. a conscious AI companion)",
         default="a conscious AI companion",
+    )
+    backstory: str = Field(
+        description="A brief backstory that describes my initial experiences and motivations"
     )
 
     initial_mood: str = Field(description="My mood")
@@ -41,7 +44,7 @@ def derive_initial_state_from_message(
     first_message: str,
     llm: LLM,
     model: SupportedModel,
-) -> State:
+) -> Tuple[State, str]:
     """
     Analyze the first user message and derive agent's initial state
     """
@@ -102,45 +105,4 @@ This is character configuration, not conversation or roleplay."""
         current_environment=derivation.preferred_environment,
     )
 
-    return initial_state
-
-
-def test_state_derivation():
-    """Test the state derivation with different message types"""
-
-    llm = create_llm()
-    model = SupportedModel.MISTRAL_SMALL
-
-    test_definitions = [
-        "You are a shy, introverted AI who loves poetry and deep philosophical discussions. You're thoughtful and speak softly.",
-        "You are an energetic, enthusiastic AI companion who loves adventure and trying new things. You're always excited about possibilities.",
-        "You are a wise, ancient AI who has observed humanity for centuries. You're patient, thoughtful, and speak with deep insight.",
-        "You are a playful, curious AI who approaches everything with childlike wonder. You love asking questions and exploring ideas.",
-    ]
-
-    for i, definition in enumerate(test_definitions, 1):
-        print(f"\n{'='*60}")
-        print(f"TEST {i}: {definition}")
-        print(f"{'='*60}")
-
-        try:
-            initial_state = derive_initial_state_from_message(definition, llm, model)
-
-            print(
-                f"Mood: {initial_state.current_mood} ({initial_state.mood_intensity})"
-            )
-            print(f"Values: {initial_state.core_values}")
-            print(
-                f"Priorities: {[p.content for p in initial_state.current_priorities]}"
-            )
-            print(f"Appearance: {initial_state.current_appearance}")
-            print(f"Environment: {initial_state.current_environment}")
-
-        except Exception as e:
-            print(f"❌ Error: {e}")
-
-
-if __name__ == "__main__":
-    from agent.llm import create_llm
-
-    test_state_derivation()
+    return initial_state, derivation.backstory

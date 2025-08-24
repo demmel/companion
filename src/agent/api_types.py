@@ -194,15 +194,6 @@ class TriggerCompletedEvent(BaseModel):
     approaching_limit: bool
 
 
-class TriggerSummaryEvent(BaseModel):
-    """Event emitted when trigger history gets summarized"""
-
-    type: Literal["trigger_summary"] = "trigger_summary"
-    summary: SummaryDTO
-    entries_summarized: int
-    timestamp: str
-
-
 class ActionProgressEvent(BaseModel):
     """Event emitted for streaming action progress"""
 
@@ -249,7 +240,6 @@ TriggerEvent = Union[
     ActionProgressEvent,
     ActionCompletedEvent,
     TriggerCompletedEvent,
-    TriggerSummaryEvent,
     AgentErrorEvent,
     SummarizationStartedEvent,
     SummarizationFinishedEvent,

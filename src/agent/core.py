@@ -275,12 +275,28 @@ class Agent:
             derive_state_start_time = time.time()
 
             # Derive agent's state from character definition
-            self.state = derive_initial_state_from_message(
+            self.state, backstory = derive_initial_state_from_message(
                 user_input, self.llm, self.model
             )
 
             # Create and store the action result
-            state_description = build_agent_state_description(self.state)
+            state_description = "\n".join(
+                [
+                    f"Name: {self.state.name}",
+                    f"Role: {self.state.role}",
+                    f"Mood: {self.state.current_mood}",
+                    f"Environment: {self.state.current_environment}",
+                    f"Appearance: {self.state.current_appearance}",
+                    f"Backstory: {backstory}",
+                    "Core Values:",
+                    *[f"- {value.content}" for value in self.state.core_values],
+                    "Priorities:",
+                    *[
+                        f"- {priority.content}"
+                        for priority in self.state.current_priorities
+                    ],
+                ]
+            )
             think_action_result = ActionResult(
                 action=ActionType.THINK,
                 context_given="Deriving initial state",
@@ -428,6 +444,9 @@ class Agent:
                             timestamp=datetime.now().isoformat(),
                         )
                     )
+
+            # Insert summary at position 1
+            self.trigger_history.add_summary(backstory, 1)
 
         except Exception as e:
             streaming.emit(
