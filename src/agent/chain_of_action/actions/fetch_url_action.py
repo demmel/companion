@@ -155,30 +155,20 @@ class FetchUrlAction(BaseAction[FetchUrlInput, None]):
                 logger.warning(f"HTML parsing failed, using raw text: {parse_error}")
                 content = response.text
 
-            # Truncate at 55kb if too long for LLM processing
-            max_chars = 55 * 1024  # 55kb
-            if len(content) > max_chars:
-                content = (
-                    content[:max_chars]
-                    + "\n\n[Content truncated at 55kb for processing]"
-                )
-
             # Build agent prompt to summarize the content
             from agent.chain_of_action.prompts import format_section
 
             state_desc = self.build_agent_state_description(state)
 
-            summarization_prompt = f"""I am {state.name}, {state.role}. I process and analyze content as myself - not as an assistant or helper.
+            prefix = f"""I am {state.name}, {state.role}. I process and analyze content as myself - not as an assistant or helper.
 
 {state_desc}
 
 {format_section("URL I'M READING", action_input.url)}
 
-{format_section("WHAT I'M CURIOUS ABOUT", action_input.looking_for)}
+{format_section("WHAT I'M CURIOUS ABOUT", action_input.looking_for)}"""
 
-{format_section("CONTENT I'M REVIEWING", content)}
-
-**MY PRIVATE NOTES:**
+            suffix = """**MY PRIVATE NOTES:**
 
 I am writing in my personal notes about content I just read, for my own understanding and memory.
 
@@ -195,6 +185,30 @@ What specific details and facts did I learn? What concrete information, names, n
 I just read something interesting. Let me capture the key details I learned...
 
 This was about"""
+
+            used_context = (len(prefix) + len(suffix)) / llm.models[
+                model
+            ].estimated_token_size
+
+            # Truncate content to account for the prompt size and needed response tokens
+            max_tokens = llm.models[model].context_window - used_context - 4096
+            max_chars = max_tokens * llm.models[model].estimated_token_size
+            if len(content) > max_chars:
+                content = (
+                    content[:max_chars]
+                    + "\n\n[Content truncated at 55kb for processing]"
+                )
+
+            logger.info(
+                f"fetch_url - prompt and response space uses {used_context} tokens leaving {max_tokens} available for content"
+            )
+
+            summarization_prompt = f"""{prefix}
+
+            {format_section("CONTENT I'M REVIEWING", content)}
+
+            {suffix}
+            """
 
             # Use LLM to summarize the content
             try:

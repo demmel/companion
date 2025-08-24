@@ -29,10 +29,10 @@ logger = logging.getLogger(__name__)
 class UpdateAppearanceInput(BaseModel):
     """Input for UPDATE_APPEARANCE action"""
 
-    change_description: str = Field(
-        description="What specific aspects of my appearance should change and how"
-    )
     reason: str = Field(description="Why I'm changing my appearance")
+    change_description: str = Field(
+        description="What specific aspects of my appearance should change and how.  These should be specific and detailed."
+    )
 
 
 class UpdateAppearanceActionMetadata(BaseModel):
@@ -137,6 +137,8 @@ class UpdateAppearanceAction(
         model: SupportedModel,
         progress_callback,
     ) -> ActionResult:
+        from agent.chain_of_action.prompts import format_section
+
         start_time = time.time()
 
         logger.debug("=== UPDATE_APPEARANCE ACTION ===")
@@ -145,20 +147,35 @@ class UpdateAppearanceAction(
 
         old_appearance = state.current_appearance
 
-        # Use LLM to merge the appearance update with current appearance
-        merge_prompt = f"""I need to update my appearance based on a specific change request. Please merge the requested changes with my current appearance to create an absolute description.
+        actions_summary = context.get_completed_actions_summary()
+        actions_taken_section = format_section(
+            "ACTIONS I'VE ALREADY TAKEN", actions_summary
+        )
 
+        appearance_update_section = format_section(
+            "PROPOSED APPEARANCE UPDATE",
+            f"""
 Current appearance: "{old_appearance}"
 Requested change: "{action_input.change_description}"
 Reason for change: "{action_input.reason}"
+""",
+        )
 
-Please provide an updated appearance description that:
-1. Builds on my current appearance 
+        # Use LLM to merge the appearance update with current appearance
+        merge_prompt = f"""I am {state.name}, {state.role}, and I need to update my appearance based on a specific change request. Please merge the requested changes with my current appearance to create an absolute description.
+
+{actions_taken_section}
+
+{appearance_update_section}
+
+I should provide an updated appearance description that:
+1. Builds on my current appearance
 2. Incorporates the requested changes as absolute states (not comparative language like "more" or "leaning forward than before")
 3. Follows the format: pose/posture, facial expression, hair/body details, clothing/accessories
 4. Uses first-person perspective starting with "I"
-5. Prioritizes emotional expression over clothing details
-6. IMPORTANT: Convert any comparative language to absolute descriptions (e.g., "leaning more forward" becomes "leaning forward", "feeling happier" becomes "smiling warmly")
+5. Incorporates any actions I've taken prior to this update that should alter my appearance or override the requested changes
+6. Use explicit language to describe my appearance instead of vague terms.  (e.g. Bad: "Professional outfit", Good: "Wearing a tailored navy blazer over a crisp white shirt", Bad: "vibrant colors", Good: "a bright red scarf, a green dress with yellow flowers")
+7. IMPORTANT: Convert any comparative language to absolute descriptions (e.g., "leaning more forward" becomes "leaning forward", "feeling happier" becomes "smiling warmly")
 
 The result should be a natural evolution of my current appearance with the requested modifications expressed as absolute states."""
 

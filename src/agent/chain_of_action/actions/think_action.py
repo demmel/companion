@@ -92,7 +92,10 @@ class ThinkAction(BaseAction[ThinkInput, None]):
             sections.append(format_section("MY STREAM OF CONSCIOUSNESS", history_str))
         sections.append(format_section("WHAT JUST HAPPENED", trigger_description))
         sections.append(
-            format_section("MY ACTIONS", context.get_completed_actions_summary())
+            format_section(
+                "ACTIONS I'VE ALREADY TAKEN IN RESPONSE TO THIS",
+                context.get_completed_actions_summary(),
+            )
         )
 
         direct_prompt = f"""I am {state.name}, {state.role}, with my own thoughts, feelings, and desires. I think and reason as myself - not as a roleplay character or generic assistant.
@@ -118,6 +121,8 @@ CRITICAL RULES for this internal processing:
 What emotions am I experiencing? What reactions am I having? How does this moment affect me personally? How do I feel about what happened?
 
 How does this situation relate to my core values and what I care about? Are any of my current priorities relevant here? What does this moment mean to me given what I'm focusing on and what matters to me?
+
+What concrete ideas come to mind as I reflect on this? What explicit details come to mind? How can I creatively engage with this situation?
 
 I must stay focused on internal emotional processing only - no dialogue, no action planning, no "I said" statements.
 

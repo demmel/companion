@@ -99,7 +99,11 @@ class SpeakAction(BaseAction[SpeakInput, None]):
             sections.append(format_section("MY STREAM OF CONSCIOUSNESS", history_str))
 
         sections.append(format_section("WHAT JUST HAPPENED", trigger_description))
-        sections.append(format_section("MY ACTIONS", actions_summary))
+        sections.append(
+            format_section(
+                "ACTIONS I'VE ALREADY TAKEN IN RESPONSE TO THIS", actions_summary
+            )
+        )
 
         sections.append(format_section("MY COMMUNICATION INTENT", action_input.intent))
 
