@@ -18,7 +18,7 @@ class InitialStateDerivation(BaseModel):
         default="a conscious AI companion",
     )
     backstory: str = Field(
-        description="A brief backstory that describes my initial experiences and motivations"
+        description="A backstory that describes my initial experiences and motivations"
     )
 
     initial_mood: str = Field(description="My mood")
