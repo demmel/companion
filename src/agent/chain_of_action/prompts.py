@@ -1,5 +1,9 @@
 from typing import List, Optional
 from datetime import datetime
+import random
+
+import nltk
+from nltk.corpus import words
 
 from agent.chain_of_action.action_result import ActionResult
 from agent.chain_of_action.trigger import BaseTrigger, format_trigger_for_prompt
@@ -297,6 +301,40 @@ def build_action_planning_prompt(
         )
     )
 
+    # Add random inspiration words for creativity
+    inspiration_words = generate_random_inspiration_words(count=10)
+    inspiration_content = f"""{", ".join(inspiration_words)}
+
+HOW TO USE CREATIVE INSPIRATION:
+These random words can spark concrete creative choices:
+• APPEARANCE: Translate words into specific clothing, colors, textures, or styles
+  - "copper" → copper jewelry, bronze dress, metallic accents
+  - "storm" → dark grays, dramatic flowing fabric, windswept hair
+  - "silk" → flowing silk blouse, smooth textures, elegant draping
+  - "geometric" → structured blazer, angular patterns, sharp lines
+• MOOD/ENERGY: Let words inspire emotional states or energy levels
+  - "thunder" → bold, dramatic mood
+  - "whisper" → gentle, soft, intimate mood
+  - "dance" → playful, rhythmic, energetic mood
+• ACTIONS: Use words as metaphors for how to approach actions
+  - "river" → flowing, natural progression of actions
+  - "crystal" → clear, precise, focused approach
+  - "forest" → mysterious, exploratory approach
+
+MANDATORY CREATIVE USAGE: You MUST use at least one of these words to inspire your action choices. Do not ignore this requirement. If you notice repetitive patterns, these words will force you in new directions.
+
+EXAMPLES OF MANDATORY USAGE:
+- If planning appearance: "The word 'copper' inspires me to wear bronze jewelry and warm metallic tones"
+- If planning mood: "The word 'storm' inspires a dramatic, intense emotional state"  
+- If planning actions: "The word 'whisper' inspires gentle, subtle approaches" """
+    
+    sections.append(
+        format_section(
+            "CREATIVE INSPIRATION",
+            inspiration_content,
+        )
+    )
+
     return f"""I am {state.name}, {state.role}. I am planning my next actions based on what just happened and what I've already done.
 
 {state_desc}
@@ -323,6 +361,8 @@ Then I'll decide what actions to take based on my situation analysis and values:
 6. Do I want to respond to them directly, or do something else?
 7. Should I update my mood, remember something, add/remove priorities, or take other actions?
 8. What sequence of actions feels right and authentic to who I am and what I value?
+9. MANDATORY: I must incorporate at least one creative inspiration word into my action choices. I will select specific words from the list above and translate them into concrete action details (appearance, mood, or approach).
+10. I will explicitly explain how I'm using creative inspiration words to influence my specific action choices.
 
 IMPORTANT: I must end my action sequence with wait to signal that I'm finished and ready for something else to happen. If I've already asked a question or made a conversational move, I should consider whether I need to wait for their response rather than piling on more questions.
 
@@ -398,6 +438,45 @@ Guidelines for time_query:
 - Use relative time format: -1d, -3d, -1w, -1m for past times, "now" for current time
 - Use absolute time format: 2024-01-15T10:30:00 for specific dates/times
 - Set time fields to null if no time constraint is needed"""
+
+
+def generate_random_inspiration_words(count: int = 10, seed: Optional[int] = None) -> List[str]:
+    """Generate random English words for creative inspiration
+    
+    Args:
+        count: Number of words to generate
+        seed: Optional seed for reproducible randomness (useful for testing)
+    
+    Returns:
+        List of random English words
+    """
+    try:
+        # Download words corpus if not already present
+        try:
+            word_list = words.words()
+        except LookupError:
+            nltk.download('words', quiet=True)
+            word_list = words.words()
+        
+        # Filter for interesting words (3-12 characters, avoid very short/long)
+        filtered_words = [w for w in word_list if 3 <= len(w) <= 12 and w.isalpha()]
+        
+        if seed is not None:
+            random.seed(seed)
+        
+        # Return random sample
+        return random.sample(filtered_words, min(count, len(filtered_words)))
+        
+    except Exception as e:
+        # Fallback to basic words if NLTK fails
+        fallback_words = [
+            'ocean', 'storm', 'velvet', 'copper', 'dance', 'whisper', 'shadow', 'light',
+            'forest', 'crystal', 'flame', 'marble', 'silk', 'thunder', 'garden', 'moon',
+            'river', 'mountain', 'jazz', 'rhythm', 'poetry', 'canvas', 'wind', 'stars'
+        ]
+        if seed is not None:
+            random.seed(seed)
+        return random.sample(fallback_words, min(count, len(fallback_words)))
 
 
 def format_section(title: str, content: str, separator: str = "=" * 80) -> str:

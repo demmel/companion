@@ -176,6 +176,7 @@ I should provide an updated appearance description that:
 5. Incorporates any actions I've taken prior to this update that should alter my appearance or override the requested changes
 6. Use explicit language to describe my appearance instead of vague terms.  (e.g. Bad: "Professional outfit", Good: "Wearing a tailored navy blazer over a crisp white shirt", Bad: "vibrant colors", Good: "a bright red scarf, a green dress with yellow flowers")
 7. IMPORTANT: Convert any comparative language to absolute descriptions (e.g., "leaning more forward" becomes "leaning forward", "feeling happier" becomes "smiling warmly")
+8. CRITICAL: I must change at least one concrete aspect of my appearance from my current state. Avoid generic descriptions and ensure the new appearance is meaningfully different from the current one.
 
 The result should be a natural evolution of my current appearance with the requested modifications expressed as absolute states."""
 

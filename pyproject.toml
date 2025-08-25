@@ -31,6 +31,7 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "markdownify>=1.2.0",
     "sentence-transformers>=5.1.0",
+    "nltk>=3.9.1",
 ]
 
 [tool.uv.sources]

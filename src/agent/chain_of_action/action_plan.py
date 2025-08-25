@@ -27,6 +27,9 @@ class ActionSequence(BaseModel):
     reasoning: str = Field(
         description="My reasoning for why I am choosing this sequence"
     )
+    creative_incorporation: str = Field(
+        description="How I'm using specific creative inspiration words to influence my action choices and inputs"
+    )
     actions: List[ActionPlan] = Field(
         description="The actions I want to take, in order"
     )

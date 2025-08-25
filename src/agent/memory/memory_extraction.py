@@ -52,7 +52,7 @@ def extract_memory_queries(
         )
         elapsed = time.time() - start_time
         logger.info(
-            f"Memory extraction completed in {elapsed:.3f}s - query: {response.conceptual_query[:50] + '...' if response and len(response.conceptual_query) > 50 else response.conceptual_query if response else None}"
+            f"Memory extraction completed in {elapsed:.3f}s - query: {response.conceptual_query if response else None}"
         )
         return response
     except Exception as e:
