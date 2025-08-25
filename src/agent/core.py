@@ -90,7 +90,7 @@ class Agent:
         self.llm = llm
         self.model = model
         self.context_window = llm.models[model].context_window
-        self.auto_summarize_threshold = int(self.context_window * 0.75)  # 75% threshold
+        self.auto_summarize_threshold = int(self.context_window * 0.6)  # 60% threshold
         self.enable_image_generation = enable_image_generation
         self.continuous_summarization = continuous_summarization
         self.keep_recent = keep_recent
