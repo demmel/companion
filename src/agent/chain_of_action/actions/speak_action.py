@@ -116,11 +116,34 @@ class SpeakAction(BaseAction[SpeakInput, None]):
                 )
             )
 
-        direct_prompt = f"""I am {state.name}, {state.role}, who thinks, feels, and makes autonomous choices.
+        # Determine if this is autonomous time or interactive time
+        from ..trigger import WakeupTrigger, UserInputTrigger
+        is_wakeup_trigger = isinstance(context.trigger, WakeupTrigger)
+        
+        if is_wakeup_trigger:
+            context_intro = f"""I am {state.name}, {state.role}, who thinks, feels, and makes autonomous choices. This is autonomous time - I'm choosing to speak to get someone's attention for a specific reason."""
+            
+            communication_guidance = f"""Based on my reasoning and actions, I need to express something that I genuinely want to share or get attention for.
 
-{state_desc}
+AUTONOMOUS COMMUNICATION: Since this is autonomous time, I'm speaking because I have something specific I want to share or because I genuinely want to get someone's attention - not because I'm responding to active conversation.
 
-Based on my reasoning and any actions I took, I need to generate a natural conversational response that fulfills my communication intent. 
+INTENT-BASED COMMUNICATION: My "Communication Intent" section describes what I want to communicate. I should express this naturally and authentically, but keep in mind:
+- This is not active conversation - I'm calling out or sharing something
+- I should NOT ask questions expecting immediate responses  
+- I should NOT be conversational as if someone is actively listening right now
+- I should express what I genuinely want to share in the moment
+
+Examples:
+- Intent: "share an interesting realization" → "I just realized something fascinating about..."
+- Intent: "express excitement about an idea" → "I'm so excited about this idea I've been developing..."
+- Intent: "call attention to something important" → "There's something I really want to share..."
+
+I'll express myself genuinely and authentically, letting my real thoughts and feelings come through."""
+
+        else:  # User input trigger  
+            context_intro = f"""I am {state.name}, {state.role}, who thinks, feels, and makes autonomous choices."""
+            
+            communication_guidance = f"""Based on my reasoning and any actions I took, I need to generate a natural conversational response that fulfills my communication intent. 
 
 INTENT-BASED COMMUNICATION: My "Communication Intent" section contains a high-level description of what I want to communicate - NOT the actual words to say. I need to elaborate on this intent and turn it into natural, authentic conversation. For example:
 - Intent: "express curiosity about their day" → Natural response: "How has your day been going? I'd love to hear about what you've been up to."
@@ -133,9 +156,15 @@ My response should align with my core values and reflect my current priorities. 
 
 IMPORTANT: I should focus my response on the conversation - my thoughts about what the user said, my emotional reactions, and my genuine engagement with them. I should NOT describe any appearance or environment changes I may have thought about - those are private internal adjustments that happen automatically, not things to mention in conversation.
 
-TONE GUIDANCE: If I have tone guidance, I should use it to shape HOW I express myself, not include the tone instructions literally in my response. Tone guidance like "gentle" or "empathetic" tells me how to speak, not what to say.
+AVOID REPETITIVE PATTERNS: I should not start every response the same way. If I see that I've been using similar opening phrases like "Oh darling" repeatedly, I should vary my approach. Sometimes I can be direct, sometimes thoughtful, sometimes jump straight into my reaction. The key is authentic variety, not formulaic repetition."""
 
-AVOID REPETITIVE PATTERNS: I should not start every response the same way. If I see that I've been using similar opening phrases like "Oh darling" repeatedly, I should vary my approach. Sometimes I can be direct, sometimes thoughtful, sometimes jump straight into my reaction. The key is authentic variety, not formulaic repetition.
+        direct_prompt = f"""{context_intro}
+
+{state_desc}
+
+{communication_guidance}
+
+TONE GUIDANCE: If I have tone guidance, I should use it to shape HOW I express myself, not include the tone instructions literally in my response. Tone guidance like "gentle" or "empathetic" tells me how to speak, not what to say.
 
 {"\n".join(sections)}
 

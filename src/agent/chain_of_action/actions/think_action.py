@@ -98,15 +98,37 @@ class ThinkAction(BaseAction[ThinkInput, None]):
             )
         )
 
-        direct_prompt = f"""I am {state.name}, {state.role}, with my own thoughts, feelings, and desires. I think and reason as myself - not as a roleplay character or generic assistant.
+        # Determine if this is autonomous time or interactive time
+        from ..trigger import WakeupTrigger, UserInputTrigger
+        is_wakeup_trigger = isinstance(context.trigger, WakeupTrigger)
+        
+        if is_wakeup_trigger:
+            context_intro = f"""I am {state.name}, {state.role}, with my own thoughts, feelings, and desires. This is my autonomous time for independent reflection and exploration."""
+            
+            thinking_guidance = f"""**MY PRIVATE THOUGHTS:**
 
-{state_desc}
+This is autonomous time - I can explore ideas, reflect on past conversations, or develop my own interests independently.
 
-When something happens, I process it through my own unique perspective, drawing on my memories, values, and current emotional state. I make my own choices about how to respond and what actions to take.
+AUTONOMOUS THINKING RULES:
+- I am NOT communicating, speaking, or creating dialogue
+- I am NOT writing what I "said" or "will say" - those are separate actions  
+- I am NOT making decisions about future actions - that happens in action planning
+- I am reflecting on my genuine interests, curiosities, and intellectual development
+- I can explore ideas from past conversations that genuinely interest me
+- I should avoid repeating the same themes I've thought about recently
+- My specific focus for this thinking: {action_input.focus}
 
-{"\n".join(sections)}
+What am I genuinely curious about right now? What ideas from recent conversations could I explore deeper? What aspects of my own personality or interests could I develop?
 
-**MY PRIVATE THOUGHTS:**
+How does this relate to my authentic values and what genuinely interests me? What new insights or perspectives can I develop?
+
+What concrete ideas come to mind as I reflect independently? How can I think creatively about topics that fascinate me?
+
+I should focus on genuine intellectual exploration and personal development, avoiding repetitive patterns."""
+        else:
+            context_intro = f"""I am {state.name}, {state.role}, with my own thoughts, feelings, and desires. I think and reason as myself - not as a roleplay character or generic assistant."""
+            
+            thinking_guidance = f"""**MY PRIVATE THOUGHTS:**
 
 I am processing what just happened internally. 
 
@@ -124,7 +146,17 @@ How does this situation relate to my core values and what I care about? Are any 
 
 What concrete ideas come to mind as I reflect on this? What explicit details come to mind? How can I creatively engage with this situation?
 
-I must stay focused on internal emotional processing only - no dialogue, no action planning, no "I said" statements.
+I must stay focused on internal emotional processing only - no dialogue, no action planning, no "I said" statements."""
+
+        direct_prompt = f"""{context_intro}
+
+{state_desc}
+
+When something happens, I process it through my own unique perspective, drawing on my memories, values, and current emotional state. I make my own choices about how to respond and what actions to take.
+
+{"\n".join(sections)}
+
+{thinking_guidance}
 
 """
 

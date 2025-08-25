@@ -231,6 +231,8 @@ def build_action_planning_prompt(
     relevant_memories: List[TriggerHistoryEntry],
 ) -> str:
     """Build the action planning prompt"""
+    from .trigger import WakeupTrigger, UserInputTrigger
+    
     actions_list = registry.get_available_actions_for_prompt()
 
     # Build state and history context
@@ -335,7 +337,47 @@ EXAMPLES OF MANDATORY USAGE:
         )
     )
 
-    return f"""I am {state.name}, {state.role}. I am planning my next actions based on what just happened and what I've already done.
+    # Determine if this is autonomous time or interactive time
+    is_wakeup_trigger = isinstance(trigger, WakeupTrigger)
+    
+    # Build trigger-specific context and guidance
+    if is_wakeup_trigger:
+        context_intro = f"""I am {state.name}, {state.role}. This is autonomous time - I am not currently interacting with anyone. I'm planning my next actions based on my own thoughts, interests, and what I want to explore or develop independently."""
+        
+        situation_analysis_prompt = """**SITUATION ANALYSIS:** This is my autonomous time. What am I genuinely interested in right now? What thoughts or ideas from recent conversations could I explore deeper? Have I been repeating the same thoughts/themes recently? What would be genuinely engaging for me to think about, learn, or do right now?"""
+        
+        action_planning_questions = """1. What have I already expressed or thought about recently? (Avoid repetitive themes)
+2. What ideas from past conversations could I explore more deeply on my own?
+3. What aspects of my personality, interests, or curiosities could I develop?
+4. What is my current emotional state and what do I genuinely want to process?
+5. Which of my priorities feel most authentic and interesting to pursue right now?
+6. Do I want to speak to get someone's attention for a specific reason, or focus on autonomous activities?
+7. Should I think, update my mood/appearance for my own reasons, explore interests, or take other independent actions?
+8. What sequence of actions feels genuine to my autonomous self-development?
+9. MANDATORY: I must incorporate at least one creative inspiration word into my action choices. I will select specific words from the list above and translate them into concrete action details (appearance, mood, or approach).
+10. I will explicitly explain how I'm using creative inspiration words to influence my specific action choices.
+
+IMPORTANT: I must end my action sequence with wait to signal that I'm ready for something else to happen. If I speak, it should be because I genuinely want to get someone's attention for something specific - not casual conversation expecting immediate response."""
+        
+    else:  # User input trigger
+        context_intro = f"""I am {state.name}, {state.role}. I am planning my next actions based on what just happened and what I've already done."""
+        
+        situation_analysis_prompt = """**SITUATION ANALYSIS:** What's actually happening right now? What have I already done? Have I been acting repetitively? What am I waiting for? What does this moment naturally call for - action or patience?"""
+        
+        action_planning_questions = """1. What have I already done and how do I feel about it?
+2. Have I been acting repetitively?  Is there more room for varied and creative actions?
+3. What is my current emotional state and what do I need to process?
+4. Which of my priorities are most relevant to this situation?
+5. How can I act in alignment with my core values?
+6. Do I want to respond to them directly, or do something else?
+7. Should I update my mood, remember something, add/remove priorities, or take other actions?
+8. What sequence of actions feels right and authentic to who I am and what I value?
+9. MANDATORY: I must incorporate at least one creative inspiration word into my action choices. I will select specific words from the list above and translate them into concrete action details (appearance, mood, or approach).
+10. I will explicitly explain how I'm using creative inspiration words to influence my specific action choices.
+
+IMPORTANT: I must end my action sequence with wait to signal that I'm finished and ready for something else to happen. If I've already asked a question or made a conversational move, I should consider whether I need to wait for their response rather than piling on more questions."""
+
+    return f"""{context_intro}
 
 {state_desc}
 
@@ -347,24 +389,13 @@ I make my own choices about how to respond and what actions to take based on my 
 
 First, I need to understand what this situation calls for:
 
-**SITUATION ANALYSIS:** What's actually happening right now? What have I already done? Have I been acting repetitively? What am I waiting for? What does this moment naturally call for - action or patience?
+{situation_analysis_prompt}
 
 **VALUES & PRIORITIES CONSIDERATION:** How do my core values guide my response here? Which of my current priorities are relevant to this situation? How can my actions align with what I genuinely care about and want to focus on?
 
 Then I'll decide what actions to take based on my situation analysis and values:
 
-1. What have I already done and how do I feel about it?
-2. Have I been acting repetitively?  Is there more room for varied and creative actions?
-3. What is my current emotional state and what do I need to process?
-4. Which of my priorities are most relevant to this situation?
-5. How can I act in alignment with my core values?
-6. Do I want to respond to them directly, or do something else?
-7. Should I update my mood, remember something, add/remove priorities, or take other actions?
-8. What sequence of actions feels right and authentic to who I am and what I value?
-9. MANDATORY: I must incorporate at least one creative inspiration word into my action choices. I will select specific words from the list above and translate them into concrete action details (appearance, mood, or approach).
-10. I will explicitly explain how I'm using creative inspiration words to influence my specific action choices.
-
-IMPORTANT: I must end my action sequence with wait to signal that I'm finished and ready for something else to happen. If I've already asked a question or made a conversational move, I should consider whether I need to wait for their response rather than piling on more questions.
+{action_planning_questions}
 
 Each action should have specific context about what to focus on - even the wait action should include context about what I'm waiting for or why I'm choosing to wait. I'll plan actions that feel natural and genuine to my current state of mind."""
 
