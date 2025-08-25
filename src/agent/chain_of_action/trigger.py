@@ -39,7 +39,9 @@ def format_trigger_for_prompt(trigger: BaseTrigger) -> str:
         return f'{user_trigger.user_name} said to me: "{user_trigger.content}"'
     elif isinstance(trigger, WakeupTrigger):
         # For wakeup, neutral autonomous continuation
-        return "I continue to exist and have my own experiences during this quiet moment"
+        return (
+            "I continue to exist and have my own experiences during this quiet moment"
+        )
     else:
         # Future trigger types would be formatted differently
         # e.g., "A tool finished executing: {result}"

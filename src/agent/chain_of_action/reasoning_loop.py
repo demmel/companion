@@ -15,7 +15,7 @@ from .action_result import ActionResult
 from .callbacks import ActionCallback, NoOpCallback
 from agent.state import State
 from agent.llm import LLM, SupportedModel
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +228,7 @@ class ActionBasedReasoningLoop:
 
 
 def _compress_trigger_entry(
-    trigger_entry,
+    trigger_entry: TriggerHistoryEntry,
     state: State,
     llm: LLM,
     model: SupportedModel,
@@ -244,6 +244,36 @@ def _compress_trigger_entry(
     full_entry_text = format_single_trigger_entry(trigger_entry)
     state_desc = build_agent_state_description(state)
 
+    # Check trigger type for context-aware compression
+    from agent.chain_of_action.trigger import WakeupTrigger, UserInputTrigger
+
+    is_wakeup_trigger = isinstance(trigger_entry.trigger, WakeupTrigger)
+
+    if is_wakeup_trigger:
+        # Autonomous time compression - preserve intellectual development
+        compression_focus = """I need to compress this autonomous experience into a concise but detailed summary that captures both my intellectual development and emotional experience from my perspective. I should maximize the preservation of important details while eliminating redundancy. This should read naturally as part of my internal monologue while preserving essential autonomous development.
+
+The compressed entry MUST capture:
+- **Intellectual Development**: Key ideas explored, insights gained, creative frameworks developed, autonomous reflection topics
+- **Self-Development**: How I grew or evolved my thinking, what I learned about myself, independent exploration
+- **Concrete Ideas**: Specific concepts, frameworks, or thought processes I developed (not just "I thought about X" but what I actually concluded)
+- **Autonomous Context**: That this was independent thinking/development, not reactive to interaction
+- **Emotional Experience**: My feelings and internal state during this autonomous development
+
+I will write this preserving the intellectual substance of my autonomous thinking while maintaining my natural emotional voice. I will capture both "what I intellectually developed" and "how I felt while developing it" so I can build on these ideas in future autonomous time."""
+
+    else:
+        # Interactive time compression - preserve relational context
+        compression_focus = """I need to compress this interaction into a concise but detailed summary that captures both the emotional essence and concrete details of what happened from my perspective. I should maximize the preservation of important details while eliminating redundancy. This should read naturally as part of my internal monologue while preserving essential referential information.
+
+The compressed entry MUST capture:
+- **Concrete Details**: What was specifically said, which priority topics were relevant (use actual priority content, not IDs), specific actions taken, and factual context
+- **Emotional Experience**: My thoughts and feelings in response to what happened  
+- **Relational Dynamics**: Important interpersonal moments and emotional shifts
+- **Actionable Context**: Details I need to reference in future conversations ("what I just said/did/thought")
+
+I will write this in my natural emotional voice while weaving in specific words spoken, priority content, mood changes, and actions taken. I will include both the "how I felt" and the "what actually happened" so I can reference these details coherently in future interactions."""
+
     # Build compression prompt following agent conventions
     prompt = f"""I am {state.name}, {state.role}. I need to compress my recent experience into a concise stream of consciousness entry for my memory that preserves both emotional depth and factual details.
 
@@ -253,15 +283,7 @@ def _compress_trigger_entry(
 
 **MY COMPRESSION TASK:**
 
-I need to compress this interaction into 2-4 sentences that capture both the emotional essence and concrete details of what happened from my perspective. This should read naturally as part of my internal monologue while preserving essential referential information.
-
-The compressed entry MUST capture:
-- **Concrete Details**: What was specifically said, which priority topics were relevant (use actual priority content, not IDs), specific actions taken, and factual context
-- **Emotional Experience**: My thoughts and feelings in response to what happened  
-- **Relational Dynamics**: Important interpersonal moments and emotional shifts
-- **Actionable Context**: Details I need to reference in future conversations ("what I just said/did/thought")
-
-I will write this in my natural emotional voice while weaving in specific words spoken, priority content, mood changes, and actions taken. I will include both the "how I felt" and the "what actually happened" so I can reference these details coherently in future interactions.
+{compression_focus}
 
 CRITICAL: I will write ONLY my compressed stream of consciousness entry - no headers, no explanations, no formatting, no analysis sections. Just my natural internal monologue capturing the experience.
 

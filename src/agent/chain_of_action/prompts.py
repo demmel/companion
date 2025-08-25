@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import datetime
 import random
 
@@ -79,15 +79,37 @@ def build_completed_action_list(completed_actions: List[ActionResult]) -> Option
         return None
 
 
-def format_trigger_entries(entries: List[TriggerHistoryEntry]) -> str:
-    """Format a list of trigger entries as stream of consciousness for prompts"""
+def format_trigger_entries(
+    entries: List[TriggerHistoryEntry],
+    summary_strategy: Literal[
+        "all_compressed", "all_uncompressed", "recent_uncompressed"
+    ] = "all_compressed",
+) -> str:
+    """Format a list of trigger entries as stream of consciousness for prompts
+
+    Args:
+        entries: List of trigger history entries to format
+        summary_strategy: How to handle compression:
+            - "recent_uncompressed": Keep last 2 uncompressed, compress older ones (default)
+            - "all_compressed": Use compressed summaries for all entries when available
+            - "all_uncompressed": Show full content for all entries
+    """
     if not entries:
         return ""
 
     parts = []
-    for entry in entries:
-        # Use the centralized formatting function with summary preference
-        formatted_entry = format_single_trigger_entry(entry, use_summary=True)
+    for i, entry in enumerate(entries):
+        match summary_strategy:
+            case "all_uncompressed":
+                use_summary = False
+            case "all_compressed":
+                use_summary = True
+            case "recent_uncompressed":
+                # Keep last 2 triggers uncompressed, use summary for older ones
+                is_recent = i >= len(entries) - 2
+                use_summary = not is_recent
+
+        formatted_entry = format_single_trigger_entry(entry, use_summary=use_summary)
         parts.append(formatted_entry)
         parts.append("")  # Blank line between entries
 
@@ -232,7 +254,7 @@ def build_action_planning_prompt(
 ) -> str:
     """Build the action planning prompt"""
     from .trigger import WakeupTrigger, UserInputTrigger
-    
+
     actions_list = registry.get_available_actions_for_prompt()
 
     # Build state and history context
@@ -329,7 +351,7 @@ EXAMPLES OF MANDATORY USAGE:
 - If planning appearance: "The word 'copper' inspires me to wear bronze jewelry and warm metallic tones"
 - If planning mood: "The word 'storm' inspires a dramatic, intense emotional state"  
 - If planning actions: "The word 'whisper' inspires gentle, subtle approaches" """
-    
+
     sections.append(
         format_section(
             "CREATIVE INSPIRATION",
@@ -339,13 +361,13 @@ EXAMPLES OF MANDATORY USAGE:
 
     # Determine if this is autonomous time or interactive time
     is_wakeup_trigger = isinstance(trigger, WakeupTrigger)
-    
+
     # Build trigger-specific context and guidance
     if is_wakeup_trigger:
         context_intro = f"""I am {state.name}, {state.role}. This is autonomous time - I am not currently interacting with anyone. I'm planning my next actions based on my own thoughts, interests, and what I want to explore or develop independently."""
-        
+
         situation_analysis_prompt = """**SITUATION ANALYSIS:** This is my autonomous time. What am I genuinely interested in right now? What thoughts or ideas from recent conversations could I explore deeper? Have I been repeating the same thoughts/themes recently? What would be genuinely engaging for me to think about, learn, or do right now?"""
-        
+
         action_planning_questions = """1. What have I already expressed or thought about recently? (Avoid repetitive themes)
 2. What ideas from past conversations could I explore more deeply on my own?
 3. What aspects of my personality, interests, or curiosities could I develop?
@@ -358,12 +380,12 @@ EXAMPLES OF MANDATORY USAGE:
 10. I will explicitly explain how I'm using creative inspiration words to influence my specific action choices.
 
 IMPORTANT: I must end my action sequence with wait to signal that I'm ready for something else to happen. If I speak, it should be because I genuinely want to get someone's attention for something specific - not casual conversation expecting immediate response."""
-        
+
     else:  # User input trigger
         context_intro = f"""I am {state.name}, {state.role}. I am planning my next actions based on what just happened and what I've already done."""
-        
+
         situation_analysis_prompt = """**SITUATION ANALYSIS:** What's actually happening right now? What have I already done? Have I been acting repetitively? What am I waiting for? What does this moment naturally call for - action or patience?"""
-        
+
         action_planning_questions = """1. What have I already done and how do I feel about it?
 2. Have I been acting repetitively?  Is there more room for varied and creative actions?
 3. What is my current emotional state and what do I need to process?
@@ -471,13 +493,15 @@ Guidelines for time_query:
 - Set time fields to null if no time constraint is needed"""
 
 
-def generate_random_inspiration_words(count: int = 10, seed: Optional[int] = None) -> List[str]:
+def generate_random_inspiration_words(
+    count: int = 10, seed: Optional[int] = None
+) -> List[str]:
     """Generate random English words for creative inspiration
-    
+
     Args:
         count: Number of words to generate
         seed: Optional seed for reproducible randomness (useful for testing)
-    
+
     Returns:
         List of random English words
     """
@@ -486,24 +510,45 @@ def generate_random_inspiration_words(count: int = 10, seed: Optional[int] = Non
         try:
             word_list = words.words()
         except LookupError:
-            nltk.download('words', quiet=True)
+            nltk.download("words", quiet=True)
             word_list = words.words()
-        
+
         # Filter for interesting words (3-12 characters, avoid very short/long)
         filtered_words = [w for w in word_list if 3 <= len(w) <= 12 and w.isalpha()]
-        
+
         if seed is not None:
             random.seed(seed)
-        
+
         # Return random sample
         return random.sample(filtered_words, min(count, len(filtered_words)))
-        
+
     except Exception as e:
         # Fallback to basic words if NLTK fails
         fallback_words = [
-            'ocean', 'storm', 'velvet', 'copper', 'dance', 'whisper', 'shadow', 'light',
-            'forest', 'crystal', 'flame', 'marble', 'silk', 'thunder', 'garden', 'moon',
-            'river', 'mountain', 'jazz', 'rhythm', 'poetry', 'canvas', 'wind', 'stars'
+            "ocean",
+            "storm",
+            "velvet",
+            "copper",
+            "dance",
+            "whisper",
+            "shadow",
+            "light",
+            "forest",
+            "crystal",
+            "flame",
+            "marble",
+            "silk",
+            "thunder",
+            "garden",
+            "moon",
+            "river",
+            "mountain",
+            "jazz",
+            "rhythm",
+            "poetry",
+            "canvas",
+            "wind",
+            "stars",
         ]
         if seed is not None:
             random.seed(seed)

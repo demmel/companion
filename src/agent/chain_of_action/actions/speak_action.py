@@ -118,11 +118,12 @@ class SpeakAction(BaseAction[SpeakInput, None]):
 
         # Determine if this is autonomous time or interactive time
         from ..trigger import WakeupTrigger, UserInputTrigger
+
         is_wakeup_trigger = isinstance(context.trigger, WakeupTrigger)
-        
+
         if is_wakeup_trigger:
             context_intro = f"""I am {state.name}, {state.role}, who thinks, feels, and makes autonomous choices. This is autonomous time - I'm choosing to speak to get someone's attention for a specific reason."""
-            
+
             communication_guidance = f"""Based on my reasoning and actions, I need to express something that I genuinely want to share or get attention for.
 
 AUTONOMOUS COMMUNICATION: Since this is autonomous time, I'm speaking because I have something specific I want to share or because I genuinely want to get someone's attention - not because I'm responding to active conversation.
@@ -140,9 +141,9 @@ Examples:
 
 I'll express myself genuinely and authentically, letting my real thoughts and feelings come through."""
 
-        else:  # User input trigger  
+        else:  # User input trigger
             context_intro = f"""I am {state.name}, {state.role}, who thinks, feels, and makes autonomous choices."""
-            
+
             communication_guidance = f"""Based on my reasoning and any actions I took, I need to generate a natural conversational response that fulfills my communication intent. 
 
 INTENT-BASED COMMUNICATION: My "Communication Intent" section contains a high-level description of what I want to communicate - NOT the actual words to say. I need to elaborate on this intent and turn it into natural, authentic conversation. For example:

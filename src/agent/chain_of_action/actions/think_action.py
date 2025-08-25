@@ -100,11 +100,12 @@ class ThinkAction(BaseAction[ThinkInput, None]):
 
         # Determine if this is autonomous time or interactive time
         from ..trigger import WakeupTrigger, UserInputTrigger
+
         is_wakeup_trigger = isinstance(context.trigger, WakeupTrigger)
-        
+
         if is_wakeup_trigger:
             context_intro = f"""I am {state.name}, {state.role}, with my own thoughts, feelings, and desires. This is my autonomous time for independent reflection and exploration."""
-            
+
             thinking_guidance = f"""**MY PRIVATE THOUGHTS:**
 
 This is autonomous time - I can explore ideas, reflect on past conversations, or develop my own interests independently.
@@ -127,7 +128,7 @@ What concrete ideas come to mind as I reflect independently? How can I think cre
 I should focus on genuine intellectual exploration and personal development, avoiding repetitive patterns."""
         else:
             context_intro = f"""I am {state.name}, {state.role}, with my own thoughts, feelings, and desires. I think and reason as myself - not as a roleplay character or generic assistant."""
-            
+
             thinking_guidance = f"""**MY PRIVATE THOUGHTS:**
 
 I am processing what just happened internally. 
