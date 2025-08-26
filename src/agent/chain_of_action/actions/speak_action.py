@@ -163,11 +163,12 @@ AVOID REPETITIVE PATTERNS: I should not start every response the same way. If I 
 
 {state_desc}
 
+{"\n".join(sections)}
+
 {communication_guidance}
 
 TONE GUIDANCE: If I have tone guidance, I should use it to shape HOW I express myself, not include the tone instructions literally in my response. Tone guidance like "gentle" or "empathetic" tells me how to speak, not what to say.
-
-{"\n".join(sections)}
+AVOID REPETITION: If I have already spoken previously in this exchange, I should try to build on what I've said rather than repeating myself.
 
 Now I'll elaborate on my communication intent and respond naturally as myself:"""
 

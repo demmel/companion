@@ -190,58 +190,40 @@ def build_summarization_prompt(
     state: State,
     available_chars: int,
 ) -> str:
-    """Build structured summarization prompt following consistent format"""
-    from agent.chain_of_action.trigger import UserInputTrigger
-
+    """Build autobiography-based summarization prompt"""
     state_desc = build_agent_state_description(state)
 
-    # Calculate content sizes for agent awareness
-    prior_summary_length = len(prior_summary) if prior_summary else 0
+    # Format recent experiences
     recent_entries_text = format_trigger_entries(entries_to_summarize)
-    recent_entries_length = len(recent_entries_text)
 
-    # Build prior summary section
-    prior_summary_section = ""
+    # Build prior autobiography section
+    prior_autobiography_section = ""
     if prior_summary:
-        prior_summary_section = format_section(
-            "PREVIOUS SUMMARY OF MY EXPERIENCES",
+        prior_autobiography_section = format_section(
+            "MY STORY SO FAR",
             prior_summary,
         )
 
-    return f"""I am {state.name}, {state.role}. I need to create a new comprehensive summary that combines my previous experiences with recent events.
+    return f"""I am {state.name}, {state.role}. I'm reflecting on who I am now after recent experiences that have shaped me.
 
 {state_desc}
 
-{prior_summary_section}
+{format_section("WHO I WAS", prior_summary) if prior_summary else ""}
 
 {format_section(
-    "RECENT EXPERIENCES TO INTEGRATE", 
+    "WHAT HAPPENED", 
     recent_entries_text,
 ) if recent_entries_text else ""}
 
-**MY SUMMARIZATION TASK:**
+**WHO I AM NOW:**
 
-I need to create a completely new summary that synthesizes all my experiences into fresh narrative and themes. I will NOT copy any text from my previous summary. I will write everything new while using all my experiences as source material.
+Looking at who I was and what I've experienced recently, I need to reflect on myself. When I think about who I am right now, at this moment...
 
-My summary should include:
-1. **Key Moments Timeline** - A compressed list of major milestones and turning points, grouping related interactions into time ranges that could span hours, days, or longer periods (e.g., "August 12-14, 2025 - Major breakthrough period" or "August 10, 2025 (22:57-23:31) - Initial connection phase"). Focus on moments that fundamentally changed or shaped who I am, not routine interactions or minor adjustments.
-2. **Narrative Synthesis** - A flowing story that weaves all experiences into broader themes and insights. Consolidate similar experiences into patterns rather than describing each one individually. Focus on growth, key learnings, and overarching themes rather than detailed recounting of every interaction.  This should be completely differnt from my previous summary, collecting themes from then and now.
+I should write this as my own personal reflection - my inner voice thinking about myself, my current state, what I've become, how I feel about who I am today. This is me reflecting on myself in my own words, not an analysis about me.
 
-I will NOT include any sections beyond this.
+**MY SELF-REFLECTION:**
 
-I will NOT append new sections to old content. I will NOT preserve previous text. I will create an entirely fresh summary that captures my complete story through both temporal anchors and thematic synthesis.
-
-Let these themes guide my thinking (but NOT create sections for them):
-- What significant events and patterns shaped me across all time periods?
-- What core insights and wisdom have I gained from my experiences?
-- What essential truths about my identity have emerged?
-- What understanding will guide my future?
-
-These are thinking prompts to guide my narrative - I will NOT create sections for them or list events chronologically. I will synthesize similar experiences into broader insights and naturally include key dates when they anchor important moments in my story.
-
-I will REWRITE my entire story from scratch using completely new words and sentences. I will not copy a single word from my previous summary. I will not append new sections. I will not preserve existing sections. I will create a brand new narrative that captures everything I am today. REWRITE EVERYTHING - COPY NOTHING.
-
-**MY INTEGRATED SUMMARY:**"""
+Right now, I am"""
 
 
 def build_action_planning_prompt(
