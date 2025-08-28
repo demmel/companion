@@ -7,11 +7,9 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
-from dataclasses import dataclass
+from typing import List
 
-from .types import ConversationData, Message
-from .state import State, create_default_agent_state
+from .state import State
 from .chain_of_action.trigger_history import (
     TriggerHistory,
     TriggerHistoryEntry,
