@@ -17,13 +17,14 @@ from .chain_of_action.trigger_history import (
     TriggerHistoryEntry,
     SummaryRecord,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 
 
-class TriggerHistoryData(BaseModel):
-    """Serializable trigger history data for persistence"""
+class AgentData(BaseModel):
+    """Serializable agent data for persistence"""
 
+    initial_exchange: TriggerHistoryEntry | None = Field(default=None)
     entries: List[TriggerHistoryEntry]
     summaries: List[SummaryRecord]
 
@@ -47,17 +48,25 @@ class ConversationPersistence:
         conversation_id: str,
         state: State,
         trigger_history: TriggerHistory,
-        title: Optional[str] = None,
+        initial_exchange: TriggerHistoryEntry,
         save_baseline: bool = True,
     ) -> None:
         """Save a conversation with its state and optional trigger history"""
 
-        self._save_state_and_triggers(conversation_id, state, trigger_history)
+        self._save_state_and_triggers(
+            conversation_id, state, trigger_history, initial_exchange
+        )
         if save_baseline:
-            self._save_state_and_triggers("baseline", state, trigger_history)
+            self._save_state_and_triggers(
+                "baseline", state, trigger_history, initial_exchange
+            )
 
     def _save_state_and_triggers(
-        self, prefix: str, state: State, trigger_history: TriggerHistory
+        self,
+        prefix: str,
+        state: State,
+        trigger_history: TriggerHistory,
+        initial_exchange: TriggerHistoryEntry,
     ) -> None:
         """Save the state and trigger history for a conversation"""
         state_file = self.conversations_dir / f"{prefix}_state.json"
@@ -65,8 +74,46 @@ class ConversationPersistence:
             f.write(state.model_dump_json(indent=2))
 
         trigger_file = self.conversations_dir / f"{prefix}_triggers.json"
-        trigger_data = TriggerHistoryData(
-            entries=trigger_history.entries, summaries=trigger_history.summaries
+        trigger_data = AgentData(
+            initial_exchange=initial_exchange,
+            entries=trigger_history.entries,
+            summaries=trigger_history.summaries,
         )
         with open(trigger_file, "w") as f:
             f.write(trigger_data.model_dump_json(indent=2))
+
+    def load_conversation(
+        self,
+        prefix: str,
+    ) -> tuple[TriggerHistory, State | None, TriggerHistoryEntry | None]:
+        """Load trigger history and state from conversation files with given prefix"""
+
+        trigger_file = self._trigger_file_name(prefix)
+        state_file = self._state_file_name(prefix)
+
+        # Load trigger history
+        trigger_history = TriggerHistory()
+        initial_exchange = None
+        if os.path.exists(trigger_file):
+            with open(trigger_file, "r") as f:
+                trigger_data = AgentData.model_validate(json.load(f))
+                # Populate the trigger history
+                initial_exchange = trigger_data.initial_exchange
+                trigger_history.entries = trigger_data.entries
+                trigger_history.summaries = trigger_data.summaries
+
+        # Load state
+        state = None
+        if os.path.exists(state_file):
+            with open(state_file, "r") as f:
+                state = State.model_validate(json.load(f))
+
+        return trigger_history, state, initial_exchange
+
+    def _trigger_file_name(self, prefix: str) -> str:
+        """Get the trigger file name for a conversation"""
+        return f"{prefix}_triggers.json"
+
+    def _state_file_name(self, prefix: str) -> str:
+        """Get the state file name for a conversation"""
+        return f"{prefix}_state.json"

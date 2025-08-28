@@ -27,10 +27,7 @@ from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.conversation_persistence import ConversationPersistence
 from agent.state import (
     State,
-    build_agent_state_description,
 )
-from agent.state import build_agent_state_description
-from agent.streaming_queue import StreamingQueue
 from agent.types import ToolCallError
 
 from .llm import LLM, SupportedModel, Message as LLMMessage
@@ -136,6 +133,18 @@ class Agent:
         """Get the current trigger history"""
         return self.trigger_history
 
+    def reset_conversation(self):
+        """Reset conversation history and agent's state"""
+        self.trigger_history = TriggerHistory()
+        self.state = None  # Will be configured by next first message
+
+        # Reset LLM call statistics
+        self.llm.reset_call_stats()
+
+        # Generate new conversation ID for the fresh conversation
+        if self.auto_save:
+            self.conversation_id = self.persistence.generate_conversation_id()
+
     def save_conversation(self, title: Optional[str] = None) -> Optional[str]:
         """Save the current conversation to disk
 
@@ -151,6 +160,7 @@ class Agent:
             )
             return None
 
+        assert self.initial_exchange is not None
         assert (
             self.state is not None
         ), "Cannot save conversation without initialized state"
@@ -161,10 +171,28 @@ class Agent:
             self.conversation_id,
             self.state,
             self.trigger_history,
-            title,
+            self.initial_exchange,
         )
         logger.info(f"Successfully saved conversation {self.conversation_id}")
         return self.conversation_id
+
+    def load_conversation(self, conversation_id: str):
+        """Load a conversation from disk by its ID"""
+
+        logger.info(f"Loading conversation {conversation_id}")
+
+        trigger_history, state, initial_exchange = self.persistence.load_conversation(
+            conversation_id
+        )
+
+        if state is None:
+            raise ValueError(f"Conversation {conversation_id} has no saved state")
+
+        self.reset_conversation()  # Clear existing history and state
+
+        self.state = state
+        self.initial_exchange = initial_exchange
+        self.trigger_history = trigger_history
 
     def get_conversation_id(self) -> Optional[str]:
         """Get the current conversation ID"""
@@ -745,27 +773,6 @@ class Agent:
             trigger_history=self.trigger_history,
             individual_trigger_compression=self.individual_trigger_compression,
         )
-
-    def reset_conversation(self):
-        """Reset conversation history and agent's state"""
-        self.trigger_history = TriggerHistory()
-        self.state = None  # Will be configured by next first message
-
-        # Reset LLM call statistics
-        self.llm.reset_call_stats()
-
-        # Generate new conversation ID for the fresh conversation
-        if self.auto_save:
-            self.conversation_id = self.persistence.generate_conversation_id()
-
-    @classmethod
-    def load_conversation_data(cls, file_path: str) -> ConversationData:
-        """Load conversation data from JSON file"""
-        import json
-
-        with open(file_path, "r") as f:
-            data = json.load(f)
-        return ConversationData.model_validate(data)
 
     def _auto_summarize_with_events(self, keep_recent: int):
         """Auto-summarize with event emission for streaming clients"""

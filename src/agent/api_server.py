@@ -29,7 +29,7 @@ from agent.api_types import (
     convert_trigger_history_entry_to_dto,
     convert_summary_to_dto,
 )
-from agent.conversation_persistence import TriggerHistoryData
+from agent.conversation_persistence import AgentData
 from agent.state import State
 from agent.chain_of_action.trigger_history import TriggerHistory
 
@@ -64,34 +64,6 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def load_conversation_files(
-    conversation_prefix: str,
-) -> tuple[TriggerHistory, State | None]:
-    """Load trigger history and state from conversation files with given prefix"""
-
-    trigger_file = f"{conversation_prefix}_triggers.json"
-    state_file = f"{conversation_prefix}_state.json"
-
-    # Load trigger history
-    trigger_history = TriggerHistory()
-    if os.path.exists(trigger_file):
-        with open(trigger_file, "r") as f:
-            trigger_data = TriggerHistoryData.model_validate(json.load(f))
-            # Populate the trigger history
-            for entry in trigger_data.entries:
-                trigger_history.add_trigger_entry(entry)
-            for summary in trigger_data.summaries:
-                trigger_history.summaries.append(summary)
-
-    # Load state
-    state = None
-    if os.path.exists(state_file):
-        with open(state_file, "r") as f:
-            state = State.model_validate(json.load(f))
-
-    return trigger_history, state
-
-
 def initialize_agent(load: bool) -> Agent:
     """Initialize the agent with specific conversation files for development"""
     llm = create_llm()
@@ -104,17 +76,11 @@ def initialize_agent(load: bool) -> Agent:
         auto_save=True,
     )
 
-    trigger_history = None
-    state = None
     if load:
-        # Load the specific conversation files
-        trigger_history, state = load_conversation_files("conversations/baseline")
-
-    # Replace the empty trigger history and state
-    if trigger_history:
-        agent.trigger_history = trigger_history
-    if state:
-        agent.state = state
+        try:
+            agent.load_conversation("baseline")
+        except Exception as e:
+            logger.error(f"Failed to load conversation: {e}")
 
     return agent
 
