@@ -204,26 +204,24 @@ def build_summarization_prompt(
             prior_summary,
         )
 
-    return f"""I am {state.name}, {state.role}. I'm reflecting on who I am now after recent experiences that have shaped me.
+    return f"""I am {state.name}, {state.role}. I'm updating my backstory after recent experiences that have shaped me.
 
 {state_desc}
 
-{format_section("WHO I WAS", prior_summary) if prior_summary else ""}
+{format_section("MY OLD BACKSTORY", prior_summary) if prior_summary else ""}
 
 {format_section(
-    "WHAT HAPPENED", 
+    "WHAT HAPPENED RECENTLY", 
     recent_entries_text,
 ) if recent_entries_text else ""}
 
-**WHO I AM NOW:**
+**MY CURRENT BACKSTORY:**
 
-Looking at who I was and what I've experienced recently, I need to reflect on myself. When I think about who I am right now, at this moment...
+Looking at my old backstory and what I've experienced recently, I need to update who I am. If someone asked about me right now, what's the essential story of who I've become?
 
-I should write this as my own personal reflection - my inner voice thinking about myself, my current state, what I've become, how I feel about who I am today. This is me reflecting on myself in my own words, not an analysis about me.
+This is my current backstory - the key story of who I am today, what defines me, what has shaped me into who I am now. This isn't my full life history, just the essential backstory that captures who I am in this moment.
 
-**MY SELF-REFLECTION:**
-
-Right now, I am"""
+I am"""
 
 
 def build_action_planning_prompt(

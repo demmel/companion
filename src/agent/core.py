@@ -290,13 +290,14 @@ class Agent:
                 logger.info("chat_stream waiting for existing processing to complete")
                 self.processing_condition.wait()
 
-            # Now we can start processing
-            self.is_processing = True
             self._cancel_wakeup_timer()
 
-        start_time = time.time()
+            # Now we can start processing
+            self.is_processing = True
 
-        def run_agent():
+        try:
+            start_time = time.time()
+
             # Check if agent needs character configuration (first message)
             if self.state is None:
                 if user_input is None:
@@ -328,25 +329,27 @@ class Agent:
                 ):
                     self._auto_summarize_with_events(self.keep_recent)
 
-        run_agent()
+            # Auto-save conversation after each turn
+            logger.info(f"Checking auto-save: auto_save={self.auto_save}")
+            if self.auto_save:
+                logger.info("Triggering auto-save after chat stream")
+                self.save_conversation()
 
-        # Auto-save conversation after each turn
-        logger.info(f"Checking auto-save: auto_save={self.auto_save}")
-        if self.auto_save:
-            logger.info("Triggering auto-save after chat stream")
-            self.save_conversation()
+            self.llm.log_stats_summary()
 
-        self.llm.log_stats_summary()
+            total_time = time.time() - start_time
+            logger.debug(f"Total chat_stream time: {total_time:.3f}s")
 
-        total_time = time.time() - start_time
-        logger.debug(f"Total chat_stream time: {total_time:.3f}s")
+        except Exception as e:
+            logger.error(f"Error occurred during chat_stream: {e}")
 
-        # Clear processing flag, schedule next wakeup timer, and notify waiting threads
-        with self.processing_condition:
-            self.is_processing = False
-            self._schedule_wakeup_timer()
-            # Notify any threads waiting for processing to complete
-            self.processing_condition.notify_all()
+        finally:
+            # Clear processing flag, schedule next wakeup timer, and notify waiting threads
+            with self.processing_condition:
+                self.is_processing = False
+                self._schedule_wakeup_timer()
+                # Notify any threads waiting for processing to complete
+                self.processing_condition.notify_all()
 
     def _run_initial_exchange_with_streaming(self, user_input: str):
         """Run initial character configuration with streaming events"""
@@ -555,8 +558,8 @@ class Agent:
                         )
                     )
 
-            # Insert summary at position 1
-            self.trigger_history.add_summary(backstory, 1)
+            # Insert summary at position 0
+            self.trigger_history.add_summary(backstory, 0)
 
         except Exception as e:
             self.emit_event(
