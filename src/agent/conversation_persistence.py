@@ -69,11 +69,11 @@ class ConversationPersistence:
         initial_exchange: TriggerHistoryEntry,
     ) -> None:
         """Save the state and trigger history for a conversation"""
-        state_file = self.conversations_dir / f"{prefix}_state.json"
+        state_file = self._state_file_name(prefix)
         with open(state_file, "w") as f:
             f.write(state.model_dump_json(indent=2))
 
-        trigger_file = self.conversations_dir / f"{prefix}_triggers.json"
+        trigger_file = self._trigger_file_name(prefix)
         trigger_data = AgentData(
             initial_exchange=initial_exchange,
             entries=trigger_history.entries,
