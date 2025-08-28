@@ -586,8 +586,8 @@ class Agent:
                         )
                     )
 
-            # Insert summary at position 0
-            self.trigger_history.add_summary(backstory, 0)
+            # Insert summary at position 1, right after the initial exchange
+            self.trigger_history.add_summary(backstory, 1)
 
         except Exception as e:
             self.emit_event(
