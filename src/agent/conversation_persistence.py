@@ -112,8 +112,8 @@ class ConversationPersistence:
 
     def _trigger_file_name(self, prefix: str) -> str:
         """Get the trigger file name for a conversation"""
-        return f"{prefix}_triggers.json"
+        return f"{self.conversations_dir}/{prefix}_triggers.json"
 
     def _state_file_name(self, prefix: str) -> str:
         """Get the state file name for a conversation"""
-        return f"{prefix}_state.json"
+        return f"{self.conversations_dir}/{prefix}_state.json"
