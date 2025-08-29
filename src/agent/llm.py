@@ -117,7 +117,13 @@ class LLM:
         self, model: SupportedModel, messages: List[Message], caller: str, **kwargs
     ) -> Iterator[ollama.ChatResponse]:
         """Convenience method for streaming chat"""
-        return self.chat(model, messages, stream=True, caller=caller, **kwargs)  # type: ignore
+        start_time = time.time()
+
+        yield from self.chat(model, messages, stream=True, caller=caller, **kwargs)  # type: ignore
+
+        end_time = time.time()
+        duration = end_time - start_time
+        self.add_call_stats(caller, duration)
 
     def chat_complete(
         self, model: SupportedModel, messages: List[Message], caller: str, **kwargs
@@ -130,10 +136,7 @@ class LLM:
 
         # Track the call
         duration = time.time() - start_time
-        stats = self.call_stats[caller]
-        stats.count += 1
-        stats.total_time += duration
-        stats.times.append(duration)
+        self.add_call_stats(caller, duration)
 
         logger.info(f"LLM call [{caller}]: {duration:.2f}s")
 
@@ -205,7 +208,15 @@ class LLM:
         self, model: SupportedModel, prompt: str, caller: str, **kwargs
     ) -> Iterator[ollama.GenerateResponse]:
         """Convenience method for streaming direct generation"""
-        return self.generate(model, prompt, caller, stream=True, **kwargs)  # type: ignore
+        start_time = time.time()
+
+        yield from self.generate(model, prompt, caller, stream=True, **kwargs)  # type: ignore
+
+        end_time = time.time()
+        duration = end_time - start_time
+        self.add_call_stats(caller, duration)
+
+        logger.info(f"LLM call [{caller}]: {duration:.2f}s")
 
     def generate_complete(
         self,
@@ -223,14 +234,20 @@ class LLM:
 
         # Track the call
         duration = time.time() - start_time
-        stats = self.call_stats[caller]
-        stats.count += 1
-        stats.total_time += duration
-        stats.times.append(duration)
+        self.add_call_stats(caller, duration)
 
         logger.info(f"LLM call [{caller}]: {duration:.2f}s")
 
         return response["response"]  # type: ignore
+
+    def add_call_stats(self, caller: str, duration: float) -> None:
+        """Add a new call to the statistics"""
+        if caller not in self.call_stats:
+            self.call_stats[caller] = CallStats()
+        stats = self.call_stats[caller]
+        stats.count += 1
+        stats.total_time += duration
+        stats.times.append(duration)
 
     def reset_call_stats(self) -> None:
         """Reset all LLM call statistics"""

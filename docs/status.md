@@ -2,10 +2,6 @@
 
 This document tracks current implementation status, identified problems, and investigation action items for the agent system.
 
-## Critical Investigation Items
-
-Based on conversation analysis from `conversations/conversation_20250810_012344_749610_*.json`, several critical agent behavior flaws have been identified:
-
 ### #6: Image Generation Model Limitations and Failure Recovery
 
 **Problem**: SDXL fails to generate complex geometric patterns despite detailed prompts, but the agent has no mechanism to detect failures, switch strategies, or communicate limitations to the user.
@@ -99,7 +95,6 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 **Proposed Solution**: Fix frontend progress update logic to replace rather than append progress text for image generation events.
 
 **Location**: Frontend image generation progress handling
-
 
 ### #11: Image Generation Blocking Process - Poor Streaming UX
 
@@ -375,7 +370,7 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 **Investigation Results**:
 
 - ❌ **CONFIRMED**: Button visually appears enabled when user clicks submit during streaming
-- ❌ **CONFIRMED**: Button correctly shows disabled state after clicking/focusing the input field 
+- ❌ **CONFIRMED**: Button correctly shows disabled state after clicking/focusing the input field
 - 📁 **Behavior**: State updates appear to be working correctly but not triggering immediate visual updates
 - 📁 **Timing**: 50ms event batching in `useStreamBatcher` may contribute but shouldn't prevent eventual re-render
 
@@ -398,7 +393,8 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 
 **Priority**: Low-Medium - functional but poor UX
 
-**Location**: 
+**Location**:
+
 - `client/src/components/ChatInput.tsx` - button disabled state logic
 - `client/src/hooks/useTriggerEvents.ts` - streaming state management
 - `client/src/hooks/useStreamBatcher.ts` - event batching that may contribute to timing
@@ -416,7 +412,7 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 **Root Cause**: Unknown - could be multiple issues:
 
 1. **No events reaching new client** - Agent may not be emitting events to new client queue after reconnect
-2. **Filtering logic bug** - `activeTriggerIds` tracking may not work correctly across event streams  
+2. **Filtering logic bug** - `activeTriggerIds` tracking may not work correctly across event streams
 3. **Counter not updating** - Events filtered but `orphanedEventCount` state not incrementing
 4. **Event timing** - Agent processing may complete before new client connects
 
@@ -435,7 +431,8 @@ Based on conversation analysis from `conversations/conversation_20250810_012344_
 
 **Priority**: Low-Medium - functional feature but user experience gap
 
-**Location**: 
+**Location**:
+
 - `client/src/hooks/useStreamBatcher.ts` - orphaned event filtering logic
 - `client/src/components/ChatInterface.tsx` - orphaned event banner display
 

@@ -7,7 +7,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from .state import State
 from .chain_of_action.trigger_history import (
@@ -46,7 +46,7 @@ class ConversationPersistence:
         conversation_id: str,
         state: State,
         trigger_history: TriggerHistory,
-        initial_exchange: TriggerHistoryEntry,
+        initial_exchange: Optional[TriggerHistoryEntry],
         save_baseline: bool = True,
     ) -> None:
         """Save a conversation with its state and optional trigger history"""
@@ -64,7 +64,7 @@ class ConversationPersistence:
         prefix: str,
         state: State,
         trigger_history: TriggerHistory,
-        initial_exchange: TriggerHistoryEntry,
+        initial_exchange: Optional[TriggerHistoryEntry],
     ) -> None:
         """Save the state and trigger history for a conversation"""
         state_file = self._state_file_name(prefix)

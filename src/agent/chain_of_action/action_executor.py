@@ -46,9 +46,7 @@ class ActionExecutor:
         logger.debug(f"PRIOR COMPLETED: {len(context.completed_actions)}")
 
         # Notify sequence started
-        callback.on_sequence_started(
-            sequence_number, len(sequence.actions), sequence.reasoning
-        )
+        callback.on_sequence_started(sequence_number, len(sequence.actions), "")
 
         results = []
 

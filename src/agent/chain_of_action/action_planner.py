@@ -34,6 +34,7 @@ class ActionPlanner:
         llm: LLM,
         model: SupportedModel,
         relevant_memories: List[TriggerHistoryEntry],
+        situational_analysis: str,
     ) -> ActionSequence:
         """Plan a sequence of actions to respond to the trigger"""
 
@@ -44,9 +45,8 @@ class ActionPlanner:
             state=state,
             trigger=trigger,
             completed_actions=completed_actions,
-            trigger_history=trigger_history,
             registry=self.registry,
-            relevant_memories=relevant_memories,
+            situational_analysis=situational_analysis,
         )
 
         max_retries = 2

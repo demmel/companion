@@ -99,6 +99,22 @@ class ActionBasedReasoningLoop:
             else []
         )
 
+        # Perform situational analysis once before action planning loop
+        from .prompts import build_situational_analysis_prompt
+
+        situational_analysis_prompt = build_situational_analysis_prompt(
+            state=state,
+            trigger=trigger,
+            trigger_history=trigger_history,
+            relevant_memories=relevant_memories,
+        )
+
+        situational_analysis = llm.generate_complete(
+            model, situational_analysis_prompt, caller="situational_analysis"
+        )
+
+        logger.info(f"Situational Analysis: {situational_analysis}")
+
         # Create execution context for the full chain
         from .context import ExecutionContext
 
@@ -107,12 +123,19 @@ class ActionBasedReasoningLoop:
             completed_actions=[],
             session_id=str(uuid.uuid4()),
             relevant_memories=relevant_memories,
+            situation_analysis=situational_analysis,
         )
 
         sequence_num = 0
+        max_sequences = 3
 
         while True:
             sequence_num += 1
+
+            if sequence_num > max_sequences:
+                logger.debug("Max sequences reached, stopping chain")
+                break
+
             logger.debug(f"Planning sequence {sequence_num}...")
 
             # Plan next sequence of actions, showing what's already been done
@@ -124,6 +147,7 @@ class ActionBasedReasoningLoop:
                 llm=llm,
                 model=model,
                 relevant_memories=relevant_memories,
+                situational_analysis=situational_analysis,
             )
 
             if not sequence.actions:
@@ -291,45 +315,55 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
 
     try:
         # Calculate original entry size (without any existing compressed summary)
-        original_size = len(format_single_trigger_entry(trigger_entry, use_summary=False))
-        
+        original_size = len(
+            format_single_trigger_entry(trigger_entry, use_summary=False)
+        )
+
         best_summary = None
-        best_size = float('inf')
-        
+        best_size = float("inf")
+
         # Try compression up to 3 times if needed
         max_retries = 3
         compression_threshold = 0.9  # 90% of original size
-        
+
         for attempt in range(max_retries):
             compressed_summary = llm.generate_complete(
                 model, prompt, caller=f"compress_trigger_entry_attempt_{attempt+1}"
             )
-            
+
             compressed_summary = compressed_summary.strip()
             compressed_size = len(compressed_summary)
-            compression_ratio = compressed_size / original_size if original_size > 0 else 0
-            
-            logger.debug(f"Compression attempt {attempt+1}: {compressed_size} chars ({compression_ratio:.1%} of original {original_size} chars)")
-            
+            compression_ratio = (
+                compressed_size / original_size if original_size > 0 else 0
+            )
+
+            logger.debug(
+                f"Compression attempt {attempt+1}: {compressed_size} chars ({compression_ratio:.1%} of original {original_size} chars)"
+            )
+
             # Keep track of the best (smallest) summary
             if compressed_size < best_size:
                 best_summary = compressed_summary
                 best_size = compressed_size
-            
+
             # If compression is good enough (under 90% of original), use it
             if compression_ratio < compression_threshold:
-                logger.debug(f"Compression successful on attempt {attempt+1}: {compression_ratio:.1%} of original")
+                logger.debug(
+                    f"Compression successful on attempt {attempt+1}: {compression_ratio:.1%} of original"
+                )
                 trigger_entry.compressed_summary = compressed_summary
                 return
-            
+
             # If this is the last attempt or we got a good result, break
             if attempt == max_retries - 1:
                 break
-        
+
         # Use the best summary we found, even if it's not under the threshold
         if best_summary is not None:
             final_ratio = best_size / original_size if original_size > 0 else 0
-            logger.debug(f"Using best compression after {max_retries} attempts: {final_ratio:.1%} of original")
+            logger.debug(
+                f"Using best compression after {max_retries} attempts: {final_ratio:.1%} of original"
+            )
             trigger_entry.compressed_summary = best_summary
         else:
             logger.warning("No valid compression generated after retries")

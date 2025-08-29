@@ -65,35 +65,19 @@ class ThinkAction(BaseAction[ThinkInput, None]):
 
         # Build fresh context using current system's rich format
         state_desc = self.build_agent_state_description(state)
-        history_str = format_trigger_history(trigger_history)
-        trigger_description = format_trigger_for_prompt(context.trigger)
 
         sections = []
 
-        # Add temporal context first
-        temporal_context = build_temporal_context(trigger_history)
-        sections.append(format_section("TIME CONTEXT", temporal_context))
-
-        # Add summary if available
-        summary = trigger_history.get_recent_summary()
-        if summary:
-            sections.append(
-                format_section("SUMMARY OF MY EXPERIENCES", summary.summary_text)
-            )
-
-        # Add relevant memories if available
-        if context.relevant_memories:
-            from agent.chain_of_action.prompts import format_trigger_entries
-
-            relevant_memories_text = format_trigger_entries(context.relevant_memories)
-            sections.append(format_section("RELEVANT MEMORIES", relevant_memories_text))
-
-        if history_str:
-            sections.append(format_section("MY STREAM OF CONSCIOUSNESS", history_str))
-        sections.append(format_section("WHAT JUST HAPPENED", trigger_description))
         sections.append(
             format_section(
-                "ACTIONS I'VE ALREADY TAKEN IN RESPONSE TO THIS",
+                "MY SITUATIONAL ANALYSIS",
+                context.situation_analysis,
+            )
+        )
+
+        sections.append(
+            format_section(
+                "ACTIONS I'VE ALREADY TAKEN",
                 context.get_completed_actions_summary(),
             )
         )

@@ -16,6 +16,7 @@ class ExecutionContext(BaseModel):
     """Context information for action execution"""
 
     trigger: BaseTrigger
+    situation_analysis: str
     completed_actions: List[ActionResult] = Field(default_factory=list)
     session_id: str
     relevant_memories: List[TriggerHistoryEntry] = Field(default_factory=list)

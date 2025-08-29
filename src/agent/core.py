@@ -160,7 +160,6 @@ class Agent:
             )
             return None
 
-        assert self.initial_exchange is not None
         assert (
             self.state is not None
         ), "Cannot save conversation without initialized state"
@@ -211,12 +210,15 @@ class Agent:
         """Get current auto-wakeup enabled state"""
         return self.auto_wakeup_enabled
 
-    def emit_event(self, event: AgentEvent) -> None:
+    def emit_event(self, event: AgentEvent, should_yield: bool = False) -> None:
         """Emit an event to the current client (if any)"""
         with self.client_queue_lock:
             if self.current_client_queue:
                 self.current_client_queue.put(event)
             # else: drop event (no client connected)
+
+        if should_yield:
+            time.sleep(0.1)  # Yield to allow event to be processed
 
     def set_client_queue(self, client_queue: queue.Queue[AgentEvent]) -> None:
         """Set the current client queue (replaces existing client)"""
@@ -272,19 +274,17 @@ class Agent:
     def get_context_info(self) -> ContextInfo:
         """Get information about current context usage based on action planning prompt size"""
         if self.state is not None:
-            # Use action planning prompt for accurate estimation
-            from agent.chain_of_action.prompts import build_action_planning_prompt
+            # Use situational analysis prompt for accurate estimation (typically the longest)
+            from agent.chain_of_action.prompts import build_situational_analysis_prompt
             from agent.chain_of_action.trigger import UserInputTrigger
 
             # Create a sample trigger for estimation
             sample_trigger = UserInputTrigger(content="sample user input")
 
-            prompt = build_action_planning_prompt(
+            prompt = build_situational_analysis_prompt(
                 state=self.state,
                 trigger=sample_trigger,
-                completed_actions=[],  # Empty for estimation
                 trigger_history=self.trigger_history,
-                registry=self.action_reasoning_loop.registry,
                 relevant_memories=self.trigger_history.get_recent_entries()[
                     -5:
                 ],  # Use last 5 entries for estimation
@@ -370,7 +370,9 @@ class Agent:
 
         except Exception as e:
             logger.error(f"Error occurred during chat_stream: {e}")
+            import traceback
 
+            traceback.print_exc()
         finally:
             # Clear processing flag, schedule next wakeup timer, and notify waiting threads
             with self.processing_condition:
@@ -399,7 +401,8 @@ class Agent:
                 trigger=convert_trigger_to_dto(self.initial_exchange.trigger),
                 entry_id=entry_id,
                 timestamp=self.initial_exchange.timestamp.isoformat(),
-            )
+            ),
+            should_yield=True,
         )
 
         try:
@@ -411,7 +414,8 @@ class Agent:
                     timestamp=datetime.now().isoformat(),
                     sequence_number=1,
                     action_number=1,
-                )
+                ),
+                should_yield=True,
             )
             derive_state_start_time = time.time()
 
@@ -456,7 +460,8 @@ class Agent:
                     sequence_number=1,
                     action_number=1,
                     timestamp=datetime.now().isoformat(),
-                )
+                ),
+                should_yield=True,
             )
 
             # Generate initial image of agent's appearance and environment
@@ -469,7 +474,8 @@ class Agent:
                         timestamp=datetime.now().isoformat(),
                         sequence_number=1,
                         action_number=2,
-                    )
+                    ),
+                    should_yield=True,
                 )
                 generate_image_start_time = time.time()
                 image_description = self.state.current_appearance  # Default fallback
@@ -555,7 +561,8 @@ class Agent:
                             sequence_number=1,
                             action_number=2,
                             timestamp=datetime.now().isoformat(),
-                        )
+                        ),
+                        should_yield=True,
                     )
 
                 except Exception as e:
@@ -583,7 +590,8 @@ class Agent:
                             sequence_number=1,
                             action_number=2,
                             timestamp=datetime.now().isoformat(),
-                        )
+                        ),
+                        should_yield=True,
                     )
 
             # Insert summary at position 1, right after the initial exchange
@@ -630,7 +638,8 @@ class Agent:
                         trigger=convert_trigger_to_dto(trigger),
                         entry_id=entry_id,
                         timestamp=datetime.now().isoformat(),
-                    )
+                    ),
+                    should_yield=True,
                 )
 
             def on_trigger_completed(
@@ -649,7 +658,8 @@ class Agent:
                         context_limit=context_info.context_limit,
                         usage_percentage=context_info.usage_percentage,
                         approaching_limit=context_info.approaching_limit,
-                    )
+                    ),
+                    should_yield=True,
                 )
 
             def on_sequence_started(
@@ -675,7 +685,8 @@ class Agent:
                         sequence_number=sequence_number,
                         action_number=action_number,
                         timestamp=datetime.now().isoformat(),
-                    )
+                    ),
+                    should_yield=True,
                 )
 
             def on_action_progress(
@@ -736,7 +747,8 @@ class Agent:
                         sequence_number=sequence_number,
                         action_number=action_number,
                         timestamp=datetime.now().isoformat(),
-                    )
+                    ),
+                    should_yield=True,
                 )
 
             def on_sequence_finished(

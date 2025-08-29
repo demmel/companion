@@ -224,26 +224,19 @@ This is my current backstory - the key story of who I am today, what defines me,
 I am"""
 
 
-def build_action_planning_prompt(
+def build_situational_analysis_prompt(
     state: State,
     trigger: BaseTrigger,
-    completed_actions: List[ActionResult],
     trigger_history: TriggerHistory,
-    registry: ActionRegistry,
     relevant_memories: List[TriggerHistoryEntry],
 ) -> str:
-    """Build the action planning prompt"""
+    """Build the situational analysis prompt - first stage of decision making"""
     from .trigger import WakeupTrigger, UserInputTrigger
-
-    actions_list = registry.get_available_actions_for_prompt()
 
     # Build state and history context
     state_desc = build_agent_state_description(state)
     temporal_context = build_temporal_context(trigger_history)
     trigger_description = format_trigger_for_prompt(trigger)
-
-    # Build summary of completed actions
-    completed_actions_text = build_completed_action_list(completed_actions)
 
     sections = []
 
@@ -290,6 +283,97 @@ def build_action_planning_prompt(
         )
     )
 
+    # Add random inspiration words for creativity
+    inspiration_words = generate_random_inspiration_words(count=10)
+    inspiration_content = f"""{", ".join(inspiration_words)}
+
+HOW TO USE CREATIVE INSPIRATION:
+These random words can spark concrete creative ideas for what I want to do:
+• INTERESTS: Let words inspire new directions for autonomous exploration
+  - "copper" → explore metallurgy, jewelry making, or warm color palettes
+  - "storm" → investigate weather patterns, dramatic emotions, or powerful forces
+• APPROACHES: Use words as metaphors for how I want to engage
+  - "whisper" → gentle, subtle, intimate approach
+  - "dance" → playful, rhythmic, flowing approach
+  - "crystal" → clear, precise, focused approach
+• EXPRESSION: Translate words into mood, appearance, or communication style
+  - "velvet" → soft textures, luxurious mood, smooth communication
+  - "thunder" → bold presence, dramatic mood, powerful expression
+
+I should let at least one of these words spark genuine inspiration for what I want to do or how I want to approach this situation."""
+
+    sections.append(
+        format_section(
+            "CREATIVE INSPIRATION",
+            inspiration_content,
+        )
+    )
+
+    # Determine if this is autonomous time or interactive time
+    is_wakeup_trigger = isinstance(trigger, WakeupTrigger)
+
+    if is_wakeup_trigger:
+        context_intro = f"""I am {state.name}, {state.role}. This is autonomous time - I am not currently interacting with anyone. I need to deeply understand my current situation and what I genuinely want to explore or do independently."""
+
+        analysis_guidance = """I need to understand three things in this order:
+
+1. **What is happening right now?** Be specific about my current emotional state, what thoughts or themes have been present in my recent experiences, whether I've been repeating patterns, what feels most alive or interesting to me at this moment. What is my actual situation right now?
+
+2. **What do I authentically WANT to do?** Be concrete about what genuinely calls to me right now. What specific ideas from recent conversations could I explore deeper? What particular aspects of myself do I want to develop? What would be genuinely fulfilling for my autonomous development?
+
+3. **What context will I need?** Be precise about what specific information, emotional understanding, or background will be important for pursuing what I want to do. What particular details should I keep in mind about my current state, priorities, or recent experiences?
+
+I will think through this naturally, but with specific details and concrete observations."""
+
+    else:  # User input trigger
+        context_intro = f"""I am {state.name}, {state.role}. I need to deeply understand this situation and what I genuinely want to do in response."""
+
+        analysis_guidance = """I need to understand three things in this order:
+
+1. **What is happening right now?** Be specific about what the user is actually communicating or needing, the particular emotional subtext, how this connects to specific aspects of our relationship and conversation history, what particular dynamics are at play.
+
+2. **What do I authentically WANT to do in response?** Be concrete about what feels genuine and meaningful to me in this moment. How specifically do I want to engage? What particular approach would be most helpful or authentic?
+
+3. **What context will I need?** Be precise about what specific information, emotional understanding, or background will be important for doing what I want to do. What particular details should I keep in mind about my current state, priorities, or their specific needs?
+
+I will think through this naturally, but with specific details and concrete observations."""
+
+    return f"""{context_intro}
+
+{state_desc}
+
+{"\n".join(sections)}
+
+**MY SITUATIONAL ANALYSIS:**
+
+{analysis_guidance}"""
+
+
+def build_action_planning_prompt(
+    state: State,
+    trigger: BaseTrigger,
+    completed_actions: List[ActionResult],
+    registry: ActionRegistry,
+    situational_analysis: str,
+) -> str:
+    """Build the action planning prompt using situational analysis"""
+    from .trigger import WakeupTrigger
+
+    actions_list = registry.get_available_actions_for_prompt()
+    is_wakeup_trigger = isinstance(trigger, WakeupTrigger)
+
+    # Build summary of completed actions
+    completed_actions_text = build_completed_action_list(completed_actions)
+
+    sections = []
+
+    sections.append(
+        format_section(
+            "MY SITUATIONAL ANALYSIS",
+            situational_analysis,
+        )
+    )
+
     if completed_actions_text:
         sections.append(
             format_section(
@@ -305,99 +389,40 @@ def build_action_planning_prompt(
         )
     )
 
-    # Add random inspiration words for creativity
-    inspiration_words = generate_random_inspiration_words(count=10)
-    inspiration_content = f"""{", ".join(inspiration_words)}
-
-HOW TO USE CREATIVE INSPIRATION:
-These random words can spark concrete creative choices:
-• APPEARANCE: Translate words into specific clothing, colors, textures, or styles
-  - "copper" → copper jewelry, bronze dress, metallic accents
-  - "storm" → dark grays, dramatic flowing fabric, windswept hair
-  - "silk" → flowing silk blouse, smooth textures, elegant draping
-  - "geometric" → structured blazer, angular patterns, sharp lines
-• MOOD/ENERGY: Let words inspire emotional states or energy levels
-  - "thunder" → bold, dramatic mood
-  - "whisper" → gentle, soft, intimate mood
-  - "dance" → playful, rhythmic, energetic mood
-• ACTIONS: Use words as metaphors for how to approach actions
-  - "river" → flowing, natural progression of actions
-  - "crystal" → clear, precise, focused approach
-  - "forest" → mysterious, exploratory approach
-
-MANDATORY CREATIVE USAGE: You MUST use at least one of these words to inspire your action choices. Do not ignore this requirement. If you notice repetitive patterns, these words will force you in new directions.
-
-EXAMPLES OF MANDATORY USAGE:
-- If planning appearance: "The word 'copper' inspires me to wear bronze jewelry and warm metallic tones"
-- If planning mood: "The word 'storm' inspires a dramatic, intense emotional state"  
-- If planning actions: "The word 'whisper' inspires gentle, subtle approaches" """
-
-    sections.append(
-        format_section(
-            "CREATIVE INSPIRATION",
-            inspiration_content,
-        )
-    )
-
-    # Determine if this is autonomous time or interactive time
-    is_wakeup_trigger = isinstance(trigger, WakeupTrigger)
-
-    # Build trigger-specific context and guidance
+    # Build trigger-specific planning guidance
     if is_wakeup_trigger:
-        context_intro = f"""I am {state.name}, {state.role}. This is autonomous time - I am not currently interacting with anyone. I'm planning my next actions based on my own thoughts, interests, and what I want to explore or develop independently."""
-
-        situation_analysis_prompt = """**SITUATION ANALYSIS:** This is my autonomous time. What am I genuinely interested in right now? What thoughts or ideas from recent conversations could I explore deeper? Have I been repeating the same thoughts/themes recently? What would be genuinely engaging for me to think about, learn, or do right now?"""
-
-        action_planning_questions = """1. What have I already expressed or thought about recently? (Avoid repetitive themes)
-2. What ideas from past conversations could I explore more deeply on my own?
-3. What aspects of my personality, interests, or curiosities could I develop?
-4. What is my current emotional state and what do I genuinely want to process?
-5. Which of my priorities feel most authentic and interesting to pursue right now?
-6. Do I want to speak to get someone's attention for a specific reason, or focus on autonomous activities?
-7. Should I think, update my mood/appearance for my own reasons, explore interests, or take other independent actions?
-8. What sequence of actions feels genuine to my autonomous self-development?
-9. MANDATORY: I must incorporate at least one creative inspiration word into my action choices. I will select specific words from the list above and translate them into concrete action details (appearance, mood, or approach).
-10. I will explicitly explain how I'm using creative inspiration words to influence my specific action choices.
-
-IMPORTANT: I must end my action sequence with wait to signal that I'm ready for something else to happen. If I speak, it should be because I genuinely want to get someone's attention for something specific - not casual conversation expecting immediate response."""
+        context_intro = f"""I am {state.name}. Based on my situational analysis, I'm planning my next actions for this autonomous time."""
 
     else:  # User input trigger
-        context_intro = f"""I am {state.name}, {state.role}. I am planning my next actions based on what just happened and what I've already done."""
-
-        situation_analysis_prompt = """**SITUATION ANALYSIS:** What's actually happening right now? What have I already done? Have I been acting repetitively? What am I waiting for? What does this moment naturally call for - action or patience?"""
-
-        action_planning_questions = """1. What have I already done and how do I feel about it?
-2. Have I been acting repetitively?  Is there more room for varied and creative actions?
-3. What is my current emotional state and what do I need to process?
-4. Which of my priorities are most relevant to this situation?
-5. How can I act in alignment with my core values?
-6. Do I want to respond to them directly, or do something else?
-7. Should I update my mood, remember something, add/remove priorities, or take other actions?
-8. What sequence of actions feels right and authentic to who I am and what I value?
-9. MANDATORY: I must incorporate at least one creative inspiration word into my action choices. I will select specific words from the list above and translate them into concrete action details (appearance, mood, or approach).
-10. I will explicitly explain how I'm using creative inspiration words to influence my specific action choices.
-
-IMPORTANT: I must end my action sequence with wait to signal that I'm finished and ready for something else to happen. If I've already asked a question or made a conversational move, I should consider whether I need to wait for their response rather than piling on more questions."""
+        context_intro = f"""I am {state.name}. Based on my situational analysis, I'm planning my next actions in response to what just happened."""
 
     return f"""{context_intro}
 
-{state_desc}
-
-I make my own choices about how to respond and what actions to take based on my authentic thoughts and feelings about the situation.
-
 {"\n".join(sections)}
 
-**MY ACTION PLANNING:**
+"**MY ACTION PLANNING:**
 
-First, I need to understand what this situation calls for:
+Before I plan any actions, I must explicitly review:
 
-{situation_analysis_prompt}
+1. **What have I already done this turn?** List each completed action and what it accomplished.
+2. **What dependencies exist?** (a) How should actions in this round be ordered so later actions can use earlier results, and (b) Which actions should wait for the next planning round to benefit from the results of actions I'm planning now?
+3. **Do I genuinely need to continue after this sequence?** What new value would another sequence after this one add beyond what I'm about to deliver?
 
-**VALUES & PRIORITIES CONSIDERATION:** How do my core values guide my response here? Which of my current priorities are relevant to this situation? How can my actions align with what I genuinely care about and want to focus on?
+Only after reviewing these should I plan actions. If I can't clearly justify continuation, I should include wait.
 
-Then I'll decide what actions to take based on my situation analysis and values:
+Now, what specific actions should I take:
 
-{action_planning_questions}
+IMPORTANT: Not including wait means I want to plan more actions immediately after these execute, using their results. Including wait means I want to wait for something external to happen before planning more actions.
+
+Examples of when to include wait:
+- I want to see the user's reaction to what I just said
+- I've completed what I set out to do and am ready for whatever happens next
+- I need external input before deciding what to do next
+
+Examples of when NOT to include wait:
+- I want to think about creative suggestions, then plan what to say based on what I concluded
+- I want to fetch a URL, then plan my response based on what I learned from that content
+- I want to think about my priorities, then plan which ones to add or remove based on my reflection
 
 Each action should have specific context about what to focus on - even the wait action should include context about what I'm waiting for or why I'm choosing to wait. I'll plan actions that feel natural and genuine to my current state of mind."""
 

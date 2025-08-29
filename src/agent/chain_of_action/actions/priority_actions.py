@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 class DuplicatePriorityCheck(BaseModel):
     """Result of checking if a priority is a duplicate"""
 
+    reasoning: str = Field(
+        description="Explanation of why this is or isn't a duplicate"
+    )
     is_duplicate: bool = Field(
         description="True if the new priority is a duplicate or very similar to an existing one"
     )
@@ -33,30 +36,27 @@ class DuplicatePriorityCheck(BaseModel):
         default=None,
         description="The ID of the existing priority that this duplicates (if is_duplicate is True)",
     )
-    reasoning: str = Field(
-        description="Explanation of why this is or isn't a duplicate"
-    )
 
 
 class AddPriorityInput(BaseModel):
     """Input for ADD_PRIORITY action"""
 
-    priority_content: str = Field(
-        description="What I want to prioritize - a clear description of something I choose to focus on"
-    )
     reason: str = Field(
         description="Why this is important to me and worth prioritizing"
+    )
+    priority_content: str = Field(
+        description="What I want to prioritize - a clear description of something I choose to focus on"
     )
 
 
 class RemovePriorityInput(BaseModel):
     """Input for REMOVE_PRIORITY action"""
 
-    priority_id: str = Field(
-        description="The ID of the priority I want to remove (e.g., 'p1', 'p2')"
-    )
     reason: str = Field(
         description="Why I'm removing this priority (completed, no longer relevant, etc.)"
+    )
+    priority_id: str = Field(
+        description="The ID of the priority I want to remove (e.g., 'p1', 'p2')"
     )
 
 
