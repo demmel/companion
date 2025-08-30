@@ -6,7 +6,7 @@ from enum import Enum
 import logging
 import time
 import uuid
-from typing import Type, Callable, Any, Optional, List
+from typing import Callable, Any, Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -14,11 +14,6 @@ from agent.llm import LLM, SupportedModel
 
 logger = logging.getLogger(__name__)
 
-from agent.core import Agent
-from agent.tools import (
-    BaseTool,
-    ToolInput,
-)
 from agent.types import (
     ToolResult,
     ToolCallSuccess,
@@ -67,30 +62,12 @@ class SDXLPromptOptimization(BaseModel):
     )
 
 
-class ImageGenerationInput(ToolInput):
-    description: str = Field(
-        description="Natural description of what you want to see. Be detailed about mood, setting, character appearance, style, and any specific viewpoint or camera angle you want. Example: 'Elena is a mysterious vampire standing in her gothic castle. She has long dark hair, pale skin, and is wearing an elegant dark dress. The scene should be atmospheric with candlelight and stone architecture, viewed from a low angle to make her appear imposing.'",
-    )
-
-
-class ImageGenerationTool:
+class ImageGenerationService:
     """Tool for generating images using diffusers and Civitai models"""
 
     def __init__(self):
         self._pipeline = None
         self._model_loaded = False
-
-    @property
-    def name(self) -> str:
-        return "generate_image"
-
-    @property
-    def description(self) -> str:
-        return "Generate an image from a text prompt using AI"
-
-    @property
-    def input_schema(self) -> Type[ToolInput]:
-        return ImageGenerationInput
 
     def _load_model(self, progress_callback: Callable[[Any], None]) -> bool:
         """Load the Civitai model using diffusers"""
@@ -636,15 +613,12 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
     ) -> ToolResult:
         """Direct image generation method for use by actions (bypasses tool interface)"""
 
-        # Create input data object
-        input_data = ImageGenerationInput(description=description)
-
         # Use the main run method with a generated tool ID
         import uuid
 
         tool_id = f"appearance_update_{uuid.uuid4().hex[:8]}"
 
-        return self.run(llm, model, input_data, tool_id, progress_callback)
+        return self.run(llm, model, description, tool_id, progress_callback)
 
     def generate_image_for_action(
         self,
@@ -661,14 +635,14 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         self,
         llm: LLM,
         model: SupportedModel,
-        input_data: ImageGenerationInput,
+        description: str,
         tool_id: str,
         progress_callback: Callable[[Any], None],
     ) -> ToolResult:
         """Generate an image from natural description with LLM optimization"""
 
         logger.debug(f"ImageGenerationTool.run called with:")
-        logger.debug(f"  Description: {input_data.description}")
+        logger.debug(f"  Description: {description}")
         logger.debug(f"  Model: {model}")
         logger.debug(f"  Tool ID: {tool_id}")
 
@@ -676,7 +650,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         progress_callback({"stage": "starting_optimization", "progress": 0.0})
 
         optimization = self._optimize_description_for_sdxl(
-            input_data.description, progress_callback, llm, model
+            description, progress_callback, llm, model
         )
 
         # Step 2: Load model if not already loaded
@@ -717,7 +691,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             return ToolCallError(error="Image generation failed")
 
         # Add optimization metadata to result
-        image_content.original_description = input_data.description
+        image_content.original_description = description
         image_content.optimization_confidence = optimization.confidence
         image_content.camera_angle = optimization.camera_angle
         image_content.viewpoint = optimization.viewpoint
@@ -726,15 +700,15 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         return ToolCallSuccess(
             type="success",
             content=image_content,
-            llm_feedback=f"Generated image from: '{input_data.description}' → {len(optimization.chunks)} chunks: {combined_chunks} (Camera: {optimization.camera_angle}, {optimization.viewpoint})",
+            llm_feedback=f"Generated image from: '{description}' → {len(optimization.chunks)} chunks: {combined_chunks} (Camera: {optimization.camera_angle}, {optimization.viewpoint})",
         )
 
 
 # Shared instance for use by actions (maintains pipeline cache)
-_shared_image_generator = ImageGenerationTool()
+_shared_image_generator = ImageGenerationService()
 
 
-def get_shared_image_generator() -> ImageGenerationTool:
+def get_shared_image_generator() -> ImageGenerationService:
     """Get the shared image generator instance (maintains pipeline cache across calls)"""
     return _shared_image_generator
 

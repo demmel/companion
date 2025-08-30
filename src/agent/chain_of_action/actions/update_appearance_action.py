@@ -15,7 +15,6 @@ from ..action_types import ActionType
 from ..base_action import BaseAction
 from ..action_result import ActionResult
 from ..context import ExecutionContext
-from ..action_plan import ActionPlan
 
 from agent.state import State
 from agent.llm import LLM, SupportedModel
@@ -208,7 +207,7 @@ The result should be a natural evolution of my current appearance with the reque
             image_result = None
             if self.enable_image_generation:
                 # Actually generate the image using the shared image generator
-                from agent.tools.image_generation import get_shared_image_generator
+                from agent.image_generation import get_shared_image_generator
 
                 image_generator = get_shared_image_generator()
 

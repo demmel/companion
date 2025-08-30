@@ -507,7 +507,7 @@ class Agent:
                             )
                         )
 
-                    from agent.tools.image_generation import (
+                    from agent.image_generation import (
                         get_shared_image_generator,
                     )
 
