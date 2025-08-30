@@ -112,6 +112,7 @@ class ActionBasedReasoningLoop:
         situational_analysis = llm.generate_complete(
             model, situational_analysis_prompt, caller="situational_analysis"
         )
+        trigger_entry.situational_context = situational_analysis
 
         logger.info(f"Situational Analysis: {situational_analysis}")
 

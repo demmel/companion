@@ -389,8 +389,8 @@ class Agent:
 
         self.initial_exchange = TriggerHistoryEntry(
             trigger=UserInputTrigger(content=user_input, user_name="User"),
+            situational_context="",  # No situational context for initial exchange
             actions_taken=[],
-            timestamp=datetime.now(),
         )
 
         # Capture entry_id for use in nested callbacks

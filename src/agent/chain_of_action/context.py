@@ -39,10 +39,11 @@ class ExecutionContext(BaseModel):
         if not self.completed_actions:
             return "No prior actions taken yet."
 
+        # Use the same rich diary formatting that trigger history uses
+        from agent.chain_of_action.prompts import _format_action_for_diary
+        
         summaries = []
         for result in self.completed_actions:
-            status = "✓" if result.success else "✗"
-            summaries.append(
-                f"{status} {result.action.value.upper()}: {result.result_summary[:100]}..."
-            )
+            formatted_action = _format_action_for_diary(result)
+            summaries.append(formatted_action)
         return "\n".join(summaries)

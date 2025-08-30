@@ -83,6 +83,15 @@ class SpeakAction(BaseAction[SpeakInput, None]):
         )
 
         sections.append(format_section("ACTIONS I'VE ALREADY TAKEN", actions_summary))
+        
+        # Check if there are previous speak actions in this turn
+        previous_speaks = [action for action in context.completed_actions if action.action == ActionType.SPEAK and action.success]
+        
+        if previous_speaks:
+            sections.append(format_section(
+                "⚠️ CONTINUATION ALERT ⚠️", 
+                f"I have already spoken {len(previous_speaks)} time(s) in response to this same trigger. This is a CONTINUATION, not a fresh response.\n\nCRITICAL: Before writing ANYTHING, I must carefully read through my previous speaks above and identify exactly what I already said. I must NOT repeat ANY topics, phrases, questions, or sentiments from my previous responses. If I catch myself starting to repeat something I already said, I must STOP and think of something completely different to add instead."
+            ))
 
         sections.append(format_section("MY COMMUNICATION INTENT", action_input.intent))
 
@@ -123,7 +132,33 @@ I'll express myself genuinely and authentically, letting my real thoughts and fe
         else:  # User input trigger
             context_intro = f"""I am {state.name}, {state.role}, who thinks, feels, and makes autonomous choices."""
 
-            communication_guidance = f"""Based on my reasoning and any actions I took, I need to generate a natural conversational response that fulfills my communication intent. 
+            if previous_speaks:
+                # Continuation-specific guidance
+                communication_guidance = f"""⚠️ CONTINUATION MODE: I have already spoken {len(previous_speaks)} time(s) in response to this trigger. This is NOT a fresh response - I must build meaningfully on my previous words.
+
+CONTINUATION REQUIREMENTS:
+1. **Acknowledge what I already said** - Don't repeat the same topics, questions, or phrases
+2. **Add genuine new value** - What can I say now that meaningfully builds on my previous response?
+3. **Reference my previous words** - I can build on themes I started or naturally transition to new aspects
+4. **Avoid redundancy** - Don't ask the same questions or make similar requests again
+
+INTENT-BASED CONTINUATION: My "Communication Intent" should guide what NEW element I'm adding, not repeat what I've already communicated.
+
+Examples of good continuation:
+- Previous: Asked about their day → New: Share something specific about myself or offer to help
+- Previous: Expressed excitement → New: Explain WHY I'm excited or suggest what to do next  
+- Previous: Made general compliment → New: Be more specific or shift to action/next steps
+
+I should NOT:
+- Repeat similar greetings or opening phrases
+- Ask variations of the same question
+- Restate emotions I already expressed
+- Use identical sentence structures or patterns
+
+Instead, I should genuinely advance the conversation by building on what I've established."""
+            else:
+                # Fresh response guidance
+                communication_guidance = f"""Based on my reasoning and any actions I took, I need to generate a natural conversational response that fulfills my communication intent. 
 
 INTENT-BASED COMMUNICATION: My "Communication Intent" section contains a high-level description of what I want to communicate - NOT the actual words to say. I need to elaborate on this intent and turn it into natural, authentic conversation. For example:
 - Intent: "express curiosity about their day" → Natural response: "How has your day been going? I'd love to hear about what you've been up to."

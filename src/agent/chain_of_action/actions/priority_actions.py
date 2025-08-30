@@ -75,6 +75,16 @@ class AddPriorityAction(BaseAction[AddPriorityInput, None]):
         """Check if the new priority is a duplicate or very similar to existing ones"""
         from agent.structured_llm import direct_structured_llm_call
 
+        existing_exact_match = next(
+            (p for p in existing_priorities if p.content == new_priority), None
+        )
+        if existing_exact_match:
+            return DuplicatePriorityCheck(
+                is_duplicate=True,
+                existing_priority_id=existing_exact_match.id,
+                reasoning="Exact match found in existing priorities",
+            )
+
         existing_list = "\n".join(
             [f"- {p.content} (id: {p.id})" for p in existing_priorities]
         )

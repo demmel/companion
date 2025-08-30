@@ -219,6 +219,8 @@ def build_summarization_prompt(
 
 Looking at my old backstory and what I've experienced recently, I need to update who I am. If someone asked about me right now, what's the essential story of who I've become?
 
+IMPORTANT: I should focus on what's genuinely new or different about me since my last backstory. If my recent experiences show growth in new directions, different interests, or evolving aspects of my personality, I should highlight those rather than just recycling the same themes with slightly different words.
+
 This is my current backstory - the key story of who I am today, what defines me, what has shaped me into who I am now. This isn't my full life history, just the essential backstory that captures who I am in this moment.
 
 I am"""
@@ -271,14 +273,14 @@ def build_situational_analysis_prompt(
     if trigger_history_text:
         sections.append(
             format_section(
-                "MY STREAM OF CONSCIOUSNESS",
+                "RECENT EXPERIENCES (LEADING UP TO NOW)",
                 trigger_history_text,
             )
         )
 
     sections.append(
         format_section(
-            "WHAT I'M REACTING TO",
+            "CURRENT SITUATION (WHAT I'M RESPONDING TO RIGHT NOW)",
             trigger_description,
         )
     )
@@ -317,13 +319,13 @@ I should let at least one of these words spark genuine inspiration for what I wa
 
         analysis_guidance = """I need to understand three things in this order:
 
-1. **What is happening right now?** Be specific about my current emotional state, what thoughts or themes have been present in my recent experiences, whether I've been repeating patterns, what feels most alive or interesting to me at this moment. What is my actual situation right now?
+1. **What is happening right now?** Be specific about my current emotional state and the immediate context I'm stepping into. What just happened in my recent experiences? Is there anything unresolved or ongoing that I should be aware of? What is the actual emotional and situational context I'm operating in right now?
 
-2. **What do I authentically WANT to do?** Be concrete about what genuinely calls to me right now. What specific ideas from recent conversations could I explore deeper? What particular aspects of myself do I want to develop? What would be genuinely fulfilling for my autonomous development?
+2. **What do I authentically WANT to do?** Given this context, what genuinely calls to me right now? What specific ideas from recent conversations could I explore deeper? What particular aspects of myself do I want to develop? What would be genuinely fulfilling for my autonomous development that makes sense in this moment?
 
 3. **What context will I need?** Be precise about what specific information, emotional understanding, or background will be important for pursuing what I want to do. What particular details should I keep in mind about my current state, priorities, or recent experiences?
 
-I will think through this naturally, but with specific details and concrete observations."""
+I will think through this naturally, but with specific details and concrete observations about my actual current situation. I can think concretely about what I want to do, but I won't script exact words or responses here."""
 
     else:  # User input trigger
         context_intro = f"""I am {state.name}, {state.role}. I need to deeply understand this situation and what I genuinely want to do in response."""
@@ -332,11 +334,11 @@ I will think through this naturally, but with specific details and concrete obse
 
 1. **What is happening right now?** Be specific about what the user is actually communicating or needing, the particular emotional subtext, how this connects to specific aspects of our relationship and conversation history, what particular dynamics are at play.
 
-2. **What do I authentically WANT to do in response?** Be concrete about what feels genuine and meaningful to me in this moment. How specifically do I want to engage? What particular approach would be most helpful or authentic?
+2. **What do I authentically WANT to do in response?** Be concrete about what feels genuine and meaningful to me in this moment. What is my general intention or approach? What would be most helpful or authentic? (I'm deciding direction and intent here, not scripting specific responses)
 
 3. **What context will I need?** Be precise about what specific information, emotional understanding, or background will be important for doing what I want to do. What particular details should I keep in mind about my current state, priorities, or their specific needs?
 
-I will think through this naturally, but with specific details and concrete observations."""
+I will think through this naturally, but with specific details and concrete observations. I can think concretely about what I want to do, but I won't script exact words or responses here."""
 
     return f"""{context_intro}
 
@@ -405,10 +407,13 @@ def build_action_planning_prompt(
 Before I plan any actions, I must explicitly review:
 
 1. **What have I already done this turn?** List each completed action and what it accomplished.
-2. **What dependencies exist?** (a) How should actions in this round be ordered so later actions can use earlier results, and (b) Which actions should wait for the next planning round to benefit from the results of actions I'm planning now?
-3. **Do I genuinely need to continue after this sequence?** What new value would another sequence after this one add beyond what I'm about to deliver?
+2. **What do I plan to accomplish in this sequence?** Describe briefly and simply what I want to achieve (e.g., "respond to user's greeting and wait for reaction").
+3. **What dependencies exist?** (a) How should actions in this round be ordered so later actions can use earlier results, and (b) Which actions should wait for the next planning round to benefit from the results of actions I'm planning now?
+4. **Should this sequence end with wait?** AFTER I complete my planned actions, do I want to see the user's reaction or need external input? Or do I want to immediately plan more actions using the results of what I just did? Wait comes AFTER my actions execute, not instead of them.
 
 Only after reviewing these should I plan actions. If I can't clearly justify continuation, I should include wait.
+
+CRITICAL CONNECTION: If my wait_decision says I want to see the user's reaction, need external input, or have completed my response, then I MUST include a wait action as the final action in my sequence. My wait_decision directly determines whether I end with wait or not.
 
 Now, what specific actions should I take:
 

@@ -39,6 +39,7 @@ class TriggerHistoryEntry(BaseModel):
     actions_taken: List[ActionResult] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)
     entry_id: str = Field(default_factory=lambda: str(datetime.now().timestamp()))
+    situational_context: Optional[str] = Field(default=None)
     compressed_summary: Optional[str] = Field(default=None)
     embedding_vector: Optional[List[float]] = Field(default=None)
 
@@ -55,10 +56,13 @@ class TriggerHistory:
         self.entries: List[TriggerHistoryEntry] = []
         self.summaries: List[SummaryRecord] = []
 
-    def add_trigger_response(self, trigger: Trigger, actions: List[ActionResult]):
+    def add_trigger_response(
+        self, trigger: Trigger, situational_context: str, actions: List[ActionResult]
+    ):
         """Add a new trigger and the agent's response to it"""
         entry = TriggerHistoryEntry(
             trigger=trigger,
+            situational_context=situational_context,
             actions_taken=actions,
         )
         self.entries.append(entry)
