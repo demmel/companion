@@ -83,15 +83,21 @@ class SpeakAction(BaseAction[SpeakInput, None]):
         )
 
         sections.append(format_section("ACTIONS I'VE ALREADY TAKEN", actions_summary))
-        
+
         # Check if there are previous speak actions in this turn
-        previous_speaks = [action for action in context.completed_actions if action.action == ActionType.SPEAK and action.success]
-        
+        previous_speaks = [
+            action
+            for action in context.completed_actions
+            if action.action == ActionType.SPEAK and action.success
+        ]
+
         if previous_speaks:
-            sections.append(format_section(
-                "⚠️ CONTINUATION ALERT ⚠️", 
-                f"I have already spoken {len(previous_speaks)} time(s) in response to this same trigger. This is a CONTINUATION, not a fresh response.\n\nCRITICAL: Before writing ANYTHING, I must carefully read through my previous speaks above and identify exactly what I already said. I must NOT repeat ANY topics, phrases, questions, or sentiments from my previous responses. If I catch myself starting to repeat something I already said, I must STOP and think of something completely different to add instead."
-            ))
+            sections.append(
+                format_section(
+                    "⚠️ CONTINUATION ALERT ⚠️",
+                    f"I have already spoken {len(previous_speaks)} time(s) in response to this same trigger. This is a CONTINUATION, not a fresh response.\n\nCRITICAL: Before writing ANYTHING, I must carefully read through my previous speaks above and identify exactly what I already said. I must NOT repeat ANY topics, phrases, questions, or sentiments from my previous responses. If I catch myself starting to repeat something I already said, I must STOP and think of something completely different to add instead.",
+                )
+            )
 
         sections.append(format_section("MY COMMUNICATION INTENT", action_input.intent))
 
