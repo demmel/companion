@@ -429,7 +429,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
 
         case "summarization_started":
         case "summarization_finished":
-          // Ignore summarization events - handled elsewhere
+          // Ignore summarization events for now
           break;
 
         default:

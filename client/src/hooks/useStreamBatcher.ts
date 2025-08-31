@@ -15,7 +15,7 @@ export function useStreamBatcher(
   const [orphanedEventCount, setOrphanedEventCount] = useState(0);
   const eventBufferRef = useRef<ClientAgentEvent[]>([]);
   const batchTimerRef = useRef<number | undefined>(undefined);
-  
+
   // Track active triggers to filter orphaned events
   const activeTriggerIds = useRef<Set<string>>(new Set());
 
@@ -35,25 +35,25 @@ export function useStreamBatcher(
             // Always accept trigger_started - this begins a new sequence
             activeTriggerIds.current.add(event.entry_id);
             return true;
-          
+
           case "trigger_completed":
             // Accept if we have this trigger, then clean it up
             const hasCompletedTrigger = activeTriggerIds.current.has(event.entry_id);
             activeTriggerIds.current.delete(event.entry_id);
             return hasCompletedTrigger;
-          
+
           case "action_started":
           case "action_progress":
           case "action_completed":
             // Accept if we have this trigger
             return activeTriggerIds.current.has(event.entry_id);
-          
+
           case "summarization_started":
           case "summarization_finished":
-          case "agent_error":
+          case "error":
             // Global events - always accept
             return true;
-          
+
           default:
             // Unknown event type - accept to be safe
             return true;
