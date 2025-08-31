@@ -33,6 +33,12 @@ class SupportedModel(str, Enum):
 
     MISTRAL_SMALL = "huihui_ai/mistral-small-abliterated"
     MISTRAL_SMALL_3_2 = "mistral-small3.2:latest"
+    MISTRAL_SMALL_3_2_Q4 = (
+        "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL"
+    )
+    MISTRAL_SMALL_3_2_Q8 = (
+        "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q8_K_XL"
+    )
     MISTRAL_NEMO = "mistral-nemo:latest"
     DOLPHIN_MISTRAL_NEMO = "CognitiveComputations/dolphin-mistral-nemo:latest"
     LLAMA_8B = "llama3.1:8b"
@@ -292,6 +298,16 @@ DEFAULT_MODELS = {
     SupportedModel.MISTRAL_SMALL_3_2: ModelConfig(
         model=SupportedModel.MISTRAL_SMALL_3_2,
         estimated_token_size=3.4,
+    ),
+    SupportedModel.MISTRAL_SMALL_3_2_Q4: ModelConfig(
+        model=SupportedModel.MISTRAL_SMALL_3_2_Q4,
+        estimated_token_size=3.4,
+        default_temperature=0.15,
+    ),
+    SupportedModel.MISTRAL_SMALL_3_2_Q8: ModelConfig(
+        model=SupportedModel.MISTRAL_SMALL_3_2_Q8,
+        estimated_token_size=3.4,
+        default_temperature=0.15,
     ),
     SupportedModel.DOLPHIN_MISTRAL_NEMO: ModelConfig(
         model=SupportedModel.DOLPHIN_MISTRAL_NEMO,

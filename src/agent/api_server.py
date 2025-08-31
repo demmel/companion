@@ -68,7 +68,7 @@ def initialize_agent(load: bool) -> Agent:
     """Initialize the agent with specific conversation files for development"""
     llm = create_llm()
     agent = Agent(
-        model=SupportedModel.MISTRAL_SMALL_3_2,
+        model=SupportedModel.MISTRAL_SMALL_3_2_Q4,
         llm=llm,
         enable_image_generation=True,
         individual_trigger_compression=True,
