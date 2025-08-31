@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { ClientAgentEvent } from "./useWebSocket";
 import {
   TriggerHistoryEntry,
@@ -174,7 +174,11 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
   useEffect(() => {
     if (events.length === 0) return;
 
-    let currentTrigger = activeTrigger;
+    let currentTrigger = activeTrigger ? {
+      ...activeTrigger,
+      actions: [...activeTrigger.actions],
+      actionMap: new Map(activeTrigger.actionMap)
+    } : null;
     let hasActiveStreaming = isStreamActive;
 
     for (const event of events) {
@@ -434,26 +438,36 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
       }
     }
 
+    console.log(`[${new Date().toISOString()}] Setting activeTrigger and isStreamActive`, {
+      currentTriggerEntryId: currentTrigger?.entry_id,
+      hasActiveStreaming,
+      actionsCount: currentTrigger?.actions.length || 0
+    });
+
     setActiveTrigger(currentTrigger);
     setIsStreamActive(hasActiveStreaming);
-  }, [events, activeTrigger]);
+  }, [events]);
 
   // Combine completed streaming entries with active trigger
-  const allStreamingEntries = [...streamingEntries];
+  const allStreamingEntries = useMemo(() => {
+    const entries = [...streamingEntries];
 
-  if (activeTrigger) {
-    // Convert active trigger to TriggerHistoryEntry
-    const activeActions: Action[] = activeTrigger.actions.map(convertActionBuilderToAction);
+    if (activeTrigger) {
+      // Convert active trigger to TriggerHistoryEntry
+      const activeActions: Action[] = activeTrigger.actions.map(convertActionBuilderToAction);
 
-    const activeTriggerEntry: TriggerHistoryEntry = {
-      trigger: activeTrigger.trigger,
-      actions_taken: activeActions,
-      timestamp: activeTrigger.trigger.timestamp,
-      entry_id: activeTrigger.entry_id,
-    };
+      const activeTriggerEntry: TriggerHistoryEntry = {
+        trigger: activeTrigger.trigger,
+        actions_taken: activeActions,
+        timestamp: activeTrigger.trigger.timestamp,
+        entry_id: activeTrigger.entry_id,
+      };
 
-    allStreamingEntries.push(activeTriggerEntry);
-  }
+      entries.push(activeTriggerEntry);
+    }
+
+    return entries;
+  }, [streamingEntries, activeTrigger]);
 
   const clearStreamingData = useCallback(() => {
     setStreamingEntries([]);
