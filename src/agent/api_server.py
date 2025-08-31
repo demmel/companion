@@ -268,10 +268,40 @@ async def get_timeline(
 async def reset_agent():
     """Reset the agent"""
 
+    # Get the old agent to transfer state and clean up resources
+    old_agent: Agent | None = app.state.agent
+    current_client_queue = None
+
+    if old_agent:
+        # Disable wakeup timer scheduling and cancel any active timer
+        old_agent.set_auto_wakeup_enabled(False)
+
+        # Disable auto-save to prevent the old agent from saving mid-reset
+        old_agent.auto_save = False
+
+        # Get the current client queue to transfer to new agent
+        with old_agent.client_queue_lock:
+            current_client_queue = old_agent.current_client_queue
+            # Clear the old agent's queue reference so it stops pushing events
+            old_agent.current_client_queue = None
+
     # Reinitialize the agent
-    app.state.agent = initialize_agent(
+    new_agent = initialize_agent(
         load=False  # Set to False to avoid loading specific conversation
     )
+
+    # Transfer the client queue to the new agent if one exists
+    if current_client_queue is not None:
+        # Clear any remaining events from the old agent before transferring
+        while not current_client_queue.empty():
+            try:
+                current_client_queue.get_nowait()
+            except:
+                break
+
+        new_agent.set_client_queue(current_client_queue)
+
+    app.state.agent = new_agent
 
     return ResetResponse(
         message="Agent reset successfully",
