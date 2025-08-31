@@ -1,16 +1,5 @@
 import { Trigger, Action } from "./types";
 
-export interface AgentTextEvent {
-  content: string;
-  is_thought: boolean;
-  type: "text";
-}
-
-export interface UserInputRequestEvent {
-  // TODO: Define structure when we implement interactive tools
-  type: "user_input_request";
-}
-
 export interface AgentErrorEvent {
   message: string;
   tool_name?: string;
@@ -85,8 +74,6 @@ export interface ActionCompletedEvent {
 
 // Union type for all agent events
 export type AgentEvent =
-  | AgentTextEvent
-  | UserInputRequestEvent
   | AgentErrorEvent
   | SummarizationStartedEvent
   | SummarizationFinishedEvent
