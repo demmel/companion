@@ -2,6 +2,7 @@
 Image generation tools using diffusers and Civitai models
 """
 
+from dataclasses import dataclass
 from enum import Enum
 import logging
 import time
@@ -22,6 +23,41 @@ from agent.types import (
 )
 from agent.structured_llm import structured_llm_call, StructuredLLMError
 from agent.paths import agent_paths
+
+
+class SDXLModel(str, Enum):
+    """Enum for SDXL model options"""
+
+    JANKUV4NSFW = "jankuv4nsfw"
+    WAINSFW = "wainsfw"
+
+
+class SDXLScheduler(str, Enum):
+    """Enum for SDXL scheduler options"""
+
+    euler_a = "euler_a"
+
+
+@dataclass
+class SDXLModelConfig:
+    file_name: str
+    num_inference_steps: int
+    guidance_scale: float
+    scheduler: Optional[SDXLScheduler] = None
+
+
+MODELS = {
+    SDXLModel.JANKUV4NSFW: SDXLModelConfig(
+        file_name="JANKUV4NSFWTrainedNoobaiEPS_v40.safetensors",
+        num_inference_steps=30,
+        guidance_scale=5.0,
+    ),
+    SDXLModel.WAINSFW: SDXLModelConfig(
+        file_name="waiNSFWIllustrious_v140.safetensors",
+        num_inference_steps=15,
+        guidance_scale=6.0,
+    ),
+}
 
 
 class ImageLayout(str, Enum):
@@ -69,7 +105,9 @@ class ImageGenerationService:
         self._pipeline = None
         self._model_loaded = False
 
-    def _load_model(self, progress_callback: Callable[[Any], None]) -> bool:
+    def _load_model(
+        self, progress_callback: Callable[[Any], None], model_config: SDXLModelConfig
+    ) -> bool:
         """Load the Civitai model using diffusers"""
         if self._model_loaded:
             return True
@@ -85,12 +123,9 @@ class ImageGenerationService:
 
             # Find the Civitai model
             models_dir = agent_paths.get_models_dir()
-            model_files = list(models_dir.glob("*.safetensors"))
+            sdxl_dir = models_dir / "sdxl"
+            model_path = sdxl_dir / model_config.file_name
 
-            if not model_files:
-                return False
-
-            model_path = model_files[0]  # Use first .safetensors file found
             progress_callback(
                 {"stage": "found_model", "progress": 0.3, "model_path": str(model_path)}
             )
@@ -111,6 +146,13 @@ class ImageGenerationService:
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32,
                 use_safetensors=True,
             )
+
+            if model_config.scheduler == SDXLScheduler.euler_a:
+                from diffusers import EulerAncestralDiscreteScheduler  # type: ignore
+
+                self._pipeline.scheduler = EulerAncestralDiscreteScheduler.from_config(
+                    self._pipeline.scheduler.config
+                )
 
             progress_callback({"stage": "moving_to_device", "progress": 0.8})
             self._pipeline = self._pipeline.to(device)
@@ -494,6 +536,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         negative_prompt: str,
         layout: ImageLayout,
         progress_callback: Callable[[Any], None],
+        sdxl_model_config: SDXLModelConfig,
     ) -> Optional[ImageGenerationToolContent]:
         """Generate image and return the file path"""
         if self._pipeline is None:
@@ -543,8 +586,8 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     negative_pooled_prompt_embeds=pooled_negative_embeds,
                     width=width,
                     height=height,
-                    num_inference_steps=30,
-                    guidance_scale=5.0,
+                    num_inference_steps=sdxl_model_config.num_inference_steps,
+                    guidance_scale=sdxl_model_config.guidance_scale,
                 )
             logger.debug(f"Image generation completed successfully")
 
@@ -646,6 +689,8 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         logger.debug(f"  Model: {model}")
         logger.debug(f"  Tool ID: {tool_id}")
 
+        sdxl_model_config = MODELS[SDXLModel.WAINSFW]
+
         # Step 1: Optimize description to SDXL prompts
         progress_callback({"stage": "starting_optimization", "progress": 0.0})
 
@@ -657,7 +702,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         if not self._model_loaded:
             progress_callback({"stage": "loading_model", "progress": 0.4})
 
-            if not self._load_model(progress_callback):
+            if not self._load_model(progress_callback, sdxl_model_config):
                 models_dir = agent_paths.get_models_dir()
                 model_files = list(models_dir.glob("*.safetensors"))
 
@@ -685,6 +730,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             optimization.negative_prompt,
             optimization.layout,
             progress_callback,
+            sdxl_model_config,
         )
 
         if image_content is None:
