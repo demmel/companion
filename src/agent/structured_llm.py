@@ -43,7 +43,7 @@ class StructuredLLMError(Exception):
 class StructuredLLMClient:
     """Client for making structured LLM calls with automatic validation"""
 
-    def __init__(self, model: SupportedModel, llm: LLM, max_retries: int = 2):
+    def __init__(self, model: SupportedModel, llm: LLM, max_retries: int = 3):
         self.model = model
         self.llm = llm
         self.max_retries = max_retries
@@ -431,7 +431,7 @@ def direct_structured_llm_call(
     context: Optional[Dict[str, Any]] = None,
     temperature: float = 0.1,
     format: ResponseFormat = ResponseFormat.JSON,
-    max_retries: int = 2,
+    max_retries: int = 3,
 ) -> T:
     """
     Direct generation structured LLM call for first-person prompts
