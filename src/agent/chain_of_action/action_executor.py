@@ -50,13 +50,10 @@ class ActionExecutor:
 
         results = []
 
-        # Execute each action in sequence
         for i, action_plan in enumerate(sequence.actions):
             logger.debug(
-                f"Executing action {i+1}/{len(sequence.actions)}: {action_plan.action.value}"
+                f"Sending action start event for action {i+1}/{len(sequence.actions)}: {action_plan.action.value}"
             )
-
-            # Notify action started
             input_summary = ", ".join(
                 [f"{k}: {v}" for k, v in action_plan.input.items()]
             )
@@ -66,6 +63,12 @@ class ActionExecutor:
                 sequence_number,
                 i + 1,
                 trigger_entry.entry_id,
+            )
+
+        # Execute each action in sequence
+        for i, action_plan in enumerate(sequence.actions):
+            logger.debug(
+                f"Executing action {i+1}/{len(sequence.actions)}: {action_plan.action.value}"
             )
 
             try:
