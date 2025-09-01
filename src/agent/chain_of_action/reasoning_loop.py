@@ -6,12 +6,17 @@ import logging
 import uuid
 from typing import List
 
+from agent.chain_of_action.action.action_data import (
+    cast_base_action_data_to_action_data,
+    create_result_summary,
+)
+from agent.chain_of_action.action.action_types import ActionType
+from agent.chain_of_action.action.base_action_data import BaseActionData
+
 from .action_registry import ActionRegistry
 from .action_planner import ActionPlanner
 from .action_executor import ActionExecutor
-from .action_evaluator import ActionEvaluator
 from .trigger import Trigger
-from .action_result import ActionResult
 from .callbacks import ActionCallback, NoOpCallback
 from agent.state import State
 from agent.llm import LLM, SupportedModel
@@ -26,16 +31,10 @@ class ActionBasedReasoningLoop:
     def __init__(
         self,
         enable_image_generation: bool = True,
-        enable_action_evaluation: bool = True,
     ):
         self.registry = ActionRegistry(enable_image_generation=enable_image_generation)
         self.planner = ActionPlanner(self.registry)
         self.executor = ActionExecutor(self.registry)
-        self.enable_action_evaluation = enable_action_evaluation
-        if enable_action_evaluation:
-            self.action_evaluator = ActionEvaluator(self.registry)
-        else:
-            self.action_evaluator = None
 
     def process_trigger(
         self,
@@ -46,7 +45,7 @@ class ActionBasedReasoningLoop:
         callback: ActionCallback,
         trigger_history: TriggerHistory,
         individual_trigger_compression: bool = True,
-    ) -> List[ActionResult]:
+    ) -> List[BaseActionData]:
         """
         Process user input through the action-based reasoning system.
 
@@ -123,7 +122,6 @@ class ActionBasedReasoningLoop:
             trigger=trigger,
             completed_actions=[],
             session_id=str(uuid.uuid4()),
-            relevant_memories=relevant_memories,
             situation_analysis=situational_analysis,
         )
 
@@ -155,41 +153,6 @@ class ActionBasedReasoningLoop:
                 logger.debug("No more actions planned, stopping chain")
                 break
 
-            # Evaluate sequence for repetitive patterns and correct if needed (if enabled)
-            if self.enable_action_evaluation and self.action_evaluator:
-                logger.debug("Evaluating sequence for repetitive patterns...")
-                evaluation = self.action_evaluator.analyze_and_correct_sequence(
-                    planned_actions=sequence.actions,
-                    all_completed_actions=context.completed_actions,
-                    trigger=trigger,
-                    llm=llm,
-                    model=model,
-                )
-
-                # Notify about evaluation
-                callback.on_evaluation(
-                    evaluation.has_repetition,
-                    evaluation.pattern_detected,
-                    len(sequence.actions),
-                    len(evaluation.corrected_actions),
-                )
-
-                # Use corrected sequence if evaluation found genuine repetition
-                if evaluation.has_repetition:
-                    logger.debug(
-                        f"Repetitive pattern detected: {evaluation.pattern_detected}"
-                    )
-                    logger.debug(
-                        f"Using corrected sequence with {len(evaluation.corrected_actions)} actions"
-                    )
-                    sequence.actions = evaluation.corrected_actions
-                else:
-                    logger.debug(
-                        "No repetitive patterns detected, using original sequence"
-                    )
-            else:
-                logger.debug("Action evaluation disabled, using original sequence")
-
             # Execute the planned sequence, updating the shared context
             logger.debug(
                 f"Executing sequence {sequence_num} with {len(sequence.actions)} actions..."
@@ -210,11 +173,13 @@ class ActionBasedReasoningLoop:
 
             # Check if agent signaled completion with WAIT action
             wait_actions = [
-                r for r in sequence_results if r.action.value == "wait" and r.success
+                r
+                for r in sequence_results
+                if r.type == ActionType.WAIT and r.result.type == "success"
             ]
             if wait_actions:
                 logger.debug(
-                    f"Agent signaled completion: {wait_actions[0].result_summary}"
+                    f"Agent signaled completion: {create_result_summary(wait_actions[0])}"
                 )
                 break
 
@@ -223,11 +188,14 @@ class ActionBasedReasoningLoop:
 
         # Notify trigger completion
         successful_count = sum(
-            1 for action in context.completed_actions if action.success
+            1 for action in context.completed_actions if action.result.type == "success"
         )
 
         # Add completed actions to the trigger entry and add to trigger history
-        trigger_entry.actions_taken = context.completed_actions
+        trigger_entry.actions_taken = [
+            cast_base_action_data_to_action_data(action)
+            for action in context.completed_actions
+        ]
         trigger_history.add_trigger_entry(trigger_entry)
 
         # Compress this trigger entry into a summary (if enabled)

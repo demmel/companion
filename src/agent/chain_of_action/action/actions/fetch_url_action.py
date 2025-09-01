@@ -2,7 +2,6 @@
 FETCH_URL action implementation.
 """
 
-import time
 import logging
 from typing import Type
 import requests
@@ -13,14 +12,18 @@ import re
 
 from pydantic import BaseModel, Field, validator
 
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..action_result import ActionResult
-from ..context import ExecutionContext
+from ..base_action_data import (
+    ActionFailureResult,
+    ActionOutput,
+    ActionResult,
+    ActionSuccessResult,
+)
 
-from agent.state import State
+from agent.state import State, build_agent_state_description
 from agent.llm import LLM, SupportedModel
 
 logger = logging.getLogger(__name__)
@@ -50,7 +53,16 @@ class FetchUrlInput(BaseModel):
             raise ValueError(f"Invalid URL format: {e}")
 
 
-class FetchUrlAction(BaseAction[FetchUrlInput, None]):
+class FetchUrlOutput(ActionOutput):
+    """Output for FETCH_URL action"""
+
+    content_summary: str
+
+    def result_summary(self) -> str:
+        return self.content_summary
+
+
+class FetchUrlAction(BaseAction[FetchUrlInput, FetchUrlOutput]):
     """Fetch content from a web URL to learn about something the user shared"""
 
     action_type = ActionType.FETCH_URL
@@ -68,13 +80,10 @@ class FetchUrlAction(BaseAction[FetchUrlInput, None]):
         action_input: FetchUrlInput,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,
-    ) -> ActionResult:
-        start_time = time.time()
-
+    ) -> ActionResult[FetchUrlOutput]:
         try:
             # Set up request headers to appear like a browser
             headers = {
@@ -158,7 +167,7 @@ class FetchUrlAction(BaseAction[FetchUrlInput, None]):
             # Build agent prompt to summarize the content
             from agent.chain_of_action.prompts import format_section
 
-            state_desc = self.build_agent_state_description(state)
+            state_desc = build_agent_state_description(state)
 
             prefix = f"""I am {state.name}, {state.role}. I process and analyze content as myself - not as an assistant or helper.
 
@@ -220,72 +229,21 @@ This was about"""
                 # Fallback to basic info if LLM fails
                 summary_response = f"I successfully fetched content from {action_input.url}, but encountered an error while analyzing it. The content appears to be available but I couldn't summarize it properly."
 
-            duration_ms = (time.time() - start_time) * 1000
-
-            # Format context given
-            context_summary = (
-                f"url: {action_input.url}, looking_for: {action_input.looking_for}"
-            )
-
-            return ActionResult(
-                action=ActionType.FETCH_URL,
-                result_summary=summary_response,
-                context_given=context_summary,
-                duration_ms=duration_ms,
-                success=True,
-                metadata=None,
+            return ActionSuccessResult(
+                content=FetchUrlOutput(content_summary=summary_response)
             )
 
         except requests.exceptions.Timeout:
-            duration_ms = (time.time() - start_time) * 1000
             error_msg = "Request timed out - the website took too long to respond"
 
-            context_summary = (
-                f"url: {action_input.url}, looking_for: {action_input.looking_for}"
-            )
-
-            return ActionResult(
-                action=ActionType.FETCH_URL,
-                result_summary="",
-                context_given=context_summary,
-                duration_ms=duration_ms,
-                success=False,
-                error=error_msg,
-                metadata=None,
-            )
+            return ActionFailureResult(error=error_msg)
 
         except requests.exceptions.RequestException as e:
-            duration_ms = (time.time() - start_time) * 1000
             error_msg = f"Failed to fetch URL: {str(e)}"
 
-            context_summary = (
-                f"url: {action_input.url}, looking_for: {action_input.looking_for}"
-            )
-
-            return ActionResult(
-                action=ActionType.FETCH_URL,
-                result_summary="",
-                context_given=context_summary,
-                duration_ms=duration_ms,
-                success=False,
-                error=error_msg,
-                metadata=None,
-            )
+            return ActionFailureResult(error=error_msg)
 
         except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
             error_msg = f"Unexpected error: {str(e)}"
 
-            context_summary = (
-                f"url: {action_input.url}, looking_for: {action_input.looking_for}"
-            )
-
-            return ActionResult(
-                action=ActionType.FETCH_URL,
-                result_summary="",
-                context_given=context_summary,
-                duration_ms=duration_ms,
-                success=False,
-                error=error_msg,
-                metadata=None,
-            )
+            return ActionFailureResult(error=error_msg)

@@ -5,7 +5,8 @@ Action planner for generating action sequences from triggers.
 import logging
 from typing import List
 
-from agent.chain_of_action.action_result import ActionResult
+from agent.chain_of_action.action.action_data import ActionData
+from agent.chain_of_action.action.base_action_data import BaseActionData
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 
 from .action_plan import ActionSequence
@@ -28,7 +29,7 @@ class ActionPlanner:
     def plan_actions(
         self,
         trigger: BaseTrigger,
-        completed_actions: List[ActionResult],
+        completed_actions: List[BaseActionData],
         state: State,
         trigger_history: TriggerHistory,
         llm: LLM,

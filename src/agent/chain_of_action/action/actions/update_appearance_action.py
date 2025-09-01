@@ -4,17 +4,20 @@ UPDATE_APPEARANCE action implementation.
 
 from __future__ import annotations
 
-import time
 import logging
 from typing import Type
 
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.context import ExecutionContext
 from agent.types import ImageGenerationToolContent, ToolCallError
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..action_result import ActionResult
-from ..context import ExecutionContext
+from ..base_action_data import (
+    ActionFailureResult,
+    ActionOutput,
+    ActionResult,
+    ActionSuccessResult,
+)
 
 from agent.state import State
 from agent.llm import LLM, SupportedModel
@@ -34,13 +37,17 @@ class UpdateAppearanceInput(BaseModel):
     )
 
 
-class UpdateAppearanceActionMetadata(BaseModel):
-    """Metadata for the UPDATE_APPEARANCE action"""
+class UpdateAppearanceOutput(ActionOutput):
+    """Output for UPDATE_APPEARANCE action"""
 
     image_description: str
     old_appearance: str
     new_appearance: str
+    reason: str
     image_result: ImageGenerationToolContent
+
+    def result_summary(self) -> str:
+        return f"Appearance updated: {self.new_appearance} (reason: {self.reason})"
 
 
 class AppearanceUpdate(BaseModel):
@@ -78,9 +85,7 @@ Image description:"""
     return response.strip()
 
 
-class UpdateAppearanceAction(
-    BaseAction[UpdateAppearanceInput, UpdateAppearanceActionMetadata]
-):
+class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceOutput]):
     """Update the agent's appearance and generate a new image"""
 
     action_type = ActionType.UPDATE_APPEARANCE
@@ -107,23 +112,18 @@ class UpdateAppearanceAction(
         old_appearance: str = "",
         success: bool = True,
         result_summary: str = "Appearance updated with new image",
-    ) -> "ActionResult[UpdateAppearanceActionMetadata]":
+    ) -> ActionResult[UpdateAppearanceOutput]:
         """Factory method to create consistent ActionResult for UPDATE_APPEARANCE actions"""
-        from agent.chain_of_action.base_action import ActionResult
-        from agent.chain_of_action.action_types import ActionType
+        from agent.chain_of_action.action.action_types import ActionType
 
-        return ActionResult(
-            action=ActionType.UPDATE_APPEARANCE,
-            result_summary=result_summary,
-            context_given=context_given,
-            duration_ms=duration_ms,
-            success=success,
-            metadata=UpdateAppearanceActionMetadata(
+        return ActionSuccessResult(
+            content=UpdateAppearanceOutput(
                 image_description=image_description,
                 old_appearance=old_appearance,
                 new_appearance=new_appearance,
+                reason=result_summary,
                 image_result=image_result,
-            ),
+            )
         )
 
     def execute(
@@ -131,14 +131,14 @@ class UpdateAppearanceAction(
         action_input: UpdateAppearanceInput,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,
-    ) -> ActionResult:
-        from agent.chain_of_action.prompts import format_section
-
-        start_time = time.time()
+    ) -> ActionResult[UpdateAppearanceOutput]:
+        from agent.chain_of_action.prompts import (
+            format_section,
+            format_actions_for_diary,
+        )
 
         logger.debug("=== UPDATE_APPEARANCE ACTION ===")
         logger.debug(f"APPEARANCE CHANGE: {action_input.change_description}")
@@ -146,7 +146,7 @@ class UpdateAppearanceAction(
 
         old_appearance = state.current_appearance
 
-        actions_summary = context.get_completed_actions_summary()
+        actions_summary = format_actions_for_diary(context.completed_actions)
         actions_taken_section = format_section(
             "ACTIONS I'VE ALREADY TAKEN", actions_summary
         )
@@ -204,7 +204,7 @@ The result should be a natural evolution of my current appearance with the reque
             logger.debug(f"Generated image description: {image_description}")
 
             # Generate image if enabled
-            image_result = None
+            image_tool_result = None
             if self.enable_image_generation:
                 # Actually generate the image using the shared image generator
                 from agent.image_generation import get_shared_image_generator
@@ -215,33 +215,25 @@ The result should be a natural evolution of my current appearance with the reque
                     # Forward progress to the main progress callback
                     progress_callback(progress_data)
 
-                image_result = image_generator.generate_image_for_action(
+                image_tool_result = image_generator.generate_image_for_action(
                     image_description, llm, model, image_progress_callback
                 )
 
-            duration_ms = (time.time() - start_time) * 1000
-
-            result_summary = f"Appearance updated: {appearance_update.updated_appearance} (reason: {action_input.reason})"
-
-            context_summary = f"change: {action_input.change_description}, reason: {action_input.reason}"
-
             # Create action result with or without image generation
-            if image_result:
-                if isinstance(image_result, ToolCallError):
-                    raise Exception(f"Image generation failed: {image_result.error}")
+            image_result = None
+            if image_tool_result:
+                if isinstance(image_tool_result, ToolCallError):
+                    raise Exception(
+                        f"Image generation failed: {image_tool_result.error}"
+                    )
 
                 assert isinstance(
-                    image_result.content, ImageGenerationToolContent
+                    image_tool_result.content, ImageGenerationToolContent
                 ), "Image generation must return ImageGenerationToolContent"
 
-                metadata = UpdateAppearanceActionMetadata(
-                    image_description=image_description,
-                    old_appearance=old_appearance,
-                    new_appearance=appearance_update.updated_appearance,
-                    image_result=image_result.content,
-                )
+                image_result = image_tool_result.content
             else:
-                fake_image_content = ImageGenerationToolContent(
+                image_result = ImageGenerationToolContent(
                     prompt=image_description,
                     image_path="",
                     image_url="/placeholder-image.png",
@@ -251,35 +243,19 @@ The result should be a natural evolution of my current appearance with the reque
                     guidance_scale=0.0,
                 )
 
-                metadata = UpdateAppearanceActionMetadata(
+            result = ActionSuccessResult(
+                content=UpdateAppearanceOutput(
                     image_description=image_description,
                     old_appearance=old_appearance,
                     new_appearance=appearance_update.updated_appearance,
-                    image_result=fake_image_content,
+                    reason=action_input.reason,
+                    image_result=image_result,
                 )
-
-            result = ActionResult(
-                action=ActionType.UPDATE_APPEARANCE,
-                result_summary=result_summary,
-                context_given=context_summary,
-                duration_ms=duration_ms,
-                success=True,
-                metadata=metadata,
             )
 
             return result
 
         except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
             logger.error(f"Failed to update appearance: {e}")
 
-            context_summary = f"change: {action_input.change_description}, reason: {action_input.reason}"
-
-            return ActionResult(
-                action=ActionType.UPDATE_APPEARANCE,
-                result_summary=f"Failed to update appearance: {str(e)}",
-                context_given=context_summary,
-                duration_ms=duration_ms,
-                success=False,
-                metadata=None,  # No metadata on error
-            )
+            return ActionFailureResult(error=f"Failed to update appearance: {str(e)}")

@@ -3,8 +3,8 @@ Event system for chain_of_action streaming.
 """
 
 from pydantic import BaseModel
-from .action_types import ActionType
-from .action_result import ActionResult
+from .action.action_types import ActionType
+from .action.base_action_data import BaseActionData
 
 
 class ActionEvent(BaseModel):
@@ -28,7 +28,7 @@ class ActionFinishedEvent(ActionEvent):
 
     event_type: str = "action_finished"
     action_type: ActionType
-    result: ActionResult
+    result: BaseActionData
     sequence_number: int
     action_number: int
 

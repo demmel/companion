@@ -72,7 +72,6 @@ def initialize_agent(load: bool) -> Agent:
         llm=llm,
         enable_image_generation=True,
         individual_trigger_compression=True,
-        enable_action_evaluation=False,
         auto_save=True,
     )
 

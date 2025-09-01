@@ -4,18 +4,22 @@ Priority management actions implementation.
 
 import time
 import logging
-from typing import Type
+from typing import Literal, Type, Union
 
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.state import Priority
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..action_result import ActionResult
-from ..context import ExecutionContext
+from ..base_action_data import (
+    ActionFailureResult,
+    ActionOutput,
+    ActionResult,
+    ActionSuccessResult,
+)
+from agent.chain_of_action.context import ExecutionContext
 
 from agent.state import State
 from agent.llm import LLM, SupportedModel
@@ -49,18 +53,44 @@ class AddPriorityInput(BaseModel):
     )
 
 
-class RemovePriorityInput(BaseModel):
-    """Input for REMOVE_PRIORITY action"""
+class AddPrioritySuccessOutput(BaseModel):
+    """Output for successful ADD_PRIORITY action"""
 
-    reason: str = Field(
-        description="Why I'm removing this priority (completed, no longer relevant, etc.)"
-    )
-    priority_id: str = Field(
-        description="The ID of the priority I want to remove (e.g., 'p1', 'p2')"
-    )
+    type: Literal["success"] = "success"
+    priority_id: str
+    reason: str
 
 
-class AddPriorityAction(BaseAction[AddPriorityInput, None]):
+class AddPriorityDuplicateOutput(BaseModel):
+    """Output for duplicate ADD_PRIORITY action"""
+
+    type: Literal["duplicate"] = "duplicate"
+    existing_priority_id: str | None = None
+    existing_priority_content: str | None = None
+    reason: str
+
+
+class AddPriorityOutput(ActionOutput):
+    """Output for ADD_PRIORITY action"""
+
+    content: str
+    result: Union[AddPrioritySuccessOutput, AddPriorityDuplicateOutput]
+
+    def result_summary(self) -> str:
+        result = self.result
+        match result.type:
+            case "success":
+                return f"Added new priority: '{self.content}' because {result.reason}"
+            case "duplicate":
+                if result.existing_priority_content:
+                    return f"Priority '{self.content}' is similar to existing priority '{result.existing_priority_content}' (id: {result.existing_priority_id}). {result.reason}"
+                else:
+                    return f"Priority '{self.content}' appears to be a duplicate. {result.reason}"
+            case _:
+                return "Unknown result type"
+
+
+class AddPriorityAction(BaseAction[AddPriorityInput, AddPriorityOutput]):
     """Add a new priority that the agent wants to focus on"""
 
     action_type = ActionType.ADD_PRIORITY
@@ -149,11 +179,10 @@ Is the new priority truly redundant (not just related) to any existing priority?
         action_input: AddPriorityInput,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,
-    ) -> ActionResult:
+    ) -> ActionResult[AddPriorityOutput]:
         start_time = time.time()
 
         logger.debug("=== ADD_PRIORITY ACTION ===")
@@ -167,7 +196,6 @@ Is the new priority truly redundant (not just related) to any existing priority?
             )
 
             if duplicate_check.is_duplicate:
-                duration_ms = (time.time() - start_time) * 1000
                 # Find the existing priority to get its content
                 existing_priority = next(
                     (
@@ -177,25 +205,22 @@ Is the new priority truly redundant (not just related) to any existing priority?
                     ),
                     None,
                 )
-                if existing_priority:
-                    return ActionResult(
-                        action=ActionType.ADD_PRIORITY,
-                        result_summary=f"Priority '{action_input.priority_content}' is similar to existing priority '{existing_priority.content}' (id: {existing_priority.id}). {duplicate_check.reasoning}",
-                        context_given=f"priority: {action_input.priority_content}, reason: {action_input.reason}",
-                        duration_ms=duration_ms,
-                        success=True,
-                        metadata=None,
+                return ActionSuccessResult(
+                    content=AddPriorityOutput(
+                        content=action_input.priority_content,
+                        result=AddPriorityDuplicateOutput(
+                            existing_priority_id=(
+                                duplicate_check.existing_priority_id
+                                if duplicate_check.existing_priority_id
+                                else None
+                            ),
+                            existing_priority_content=(
+                                existing_priority.content if existing_priority else None
+                            ),
+                            reason=action_input.reason,
+                        ),
                     )
-                else:
-                    # Fallback if ID not found (shouldn't happen but be safe)
-                    return ActionResult(
-                        action=ActionType.ADD_PRIORITY,
-                        result_summary=f"Priority '{action_input.priority_content}' appears to be a duplicate. {duplicate_check.reasoning}",
-                        context_given=f"priority: {action_input.priority_content}, reason: {action_input.reason}",
-                        duration_ms=duration_ms,
-                        success=True,
-                        metadata=None,
-                    )
+                )
 
         # Generate new sequential ID
         new_id = f"p{state.next_priority_id}"
@@ -205,21 +230,38 @@ Is the new priority truly redundant (not just related) to any existing priority?
         new_priority = Priority(id=new_id, content=action_input.priority_content)
         state.current_priorities.append(new_priority)
 
-        duration_ms = (time.time() - start_time) * 1000
-
-        result_summary = f"Added new priority: '{action_input.priority_content}' because {action_input.reason}"
-
-        return ActionResult(
-            action=ActionType.ADD_PRIORITY,
-            result_summary=result_summary,
-            context_given=f"priority: {action_input.priority_content}, reason: {action_input.reason}",
-            duration_ms=duration_ms,
-            success=True,
-            metadata=None,
+        return ActionSuccessResult(
+            content=AddPriorityOutput(
+                content=action_input.priority_content,
+                result=AddPrioritySuccessOutput(
+                    priority_id=new_id, reason=action_input.reason
+                ),
+            )
         )
 
 
-class RemovePriorityAction(BaseAction[RemovePriorityInput, None]):
+class RemovePriorityInput(BaseModel):
+    """Input for REMOVE_PRIORITY action"""
+
+    reason: str = Field(
+        description="Why I'm removing this priority (completed, no longer relevant, etc.)"
+    )
+    priority_id: str = Field(
+        description="The ID of the priority I want to remove (e.g., 'p1', 'p2')"
+    )
+
+
+class RemovePriorityOutput(ActionOutput):
+    """Output for REMOVE_PRIORITY action"""
+
+    priority: Priority
+    reason: str
+
+    def result_summary(self) -> str:
+        return f"Removed priority '{self.priority.content}' (id: {self.priority.id}) because {self.reason}"
+
+
+class RemovePriorityAction(BaseAction[RemovePriorityInput, RemovePriorityOutput]):
     """Remove a priority that is no longer relevant"""
 
     action_type = ActionType.REMOVE_PRIORITY
@@ -237,12 +279,10 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, None]):
         action_input: RemovePriorityInput,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,
-    ) -> ActionResult:
-        start_time = time.time()
+    ) -> ActionResult[RemovePriorityOutput]:
 
         logger.debug("=== REMOVE_PRIORITY ACTION ===")
         logger.debug(f"REMOVING ID: {action_input.priority_id}")
@@ -255,22 +295,13 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, None]):
                 priority_found = state.current_priorities.pop(i)
                 break
 
-        duration_ms = (time.time() - start_time) * 1000
-
         if priority_found:
-            result_summary = f"Removed priority '{priority_found.content}' (id: {priority_found.id}) because {action_input.reason}"
-            success = True
-        else:
-            result_summary = (
-                f"Priority with ID '{action_input.priority_id}' not found to remove"
+            return ActionSuccessResult(
+                content=RemovePriorityOutput(
+                    priority=priority_found, reason=action_input.reason
+                )
             )
-            success = False
-
-        return ActionResult(
-            action=ActionType.REMOVE_PRIORITY,
-            result_summary=result_summary,
-            context_given=f"priority_id: {action_input.priority_id}, reason: {action_input.reason}",
-            duration_ms=duration_ms,
-            success=success,
-            metadata=None,
-        )
+        else:
+            return ActionFailureResult(
+                error=f"Priority with ID '{action_input.priority_id}' not found"
+            )

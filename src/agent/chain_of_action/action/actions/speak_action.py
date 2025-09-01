@@ -2,23 +2,24 @@
 SPEAK action implementation.
 """
 
-import time
 import logging
 from typing import Type, Optional
 
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.action_events import SpeakProgressData
+from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..action_result import ActionResult
-from ..context import ExecutionContext
-from ..action_plan import ActionPlan
-from ..trigger import format_trigger_for_prompt
-from ..action_events import SpeakProgressData
+from ..base_action_data import (
+    ActionFailureResult,
+    ActionOutput,
+    ActionResult,
+    ActionSuccessResult,
+)
 
-from agent.state import State
+from agent.state import State, build_agent_state_description
 from agent.llm import LLM, SupportedModel
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,16 @@ class SpeakInput(BaseModel):
     )
 
 
-class SpeakAction(BaseAction[SpeakInput, None]):
+class SpeakOutput(ActionOutput):
+    """Output for SPEAK action"""
+
+    response: str
+
+    def result_summary(self) -> str:
+        return self.response
+
+
+class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):
     """Generate conversational response to communicate with the user"""
 
     action_type = ActionType.SPEAK
@@ -54,24 +64,20 @@ class SpeakAction(BaseAction[SpeakInput, None]):
         action_input: SpeakInput,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,
-    ) -> ActionResult:
+    ) -> ActionResult[SpeakOutput]:
         from agent.chain_of_action.prompts import (
             format_section,
-            format_trigger_history,
-            build_temporal_context,
+            format_actions_for_diary,
         )
 
-        start_time = time.time()
-
         # Build fresh context using current system's rich format
-        state_desc = self.build_agent_state_description(state)
+        state_desc = build_agent_state_description(state)
 
         # Get summary of all actions taken so far
-        actions_summary = context.get_completed_actions_summary()
+        actions_summary = format_actions_for_diary(context.completed_actions)
 
         sections = []
 
@@ -88,7 +94,7 @@ class SpeakAction(BaseAction[SpeakInput, None]):
         previous_speaks = [
             action
             for action in context.completed_actions
-            if action.action == ActionType.SPEAK and action.success
+            if action.type == ActionType.SPEAK and action.result.type == "success"
         ]
 
         if previous_speaks:
@@ -111,7 +117,7 @@ class SpeakAction(BaseAction[SpeakInput, None]):
             )
 
         # Determine if this is autonomous time or interactive time
-        from ..trigger import WakeupTrigger, UserInputTrigger
+        from agent.chain_of_action.trigger import WakeupTrigger
 
         is_wakeup_trigger = isinstance(context.trigger, WakeupTrigger)
 
@@ -223,37 +229,13 @@ Now I'll elaborate on my communication intent and respond naturally as myself:""
             # Signal completion
             progress_callback(SpeakProgressData(text="", is_partial=False))
 
-            duration_ms = (time.time() - start_time) * 1000
-
             # Strip XML tags if agent tries to use them
             import re
 
             cleaned_response = re.sub(r"<content>|</content>", "", full_response)
 
-            context_summary = f"intent: {action_input.intent}"
-            if action_input.tone:
-                context_summary += f", tone: {action_input.tone}"
-
-            return ActionResult(
-                action=ActionType.SPEAK,
-                result_summary=cleaned_response,
-                context_given=context_summary,
-                duration_ms=duration_ms,
-                success=True,
-                metadata=None,  # No additional metadata needed
-            )
+            return ActionSuccessResult(content=SpeakOutput(response=cleaned_response))
         except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            context_summary = f"intent: {action_input.intent}"
-            if action_input.tone:
-                context_summary += f", tone: {action_input.tone}"
-
-            return ActionResult(
-                action=ActionType.SPEAK,
-                result_summary="",
-                context_given=context_summary,
-                duration_ms=duration_ms,
-                success=False,
-                error=str(e),
-                metadata=None,  # No metadata on error
+            return ActionFailureResult(
+                error=f"Unexpected error during SPEAK action: {str(e)}"
             )

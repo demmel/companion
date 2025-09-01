@@ -2,23 +2,25 @@
 THINK action implementation.
 """
 
-import time
 import logging
 from typing import Type
 
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.action_events import ThinkProgressData
+from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..action_result import ActionResult
-from ..context import ExecutionContext
-from ..action_plan import ActionPlan
-from ..trigger import format_trigger_for_prompt
-from ..action_events import ThinkProgressData
+from ..base_action_data import (
+    ActionFailureResult,
+    ActionOutput,
+    ActionResult,
+    ActionSuccessResult,
+)
 
-from agent.state import State
+
+from agent.state import State, build_agent_state_description
 from agent.llm import LLM, SupportedModel
 
 logger = logging.getLogger(__name__)
@@ -32,7 +34,16 @@ class ThinkInput(BaseModel):
     )
 
 
-class ThinkAction(BaseAction[ThinkInput, None]):
+class ThinkOutput(ActionOutput):
+    """Output for THINK action"""
+
+    thoughts: str
+
+    def result_summary(self) -> str:
+        return self.thoughts
+
+
+class ThinkAction(BaseAction[ThinkInput, ThinkOutput]):
     """Process emotional reactions and analyze the situation"""
 
     action_type = ActionType.THINK
@@ -50,21 +61,17 @@ class ThinkAction(BaseAction[ThinkInput, None]):
         action_input: ThinkInput,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,
-    ) -> ActionResult:
+    ) -> ActionResult[ThinkOutput]:
         from agent.chain_of_action.prompts import (
             format_section,
-            format_trigger_history,
-            build_temporal_context,
+            format_actions_for_diary,
         )
 
-        start_time = time.time()
-
         # Build fresh context using current system's rich format
-        state_desc = self.build_agent_state_description(state)
+        state_desc = build_agent_state_description(state)
 
         sections = []
 
@@ -78,12 +85,12 @@ class ThinkAction(BaseAction[ThinkInput, None]):
         sections.append(
             format_section(
                 "ACTIONS I'VE ALREADY TAKEN",
-                context.get_completed_actions_summary(),
+                format_actions_for_diary(context.completed_actions),
             )
         )
 
         # Determine if this is autonomous time or interactive time
-        from ..trigger import WakeupTrigger, UserInputTrigger
+        from agent.chain_of_action.trigger import WakeupTrigger, UserInputTrigger
 
         is_wakeup_trigger = isinstance(context.trigger, WakeupTrigger)
 
@@ -174,24 +181,12 @@ When something happens, I process it through my own unique perspective, drawing 
             # Signal completion
             progress_callback(ThinkProgressData(text="", is_partial=False))
 
-            duration_ms = (time.time() - start_time) * 1000
+            import re
 
-            return ActionResult(
-                action=ActionType.THINK,
-                result_summary=full_response,
-                context_given=action_input.focus,
-                duration_ms=duration_ms,
-                success=True,
-                metadata=None,  # No additional metadata needed
-            )
+            cleaned_response = re.sub(r"<content>|</content>", "", full_response)
+
+            return ActionSuccessResult(content=ThinkOutput(thoughts=cleaned_response))
         except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            return ActionResult(
-                action=ActionType.THINK,
-                result_summary="",
-                context_given=action_input.focus,
-                duration_ms=duration_ms,
-                success=False,
-                error=str(e),
-                metadata=None,  # No metadata on error
+            return ActionFailureResult(
+                error=f"Unexpected error during THINK action: {str(e)}"
             )

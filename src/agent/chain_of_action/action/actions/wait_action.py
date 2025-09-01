@@ -2,19 +2,15 @@
 WAIT action implementation.
 """
 
-import time
 import logging
 from typing import Type
 
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.trigger_history import TriggerHistory
-
 from ..action_types import ActionType
 from ..base_action import BaseAction
-from ..action_result import ActionResult
-from ..context import ExecutionContext
-from ..action_plan import ActionPlan
+from ..base_action_data import ActionOutput, ActionResult, ActionSuccessResult
+from agent.chain_of_action.context import ExecutionContext
 
 from agent.state import State
 from agent.llm import LLM, SupportedModel
@@ -30,7 +26,16 @@ class WaitInput(BaseModel):
     )
 
 
-class WaitAction(BaseAction[WaitInput, None]):
+class WaitOutput(ActionOutput):
+    """Output for WAIT action"""
+
+    reason: str
+
+    def result_summary(self) -> str:
+        return f"Waiting for something else to happen. Reason: {self.reason}"
+
+
+class WaitAction(BaseAction[WaitInput, WaitOutput]):
     """Wait for something else to happen"""
 
     action_type = ActionType.WAIT
@@ -48,25 +53,12 @@ class WaitAction(BaseAction[WaitInput, None]):
         action_input: WaitInput,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback,
-    ) -> ActionResult:
-        start_time = time.time()
-
+    ) -> ActionResult[WaitOutput]:
         logger.debug("=== DONE ACTION ===")
         logger.debug(f"REASON: {action_input.reason}")
         logger.debug("Agent has signaled completion")
 
-        # DONE action doesn't need LLM call - it just signals completion
-        duration_ms = (time.time() - start_time) * 1000
-
-        return ActionResult(
-            action=ActionType.WAIT,
-            result_summary=f"Waiting for something else to happen. Reason: {action_input.reason}",
-            context_given=action_input.reason,
-            duration_ms=duration_ms,
-            success=True,
-            metadata=None,  # No additional metadata needed
-        )
+        return ActionSuccessResult(content=WaitOutput(reason=action_input.reason))

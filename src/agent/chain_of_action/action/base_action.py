@@ -7,21 +7,18 @@ from typing import Callable, Any, Generic, TypeVar, Type
 
 from pydantic import BaseModel
 
-from agent.chain_of_action.trigger_history import TriggerHistory
-
 from .action_types import ActionType
-from .action_result import ActionResult
-from .context import ExecutionContext
-from .action_plan import ActionPlan
+from .base_action_data import ActionOutput, ActionResult
+from ..context import ExecutionContext
 
 from agent.state import State
 from agent.llm import LLM, SupportedModel
 
 TInput = TypeVar("TInput", bound=BaseModel)
-TMetadata = TypeVar("TMetadata", bound=BaseModel | None)
+TOutput = TypeVar("TOutput", bound=ActionOutput)
 
 
-class BaseAction(ABC, Generic[TInput, TMetadata]):
+class BaseAction(ABC, Generic[TInput, TOutput]):
     """Base class for all actions"""
 
     action_type: ActionType
@@ -44,16 +41,9 @@ class BaseAction(ABC, Generic[TInput, TMetadata]):
         action_input: TInput,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
         progress_callback: Callable[[Any], None],
-    ) -> ActionResult[TMetadata]:
+    ) -> ActionResult[TOutput]:
         """Execute the action and return result"""
         pass
-
-    def build_agent_state_description(self, state: State) -> str:
-        """Build fresh state description when needed"""
-        from agent.state import build_agent_state_description
-
-        return build_agent_state_description(state)

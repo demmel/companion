@@ -15,8 +15,22 @@ from agent.api_types import (
     convert_action_to_dto,
     convert_trigger_to_dto,
 )
-from agent.chain_of_action.action_types import ActionType
-from agent.chain_of_action.action_result import ActionResult
+from agent.chain_of_action.action.action_data import (
+    ActionData,
+    ThinkActionData,
+    UpdateAppearanceActionData,
+)
+from agent.chain_of_action.action.action_types import ActionType
+from agent.chain_of_action.action.actions.think_action import ThinkInput, ThinkOutput
+from agent.chain_of_action.action.actions.update_appearance_action import (
+    UpdateAppearanceInput,
+    UpdateAppearanceOutput,
+)
+from agent.chain_of_action.action.base_action_data import (
+    ActionFailureResult,
+    ActionSuccessResult,
+    BaseActionData,
+)
 from agent.chain_of_action.trigger import Trigger, UserInputTrigger, WakeupTrigger
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.llm import LLM, SupportedModel
@@ -82,7 +96,6 @@ class Agent:
         continuous_summarization: bool = False,
         keep_recent: int = 2,
         individual_trigger_compression: bool = True,
-        enable_action_evaluation: bool = True,
     ):
         self.llm = llm
         self.model = model
@@ -105,7 +118,6 @@ class Agent:
         # Initialize reasoning system
         self.action_reasoning_loop = ActionBasedReasoningLoop(
             enable_image_generation=enable_image_generation,
-            enable_action_evaluation=enable_action_evaluation,
         )
 
         # Initialize the agent's state system (None until configured by first message)
@@ -442,13 +454,16 @@ class Agent:
                     ],
                 ]
             )
-            think_action_result = ActionResult(
-                action=ActionType.THINK,
-                context_given="Deriving initial state",
-                result_summary=state_description,
-                success=True,
+            think_action_result = ThinkActionData(
+                input=ThinkInput(
+                    focus="Deriving initial state",
+                ),
+                result=ActionSuccessResult(
+                    content=ThinkOutput(
+                        thoughts=state_description,
+                    )
+                ),
                 duration_ms=int((time.time() - derive_state_start_time) * 1000),
-                metadata=None,
             )
             self.initial_exchange.actions_taken.append(think_action_result)
 
@@ -477,11 +492,15 @@ class Agent:
                     ),
                     should_yield=True,
                 )
+                input = UpdateAppearanceInput(
+                    reason="Initial appearance image",
+                    change_description=self.state.current_appearance,
+                )
                 generate_image_start_time = time.time()
                 image_description = self.state.current_appearance  # Default fallback
                 try:
                     # Build image description from initial state
-                    from agent.chain_of_action.actions.update_appearance_action import (
+                    from agent.chain_of_action.action.actions.update_appearance_action import (
                         _build_image_description,
                     )
 
@@ -528,29 +547,22 @@ class Agent:
                         image_result.content, ImageGenerationToolContent
                     ), "Image generation tool must return ImageGenerationToolContent"
 
-                    # Emit tool finished event
-                    from agent.chain_of_action.actions.update_appearance_action import (
-                        UpdateAppearanceActionMetadata,
-                    )
-
-                    metadata = UpdateAppearanceActionMetadata(
+                    output = UpdateAppearanceOutput(
                         image_description=image_description,
                         old_appearance="",
                         new_appearance=self.state.current_appearance,
+                        reason="Initial appearance image",
                         image_result=image_result.content,
                     )
 
-                    # Create and store action result
-                    appearance_action_result = ActionResult(
-                        action=ActionType.UPDATE_APPEARANCE,
-                        context_given=image_description,
-                        result_summary="Initial appearance image generated",
-                        success=True,
+                    appearance_action_result = UpdateAppearanceActionData(
+                        input=input,
+                        result=ActionSuccessResult(content=output),
                         duration_ms=int(
                             (time.time() - generate_image_start_time) * 1000
                         ),
-                        metadata=metadata,
                     )
+
                     self.initial_exchange.actions_taken.append(appearance_action_result)
 
                     # Emit completion event
@@ -569,16 +581,12 @@ class Agent:
                     logger.warning(f"Initial image generation failed: {e}")
 
                     # Create and store error action result
-                    error_action_result = ActionResult(
-                        action=ActionType.UPDATE_APPEARANCE,
-                        context_given=image_description,
-                        result_summary="Initial appearance image generation failed",
-                        success=False,
+                    error_action_result = UpdateAppearanceActionData(
+                        input=input,
+                        result=ActionFailureResult(error=str(e)),
                         duration_ms=int(
                             (time.time() - generate_image_start_time) * 1000
                         ),
-                        error=str(e),
-                        metadata=None,
                     )
                     self.initial_exchange.actions_taken.append(error_action_result)
 
@@ -611,7 +619,11 @@ class Agent:
                 timestamp=datetime.now().isoformat(),
                 total_actions=len(self.initial_exchange.actions_taken),
                 successful_actions=len(
-                    [a for a in self.initial_exchange.actions_taken if a.success]
+                    [
+                        a
+                        for a in self.initial_exchange.actions_taken
+                        if a.result.type == "success"
+                    ]
                 ),
                 estimated_tokens=context_info.estimated_tokens,
                 context_limit=context_info.context_limit,
@@ -623,7 +635,7 @@ class Agent:
     def _run_chain_of_action_with_streaming(self, trigger: Trigger):
         """Run chain_of_action with callback conversion to AgentEvents"""
         from agent.chain_of_action.callbacks import ActionCallback
-        from agent.chain_of_action.action_types import ActionType
+        from agent.chain_of_action.action.action_types import ActionType
 
         # Create callback that emits trigger-based events to streaming queue
         class StreamingCallback(ActionCallback):
@@ -730,7 +742,7 @@ class Agent:
             def on_action_finished(
                 self,
                 action_type: ActionType,
-                result,
+                result: ActionData,
                 sequence_number: int,
                 action_number: int,
                 entry_id: str,

@@ -5,17 +5,21 @@ Action registry for discovering and managing available actions.
 from typing import Dict, List, Type
 import logging
 
-from .action_types import ActionType
-from .base_action import BaseAction
-from .actions import (
-    ThinkAction,
-    WaitAction,
-    SpeakAction,
-    UpdateMoodAction,
-    UpdateAppearanceAction,
-    FetchUrlAction,
+from agent.chain_of_action.action.actions.fetch_url_action import FetchUrlAction
+from agent.chain_of_action.action.actions.priority_actions import (
+    AddPriorityAction,
+    RemovePriorityAction,
 )
-from .actions.priority_actions import AddPriorityAction, RemovePriorityAction
+from agent.chain_of_action.action.actions.speak_action import SpeakAction
+from agent.chain_of_action.action.actions.think_action import ThinkAction
+from agent.chain_of_action.action.actions.update_appearance_action import (
+    UpdateAppearanceAction,
+)
+from agent.chain_of_action.action.actions.update_mood_action import UpdateMoodAction
+from agent.chain_of_action.action.actions.wait_action import WaitAction
+
+from .action.action_types import ActionType
+from .action.base_action import BaseAction
 
 
 logger = logging.getLogger(__name__)

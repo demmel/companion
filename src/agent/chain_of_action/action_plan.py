@@ -5,7 +5,7 @@ Action planning structures.
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 
-from .action_types import ActionType
+from .action.action_types import ActionType
 
 
 class ActionPlan(BaseModel):

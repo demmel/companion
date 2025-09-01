@@ -5,7 +5,7 @@ This package implements the action-based architecture that replaces
 the monolithic reasoning loop with modular, composable actions.
 """
 
-from .action_types import ActionType
+from .action.action_types import ActionType
 from .trigger import BaseTrigger, UserInputTrigger
 from .context import ExecutionContext
 from .action_plan import ActionPlan, ActionSequence

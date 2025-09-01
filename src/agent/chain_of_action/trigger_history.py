@@ -9,9 +9,10 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+from agent.chain_of_action.action.action_data import ActionData
 from agent.chain_of_action.trigger import BaseTrigger, UserInputTrigger, Trigger
-from agent.chain_of_action.action_result import ActionResult
-from agent.chain_of_action.action_types import ActionType
+from agent.chain_of_action.action.base_action_data import BaseActionData
+from agent.chain_of_action.action.action_types import ActionType
 from agent.types import (
     Message,
     UserMessage,
@@ -36,7 +37,7 @@ class TriggerHistoryEntry(BaseModel):
     """Single entry in trigger-based history - a trigger and agent's response to it"""
 
     trigger: Trigger
-    actions_taken: List[ActionResult] = Field(default_factory=list)
+    actions_taken: List[ActionData] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)
     entry_id: str = Field(default_factory=lambda: str(datetime.now().timestamp()))
     situational_context: Optional[str] = Field(default=None)
@@ -57,7 +58,7 @@ class TriggerHistory:
         self.summaries: List[SummaryRecord] = []
 
     def add_trigger_response(
-        self, trigger: Trigger, situational_context: str, actions: List[ActionResult]
+        self, trigger: Trigger, situational_context: str, actions: List[ActionData]
     ):
         """Add a new trigger and the agent's response to it"""
         entry = TriggerHistoryEntry(
@@ -105,63 +106,6 @@ class TriggerHistory:
     def get_recent_summary(self) -> Optional[SummaryRecord]:
         """Get the most recent summary record, if any"""
         return self.summaries[-1] if self.summaries else None
-
-    def to_conversation_history(self) -> List[Message]:
-        """
-        Convert trigger history to legacy conversation history format for compatibility.
-
-        Maps:
-        - UserInputTrigger -> UserMessage
-        - ActionResults -> AgentMessage with content and tool calls
-        """
-        messages = []
-
-        for entry in self.entries:
-            # Convert trigger to message
-            if isinstance(entry.trigger, UserInputTrigger):
-                user_msg = UserMessage(
-                    content=[TextContent(text=entry.trigger.content)]
-                )
-                messages.append(user_msg)
-
-            # Convert actions to agent message
-            if entry.actions_taken:
-                content = []
-                tool_calls = []
-
-                for action in entry.actions_taken:
-                    if action.action == ActionType.THINK:
-                        content.append(ThoughtContent(text=action.result_summary))
-                    elif action.action == ActionType.SPEAK:
-                        content.append(TextContent(text=action.result_summary))
-                    elif action.action in [
-                        ActionType.UPDATE_APPEARANCE,
-                        ActionType.UPDATE_MOOD,
-                    ]:
-                        # These become tool calls
-                        tool_result = ToolCallSuccess(
-                            content=TextToolContent(text=action.result_summary),
-                            llm_feedback=action.result_summary,
-                        )
-
-                        tool_calls.append(
-                            ToolCallFinished(
-                                tool_name=action.action.value,
-                                tool_id=f"{action.action.value}_{entry.entry_id}",
-                                parameters=action.metadata or {},
-                                result=tool_result,
-                            )
-                        )
-
-                if content or tool_calls:
-                    agent_msg = AgentMessage(
-                        role="assistant",
-                        content=content,
-                        tool_calls=tool_calls,
-                    )
-                    messages.append(agent_msg)
-
-        return messages
 
     def add_summary(self, summary_text: str, insert_at_index: int):
         """

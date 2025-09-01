@@ -5,7 +5,11 @@ import random
 import nltk
 from nltk.corpus import words
 
-from agent.chain_of_action.action_result import ActionResult
+from agent.chain_of_action.action.action_data import (
+    create_context_given,
+    create_result_summary,
+)
+from agent.chain_of_action.action.base_action_data import BaseActionData
 from agent.chain_of_action.trigger import BaseTrigger, format_trigger_for_prompt
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
@@ -57,26 +61,6 @@ CONVERSATION DURATION: {duration_desc}"""
         return f"""CURRENT TIME: {current_time}
 CONVERSATION STARTED: Just now
 CONVERSATION DURATION: Just started"""
-
-
-def build_completed_action_list(completed_actions: List[ActionResult]) -> Optional[str]:
-    if completed_actions:
-        completed_summary = []
-        for i, action_result in enumerate(completed_actions, 1):
-            status = "✓" if action_result.success else "✗"
-            completed_summary.append(
-                f"{i}. {status} {action_result.action.value}: {action_result.context_given}"
-            )
-            if action_result.result_summary:
-                completed_summary.append(f"**Result:**")
-                completed_summary.append(
-                    "```",
-                )
-                completed_summary.append(action_result.result_summary)
-                completed_summary.append("```")
-        return "\n".join(completed_summary)
-    else:
-        return None
 
 
 def format_trigger_entries(
@@ -150,34 +134,41 @@ def format_single_trigger_entry(
     else:
         # Format each action taken in response
         for action in entry.actions_taken:
-            formatted_action = _format_action_for_diary(action)
+            formatted_action = format_action_for_diary(action)
             parts.append(formatted_action)
 
     return "\n".join(parts)
 
 
-def _format_action_for_diary(action: ActionResult) -> str:
+def format_actions_for_diary(actions: List[BaseActionData]) -> str:
+    """Format a list of actions for diary entries."""
+    return "\n".join(format_action_for_diary(action) for action in actions)
+
+
+def format_action_for_diary(action: BaseActionData) -> str:
     """
     Temporary formatting method until we implement format_for_diary() on action classes.
     """
-    from agent.chain_of_action.action_types import ActionType
+    from agent.chain_of_action.action.action_types import ActionType
 
     action_parts = []
-    if action.action == ActionType.THINK:
-        action_parts.append(f'- I thought about "{action.context_given}')
-    elif action.action == ActionType.SPEAK:
-        action_parts.append(f'- I responded to "{action.context_given}":')
-    elif action.action == ActionType.WAIT:
-        action_parts.append(f'- I waited: "{action.context_given}"')
-    elif action.action == ActionType.UPDATE_APPEARANCE:
-        action_parts.append(f"- I updated my appearance ({action.context_given}):")
-    elif action.action == ActionType.UPDATE_MOOD:
-        action_parts.append(f"- My mood changed ({action.context_given}):")
+    context_given = create_context_given(action)
+    if action.type == ActionType.THINK:
+        action_parts.append(f'- I thought about "{context_given}')
+    elif action.type == ActionType.SPEAK:
+        action_parts.append(f'- I responded to "{context_given}":')
+    elif action.type == ActionType.WAIT:
+        action_parts.append(f'- I waited: "{context_given}"')
+    elif action.type == ActionType.UPDATE_APPEARANCE:
+        action_parts.append(f"- I updated my appearance ({context_given}):")
+    elif action.type == ActionType.UPDATE_MOOD:
+        action_parts.append(f"- My mood changed ({context_given}):")
     else:
-        action_parts.append(f'- I {action.action.value} "{action.context_given}":')
+        action_parts.append(f'- I {action.type.value} "{context_given}":')
 
     action_parts.append("  <content>")
-    for line in action.result_summary.split("\n"):
+    result_summary = create_result_summary(action)
+    for line in result_summary.split("\n"):
         action_parts.append(f"    {line}")
     action_parts.append("  </content>")
 
@@ -354,7 +345,7 @@ I will think through this naturally, but with specific details and concrete obse
 def build_action_planning_prompt(
     state: State,
     trigger: BaseTrigger,
-    completed_actions: List[ActionResult],
+    completed_actions: List[BaseActionData],
     registry: ActionRegistry,
     situational_analysis: str,
 ) -> str:
@@ -365,7 +356,7 @@ def build_action_planning_prompt(
     is_wakeup_trigger = isinstance(trigger, WakeupTrigger)
 
     # Build summary of completed actions
-    completed_actions_text = build_completed_action_list(completed_actions)
+    completed_actions_text = format_actions_for_diary(completed_actions)
 
     sections = []
 

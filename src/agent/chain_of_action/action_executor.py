@@ -3,13 +3,20 @@ Action executor for running action sequences.
 """
 
 import logging
+import time
+
 from typing import List
 
+from agent.chain_of_action.action.action_data import ActionData, create_action_data
+from agent.chain_of_action.action.base_action_data import (
+    ActionFailureResult,
+    BaseActionData,
+)
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 
 from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
-from .context import ExecutionContext, ActionResult
+from .context import ExecutionContext
 from .callbacks import ActionCallback, NoOpCallback
 
 from agent.state import State
@@ -35,7 +42,7 @@ class ActionExecutor:
         sequence_number: int,
         callback: ActionCallback,
         trigger_entry: TriggerHistoryEntry,
-    ) -> List[ActionResult]:
+    ) -> List[BaseActionData]:
         """Execute a complete action sequence"""
 
         if callback is None:
@@ -48,7 +55,7 @@ class ActionExecutor:
         # Notify sequence started
         callback.on_sequence_started(sequence_number, len(sequence.actions), "")
 
-        results = []
+        results: List[BaseActionData] = []
 
         for i, action_plan in enumerate(sequence.actions):
             logger.debug(
@@ -71,6 +78,7 @@ class ActionExecutor:
                 f"Executing action {i+1}/{len(sequence.actions)}: {action_plan.action.value}"
             )
 
+            action_input = None
             try:
                 # Create action instance
                 action = self.registry.create_action(action_plan.action)
@@ -91,36 +99,52 @@ class ActionExecutor:
                 input_type = action_class.get_input_type()
                 action_input = input_type(**action_plan.input)
 
+                start_time = time.time()
                 result = action.execute(
                     action_input=action_input,
                     context=context,
                     state=state,
-                    trigger_history=trigger_history,
                     llm=llm,
                     model=model,
                     progress_callback=action_progress_callback,
                 )
+                duration_ms = (time.time() - start_time) * 1000
 
+                action_data = create_action_data(
+                    type=action_plan.action,
+                    input=action_input,
+                    result=result,
+                    duration_ms=duration_ms,
+                )
                 # Add result to list
-                results.append(result)
+                results.append(action_data)
 
                 # Update context with completed action
-                context.completed_actions.append(result)
+                context.completed_actions.append(
+                    create_action_data(
+                        type=action_plan.action,
+                        input=action_input,
+                        result=result,
+                        duration_ms=duration_ms,
+                    )
+                )
 
                 # Notify action finished
                 callback.on_action_finished(
                     action_plan.action,
-                    result,
+                    action_data,
                     sequence_number,
                     i + 1,
                     trigger_entry.entry_id,
                 )
 
                 logger.debug(
-                    f"Action completed: {result.action.value} ({'success' if result.success else 'failed'})"
+                    f"Action completed: {action_data.type} ({action_data.result.type})"
                 )
-                if result.result_summary:
-                    logger.debug(f"Result: {result.result_summary[:100]}...")
+                if action_data.result.type == "success":
+                    logger.debug(
+                        f"Result: {action_data.result.content.result_summary()[500:]}..."
+                    )
 
             except Exception as e:
                 # Catastrophic failure - action couldn't be created or executed
@@ -129,26 +153,20 @@ class ActionExecutor:
                     exc_info=True,
                 )
 
-                # Create error result
-                error_result = ActionResult(
-                    action=action_plan.action,
-                    result_summary="",
-                    context_given=", ".join(
-                        [f"{k}: {v}" for k, v in action_plan.input.items()]
-                    ),
+                error_data = create_action_data(
+                    type=action_plan.action,
+                    input=action_input,
+                    result=ActionFailureResult(error=str(e)),
                     duration_ms=0.0,
-                    success=False,
-                    error=f"Execution exception: {str(e)}",
-                    metadata=None,  # No metadata on error
                 )
 
-                results.append(error_result)
-                context.completed_actions.append(error_result)
+                results.append(error_data)
+                context.completed_actions.append(error_data)
 
                 # Notify action finished with error
                 callback.on_action_finished(
                     action_plan.action,
-                    error_result,
+                    error_data,
                     sequence_number,
                     i + 1,
                     trigger_entry.entry_id,
@@ -159,7 +177,7 @@ class ActionExecutor:
                 break
 
         # Notify sequence finished
-        successful = sum(1 for r in results if r.success)
+        successful = sum(1 for r in results if r.result.type == "success")
         callback.on_sequence_finished(sequence_number, len(results), successful)
 
         logger.debug(f"=== SEQUENCE EXECUTION COMPLETE ===")

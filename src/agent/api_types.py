@@ -8,10 +8,8 @@ allowing for independent evolution of internal structures.
 from typing import Union, Literal, Annotated, Optional, List
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.actions.update_appearance_action import (
-    UpdateAppearanceActionMetadata,
-)
-from agent.chain_of_action.action_result import ActionResult
+from agent.chain_of_action.action.action_data import ActionData, create_context_given
+from agent.chain_of_action.action.base_action_data import BaseActionData
 
 
 # Trigger DTOs
@@ -275,50 +273,51 @@ def convert_trigger_to_dto(trigger) -> TriggerDTO:
         raise ValueError(f"Unsupported trigger type: {type(trigger)}")
 
 
-def convert_action_to_dto(action: ActionResult) -> ActionDTO:
+def convert_action_to_dto(action: ActionData) -> ActionDTO:
     """Convert backend ActionResult to DTO"""
-    from agent.chain_of_action.action_types import ActionType
+    from agent.chain_of_action.action.action_types import ActionType
 
     # Convert success/result_summary to ActionStatus
-    if action.success:
-        status = ActionStatusSuccess(result=action.result_summary)
+    if action.result.type == "success":
+        status = ActionStatusSuccess(result=action.result.content.result_summary())
     else:
-        status = ActionStatusError(error=action.result_summary)
+        status = ActionStatusError(error=action.result.error)
 
+    context_given = create_context_given(action)
     base_data = {
-        "context_given": action.context_given,
+        "context_given": context_given,
         "status": status,
         "duration_ms": int(action.duration_ms) if action.duration_ms is not None else 0,
     }
 
-    if action.action == ActionType.THINK:
+    if action.type == ActionType.THINK:
         return ThinkActionDTO(**base_data)
-    elif action.action == ActionType.SPEAK:
+    elif action.type == ActionType.SPEAK:
         return SpeakActionDTO(**base_data)
-    elif action.action == ActionType.UPDATE_APPEARANCE:
-        assert isinstance(
-            action.metadata, UpdateAppearanceActionMetadata
-        ), "Metadata must be UpdateAppearanceActionMetadata"
-        image_description = action.metadata.image_description
-        image_url = action.metadata.image_result.image_url
+    elif action.type == ActionType.UPDATE_APPEARANCE:
+        image_description = None
+        image_url = None
+
+        if action.result.type == "success":
+            image_description = action.result.content.image_description
+            image_url = action.result.content.image_result.image_url
+        else:
+            raise ValueError("Invalid result type for UpdateAppearanceAction")
 
         return UpdateAppearanceActionDTO(
             **base_data, image_description=image_description, image_url=image_url
         )
-    elif action.action == ActionType.UPDATE_MOOD:
+    elif action.type == ActionType.UPDATE_MOOD:
         return UpdateMoodActionDTO(**base_data)
-    elif action.action == ActionType.WAIT:
+    elif action.type == ActionType.WAIT:
         return WaitActionDTO(**base_data)
-    elif action.action == ActionType.ADD_PRIORITY:
+    elif action.type == ActionType.ADD_PRIORITY:
         return AddPriorityActionDTO(**base_data)
-    elif action.action == ActionType.REMOVE_PRIORITY:
+    elif action.type == ActionType.REMOVE_PRIORITY:
         return RemovePriorityActionDTO(**base_data)
-    elif action.action == ActionType.FETCH_URL:
-        # Extract URL and looking_for from context_given
-        context_parts = action.context_given.split(", looking_for: ")
-        url = context_parts[0].replace("url: ", "")
-        looking_for = context_parts[1] if len(context_parts) > 1 else ""
-
+    elif action.type == ActionType.FETCH_URL:
+        url = action.input.url
+        looking_for = action.input.looking_for
         return FetchUrlActionDTO(**base_data, url=url, looking_for=looking_for)
     else:
         raise ValueError(f"Unsupported action type: {action.action}")
