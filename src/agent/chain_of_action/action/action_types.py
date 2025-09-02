@@ -25,6 +25,7 @@ class ActionType(str, Enum):
 
     # Information Actions
     FETCH_URL = "fetch_url"  # Fetch and analyze content from a web URL
+    SEARCH_WEB = "search_web"  # Search the web for information
 
     # Meta Actions
     WAIT = "wait"  # Wait for response before continuing

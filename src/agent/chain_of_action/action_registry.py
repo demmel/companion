@@ -10,6 +10,7 @@ from agent.chain_of_action.action.actions.priority_actions import (
     AddPriorityAction,
     RemovePriorityAction,
 )
+from agent.chain_of_action.action.actions.search_web_action import SearchWebAction
 from agent.chain_of_action.action.actions.speak_action import SpeakAction
 from agent.chain_of_action.action.actions.think_action import ThinkAction
 from agent.chain_of_action.action.actions.update_appearance_action import (
@@ -41,6 +42,7 @@ class ActionRegistry:
         self.register(UpdateMoodAction)
         self.register(UpdateAppearanceAction)
         self.register(FetchUrlAction)
+        self.register(SearchWebAction)
         self.register(AddPriorityAction)
         self.register(RemovePriorityAction)
         # etc.

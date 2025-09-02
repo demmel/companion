@@ -8,6 +8,7 @@ import { WaitActionDisplay } from "./WaitActionDisplay";
 import { AddPriorityActionDisplay } from "./AddPriorityActionDisplay";
 import { RemovePriorityActionDisplay } from "./RemovePriorityActionDisplay";
 import { FetchUrlActionDisplay } from "./FetchUrlActionDisplay";
+import { SearchWebActionDisplay } from "./SearchWebActionDisplay";
 
 interface ActionDisplayProps {
   action: Action;
@@ -32,6 +33,8 @@ export function ActionDisplay({ action }: ActionDisplayProps) {
         return <RemovePriorityActionDisplay action={action} />;
       case "fetch_url":
         return <FetchUrlActionDisplay action={action} />;
+      case "search_web":
+        return <SearchWebActionDisplay action={action} />;
       default:
         return (
           <div className={css({ p: 2, color: "gray.500", fontSize: "sm" })}>

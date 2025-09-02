@@ -11,6 +11,10 @@ from agent.chain_of_action.action.actions.priority_actions import (
     RemovePriorityInput,
     RemovePriorityOutput,
 )
+from agent.chain_of_action.action.actions.search_web_action import (
+    SearchWebInput,
+    SearchWebOutput,
+)
 from agent.chain_of_action.action.actions.speak_action import SpeakInput, SpeakOutput
 from agent.chain_of_action.action.actions.think_action import ThinkInput, ThinkOutput
 from agent.chain_of_action.action.actions.update_appearance_action import (
@@ -39,6 +43,10 @@ class RemovePriorityActionData(
     type: Literal[ActionType.REMOVE_PRIORITY] = ActionType.REMOVE_PRIORITY
 
 
+class SearchWebActionData(BaseActionData[SearchWebInput, SearchWebOutput]):
+    type: Literal[ActionType.SEARCH_WEB] = ActionType.SEARCH_WEB
+
+
 class SpeakActionData(BaseActionData[SpeakInput, SpeakOutput]):
     type: Literal[ActionType.SPEAK] = ActionType.SPEAK
 
@@ -65,6 +73,7 @@ ActionData = (
     FetchUrlActionData
     | AddPriorityActionData
     | RemovePriorityActionData
+    | SearchWebActionData
     | SpeakActionData
     | ThinkActionData
     | UpdateAppearanceActionData
@@ -74,7 +83,15 @@ ActionData = (
 
 
 _ACTION_DATA_CONSTRUCTORS: dict[ActionType, type[ActionData]] = {
-    cls.type: cls for cls in typing.get_args(ActionData)
+    ActionType.FETCH_URL: FetchUrlActionData,
+    ActionType.ADD_PRIORITY: AddPriorityActionData,
+    ActionType.REMOVE_PRIORITY: RemovePriorityActionData,
+    ActionType.SEARCH_WEB: SearchWebActionData,
+    ActionType.SPEAK: SpeakActionData,
+    ActionType.THINK: ThinkActionData,
+    ActionType.UPDATE_APPEARANCE: UpdateAppearanceActionData,
+    ActionType.UPDATE_MOOD: UpdateMoodActionData,
+    ActionType.WAIT: WaitActionData,
 }
 
 

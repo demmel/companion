@@ -112,6 +112,23 @@ class FetchUrlActionDTO(BaseActionDTO):
     looking_for: str
 
 
+class SearchResultDTO(BaseModel):
+    """DTO for individual search results"""
+
+    url: str
+    title: str
+    snippet: str
+
+
+class SearchWebActionDTO(BaseActionDTO):
+    """DTO for web search actions"""
+
+    type: Literal["search_web"] = "search_web"
+    query: str
+    purpose: str
+    search_results: List[SearchResultDTO]
+
+
 # Discriminated union for all action types
 ActionDTO = Union[
     ThinkActionDTO,
@@ -121,6 +138,7 @@ ActionDTO = Union[
     WaitActionDTO,
     AddPriorityActionDTO,
     FetchUrlActionDTO,
+    SearchWebActionDTO,
     RemovePriorityActionDTO,
 ]
 
@@ -319,6 +337,23 @@ def convert_action_to_dto(action: ActionData) -> ActionDTO:
         url = action.input.url
         looking_for = action.input.looking_for
         return FetchUrlActionDTO(**base_data, url=url, looking_for=looking_for)
+    elif action.type == ActionType.SEARCH_WEB:
+        query = action.input.query
+        purpose = action.input.purpose
+        search_results = []
+
+        if action.result.type == "success":
+            # Convert SearchResult objects to SearchResultDTO objects
+            search_results = [
+                SearchResultDTO(
+                    url=result.url, title=result.title, snippet=result.snippet
+                )
+                for result in action.result.content.search_results
+            ]
+
+        return SearchWebActionDTO(
+            **base_data, query=query, purpose=purpose, search_results=search_results
+        )
     else:
         raise ValueError(f"Unsupported action type: {action.action}")
 

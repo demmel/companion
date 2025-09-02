@@ -60,6 +60,19 @@ export interface FetchUrlAction extends BaseAction {
   looking_for: string;
 }
 
+export interface SearchResult {
+  url: string;
+  title: string;
+  snippet: string;
+}
+
+export interface SearchWebAction extends BaseAction {
+  type: "search_web";
+  query: string;
+  purpose: string;
+  search_results: SearchResult[];
+}
+
 export type Action =
   | ThinkAction
   | SpeakAction
@@ -68,7 +81,8 @@ export type Action =
   | WaitAction
   | AddPriorityAction
   | RemovePriorityAction
-  | FetchUrlAction;
+  | FetchUrlAction
+  | SearchWebAction;
 
 export interface Summary {
   summary_text: string;

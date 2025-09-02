@@ -11,6 +11,7 @@ import {
   AddPriorityAction,
   RemovePriorityAction,
   FetchUrlAction,
+  SearchWebAction,
   Trigger,
   ActionStatus,
   ContextInfo,
@@ -63,6 +64,13 @@ interface FetchUrlActionBuilder extends BaseActionBuilder {
   looking_for?: string;
 }
 
+interface SearchWebActionBuilder extends BaseActionBuilder {
+  action_type: "search_web";
+  query?: string;
+  purpose?: string;
+  search_results?: Array<{url: string; title: string; snippet: string}>;
+}
+
 type ActionBuilder =
   | ThinkActionBuilder
   | SpeakActionBuilder
@@ -71,7 +79,8 @@ type ActionBuilder =
   | WaitActionBuilder
   | AddPriorityActionBuilder
   | RemovePriorityActionBuilder
-  | FetchUrlActionBuilder;
+  | FetchUrlActionBuilder
+  | SearchWebActionBuilder;
 
 // Single active trigger builder (only one trigger can be active at a time)
 interface ActiveTriggerBuilder {
@@ -153,6 +162,15 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
         looking_for: actionBuilder.looking_for || "",
       } as FetchUrlAction;
 
+    case "search_web":
+      return {
+        type: "search_web",
+        ...baseAction,
+        query: actionBuilder.query || "",
+        purpose: actionBuilder.purpose || "",
+        search_results: actionBuilder.search_results || [],
+      } as SearchWebAction;
+
     default:
       throw new Error(`Unknown action type: ${(actionBuilder as ActionBuilder).action_type}`);
   }
@@ -228,7 +246,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
               type: "streaming",
               result: "",
             },
-            action_type: event.action_type as "think" | "speak" | "update_appearance" | "update_mood" | "wait" | "add_priority" | "remove_priority" | "fetch_url",
+            action_type: event.action_type as "think" | "speak" | "update_appearance" | "update_mood" | "wait" | "add_priority" | "remove_priority" | "fetch_url" | "search_web",
             context_given: event.context_given,
             duration_ms: 0, // Duration will be updated later
             partial_results: [],
@@ -294,6 +312,11 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
               const fetchUrlBuilder = targetAction as FetchUrlActionBuilder;
               fetchUrlBuilder.url = action.url;
               fetchUrlBuilder.looking_for = action.looking_for;
+            } else if (action.type === "search_web" && targetAction.action_type === "search_web") {
+              const searchWebBuilder = targetAction as SearchWebActionBuilder;
+              searchWebBuilder.query = action.query;
+              searchWebBuilder.purpose = action.purpose;
+              searchWebBuilder.search_results = action.search_results;
             }
           } else {
             debug.warn(`Received action_completed for unknown action: ${actionKey} in entry ${event.entry_id}`);
@@ -393,6 +416,16 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
                     url: actionBuilder.url || "",
                     looking_for: actionBuilder.looking_for || "",
                   } as FetchUrlAction);
+                  break;
+
+                case "search_web":
+                  actions.push({
+                    type: "search_web",
+                    ...baseAction,
+                    query: actionBuilder.query || "",
+                    purpose: actionBuilder.purpose || "",
+                    search_results: actionBuilder.search_results || [],
+                  } as SearchWebAction);
                   break;
 
                 default:
