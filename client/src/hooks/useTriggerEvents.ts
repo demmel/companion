@@ -3,84 +3,26 @@ import { ClientAgentEvent } from "./useWebSocket";
 import {
   TriggerHistoryEntry,
   Action,
-  ThinkAction,
-  SpeakAction,
   UpdateAppearanceAction,
-  UpdateMoodAction,
-  WaitAction,
-  AddPriorityAction,
-  RemovePriorityAction,
   FetchUrlAction,
   SearchWebAction,
   Trigger,
-  ActionStatus,
   ContextInfo,
+  BaseAction
 } from "../types";
 import { debug } from "@/utils/debug";
 
 // Helper to build action objects from streaming events
-interface BaseActionBuilder {
+interface BaseActionBuilder extends BaseAction {
   sequence_number: number;
   action_number: number;
-  context_given: string;
-  status: ActionStatus;
-  duration_ms: number;
   partial_results: string[];
 }
 
-interface ThinkActionBuilder extends BaseActionBuilder {
-  action_type: "think";
-}
-
-interface SpeakActionBuilder extends BaseActionBuilder {
-  action_type: "speak";
-}
-
-interface UpdateAppearanceActionBuilder extends BaseActionBuilder {
-  action_type: "update_appearance";
-  image_description?: string;
-  image_url?: string;
-}
-
-interface UpdateMoodActionBuilder extends BaseActionBuilder {
-  action_type: "update_mood";
-}
-
-interface WaitActionBuilder extends BaseActionBuilder {
-  action_type: "wait";
-}
-
-interface AddPriorityActionBuilder extends BaseActionBuilder {
-  action_type: "add_priority";
-}
-
-interface RemovePriorityActionBuilder extends BaseActionBuilder {
-  action_type: "remove_priority";
-}
-
-interface FetchUrlActionBuilder extends BaseActionBuilder {
-  action_type: "fetch_url";
-  url?: string;
-  looking_for?: string;
-}
-
-interface SearchWebActionBuilder extends BaseActionBuilder {
-  action_type: "search_web";
-  query?: string;
-  purpose?: string;
-  search_results?: Array<{url: string; title: string; snippet: string}>;
-}
-
-type ActionBuilder =
-  | ThinkActionBuilder
-  | SpeakActionBuilder
-  | UpdateAppearanceActionBuilder
-  | UpdateMoodActionBuilder
-  | WaitActionBuilder
-  | AddPriorityActionBuilder
-  | RemovePriorityActionBuilder
-  | FetchUrlActionBuilder
-  | SearchWebActionBuilder;
+type PartialAction = Partial<Action>;
+type ActionBuilder = PartialAction & {
+  type: Action['type']
+} & BaseActionBuilder;
 
 // Single active trigger builder (only one trigger can be active at a time)
 interface ActiveTriggerBuilder {
@@ -104,75 +46,41 @@ export interface UseTriggerEventsReturn {
  */
 function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
   const baseAction = {
-    context_given: actionBuilder.context_given,
-    status: actionBuilder.status,
-    duration_ms: actionBuilder.duration_ms || 0,
+    ...actionBuilder
   };
 
-  switch (actionBuilder.action_type) {
+  switch (actionBuilder.type) {
     case "think":
-      return {
-        type: "think",
-        ...baseAction,
-      } as ThinkAction;
-
     case "speak":
+    case "update_mood":
+    case "wait":
+    case "add_priority":
+    case "remove_priority":
       return {
-        type: "speak",
-        ...baseAction,
-      } as SpeakAction;
-
+        ...baseAction
+      } as Action
     case "update_appearance":
       return {
-        type: "update_appearance",
         ...baseAction,
         image_description: actionBuilder.image_description,
         image_url: actionBuilder.image_url,
       } as UpdateAppearanceAction;
-
-    case "update_mood":
-      return {
-        type: "update_mood",
-        ...baseAction,
-      } as UpdateMoodAction;
-
-    case "wait":
-      return {
-        type: "wait",
-        ...baseAction,
-      } as WaitAction;
-
-    case "add_priority":
-      return {
-        type: "add_priority",
-        ...baseAction,
-      } as AddPriorityAction;
-
-    case "remove_priority":
-      return {
-        type: "remove_priority",
-        ...baseAction,
-      } as RemovePriorityAction;
-
     case "fetch_url":
       return {
-        type: "fetch_url",
         ...baseAction,
         url: actionBuilder.url || "",
         looking_for: actionBuilder.looking_for || "",
       } as FetchUrlAction;
-
     case "search_web":
       return {
-        type: "search_web",
         ...baseAction,
         query: actionBuilder.query || "",
         purpose: actionBuilder.purpose || "",
         search_results: actionBuilder.search_results || [],
       } as SearchWebAction;
-
     default:
-      throw new Error(`Unknown action type: ${(actionBuilder as ActionBuilder).action_type}`);
+      const exhaustiveCheck: never = actionBuilder;
+      throw new Error(`Unknown action type: ${(exhaustiveCheck as ActionBuilder).type}`);
   }
 }
 
@@ -246,7 +154,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
               type: "streaming",
               result: "",
             },
-            action_type: event.action_type as "think" | "speak" | "update_appearance" | "update_mood" | "wait" | "add_priority" | "remove_priority" | "fetch_url" | "search_web",
+            type: event.action_type as ActionBuilder['type'],
             context_given: event.context_given,
             duration_ms: 0, // Duration will be updated later
             partial_results: [],
@@ -296,28 +204,12 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
           const actionIndex = currentTrigger.actionMap.get(actionKey);
 
           if (actionIndex !== undefined) {
-            const targetAction = currentTrigger.actions[actionIndex];
+            const targetAction = {
+              ...currentTrigger.actions[actionIndex],
+              ...event.action
+            };
 
-            // Extract data from ActionDTO and populate the builder
-            const action = event.action;
-            targetAction.status = action.status;
-            targetAction.duration_ms = action.duration_ms;
-
-            // Populate type-specific fields
-            if (action.type === "update_appearance" && targetAction.action_type === "update_appearance") {
-              const appearanceBuilder = targetAction as UpdateAppearanceActionBuilder;
-              appearanceBuilder.image_description = action.image_description;
-              appearanceBuilder.image_url = action.image_url;
-            } else if (action.type === "fetch_url" && targetAction.action_type === "fetch_url") {
-              const fetchUrlBuilder = targetAction as FetchUrlActionBuilder;
-              fetchUrlBuilder.url = action.url;
-              fetchUrlBuilder.looking_for = action.looking_for;
-            } else if (action.type === "search_web" && targetAction.action_type === "search_web") {
-              const searchWebBuilder = targetAction as SearchWebActionBuilder;
-              searchWebBuilder.query = action.query;
-              searchWebBuilder.purpose = action.purpose;
-              searchWebBuilder.search_results = action.search_results;
-            }
+            currentTrigger.actions[actionIndex] = targetAction;
           } else {
             debug.warn(`Received action_completed for unknown action: ${actionKey} in entry ${event.entry_id}`);
           }
@@ -351,86 +243,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
 
           for (const actionBuilder of sortedActions) {
             if (actionBuilder.status.type !== "streaming") {
-              const baseAction = {
-                context_given: actionBuilder.context_given,
-                status: actionBuilder.status,
-                duration_ms: actionBuilder.duration_ms || 0,
-              };
-
-              switch (actionBuilder.action_type) {
-                case "think":
-                  actions.push({
-                    type: "think",
-                    ...baseAction,
-                  } as ThinkAction);
-                  break;
-
-                case "speak":
-                  actions.push({
-                    type: "speak",
-                    ...baseAction,
-                  } as SpeakAction);
-                  break;
-
-                case "update_appearance":
-                  actions.push({
-                    type: "update_appearance",
-                    ...baseAction,
-                    image_description: actionBuilder.image_description,
-                    image_url: actionBuilder.image_url,
-                  } as UpdateAppearanceAction);
-                  break;
-
-                case "update_mood":
-                  actions.push({
-                    type: "update_mood",
-                    ...baseAction,
-                  } as UpdateMoodAction);
-                  break;
-
-                case "wait":
-                  actions.push({
-                    type: "wait",
-                    ...baseAction,
-                  } as WaitAction);
-                  break;
-
-                case "add_priority":
-                  actions.push({
-                    type: "add_priority",
-                    ...baseAction,
-                  } as AddPriorityAction);
-                  break;
-
-                case "remove_priority":
-                  actions.push({
-                    type: "remove_priority",
-                    ...baseAction,
-                  } as RemovePriorityAction);
-                  break;
-
-                case "fetch_url":
-                  actions.push({
-                    type: "fetch_url",
-                    ...baseAction,
-                    url: actionBuilder.url || "",
-                    looking_for: actionBuilder.looking_for || "",
-                  } as FetchUrlAction);
-                  break;
-
-                case "search_web":
-                  actions.push({
-                    type: "search_web",
-                    ...baseAction,
-                    query: actionBuilder.query || "",
-                    purpose: actionBuilder.purpose || "",
-                    search_results: actionBuilder.search_results || [],
-                  } as SearchWebAction);
-                  break;
-
-                default:
-                  throw new Error(`Unknown action type: ${(actionBuilder as ActionBuilder).action_type}`);
-              }
+              actions.push(convertActionBuilderToAction(actionBuilder));
             }
           }
 

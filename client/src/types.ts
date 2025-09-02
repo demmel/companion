@@ -18,7 +18,7 @@ export type ActionStatus =
   | { type: "success"; result: string }
   | { type: "error"; error: string };
 
-interface BaseAction {
+export interface BaseAction {
   context_given: string;
   status: ActionStatus;
   duration_ms: number;
