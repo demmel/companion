@@ -455,6 +455,7 @@ class Agent:
                 ]
             )
             think_action_result = ThinkActionData(
+                reasoning="Deriving initial state from character definition",
                 input=ThinkInput(
                     focus="Deriving initial state",
                 ),
@@ -556,6 +557,7 @@ class Agent:
                     )
 
                     appearance_action_result = UpdateAppearanceActionData(
+                        reasoning="Initial appearance image",
                         input=input,
                         result=ActionSuccessResult(content=output),
                         duration_ms=int(
@@ -582,6 +584,7 @@ class Agent:
 
                     # Create and store error action result
                     error_action_result = UpdateAppearanceActionData(
+                        reasoning="Initial appearance image",
                         input=input,
                         result=ActionFailureResult(error=str(e)),
                         duration_ms=int(

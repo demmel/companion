@@ -107,12 +107,14 @@ def cast_base_action_data_to_action_data(action_data: BaseActionData) -> ActionD
 
 
 def create_action_data(
-    type: ActionType, input: Any, result: Any, duration_ms: float
+    type: ActionType, reasoning: str, input: Any, result: Any, duration_ms: float
 ) -> ActionData:
     constructor = _ACTION_DATA_CONSTRUCTORS.get(type)
     if not constructor:
         raise ValueError(f"Unknown action type: {type}")
-    return constructor(input=input, result=result, duration_ms=duration_ms)
+    return constructor(
+        reasoning=reasoning, input=input, result=result, duration_ms=duration_ms
+    )
 
 
 def create_result_summary(action_data: BaseActionData) -> str:

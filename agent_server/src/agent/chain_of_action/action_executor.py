@@ -112,6 +112,7 @@ class ActionExecutor:
 
                 action_data = create_action_data(
                     type=action_plan.action,
+                    reasoning=action_plan.reasoning,
                     input=action_input,
                     result=result,
                     duration_ms=duration_ms,
@@ -120,14 +121,7 @@ class ActionExecutor:
                 results.append(action_data)
 
                 # Update context with completed action
-                context.completed_actions.append(
-                    create_action_data(
-                        type=action_plan.action,
-                        input=action_input,
-                        result=result,
-                        duration_ms=duration_ms,
-                    )
-                )
+                context.completed_actions.append(action_data)
 
                 # Notify action finished
                 callback.on_action_finished(
@@ -155,6 +149,7 @@ class ActionExecutor:
 
                 error_data = create_action_data(
                     type=action_plan.action,
+                    reasoning=action_plan.reasoning,
                     input=action_input,
                     result=ActionFailureResult(error=str(e)),
                     duration_ms=0.0,

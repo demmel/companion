@@ -42,6 +42,7 @@ class BaseActionData(BaseModel, Generic[TInput, TOutput]):
     """Result of executing an action"""
 
     type: ActionType
+    reasoning: str
     input: TInput
     result: ActionResult[TOutput]
     duration_ms: float

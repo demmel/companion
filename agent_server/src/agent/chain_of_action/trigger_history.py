@@ -10,19 +10,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.action.action_data import ActionData
-from agent.chain_of_action.trigger import BaseTrigger, UserInputTrigger, Trigger
-from agent.chain_of_action.action.base_action_data import BaseActionData
-from agent.chain_of_action.action.action_types import ActionType
-from agent.types import (
-    Message,
-    UserMessage,
-    AgentMessage,
-    TextContent,
-    ThoughtContent,
-    ToolCallFinished,
-    ToolCallSuccess,
-    TextToolContent,
-)
+from agent.chain_of_action.trigger import Trigger
 
 
 class SummaryRecord(BaseModel):
