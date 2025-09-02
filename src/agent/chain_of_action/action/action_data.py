@@ -1,4 +1,5 @@
-from typing import Any, Literal
+from typing import Any, Literal, TypeGuard
+import typing
 from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.action.actions.fetch_url_action import (
     FetchUrlInput,
@@ -72,58 +73,29 @@ ActionData = (
 )
 
 
-def cast_base_action_data_to_action_data(action_data: BaseActionData) -> ActionData:
-    match action_data:
-        case FetchUrlActionData():
-            return action_data
-        case AddPriorityActionData():
-            return action_data
-        case RemovePriorityActionData():
-            return action_data
-        case SpeakActionData():
-            return action_data
-        case ThinkActionData():
-            return action_data
-        case UpdateAppearanceActionData():
-            return action_data
-        case UpdateMoodActionData():
-            return action_data
-        case WaitActionData():
-            return action_data
+_ACTION_DATA_CONSTRUCTORS: dict[ActionType, type[ActionData]] = {
+    cls.type: cls for cls in typing.get_args(ActionData)
+}
 
+
+def isinstance_of_action_data(obj: Any) -> TypeGuard[ActionData]:
+    action_data_types = typing.get_args(ActionData)
+    return isinstance(obj, action_data_types)
+
+
+def cast_base_action_data_to_action_data(action_data: BaseActionData) -> ActionData:
+    if isinstance_of_action_data(action_data):
+        return action_data
     raise ValueError(f"Unknown action data type: {action_data.__class__}")
 
 
 def create_action_data(
     type: ActionType, input: Any, result: Any, duration_ms: float
 ) -> ActionData:
-    match type:
-        case ActionType.FETCH_URL:
-            return FetchUrlActionData(
-                input=input, result=result, duration_ms=duration_ms
-            )
-        case ActionType.ADD_PRIORITY:
-            return AddPriorityActionData(
-                input=input, result=result, duration_ms=duration_ms
-            )
-        case ActionType.REMOVE_PRIORITY:
-            return RemovePriorityActionData(
-                input=input, result=result, duration_ms=duration_ms
-            )
-        case ActionType.SPEAK:
-            return SpeakActionData(input=input, result=result, duration_ms=duration_ms)
-        case ActionType.THINK:
-            return ThinkActionData(input=input, result=result, duration_ms=duration_ms)
-        case ActionType.UPDATE_APPEARANCE:
-            return UpdateAppearanceActionData(
-                input=input, result=result, duration_ms=duration_ms
-            )
-        case ActionType.UPDATE_MOOD:
-            return UpdateMoodActionData(
-                input=input, result=result, duration_ms=duration_ms
-            )
-        case ActionType.WAIT:
-            return WaitActionData(input=input, result=result, duration_ms=duration_ms)
+    constructor = _ACTION_DATA_CONSTRUCTORS.get(type)
+    if not constructor:
+        raise ValueError(f"Unknown action type: {type}")
+    return constructor(input=input, result=result, duration_ms=duration_ms)
 
 
 def create_result_summary(action_data: BaseActionData) -> str:
