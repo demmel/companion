@@ -18,7 +18,7 @@ class AgentPaths:
         self.logs_dir = base_path / "logs"
 
         # Client build paths
-        self.client_dir = base_path / "client"
+        self.client_dir = base_path / ".." / "client"
         self.client_dist_dir = self.client_dir / "dist"
         self.client_assets_dir = self.client_dist_dir / "assets"
         self.client_index_html = self.client_dist_dir / "index.html"
