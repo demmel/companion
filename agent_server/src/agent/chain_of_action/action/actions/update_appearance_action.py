@@ -138,6 +138,7 @@ class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceO
         from agent.chain_of_action.prompts import (
             format_section,
             format_actions_for_diary,
+            format_action_sequence_status,
         )
 
         logger.debug("=== UPDATE_APPEARANCE ACTION ===")
@@ -146,10 +147,13 @@ class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceO
 
         old_appearance = state.current_appearance
 
-        actions_summary = format_actions_for_diary(context.completed_actions)
-        actions_taken_section = format_section(
-            "ACTIONS I'VE ALREADY TAKEN", actions_summary
+        # Show full action sequence with status indicators
+        action_sequence = format_action_sequence_status(
+            context.completed_actions,
+            context.planned_actions, 
+            context.current_action_index
         )
+        actions_taken_section = format_section("MY ACTION PLAN", action_sequence)
 
         appearance_update_section = format_section(
             "PROPOSED APPEARANCE UPDATE",

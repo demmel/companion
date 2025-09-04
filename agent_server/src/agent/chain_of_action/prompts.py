@@ -14,6 +14,7 @@ from agent.chain_of_action.trigger import BaseTrigger, format_trigger_for_prompt
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
 from agent.chain_of_action.action_registry import ActionRegistry
+from agent.chain_of_action.action_plan import ActionPlan
 
 
 def build_temporal_context(trigger_history: TriggerHistory) -> str:
@@ -150,21 +151,39 @@ def format_action_for_diary(action: BaseActionData) -> str:
     Temporary formatting method until we implement format_for_diary() on action classes.
     """
     from agent.chain_of_action.action.action_types import ActionType
+    from agent.chain_of_action.action.action_data import (
+        cast_base_action_data_to_action_data,
+    )
+
+    action = cast_base_action_data_to_action_data(action)
+
+    # Determine status from action's result
+    if action.result.type == "success":
+        status = "[✓]"
+    else:
+        status = "[x]"
 
     action_parts = []
-    context_given = create_context_given(action)
     if action.type == ActionType.THINK:
-        action_parts.append(f'- I thought about "{context_given}')
+        action_parts.append(f'{status} I thought about "{action.input.focus}"')
     elif action.type == ActionType.SPEAK:
-        action_parts.append(f'- I responded to "{context_given}":')
+        tone_part = f" with {action.input.tone} tone" if action.input.tone else ""
+        action_parts.append(
+            f'{status} I responded to "{action.input.intent}"{tone_part}:'
+        )
     elif action.type == ActionType.WAIT:
-        action_parts.append(f'- I waited: "{context_given}"')
+        action_parts.append(f"{status} I waited to {action.input.reason}.")
     elif action.type == ActionType.UPDATE_APPEARANCE:
-        action_parts.append(f"- I updated my appearance ({context_given}):")
+        action_parts.append(
+            f"{status} I updated my appearance ({action.input.change_description}):"
+        )
     elif action.type == ActionType.UPDATE_MOOD:
-        action_parts.append(f"- My mood changed ({context_given}):")
+        action_parts.append(
+            f"{status} My mood changed {action.input.new_mood} ({action.input.intensity}):"
+        )
     else:
-        action_parts.append(f'- I {action.type.value} "{context_given}":')
+        context_given = create_context_given(action)
+        action_parts.append(f'{status} I {action.type.value} "{context_given}":')
 
     action_parts.append("  <content>")
     result_summary = create_result_summary(action)
@@ -222,6 +241,7 @@ def build_situational_analysis_prompt(
     trigger: BaseTrigger,
     trigger_history: TriggerHistory,
     relevant_memories: List[TriggerHistoryEntry],
+    registry: ActionRegistry,
 ) -> str:
     """Build the situational analysis prompt - first stage of decision making"""
     from .trigger import WakeupTrigger, UserInputTrigger
@@ -299,6 +319,15 @@ I should let at least one of these words spark genuine inspiration for what I wa
         format_section(
             "CREATIVE INSPIRATION",
             inspiration_content,
+        )
+    )
+
+    # Add system knowledge about available actions for context
+    system_knowledge = registry.get_system_knowledge_for_context()
+    sections.append(
+        format_section(
+            "WHAT I CAN DO",
+            system_knowledge,
         )
     )
 
@@ -554,6 +583,39 @@ def generate_random_inspiration_words(
         if seed is not None:
             random.seed(seed)
         return random.sample(fallback_words, min(count, len(fallback_words)))
+
+
+def format_action_sequence_status(
+    completed_actions: List[BaseActionData],
+    planned_actions: List[ActionPlan],
+    current_action_index: int,
+) -> str:
+    """Get formatted action sequence with status checkboxes"""
+    if not planned_actions:
+        return "No actions planned"
+
+    lines = []
+
+    for action in completed_actions:
+        lines.append(format_action_for_diary(action))
+
+    for i, planned_action in enumerate(planned_actions):
+        if i < current_action_index:
+            continue
+        status = "[ ]" if i > current_action_index else "[→]"
+        context_given = ", ".join(
+            f'"{k}": "{v}"' for k, v in planned_action.input.items()
+        )
+        lines.append(f"{status} I will {planned_action.action.value} {context_given}.")
+
+    if planned_actions and planned_actions[-1].action.value == "wait":
+        lines.append(
+            "I will not plan any further actions until something else happens."
+        )
+    else:
+        lines.append("I will plan more actions after completing these.")
+
+    return "\n".join(lines)
 
 
 def format_section(title: str, content: str, separator: str = "=" * 80) -> str:

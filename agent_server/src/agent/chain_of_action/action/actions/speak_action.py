@@ -71,6 +71,7 @@ class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):
         from agent.chain_of_action.prompts import (
             format_section,
             format_actions_for_diary,
+            format_action_sequence_status,
         )
 
         # Build fresh context using current system's rich format
@@ -88,7 +89,20 @@ class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):
             )
         )
 
-        sections.append(format_section("ACTIONS I'VE ALREADY TAKEN", actions_summary))
+        # Show full action sequence with status indicators
+        action_sequence = format_action_sequence_status(
+            context.completed_actions,
+            context.planned_actions, 
+            context.current_action_index
+        )
+        sections.append(format_section("MY ACTION PLAN", action_sequence))
+
+        sections.append(
+            format_section(
+                "WHAT I CAN DO",
+                context.agent_capabilities_knowledge_prompt,
+            )
+        )
 
         # Check if there are previous speak actions in this turn
         previous_speaks = [

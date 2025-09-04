@@ -106,6 +106,7 @@ class ActionBasedReasoningLoop:
             trigger=trigger,
             trigger_history=trigger_history,
             relevant_memories=relevant_memories,
+            registry=self.registry,
         )
 
         situational_analysis = llm.generate_complete(
@@ -123,6 +124,7 @@ class ActionBasedReasoningLoop:
             completed_actions=[],
             session_id=str(uuid.uuid4()),
             situation_analysis=situational_analysis,
+            agent_capabilities_knowledge_prompt=self.registry.get_system_knowledge_for_context(),
         )
 
         sequence_num = 0

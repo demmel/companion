@@ -52,6 +52,10 @@ class ActionExecutor:
         logger.debug(f"ACTIONS: {len(sequence.actions)}")
         logger.debug(f"PRIOR COMPLETED: {len(context.completed_actions)}")
 
+        # Update context with planned actions for this sequence
+        context.planned_actions = sequence.actions
+        context.current_action_index = 0
+
         # Notify sequence started
         callback.on_sequence_started(sequence_number, len(sequence.actions), "")
 
@@ -77,6 +81,9 @@ class ActionExecutor:
             logger.debug(
                 f"Executing action {i+1}/{len(sequence.actions)}: {action_plan.action.value}"
             )
+            
+            # Update current action index
+            context.current_action_index = i
 
             action_input = None
             try:

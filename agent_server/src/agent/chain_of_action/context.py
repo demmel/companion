@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.action.base_action_data import BaseActionData
 
-
 from .trigger import BaseTrigger
+from .action_plan import ActionPlan
 
 
 class ExecutionContext(BaseModel):
@@ -19,6 +19,9 @@ class ExecutionContext(BaseModel):
     situation_analysis: str
     completed_actions: List[BaseActionData] = Field(default_factory=list)
     session_id: str
+    agent_capabilities_knowledge_prompt: str
+    planned_actions: List[ActionPlan] = Field(default_factory=list)
+    current_action_index: int = 0
 
     def add_completed_action(self, result: BaseActionData):
         """Add a completed action to the context"""

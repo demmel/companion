@@ -68,6 +68,7 @@ class ThinkAction(BaseAction[ThinkInput, ThinkOutput]):
         from agent.chain_of_action.prompts import (
             format_section,
             format_actions_for_diary,
+            format_action_sequence_status,
         )
 
         # Build fresh context using current system's rich format
@@ -82,10 +83,18 @@ class ThinkAction(BaseAction[ThinkInput, ThinkOutput]):
             )
         )
 
+        # Show full action sequence with status indicators
+        action_sequence = format_action_sequence_status(
+            context.completed_actions,
+            context.planned_actions, 
+            context.current_action_index
+        )
+        sections.append(format_section("MY ACTION PLAN", action_sequence))
+
         sections.append(
             format_section(
-                "ACTIONS I'VE ALREADY TAKEN",
-                format_actions_for_diary(context.completed_actions),
+                "WHAT I CAN DO",
+                context.agent_capabilities_knowledge_prompt,
             )
         )
 

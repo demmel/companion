@@ -300,6 +300,7 @@ class Agent:
                 relevant_memories=self.trigger_history.get_recent_entries()[
                     -5:
                 ],  # Use last 5 entries for estimation
+                registry=self.action_reasoning_loop.registry,
             )
 
             # Calculate total prompt size
