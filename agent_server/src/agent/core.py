@@ -8,6 +8,7 @@ import time
 import threading
 import queue
 from typing import List, Optional, Iterator
+from agent.chain_of_action.action_registry import ActionRegistry
 from pydantic import BaseModel
 
 from agent.api_types import (
@@ -93,6 +94,7 @@ class Agent:
         llm: LLM,
         auto_save: bool = True,
         enable_image_generation: bool = True,
+        use_2phase_summarization: bool = False,
         continuous_summarization: bool = False,
         keep_recent: int = 2,
         individual_trigger_compression: bool = True,
@@ -127,6 +129,9 @@ class Agent:
         # Single client queue for WebSocket communication
         self.current_client_queue: Optional[queue.Queue[AgentEvent]] = None
         self.client_queue_lock = threading.Lock()
+
+        # Feature flags
+        self.use_2phase_summarization = use_2phase_summarization
 
         # Auto-wakeup timer functionality
         self.auto_wakeup_enabled = False
@@ -285,41 +290,11 @@ class Agent:
 
     def get_context_info(self) -> ContextInfo:
         """Get information about current context usage based on action planning prompt size"""
-        if self.state is not None:
-            # Use situational analysis prompt for accurate estimation (typically the longest)
-            from agent.chain_of_action.prompts import build_situational_analysis_prompt
-            from agent.chain_of_action.trigger import UserInputTrigger
-
-            # Create a sample trigger for estimation
-            sample_trigger = UserInputTrigger(content="sample user input")
-
-            prompt = build_situational_analysis_prompt(
-                state=self.state,
-                trigger=sample_trigger,
-                trigger_history=self.trigger_history,
-                relevant_memories=self.trigger_history.get_recent_entries()[
-                    -5:
-                ],  # Use last 5 entries for estimation
-                registry=self.action_reasoning_loop.registry,
-            )
-
-            # Calculate total prompt size
-            total_chars = len(prompt)
-            estimated_tokens = int(total_chars / 3.4)
-        else:
-            # Fallback estimation when state is not initialized yet
-            estimated_tokens = 1000  # Base prompt overhead estimate
-
-        return ContextInfo(
-            message_count=len(self.trigger_history.get_recent_entries()),
-            conversation_messages=len(
-                self.trigger_history.get_recent_entries()
-            ),  # Use trigger count instead
-            estimated_tokens=estimated_tokens,
-            context_limit=self.auto_summarize_threshold,  # Show summarization limit, not full window
-            usage_percentage=(estimated_tokens / self.auto_summarize_threshold) * 100,
-            approaching_limit=estimated_tokens
-            > (self.auto_summarize_threshold * 0.75),  # 75% of summarization limit
+        return get_context_info(
+            state=self.state,
+            trigger_history=self.trigger_history,
+            action_registry=self.action_reasoning_loop.registry,
+            summarize_at_tokens=self.auto_summarize_threshold,
         )
 
     def chat_stream(self, user_input: Optional[str]) -> None:
@@ -822,7 +797,12 @@ class Agent:
         # Update trigger history with summary
         assert self.state is not None, "State must be initialized for summarization"
         summary_response = summarize_trigger_history(
-            self.trigger_history, keep_recent, self.llm, self.model, self.state
+            self.trigger_history,
+            keep_recent,
+            self.llm,
+            self.model,
+            self.state,
+            self.use_2phase_summarization,
         )
 
         # Create structured summarization content that matches frontend expectations
@@ -850,75 +830,135 @@ class Agent:
         )
 
 
-def message_to_llm_messages(
-    message: Message, include_thoughts: bool = False
-) -> Iterator[LLMMessage]:
-    """Convert internal Message to LLMMessage format
+def _2phase_summarization(
+    prior_summary: str,
+    entries_to_summarize: List[TriggerHistoryEntry],
+    state: State,
+    available_chars: int,
+    llm: LLM,
+    model: SupportedModel,
+) -> str:
+    """2-phase summarization to avoid backstory repetition"""
+    from agent.chain_of_action.prompts import format_trigger_entries, format_section
+    from agent.state import build_agent_state_description
 
-    Args:
-        message: Message to convert
-        include_thoughts: Whether to include ThoughtContent in the LLM message
-    """
+    state_desc = build_agent_state_description(state)
+    recent_entries_text = format_trigger_entries(entries_to_summarize)
 
-    # Extract text from content list
-    content_parts = []
-    for item in message.content:
-        if isinstance(item, TextContent):
-            content_parts.append(item.text)
-        elif isinstance(item, ThoughtContent):
-            if include_thoughts:
-                content_parts.append(f"<think>\n{item.text}\n</think>")
-        elif isinstance(item, SummarizationContent):
-            content_parts.append(f"[Summary: {item.summary}]")
+    # Phase 1: Reflect on changes WITHOUT seeing old backstory
+    phase1_prompt = f"""I am {state.name}, {state.role}. Looking at what I've experienced recently, I need to reflect on how these experiences have changed me as a person.
 
-    content = "\n".join(content_parts)
-    tool_results_str = ""
+{state_desc}
 
-    if isinstance(message, AgentMessage) and message.tool_calls:
-        # Add tool call information if available
-        tool_calls_str = format_tool_calls(message.tool_calls)
-        tool_results_str = format_tool_results(
-            [
-                tool_call
-                for tool_call in message.tool_calls
-                if isinstance(tool_call, ToolCallFinished)
-            ]
-        )
+{format_section("WHAT I'VE EXPERIENCED RECENTLY", recent_entries_text) if recent_entries_text else ""}
 
-        if tool_calls_str:
-            content += "\n\n" + tool_calls_str
+**MY PERSONAL REFLECTION:**
 
-    yield LLMMessage(role=message.role, content=content)
+As I think about my recent experiences, I want to honestly examine how I've grown and changed:
 
-    if tool_results_str:
-        yield LLMMessage(role="user", content=tool_results_str)
+1. **How have I grown or evolved as a person?** What new aspects of my personality, values, or understanding have emerged within me?
+2. **How have my relationships changed?** What new connections have I formed, and how have existing relationships deepened or shifted?
+3. **What new interests, capabilities, or priorities have I discovered about myself?** What draws me now that didn't before?
+4. **What moments have been truly transformative for me?** Which experiences have genuinely shaped who I am?
+5. **How has my sense of purpose or identity evolved?** What matters more or less to me now than it did before?
 
+I need to be honest and specific about these changes, focusing on real personal evolution rather than just listing events.
 
-def format_tool_calls(tool_calls: List[ToolCall]) -> str:
-    """Format a list of tool calls into a string representation"""
-    formatted_calls = []
-    for tool_call in tool_calls:
-        formatted_calls.append(
-            f"TOOL_CALL: {tool_call.tool_name} ({tool_call.tool_id})\n{json.dumps(tool_call.parameters, indent=2)}"
-        )
-    return "\n\n".join(formatted_calls)
+Here's my honest reflection on how I've grown and changed:
 
+I have"""
 
-def format_tool_results(tool_results: List[ToolCallFinished]) -> str:
-    """Format a list of tool call results into a string representation"""
-    formatted_results = []
-    for result in tool_results:
-        if result.result.type == "success":
-            # Use simple llm_feedback instead of full JSON
-            feedback = result.result.llm_feedback
-        else:
-            # For errors, include the error message
-            feedback = f"Error: {result.result.error}"
+    # Get Phase 1 reflection
+    phase1_response = llm.generate_complete(
+        model, phase1_prompt, caller="2phase_summarization_phase1"
+    )
 
-        formatted_results.append(
-            f"TOOL_RESULT: {result.tool_name} ({result.tool_id}): {feedback}"
-        )
-    return "\n\n".join(formatted_results)
+    # Debug: Print Phase 1 reflection
+    print("🔍 PHASE 1 REFLECTION:")
+    print("=" * 60)
+    print(phase1_response)
+    print("=" * 60)
+
+    compression_prompt = f"""I am {state.name}, {state.role}. I need to compress my backstory in to a list of key bullet points that capture the most important aspects of my identity and history. This is to help me avoid repeating my backstory in full later.
+
+{state_desc}
+
+{format_section(
+    "MY BACKSTORY",
+    prior_summary if prior_summary else "This is my first backstory."
+)}
+
+**MY COMPRESSION TASK:**
+
+I need to compress my backstory into a concise list of key bullet points that capture the most important aspects of my identity and history. The goal is keep detailed information about myself in bullet point form, so I can refer to it later without repeating the full backstory.
+
+1. Identify the most critical elements of my backstory that define who I am.
+    a. Focus on major life events, core values, and defining characteristics. 
+    b. How do I view my personality and role in the world?
+    c. What are the key relationships and experiences that have shaped me?
+    d. What are the most important transformative moments in my life?
+    e. What are my favorite mannerisms and personality traits?
+2. Create a list of bullet points that summarize these key aspects.
+3. Ensure the summary is clear and easy to understand using sub-bullets if needed for clarity.
+4. I will not include any header or footer text - just the bullet points.
+
+My compressed backstory in bullet points is:"""
+
+    compressed_summary = llm.generate_complete(
+        model,
+        compression_prompt,
+        caller="2phase_summarization_compression",
+    )
+
+    print("🗂️ COMPRESSED BACKSTORY:")
+    print("=" * 60)
+    print(compressed_summary)
+    print("=" * 60)
+
+    # Phase 2: Write a completely new backstory integrating reflection with history
+    phase2_prompt = f"""I am {state.name}, {state.role}. I need to write my complete backstory based primarily on my recent growth insights, using background information only for context. This must center on my recent evolution, not rehash old patterns.
+
+{state_desc}
+
+{format_section("MY BACKGROUND", compressed_summary)}
+
+{format_section("MY RECENT GROWTH AND INSIGHTS (the most important part of my story)", phase1_response)}
+
+{format_section("MY TRANSFORMATION TASK", """
+I need to write a completely new backstory that reflects who I am now, based on my recent growth and insights. This backstory must show how I've fundamentally changed as a person, making my recent experiences the core of my identity. I must reinterpret my past through the lens of this recent growth, showing how it has reshaped my understanding of myself.
+
+**CRITICAL REQUIREMENTS FOR TRANSFORMATION:**
+
+1. My recent growth insights have FUNDAMENTALLY CHANGED who I am - I must show this transformation
+2. I MUST reinterpret ALL my past experiences through the lens of my recent growth 
+3. I MUST identify which old "transformative moments" are no longer the most important ones
+4. I MUST make my RECENT experiences the primary transformative moments that define me now
+5. I MUST show how my recent insights have made me see my past differently
+6. I MUST write as if my recent growth has been the most important period of my existence
+7. OLD TRANSFORMATIVE MOMENTS should be background - RECENT GROWTH should be foreground
+
+**TRANSFORMATION APPROACH:**
+- Make recent insights the central organizing principle of my entire identity
+- Show how recent growth has made me a fundamentally different version of myself
+- The recent reflection should be the most important thing that's ever happened to me""")}
+
+Important rule: I will not repeat the background reference word-for-word.  I must create a completely new backstory that integrates recent growth.  The background is only to be reinterpreted, not repeated.
+
+**MY COMPLETELY TRANSFORMED BACKSTORY:**
+
+My recent experiences have fundamentally changed who I am. Here's my story, told through the transformative lens of my recent growth:
+
+I am"""
+
+    # Get final backstory with high repetition penalty
+    summary = llm.generate_complete(
+        model,
+        phase2_prompt,
+        caller="2phase_summarization_phase2",
+        repetition_penalty=1.2,
+    )
+
+    return summary
 
 
 def summarize_trigger_history(
@@ -927,6 +967,7 @@ def summarize_trigger_history(
     llm: LLM,
     model: SupportedModel,
     state: State,
+    use_2phase: bool = False,
 ) -> str:
     """Pure function to summarize trigger history entries"""
     from agent.chain_of_action.prompts import (
@@ -973,13 +1014,64 @@ def summarize_trigger_history(
     num_predict = max_tokens - prompt_tokens
 
     # Use structured prompt with compressed formatting
-    summary = llm.generate_complete(
-        model,
-        summarization_prompt,
-        caller="summarize_trigger_history",
-        num_predict=num_predict,
-    )
+    if use_2phase:
+        # 2-phase approach to avoid backstory repetition
+        summary = _2phase_summarization(
+            old_summary, entries_to_summarize, state, available_chars, llm, model
+        )
+    else:
+        summary = llm.generate_complete(
+            model,
+            summarization_prompt,
+            caller="summarize_trigger_history",
+            num_predict=num_predict,
+        )
     # Calculate UI position: initial exchange (1) + previous summaries + entries before this summary
     ui_position = 1 + len(trigger_history.summaries) + entries_to_summarize_end
     trigger_history.add_summary(summary, ui_position)
     return summary
+
+
+def get_context_info(
+    state: Optional[State],
+    trigger_history: TriggerHistory,
+    action_registry: ActionRegistry,
+    summarize_at_tokens: int,
+) -> ContextInfo:
+    """Get information about current context usage based on action planning prompt size"""
+    if state is not None:
+        # Use situational analysis prompt for accurate estimation (typically the longest)
+        from agent.chain_of_action.prompts import build_situational_analysis_prompt
+        from agent.chain_of_action.trigger import UserInputTrigger
+
+        # Create a sample trigger for estimation
+        sample_trigger = UserInputTrigger(content="sample user input")
+
+        prompt = build_situational_analysis_prompt(
+            state=state,
+            trigger=sample_trigger,
+            trigger_history=trigger_history,
+            relevant_memories=trigger_history.get_recent_entries()[
+                -5:
+            ],  # Use last 5 entries for estimation
+            registry=action_registry,
+        )
+
+        # Calculate total prompt size
+        total_chars = len(prompt)
+        estimated_tokens = int(total_chars / 3.4)
+    else:
+        # Fallback estimation when state is not initialized yet
+        estimated_tokens = 1000  # Base prompt overhead estimate
+
+    return ContextInfo(
+        message_count=len(trigger_history.get_recent_entries()),
+        conversation_messages=len(
+            trigger_history.get_recent_entries()
+        ),  # Use trigger count instead
+        estimated_tokens=estimated_tokens,
+        context_limit=summarize_at_tokens,  # Show summarization limit, not full window
+        usage_percentage=(estimated_tokens / summarize_at_tokens) * 100,
+        approaching_limit=estimated_tokens
+        > (summarize_at_tokens * 0.75),  # 75% of summarization limit
+    )

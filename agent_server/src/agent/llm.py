@@ -230,12 +230,19 @@ class LLM:
         prompt: str,
         caller: str,
         num_predict: Optional[int] = None,
+        repeat_penalty: Optional[float] = None,
         **kwargs,
     ) -> str:
         """Convenience method for non-streaming direct generation"""
         start_time = time.time()
         response = self.generate(
-            model, prompt, caller, stream=False, num_predict=num_predict, **kwargs
+            model,
+            prompt,
+            caller,
+            stream=False,
+            num_predict=num_predict,
+            repeat_penalty=repeat_penalty,
+            **kwargs,
         )
 
         # Track the call
