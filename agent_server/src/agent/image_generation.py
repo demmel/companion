@@ -28,6 +28,7 @@ from agent.paths import agent_paths
 class SDXLModel(str, Enum):
     """Enum for SDXL model options"""
 
+    COLOSUSPROJETT = "colosusproject"
     JANKUV4NSFW = "jankuv4nsfw"
     WAINSFW = "wainsfw"
 
@@ -47,6 +48,11 @@ class SDXLModelConfig:
 
 
 MODELS = {
+    SDXLModel.COLOSUSPROJETT: SDXLModelConfig(
+        file_name="colossusProjectXLSFW_12cExperimental3.safetensors",
+        num_inference_steps=16,
+        guidance_scale=7.0,
+    ),
     SDXLModel.JANKUV4NSFW: SDXLModelConfig(
         file_name="JANKUV4NSFWTrainedNoobaiEPS_v40.safetensors",
         num_inference_steps=30,
@@ -55,7 +61,7 @@ MODELS = {
     SDXLModel.WAINSFW: SDXLModelConfig(
         file_name="waiNSFWIllustrious_v140.safetensors",
         num_inference_steps=15,
-        guidance_scale=6.0,
+        guidance_scale=7.0,
     ),
 }
 

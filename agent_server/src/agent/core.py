@@ -94,7 +94,6 @@ class Agent:
         llm: LLM,
         auto_save: bool = True,
         enable_image_generation: bool = True,
-        use_2phase_summarization: bool = False,
         continuous_summarization: bool = False,
         keep_recent: int = 2,
         individual_trigger_compression: bool = True,
@@ -129,9 +128,6 @@ class Agent:
         # Single client queue for WebSocket communication
         self.current_client_queue: Optional[queue.Queue[AgentEvent]] = None
         self.client_queue_lock = threading.Lock()
-
-        # Feature flags
-        self.use_2phase_summarization = use_2phase_summarization
 
         # Auto-wakeup timer functionality
         self.auto_wakeup_enabled = False
@@ -802,7 +798,6 @@ class Agent:
             self.llm,
             self.model,
             self.state,
-            self.use_2phase_summarization,
         )
 
         # Create structured summarization content that matches frontend expectations
@@ -967,7 +962,6 @@ def summarize_trigger_history(
     llm: LLM,
     model: SupportedModel,
     state: State,
-    use_2phase: bool = False,
 ) -> str:
     """Pure function to summarize trigger history entries"""
     from agent.chain_of_action.prompts import (
@@ -1013,19 +1007,11 @@ def summarize_trigger_history(
     logger.info(f"Summarization prompt token count: {prompt_tokens} / {max_tokens}")
     num_predict = max_tokens - prompt_tokens
 
-    # Use structured prompt with compressed formatting
-    if use_2phase:
-        # 2-phase approach to avoid backstory repetition
-        summary = _2phase_summarization(
-            old_summary, entries_to_summarize, state, available_chars, llm, model
-        )
-    else:
-        summary = llm.generate_complete(
-            model,
-            summarization_prompt,
-            caller="summarize_trigger_history",
-            num_predict=num_predict,
-        )
+    # 2-phase approach to avoid backstory repetition
+    summary = _2phase_summarization(
+        old_summary, entries_to_summarize, state, available_chars, llm, model
+    )
+
     # Calculate UI position: initial exchange (1) + previous summaries + entries before this summary
     ui_position = 1 + len(trigger_history.summaries) + entries_to_summarize_end
     trigger_history.add_summary(summary, ui_position)

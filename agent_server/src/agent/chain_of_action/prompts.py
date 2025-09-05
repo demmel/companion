@@ -443,6 +443,7 @@ Examples of when to include wait:
 - I want to see the user's reaction to what I just said
 - I've completed what I set out to do and am ready for whatever happens next
 - I need external input before deciding what to do next
+- I want to search the web, then plan to fetch URLs from the search results
 
 Examples of when NOT to include wait:
 - I want to think about creative suggestions, then plan what to say based on what I concluded
