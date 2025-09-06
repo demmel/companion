@@ -92,8 +92,8 @@ class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):
         # Show full action sequence with status indicators
         action_sequence = format_action_sequence_status(
             context.completed_actions,
-            context.planned_actions, 
-            context.current_action_index
+            context.planned_actions,
+            context.current_action_index,
         )
         sections.append(format_section("MY ACTION PLAN", action_sequence))
 

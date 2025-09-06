@@ -114,14 +114,14 @@ class ActionRegistry:
     def get_system_knowledge_for_context(self) -> str:
         """Get system knowledge description for situational awareness (not execution)"""
         action_descriptions = self.get_action_descriptions()
-        
+
         capabilities = []
         for action_type in self.get_available_actions():
             description = action_descriptions[action_type]
             capabilities.append(f"- {action_type.value}: {description}")
-        
+
         capabilities_text = "\n".join(capabilities)
-        
+
         return f"""What I can actually do in this system:
 {capabilities_text}
 

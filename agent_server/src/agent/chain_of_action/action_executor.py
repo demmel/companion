@@ -81,7 +81,7 @@ class ActionExecutor:
             logger.debug(
                 f"Executing action {i+1}/{len(sequence.actions)}: {action_plan.action.value}"
             )
-            
+
             # Update current action index
             context.current_action_index = i
 
