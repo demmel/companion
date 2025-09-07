@@ -145,7 +145,9 @@ def cli(verbose: bool):
 
 @cli.command()
 @click.option("--conversation", "-c", default="baseline", help="Conversation to load")
-@click.option("--triggers", "-t", default=None, help="Number of triggers to process")
+@click.option(
+    "--triggers", "-t", type=int, help="Number of triggers to process (default: all)"
+)
 @click.option(
     "--output", "-o", required=True, help="Output file path for the knowledge graph"
 )
@@ -199,7 +201,12 @@ def build(conversation: str, triggers: Optional[int], output: str):
     successful = 0
 
     with click.progressbar(
-        triggers_to_process, label="Building knowledge graph"
+        triggers_to_process,
+        label="Building knowledge graph",
+        show_eta=True,
+        show_percent=True,
+        show_pos=True,
+        width=80,
     ) as bar:
         for trigger in bar:
             success = kg_builder.process_trigger_incremental(trigger, previous_trigger)
