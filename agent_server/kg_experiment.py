@@ -10,7 +10,7 @@ Proper CLI interface with clean separation of concerns:
 
 import logging
 import json
-from typing import List
+from typing import List, Optional
 import click
 
 from agent.conversation_persistence import ConversationPersistence
@@ -145,17 +145,17 @@ def cli(verbose: bool):
 
 @cli.command()
 @click.option("--conversation", "-c", default="baseline", help="Conversation to load")
-@click.option("--triggers", "-t", default=10, help="Number of triggers to process")
+@click.option("--triggers", "-t", default=None, help="Number of triggers to process")
 @click.option(
     "--output", "-o", required=True, help="Output file path for the knowledge graph"
 )
-def build(conversation: str, triggers: int, output: str):
+def build(conversation: str, triggers: Optional[int], output: str):
     """Build knowledge graph from conversation triggers and save it"""
 
     click.echo(f"🏗️  Building Knowledge Graph")
     click.echo("=" * 50)
     click.echo(f"Conversation: {conversation}")
-    click.echo(f"Triggers to process: {triggers}")
+    click.echo(f"Triggers to process: {triggers or 'all available'}")
     click.echo(f"Output file: {output}")
 
     # Load conversation data
@@ -191,7 +191,7 @@ def build(conversation: str, triggers: int, output: str):
 
     # Process triggers
     all_triggers = trigger_history.get_all_entries()
-    triggers_to_process = all_triggers[:triggers]
+    triggers_to_process = all_triggers[:triggers] if triggers else all_triggers
 
     click.echo(f"\n🔄 Processing {len(triggers_to_process)} triggers...")
 
