@@ -141,6 +141,12 @@ From my first-person perspective, extract knowledge using "I/me/my" language ONL
    - Describe entities from MY viewpoint using first-person language
    - Example: "David" = "The person I'm talking to" NOT "The person Chloe is talking to"
    - Example: "warmth" = "The emotion I'm feeling" NOT "The emotion Chloe is feeling"
+   - ENTITY TYPES: Choose the most specific type:
+     * "person" - People I interact with
+     * "emotion" - My emotional states  
+     * "concept" - Abstract ideas, topics, skills, activities (anime, gaming, trust)
+     * "object" - Physical things, places, tools, clothing, items (penthouse, dress, boots, web search tool)
+     * "goal" - Intentions or objectives I have
    - Use MY exact words/phrases from the conversation
    - High confidence (0.8-1.0) for things I directly experienced
    - Medium confidence (0.5-0.7) for things I clearly implied

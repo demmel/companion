@@ -6,11 +6,10 @@ Maintains a registry of relationship types with descriptions to avoid
 synonymous duplicates and provide consistency in relationship naming.
 """
 
-import json
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from datetime import datetime
-from dataclasses import dataclass
 from pydantic import BaseModel, Field
+from typing import Tuple
 import logging
 
 from agent.llm import LLM, SupportedModel
@@ -27,6 +26,10 @@ class RelationshipTypeMatch(BaseModel):
         description="Whether to use an existing relationship type"
     )
     relationship_type: str = Field(description="The relationship type to use")
+    flip_direction: bool = Field(
+        default=False,
+        description="Whether to flip the source and target entities for this relationship",
+    )
     reasoning: str = Field(description="Why this choice was made")
 
 
@@ -79,7 +82,7 @@ class RelationshipTypeBank:
         source_entity: str,
         target_entity: str,
         context: str = "",
-    ) -> str:
+    ) -> Tuple[str, bool]:
         """
         Get existing relationship type or create new one if appropriate.
 
@@ -91,14 +94,15 @@ class RelationshipTypeBank:
             context: Additional context about the relationship
 
         Returns:
-            The relationship type to actually use
+            Tuple of (relationship_type, should_flip_direction)
         """
 
         if not self.relationship_types:
             # First relationship type - just create it
-            return self._create_new_relationship_type(
+            self._create_new_relationship_type(
                 proposed_type, description, source_entity, target_entity
             )
+            return (proposed_type, False)
 
         # Check against existing types
         match = self._find_matching_relationship_type(
@@ -106,15 +110,50 @@ class RelationshipTypeBank:
         )
 
         if match.use_existing:
-            # Use existing type
+            # Use existing type (with safety check and directional fallback)
+            if match.relationship_type not in self.relationship_types:
+                # Check for common directional opposites
+                opposite_type = self._find_directional_opposite(match.relationship_type)
+                if opposite_type and opposite_type in self.relationship_types:
+                    logger.info(
+                        f"LLM suggested '{match.relationship_type}' but found directional opposite '{opposite_type}'. Using with flipped direction."
+                    )
+                    # Use the opposite type with flipped direction
+                    existing_entry = self.relationship_types[opposite_type]
+                    existing_entry.usage_count += 1
+                    existing_entry.last_used = datetime.now()
+                    return (opposite_type, not match.flip_direction)  # Flip the flip
+                else:
+                    logger.warning(
+                        f"LLM suggested using existing type '{match.relationship_type}' but it doesn't exist. Creating new type."
+                    )
+                    self._create_new_relationship_type(
+                        match.relationship_type,
+                        description,
+                        source_entity,
+                        target_entity,
+                    )
+                    return (match.relationship_type, match.flip_direction)
+
             existing_entry = self.relationship_types[match.relationship_type]
             existing_entry.usage_count += 1
             existing_entry.last_used = datetime.now()
 
-            # Add new example if it's different
-            new_example = (
-                f"{source_entity} --[{match.relationship_type}]--> {target_entity}"
-            )
+            # Handle direction flipping if needed
+            if match.flip_direction:
+                # Flip the entities in the example
+                new_example = (
+                    f"{target_entity} --[{match.relationship_type}]--> {source_entity}"
+                )
+                logger.info(
+                    f"Using existing relationship type with flipped direction: {match.relationship_type} "
+                    f"({source_entity} -> {target_entity} becomes {target_entity} -> {source_entity})"
+                )
+            else:
+                new_example = (
+                    f"{source_entity} --[{match.relationship_type}]--> {target_entity}"
+                )
+
             if new_example not in existing_entry.examples:
                 existing_entry.examples.append(new_example)
                 existing_entry.examples = existing_entry.examples[
@@ -124,15 +163,16 @@ class RelationshipTypeBank:
             logger.info(
                 f"Using existing relationship type: {match.relationship_type} (reason: {match.reasoning})"
             )
-            return match.relationship_type
+            return (match.relationship_type, match.flip_direction)
         else:
             # Create new type
             logger.info(
                 f"Creating new relationship type: {match.relationship_type} (reason: {match.reasoning})"
             )
-            return self._create_new_relationship_type(
+            self._create_new_relationship_type(
                 match.relationship_type, description, source_entity, target_entity
             )
+            return (match.relationship_type, False)
 
     def _find_matching_relationship_type(
         self,
@@ -171,8 +211,13 @@ Should I use an existing relationship type or create a new one? Consider:
 2. Would using an existing type maintain consistency?
 3. Is the proposed type meaningfully different from existing ones?
 4. Would a slight modification of existing type work better?
+5. DIRECTIONAL RELATIONSHIPS: For directional relationships (like "causes"/"caused_by", "owns"/"owned_by", "creates"/"created_by"), check if the existing relationship means the same thing but in the opposite direction. If so, you can use the existing type but set flip_direction=true.
 
-Choose the best relationship type to use and explain why."""
+IMPORTANT: If you choose an existing relationship type that has the opposite direction from what's needed, set flip_direction=true. For example:
+- If I want "A causes B" but existing type is "caused_by" with examples like "X caused_by Y", then use relationship_type="caused_by" with flip_direction=true
+- If I want "A gifted_by B" but existing type is "gifts" with examples like "X gifts Y", then use relationship_type="gifts" with flip_direction=true
+
+Choose the best relationship type to use, whether to flip direction, and explain why."""
 
         try:
             result = direct_structured_llm_call(
@@ -197,14 +242,19 @@ Choose the best relationship type to use and explain why."""
 
     def _create_new_relationship_type(
         self, rel_type: str, description: str, source_entity: str, target_entity: str
-    ) -> str:
+    ) -> None:
         """Create a new relationship type entry"""
 
         example = f"{source_entity} --[{rel_type}]--> {target_entity}"
 
+        # Generate a general conceptual description instead of using the specific instance
+        general_description = self._generate_general_description(
+            rel_type, description, source_entity, target_entity
+        )
+
         entry = RelationshipTypeEntry(
             name=rel_type,
-            description=description,
+            description=general_description,
             examples=[example],
             usage_count=1,
             created_at=datetime.now(),
@@ -214,7 +264,81 @@ Choose the best relationship type to use and explain why."""
         self.relationship_types[rel_type] = entry
         self.save_bank()
 
-        return rel_type
+    def _generate_general_description(
+        self,
+        rel_type: str,
+        specific_description: str,
+        source_entity: str,
+        target_entity: str,
+    ) -> str:
+        """Generate a general, reusable description for a relationship type"""
+
+        prompt = f"""I need to create a general description for the relationship type "{rel_type}".
+
+SPECIFIC EXAMPLE:
+{source_entity} --[{rel_type}]--> {target_entity}
+Context: {specific_description}
+
+Create a general, reusable description that explains what this relationship type means conceptually, not just this specific instance.
+
+Good examples:
+- "causes": "One entity causes, triggers, or brings about another entity or state"
+- "owns": "Someone possesses or has ownership of something"
+- "enables": "One thing allows, permits, or makes possible another thing"
+- "expresses": "One thing conveys, shows, or represents another thing"
+
+Bad examples:
+- "causes": "David's presence caused me to feel excitement" (too specific)
+- "owns": "David owns the penthouse" (just one example)
+
+Write a general description for "{rel_type}" that would apply to other similar relationships, not just this specific case."""
+
+        try:
+            from pydantic import BaseModel
+
+            class GeneralDescription(BaseModel):
+                description: str
+
+            result = direct_structured_llm_call(
+                prompt=prompt,
+                response_model=GeneralDescription,
+                model=self.model,
+                llm=self.llm,
+                caller="relationship_type_description",
+                temperature=0.3,
+            )
+            return result.description
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate general description for {rel_type}: {e}"
+            )
+            # Fallback: try to generalize the specific description
+            return (
+                f"A relationship where one entity {rel_type.replace('_', ' ')} another"
+            )
+
+    def _find_directional_opposite(self, relationship_type: str) -> Optional[str]:
+        """Find the directional opposite of a relationship type if it exists"""
+
+        # Common directional opposites
+        directional_pairs = {
+            "caused_by": "caused",
+            "caused": "caused_by",
+            "created_by": "created",
+            "created": "created_by",
+            "owned_by": "owned",
+            "owned": "owned_by",
+            "given_by": "given",
+            "given": "given_by",
+            "gifted_by": "gifted_to_me",
+            "gifted_to_me": "gifted_by",
+            "enabled_by": "enabled",
+            "enabled": "enabled_by",
+            "triggered_by": "triggered",
+            "triggered": "triggered_by",
+        }
+
+        return directional_pairs.get(relationship_type)
 
     def get_relationship_stats(self) -> Dict[str, Any]:
         """Get statistics about relationship types"""
@@ -344,8 +468,10 @@ if __name__ == "__main__":
 
     for proposed, desc, source, target in test_cases:
         print(f"\n  Testing: {source} --[{proposed}]--> {target}")
-        result = bank.get_or_create_relationship_type(proposed, desc, source, target)
-        print(f"  Result: {result}")
+        rel_type, should_flip = bank.get_or_create_relationship_type(
+            proposed, desc, source, target
+        )
+        print(f"  Result: {rel_type} (flip: {should_flip})")
 
     # Show final stats
     print(f"\n📊 Final Bank Stats:")

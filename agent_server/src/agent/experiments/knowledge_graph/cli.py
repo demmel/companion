@@ -135,11 +135,15 @@ def build_state_from_initial_exchange(initial_exchange: TriggerHistoryEntry) -> 
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 def cli(verbose: bool):
     """Knowledge Graph Experiment CLI"""
-    level = logging.INFO if verbose else logging.WARNING
+    # Always show INFO level for user feedback, DEBUG only in verbose mode
+    level = logging.DEBUG if verbose else logging.INFO
+
+    # Configure root logger
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler()],
+        force=True,  # Override existing configuration
     )
 
 
@@ -189,7 +193,7 @@ def build(conversation: str, triggers: Optional[int], output: str):
         llm, model, initial_state, relationship_bank
     )
 
-    click.echo(f"📅 Initialized historical state (mood: {initial_state.current_mood})")
+    click.echo(f"✅ Setup complete! Initial state (mood: {initial_state.current_mood})")
 
     # Process triggers
     all_triggers = trigger_history.get_all_entries()
@@ -413,6 +417,181 @@ def compare(
 
     click.echo(f"\n⚠️  Comparison logic not yet implemented")
     click.echo("Need graph loading and memory system integration")
+
+
+@cli.command()
+@click.argument("graph_file", type=click.Path(exists=True))
+@click.option(
+    "--similarity-threshold",
+    "-t",
+    default=0.85,
+    help="Cosine similarity threshold for duplicate detection (0.0-1.0)",
+)
+@click.option(
+    "--auto-merge",
+    "-a",
+    is_flag=True,
+    help="Automatically merge high-confidence duplicates without review",
+)
+@click.option(
+    "--dry-run",
+    "-n",
+    is_flag=True,
+    help="Show what would be merged without making changes",
+)
+def deduplicate(
+    graph_file: str, similarity_threshold: float, auto_merge: bool, dry_run: bool
+):
+    """Scan knowledge graph for duplicates using embedding similarity"""
+
+    click.echo(f"🔍 Knowledge Graph Deduplication")
+    click.echo("=" * 50)
+    click.echo(f"Graph file: {graph_file}")
+    click.echo(f"Similarity threshold: {similarity_threshold}")
+    click.echo(f"Auto-merge: {auto_merge}")
+    click.echo(f"Dry run: {dry_run}")
+
+    # Load the knowledge graph
+    try:
+        from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
+            KnowledgeExperienceGraph,
+        )
+        from agent.memory.embedding_service import get_embedding_service
+
+        graph = KnowledgeExperienceGraph.load_from_file(graph_file)
+        click.echo(
+            f"✅ Loaded graph: {len(graph.get_all_nodes())} nodes, {len(graph.get_all_relationships())} relationships"
+        )
+
+        embedding_service = get_embedding_service()
+        click.echo(f"✅ Loaded embedding service")
+
+    except Exception as e:
+        click.echo(f"❌ Failed to load graph or embedding service: {e}", err=True)
+        return
+
+    # Scan for node duplicates using embeddings
+    click.echo(f"\n🔍 Scanning for duplicate nodes...")
+
+    node_duplicates = []
+    nodes = list(graph.get_all_nodes())
+
+    # Group nodes by type for more efficient comparison
+    nodes_by_type = {}
+    for node in nodes:
+        node_type = node.node_type.value
+        if node_type not in nodes_by_type:
+            nodes_by_type[node_type] = []
+        nodes_by_type[node_type].append(node)
+
+    duplicate_pairs = []
+    total_comparisons = 0
+
+    # Compare nodes within each type
+    for node_type, type_nodes in nodes_by_type.items():
+        click.echo(f"   Checking {len(type_nodes)} {node_type} nodes...")
+
+        for i in range(len(type_nodes)):
+            for j in range(i + 1, len(type_nodes)):
+                node1, node2 = type_nodes[i], type_nodes[j]
+                total_comparisons += 1
+
+                # Generate embeddings if missing
+                if node1.embedding is None:
+                    embedding_text = (
+                        f"[{node1.node_type.value}] {node1.name}: {node1.description}"
+                    )
+                    node1.embedding = embedding_service.encode(embedding_text)
+
+                if node2.embedding is None:
+                    embedding_text = (
+                        f"[{node2.node_type.value}] {node2.name}: {node2.description}"
+                    )
+                    node2.embedding = embedding_service.encode(embedding_text)
+
+                # Calculate similarity
+                similarity = embedding_service.cosine_similarity(
+                    node1.embedding, node2.embedding
+                )
+
+                if similarity >= similarity_threshold:
+                    duplicate_pairs.append((node1, node2, similarity))
+
+    click.echo(f"   Completed {total_comparisons} comparisons")
+
+    if not duplicate_pairs:
+        click.echo("✅ No duplicate nodes found!")
+        return
+
+    click.echo(f"\n📋 Found {len(duplicate_pairs)} potential duplicate pairs:")
+
+    for i, (node1, node2, similarity) in enumerate(duplicate_pairs):
+        click.echo(f"\n--- Duplicate {i+1} (similarity: {similarity:.3f}) ---")
+        click.echo(f"Node 1: {node1.name} ({node1.node_type.value})")
+        click.echo(f"  Description: {node1.description[:100]}...")
+        click.echo(f"  Created: {node1.created_at}")
+        click.echo(f"  Access count: {node1.access_count}")
+
+        click.echo(f"Node 2: {node2.name} ({node2.node_type.value})")
+        click.echo(f"  Description: {node2.description[:100]}...")
+        click.echo(f"  Created: {node2.created_at}")
+        click.echo(f"  Access count: {node2.access_count}")
+
+    # Scan for relationship duplicates
+    click.echo(f"\n🔍 Scanning for duplicate relationships...")
+
+    relationships = list(graph.get_all_relationships())
+    relationship_groups = {}
+
+    # Group relationships by source-target-type triplets
+    for rel in relationships:
+        key = (rel.source_node_id, rel.target_node_id, rel.relationship_type)
+        if key not in relationship_groups:
+            relationship_groups[key] = []
+        relationship_groups[key].append(rel)
+
+    duplicate_relationships = [
+        (key, rels) for key, rels in relationship_groups.items() if len(rels) > 1
+    ]
+
+    if duplicate_relationships:
+        click.echo(
+            f"\n📋 Found {len(duplicate_relationships)} sets of duplicate relationships:"
+        )
+
+        for i, ((source_id, target_id, rel_type), rels) in enumerate(
+            duplicate_relationships
+        ):
+            source_node = graph.get_node(source_id)
+            target_node = graph.get_node(target_id)
+
+            click.echo(f"\n--- Duplicate Relationship Set {i+1} ---")
+            click.echo(
+                f"Relationship: {source_node.name if source_node else source_id} --[{rel_type}]--> {target_node.name if target_node else target_id}"
+            )
+            click.echo(f"Duplicate count: {len(rels)}")
+
+            for j, rel in enumerate(rels):
+                click.echo(
+                    f"  {j+1}. Created: {rel.created_at}, Confidence: {rel.confidence}, Strength: {rel.strength}"
+                )
+
+    else:
+        click.echo("✅ No duplicate relationships found!")
+
+    if dry_run:
+        click.echo(
+            f"\n💡 This was a dry run. Use --auto-merge to actually merge duplicates."
+        )
+    elif auto_merge:
+        click.echo(f"\n⚠️  Auto-merge functionality not yet implemented")
+        click.echo("Would merge duplicate nodes and relationships here")
+    else:
+        click.echo(
+            f"\n💡 Use --auto-merge to automatically merge duplicates, or --dry-run to preview changes"
+        )
+
+    click.echo(f"\n✅ Deduplication scan completed!")
 
 
 if __name__ == "__main__":

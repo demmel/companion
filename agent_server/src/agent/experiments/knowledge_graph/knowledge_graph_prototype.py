@@ -21,6 +21,7 @@ from agent.chain_of_action.trigger import UserInputTrigger
 from agent.chain_of_action.action.action_types import ActionType
 from agent.conversation_persistence import ConversationPersistence
 from agent.llm import LLM, SupportedModel, create_llm
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,39 @@ class NodeType(str, Enum):
     GOAL = "goal"  # Intentions, objectives
     PATTERN = "pattern"  # Behavioral/learning patterns
     CONTEXT = "context"  # Situational contexts
+    OBJECT = "object"  # Physical objects, tools, places, tangible items
+
+
+class RelationshipLifecycleState(str, Enum):
+    """Lifecycle states for temporal relationship management"""
+
+    ACTIVE = "active"  # Currently valid relationship
+    HISTORICAL = "historical"  # Was valid in the past, superseded by new information
+    DEPRECATED = "deprecated"  # Was incorrect, should not have existed
+    SUPERSEDED = "superseded"  # Was correct but replaced by evolved knowledge
+
+
+class ChangeType(str, Enum):
+    """Types of knowledge changes for temporal management"""
+
+    CORRECTION = (
+        "correction"  # Previous information was wrong, needs to be marked as deprecated
+    )
+    EVOLUTION = "evolution"  # Information changed over time, previous was correct then
+
+
+class ChangeDetectionResult(BaseModel):
+    """Result of analyzing whether new information is correction or evolution"""
+
+    change_type: ChangeType = Field(
+        description="Whether this is a correction or evolution"
+    )
+    reasoning: str = Field(description="Why this classification was made")
+    confidence: float = Field(description="Confidence in this classification (0.0-1.0)")
+    should_supersede: bool = Field(
+        description="Whether existing relationships should be superseded"
+    )
+    temporal_context: str = Field(description="Temporal context of the change")
 
 
 class RelationshipType(str, Enum):
@@ -97,7 +131,7 @@ class GraphNode:
 
 @dataclass
 class GraphRelationship:
-    """A relationship between nodes with confidence scoring"""
+    """A relationship between nodes with confidence scoring and temporal bounds"""
 
     id: str
     source_node_id: str
@@ -110,6 +144,15 @@ class GraphRelationship:
     reinforcement_count: int = 1
     properties: Dict[str, Any] = field(default_factory=dict)
     source_trigger_id: Optional[str] = None
+
+    # Temporal bounds for relationship validity
+    valid_from: datetime = field(default_factory=datetime.now)
+    valid_to: Optional[datetime] = None  # None means currently valid
+    lifecycle_state: RelationshipLifecycleState = RelationshipLifecycleState.ACTIVE
+
+    # Supersession tracking for temporal relationships
+    superseded_by: Optional[str] = None  # ID of relationship that supersedes this one
+    supersedes: Optional[str] = None  # ID of relationship this one supersedes
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -124,6 +167,11 @@ class GraphRelationship:
             "reinforcement_count": self.reinforcement_count,
             "properties": self.properties,
             "source_trigger_id": self.source_trigger_id,
+            "valid_from": self.valid_from.isoformat(),
+            "valid_to": self.valid_to.isoformat() if self.valid_to else None,
+            "lifecycle_state": self.lifecycle_state.value,
+            "superseded_by": self.superseded_by,
+            "supersedes": self.supersedes,
         }
 
 
@@ -269,6 +317,218 @@ class KnowledgeExperienceGraph:
             )
         return rel_type_counts
 
+    def detect_change_type(
+        self,
+        existing_relationships: List[GraphRelationship],
+        new_relationship_info: str,
+        context: str,
+        llm: LLM,
+        model: SupportedModel,
+    ) -> ChangeDetectionResult:
+        """
+        Detect whether new information represents a correction or evolution.
+
+        Args:
+            existing_relationships: List of potentially conflicting relationships
+            new_relationship_info: Description of the new relationship being added
+            context: Context about when/how this new information was obtained
+            llm: LLM instance for analysis
+            model: Model to use for analysis
+
+        Returns:
+            ChangeDetectionResult indicating correction vs evolution
+        """
+        from agent.structured_llm import direct_structured_llm_call
+
+        # Build summary of existing relationships
+        existing_summary = []
+        for rel in existing_relationships:
+            source_node = self.nodes.get(rel.source_node_id)
+            target_node = self.nodes.get(rel.target_node_id)
+            if source_node and target_node:
+                existing_summary.append(
+                    f"- {source_node.name} --[{rel.relationship_type}]--> {target_node.name} "
+                    f"(created: {rel.created_at.strftime('%Y-%m-%d')}, confidence: {rel.confidence})"
+                )
+
+        existing_text = (
+            "\n".join(existing_summary)
+            if existing_summary
+            else "No existing relationships"
+        )
+
+        prompt = f"""I need to determine whether new information represents a CORRECTION of past mistakes or an EVOLUTION of knowledge over time.
+
+EXISTING RELATIONSHIPS:
+{existing_text}
+
+NEW INFORMATION:
+{new_relationship_info}
+
+CONTEXT:
+{context}
+
+DEFINITIONS:
+- CORRECTION: The previous information was factually wrong or misinterpreted. The agent made an error in understanding or inference. The old information should be marked as deprecated because it was never actually true.
+
+- EVOLUTION: The previous information was correct at the time, but knowledge has genuinely changed. For example, preferences changing, situations evolving, or new developments occurring. The old information should be marked as historical/superseded.
+
+EXAMPLES:
+- CORRECTION: Agent thought "David likes anime" but David explicitly says "I never liked anime, I was just being polite"
+- EVOLUTION: Agent knew "David likes anime" but now David says "I used to like anime but I've grown out of it"
+
+Consider:
+1. Does the new information contradict the old information?
+2. Is there temporal language suggesting change over time ("used to", "now", "no longer")?
+3. Is there language suggesting the old information was wrong ("actually", "never really", "misunderstood")?
+4. What is the confidence level of the existing relationships?
+5. How recent are the existing relationships vs the new information?
+
+Analyze this situation and determine if this is a correction or evolution."""
+
+        try:
+            result = direct_structured_llm_call(
+                prompt=prompt,
+                response_model=ChangeDetectionResult,
+                model=model,
+                llm=llm,
+                caller="change_detection",
+                temperature=0.1,  # Low temperature for consistent classification
+            )
+
+            logger.info(
+                f"Change detection: {result.change_type.value} - {result.reasoning}"
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"Change detection failed: {e}")
+            # Fallback: assume evolution to be safe
+            return ChangeDetectionResult(
+                change_type=ChangeType.EVOLUTION,
+                reasoning="LLM analysis failed, defaulting to evolution to preserve historical data",
+                confidence=0.5,
+                should_supersede=True,
+                temporal_context="Unable to determine temporal context",
+            )
+
+    def supersede_relationships(
+        self,
+        relationships_to_supersede: List[GraphRelationship],
+        new_relationship: GraphRelationship,
+        change_type: ChangeType,
+    ) -> None:
+        """
+        Mark existing relationships as superseded by a new relationship.
+
+        Args:
+            relationships_to_supersede: List of relationships to mark as superseded
+            new_relationship: The new relationship that supersedes the old ones
+            change_type: Whether this is a correction or evolution
+        """
+
+        for old_rel in relationships_to_supersede:
+            # Set the appropriate lifecycle state based on change type
+            if change_type == ChangeType.CORRECTION:
+                old_rel.lifecycle_state = RelationshipLifecycleState.DEPRECATED
+                logger.info(
+                    f"Marked relationship {old_rel.id} as DEPRECATED (correction)"
+                )
+            else:  # EVOLUTION
+                old_rel.lifecycle_state = RelationshipLifecycleState.SUPERSEDED
+                logger.info(
+                    f"Marked relationship {old_rel.id} as SUPERSEDED (evolution)"
+                )
+
+            # Set temporal bounds - old relationship is no longer valid
+            old_rel.valid_to = new_relationship.created_at
+
+            # Create supersession links
+            old_rel.superseded_by = new_relationship.id
+            new_relationship.supersedes = (
+                old_rel.id
+            )  # Note: this overwrites if multiple, could use a list
+
+            # Update the relationship in storage
+            self.relationships[old_rel.id] = old_rel
+
+        # Ensure the new relationship is marked as active
+        new_relationship.lifecycle_state = RelationshipLifecycleState.ACTIVE
+        logger.info(
+            f"Created new {new_relationship.lifecycle_state.value} relationship {new_relationship.id}"
+        )
+
+    def get_active_relationships(
+        self, at_time: Optional[datetime] = None, include_historical: bool = False
+    ) -> List[GraphRelationship]:
+        """
+        Get relationships that were active at a specific time.
+
+        Args:
+            at_time: Time to check for active relationships (default: now)
+            include_historical: Whether to include historical/superseded relationships
+
+        Returns:
+            List of relationships that were active at the specified time
+        """
+        if at_time is None:
+            at_time = datetime.now()
+
+        active_rels = []
+        for rel in self.relationships.values():
+            # Skip deprecated relationships unless specifically requested
+            if (
+                not include_historical
+                and rel.lifecycle_state == RelationshipLifecycleState.DEPRECATED
+            ):
+                continue
+
+            # Check if relationship was valid at the requested time
+            if rel.valid_from <= at_time:
+                if rel.valid_to is None or rel.valid_to > at_time:
+                    # Only include if we want all types or if it's currently active
+                    if (
+                        include_historical
+                        or rel.lifecycle_state == RelationshipLifecycleState.ACTIVE
+                    ):
+                        active_rels.append(rel)
+
+        return active_rels
+
+    def get_relationship_history(
+        self,
+        source_node_id: str,
+        target_node_id: str,
+        relationship_type: Optional[str] = None,
+    ) -> List[GraphRelationship]:
+        """
+        Get the full history of relationships between two nodes.
+
+        Args:
+            source_node_id: Source node ID
+            target_node_id: Target node ID
+            relationship_type: Optional filter by relationship type
+
+        Returns:
+            List of relationships ordered by creation time (oldest first)
+        """
+        history = []
+
+        for rel in self.relationships.values():
+            if (
+                rel.source_node_id == source_node_id
+                and rel.target_node_id == target_node_id
+                and (
+                    relationship_type is None
+                    or rel.relationship_type == relationship_type
+                )
+            ):
+                history.append(rel)
+
+        # Sort by creation time
+        history.sort(key=lambda r: r.created_at)
+        return history
+
     def export_to_dict(self) -> Dict[str, Any]:
         """Export entire graph to dictionary"""
         return {
@@ -357,6 +617,21 @@ class KnowledgeExperienceGraph:
                 else:
                     created_at = rel_data["created_at"]
 
+            # Handle temporal fields with backwards compatibility
+            valid_from = created_at
+            if "valid_from" in rel_data:
+                valid_from = datetime.fromisoformat(rel_data["valid_from"])
+
+            valid_to = None
+            if "valid_to" in rel_data and rel_data["valid_to"]:
+                valid_to = datetime.fromisoformat(rel_data["valid_to"])
+
+            lifecycle_state = RelationshipLifecycleState.ACTIVE
+            if "lifecycle_state" in rel_data:
+                lifecycle_state = RelationshipLifecycleState(
+                    rel_data["lifecycle_state"]
+                )
+
             rel = GraphRelationship(
                 id=rel_data["id"],
                 source_node_id=rel_data["source_node_id"],
@@ -369,6 +644,11 @@ class KnowledgeExperienceGraph:
                 reinforcement_count=rel_data.get("reinforcement_count", 1),
                 properties=rel_data.get("properties", {}),
                 source_trigger_id=rel_data.get("source_trigger_id"),
+                valid_from=valid_from,
+                valid_to=valid_to,
+                lifecycle_state=lifecycle_state,
+                superseded_by=rel_data.get("superseded_by"),
+                supersedes=rel_data.get("supersedes"),
             )
             graph.add_relationship(rel)
 

@@ -40,6 +40,14 @@ class GraphQuery(BaseModel):
     include_recent: bool = Field(
         default=True, description="Whether to include recent experiences"
     )
+    include_historical: bool = Field(
+        default=False,
+        description="Whether to include historical/superseded relationships",
+    )
+    at_time: Optional[datetime] = Field(
+        default=None,
+        description="Time perspective for temporal queries (default: current time)",
+    )
     context_purpose: str = Field(description="What this context will be used for")
 
 
@@ -245,7 +253,18 @@ If querying would be helpful, specify:
 
                 all_relationships = outgoing + incoming
 
-                for rel in all_relationships:
+                # Filter to only relationships that were active at the query time
+                at_time = query.at_time if query.at_time else datetime.now()
+                active_relationships = [
+                    rel
+                    for rel in all_relationships
+                    if rel
+                    in self.graph.get_active_relationships(
+                        at_time=at_time, include_historical=query.include_historical
+                    )
+                ]
+
+                for rel in active_relationships:
                     # Filter by relationship type if specified
                     if (
                         query.relationship_types
@@ -471,6 +490,105 @@ If querying would be helpful, specify:
         )
 
         return context_header + context_text
+
+    def construct_temporal_context(
+        self,
+        focus_entities: List[str],
+        at_time: datetime,
+        include_evolution_history: bool = False,
+    ) -> str:
+        """
+        Construct context for a specific point in time with temporal awareness.
+
+        Args:
+            focus_entities: Entities to focus the query on
+            at_time: The time perspective to use
+            include_evolution_history: Whether to include relationship evolution history
+
+        Returns:
+            Formatted temporal context string
+        """
+
+        # Create temporal query
+        query = GraphQuery(
+            focus_entities=focus_entities,
+            at_time=at_time,
+            include_historical=include_evolution_history,
+            context_purpose=f"Temporal context at {at_time.strftime('%Y-%m-%d %H:%M')}",
+        )
+
+        context = self.execute_graph_query(query)
+
+        # Build temporal-aware context
+        sections = []
+
+        # Add temporal header
+        sections.append(f"CONTEXT AT {at_time.strftime('%Y-%m-%d %H:%M')}:")
+
+        if context.relevant_entities:
+            sections.append("\nRELEVANT ENTITIES:")
+            for entity in context.relevant_entities[:10]:
+                sections.append(
+                    f"- {entity.name} ({entity.node_type}): {entity.description}"
+                )
+
+        if context.relevant_relationships:
+            sections.append("\nKEY RELATIONSHIPS:")
+            for rel in context.relevant_relationships[:15]:
+                sections.append(
+                    f"- {rel.source} --[{rel.relationship_type}]--> {rel.target}"
+                )
+                if rel.description:
+                    sections.append(f"  {rel.description}")
+
+        # If including evolution history, add supersession information
+        if include_evolution_history:
+            sections.append("\nRELATIONSHIP EVOLUTION:")
+            evolution_info = []
+
+            for entity_name in focus_entities:
+                node = self.graph.get_node_by_name(entity_name)
+                if not node:
+                    continue
+
+                # Get relationships involving this entity
+                outgoing = self.graph.get_relationships_from_node(node.id)
+                incoming = self.graph.get_relationships_to_node(node.id)
+                all_rels = outgoing + incoming
+
+                # Group by supersession chains
+                superseded_rels = [r for r in all_rels if r.superseded_by]
+                if superseded_rels:
+                    evolution_info.append(f"\nEvolution for {entity_name}:")
+                    for old_rel in superseded_rels:
+                        source = self.graph.get_node(old_rel.source_node_id)
+                        target = self.graph.get_node(old_rel.target_node_id)
+                        if source and target:
+                            evolution_info.append(
+                                f"- Was: {source.name} --[{old_rel.relationship_type}]--> {target.name} "
+                                f"({old_rel.lifecycle_state.value})"
+                            )
+
+                            # Find what replaced it
+                            superseded_by = old_rel.superseded_by
+                            assert (
+                                superseded_by is not None
+                            ), "list constructed by superseded_by check, should not be None"
+                            new_rel = self.graph.relationships.get(superseded_by)
+                            if new_rel:
+                                new_source = self.graph.get_node(new_rel.source_node_id)
+                                new_target = self.graph.get_node(new_rel.target_node_id)
+                                if new_source and new_target:
+                                    evolution_info.append(
+                                        f"  Now: {new_source.name} --[{new_rel.relationship_type}]--> {new_target.name}"
+                                    )
+
+            if evolution_info:
+                sections.extend(evolution_info)
+            else:
+                sections.append("- No relationship evolution history found")
+
+        return "\n".join(sections)
 
 
 def test_knowledge_graph_querying():
