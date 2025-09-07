@@ -48,9 +48,8 @@ class ValidatedKnowledgeGraphBuilder:
         self.extractor = LLMKnowledgeExtractor(llm, model)
         self.llm = llm
         self.model = model
-        self.state = state
         # Track historical state progression - will be initialized with starting state
-        self.current_historical_state: Optional[State] = None
+        self.state: State = state
 
         # Use provided relationship bank or create new one
         self.relationship_bank = relationship_bank or RelationshipTypeBank(
@@ -63,16 +62,9 @@ class ValidatedKnowledgeGraphBuilder:
         # Track statistics for analysis
         self.entity_evolution_count = 0
 
-    def initialize_historical_state(self, initial_state: State) -> None:
-        """Initialize the historical state progression with the agent's initial state"""
-        self.current_historical_state = copy.deepcopy(initial_state)
-        logger.info(
-            f"Initialized historical state: mood={initial_state.current_mood}, environment={initial_state.current_environment}"
-        )
-
     def apply_action_effects_to_state(self, trigger: TriggerHistoryEntry) -> None:
         """Apply the effects of actions in this trigger to the current historical state"""
-        if not self.current_historical_state or not trigger.actions_taken:
+        if not self.state or not trigger.actions_taken:
             return
 
         for action in trigger.actions_taken:
@@ -82,14 +74,10 @@ class ValidatedKnowledgeGraphBuilder:
                     # Extract mood change from result
                     mood_result = action.result.content
                     if hasattr(mood_result, "new_mood"):
-                        old_mood = self.current_historical_state.current_mood
-                        self.current_historical_state.current_mood = (
-                            mood_result.new_mood
-                        )
+                        old_mood = self.state.current_mood
+                        self.state.current_mood = mood_result.new_mood
                         if hasattr(mood_result, "new_intensity"):
-                            self.current_historical_state.mood_intensity = (
-                                mood_result.new_intensity
-                            )
+                            self.state.mood_intensity = mood_result.new_intensity
                         logger.debug(
                             f"Applied mood change: {old_mood} -> {mood_result.new_mood}"
                         )
@@ -98,12 +86,8 @@ class ValidatedKnowledgeGraphBuilder:
                     # Extract appearance change from result
                     appearance_result = action.result.content
                     if hasattr(appearance_result, "new_appearance"):
-                        old_appearance = (
-                            self.current_historical_state.current_appearance
-                        )
-                        self.current_historical_state.current_appearance = (
-                            appearance_result.new_appearance
-                        )
+                        old_appearance = self.state.current_appearance
+                        self.state.current_appearance = appearance_result.new_appearance
                         logger.debug(
                             f"Applied appearance change: {old_appearance[:50]}... -> {appearance_result.new_appearance[:50]}..."
                         )
@@ -149,11 +133,7 @@ class ValidatedKnowledgeGraphBuilder:
             ]
 
         # Extract knowledge using historical state (not final state)
-        state_to_use = (
-            self.current_historical_state
-            if self.current_historical_state
-            else self.state
-        )
+        state_to_use = self.state
         extraction = self.extractor.extract_knowledge(
             trigger, state_to_use, recent_nodes
         )

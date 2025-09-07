@@ -180,11 +180,12 @@ def build(conversation: str, triggers: int, output: str):
     relationship_bank_file = output.replace(".json", "_relationships.json")
     relationship_bank = RelationshipTypeBank(llm, model, state, relationship_bank_file)
 
-    kg_builder = ValidatedKnowledgeGraphBuilder(llm, model, state, relationship_bank)
-
     # Initialize historical state progression
     initial_state = build_state_from_initial_exchange(initial_exchange)
-    kg_builder.initialize_historical_state(initial_state)
+
+    kg_builder = ValidatedKnowledgeGraphBuilder(
+        llm, model, initial_state, relationship_bank
+    )
 
     click.echo(f"📅 Initialized historical state (mood: {initial_state.current_mood})")
 
