@@ -6,6 +6,7 @@ Builds a proper knowledge+experience graph using the validated LLM extraction
 system, creating meaningful nodes and relationships with confidence scoring.
 """
 
+import time
 import uuid
 from typing import Dict, Optional, Any
 from datetime import datetime
@@ -140,6 +141,8 @@ class ValidatedKnowledgeGraphBuilder:
             logger.debug(f"Trigger {trigger.entry_id} already processed, skipping")
             return True
 
+        time_start = time.time()
+
         logger.info(f"Processing trigger: {trigger.entry_id} at {trigger.timestamp}")
 
         # Always create experience node first
@@ -207,6 +210,11 @@ class ValidatedKnowledgeGraphBuilder:
 
         # Apply action effects to historical state AFTER processing
         self.apply_action_effects_to_state(trigger)
+
+        time_end = time.time()
+        logger.info(
+            f"Finished processing trigger {trigger.entry_id} in {time_end - time_start:.2f} seconds"
+        )
 
         return True
 
