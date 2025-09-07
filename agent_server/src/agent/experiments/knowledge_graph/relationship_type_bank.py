@@ -30,8 +30,7 @@ class RelationshipTypeMatch(BaseModel):
     reasoning: str = Field(description="Why this choice was made")
 
 
-@dataclass
-class RelationshipTypeEntry:
+class RelationshipTypeEntry(BaseModel):
     """Entry in the relationship type bank"""
 
     name: str
@@ -41,26 +40,12 @@ class RelationshipTypeEntry:
     created_at: datetime
     last_used: datetime
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "name": self.name,
-            "description": self.description,
-            "examples": self.examples,
-            "usage_count": self.usage_count,
-            "created_at": self.created_at.isoformat(),
-            "last_used": self.last_used.isoformat(),
-        }
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "RelationshipTypeEntry":
-        return cls(
-            name=data["name"],
-            description=data["description"],
-            examples=data.get("examples", []),
-            usage_count=data.get("usage_count", 0),
-            created_at=datetime.fromisoformat(data["created_at"]),
-            last_used=datetime.fromisoformat(data["last_used"]),
-        )
+class RelationshipTypeBankFileData(BaseModel):
+    """Schema for saving/loading the entire relationship type bank"""
+
+    relationship_types: Dict[str, RelationshipTypeEntry]
+    last_updated: datetime
 
 
 class RelationshipTypeBank:
@@ -267,16 +252,13 @@ Choose the best relationship type to use and explain why."""
     def save_bank(self):
         """Save relationship type bank to file"""
         try:
-            data = {
-                "relationship_types": {
-                    name: entry.to_dict()
-                    for name, entry in self.relationship_types.items()
-                },
-                "last_updated": datetime.now().isoformat(),
-            }
+            data = RelationshipTypeBankFileData(
+                relationship_types=self.relationship_types,
+                last_updated=datetime.now(),
+            )
 
             with open(self.bank_file, "w") as f:
-                json.dump(data, f, indent=2)
+                f.write(data.model_dump_json(indent=2))
 
             logger.debug(
                 f"Saved relationship bank with {len(self.relationship_types)} types"
@@ -289,12 +271,10 @@ Choose the best relationship type to use and explain why."""
         """Load relationship type bank from file"""
         try:
             with open(self.bank_file, "r") as f:
-                data = json.load(f)
+                data = f.read()
+                data = RelationshipTypeBankFileData.model_validate_json(data)
 
-            self.relationship_types = {
-                name: RelationshipTypeEntry.from_dict(entry_data)
-                for name, entry_data in data.get("relationship_types", {}).items()
-            }
+            self.relationship_types = data.relationship_types
 
             logger.info(
                 f"Loaded relationship bank with {len(self.relationship_types)} types"
