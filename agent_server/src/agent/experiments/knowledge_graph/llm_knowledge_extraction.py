@@ -202,7 +202,6 @@ class LLMKnowledgeExtractor:
                 model=self.model,
                 llm=self.llm,
                 caller="knowledge_extraction",
-                temperature=0.3,  # Lower temperature for more consistent extraction
             )
 
             logger.info(

@@ -208,7 +208,6 @@ If querying would be helpful, specify:
                 model=self.model,
                 llm=self.llm,
                 caller="graph_query_determination",
-                temperature=0.3,
             )
 
             return determination

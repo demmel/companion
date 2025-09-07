@@ -226,7 +226,6 @@ Choose the best relationship type to use, whether to flip direction, and explain
                 model=self.model,
                 llm=self.llm,
                 caller="relationship_type_matching",
-                temperature=0.2,
             )
 
             return result
@@ -305,7 +304,6 @@ Write a general description for "{rel_type}" that would apply to other similar r
                 model=self.model,
                 llm=self.llm,
                 caller="relationship_type_description",
-                temperature=0.3,
             )
             return result.description
         except Exception as e:

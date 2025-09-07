@@ -569,7 +569,6 @@ Description:"""
                 model=self.model,
                 llm=self.llm,
                 caller="entity_evolution",
-                temperature=0.3,
             )
 
             return result.description
@@ -766,7 +765,6 @@ Validate this relationship and explain your reasoning. If invalid, suggest a bet
                 model=self.model,
                 llm=self.llm,
                 caller="relationship_validation",
-                temperature=0.1,  # Low temperature for consistent validation
             )
 
             return result
@@ -826,7 +824,6 @@ If they are the same entity, provide the existing entity's normalized name."""
                 model=self.model,
                 llm=self.llm,
                 caller="entity_similarity_matching",
-                temperature=0.2,
             )
             return result
         except Exception as e:

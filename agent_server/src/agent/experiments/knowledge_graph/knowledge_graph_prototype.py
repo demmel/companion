@@ -393,7 +393,6 @@ Analyze this situation and determine if this is a correction or evolution."""
                 model=model,
                 llm=llm,
                 caller="change_detection",
-                temperature=0.1,  # Low temperature for consistent classification
             )
 
             logger.info(
