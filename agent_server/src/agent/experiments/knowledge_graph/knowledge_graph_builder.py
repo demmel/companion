@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 import copy
 
+from agent.chain_of_action.prompts import format_action_for_diary
 from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
     KnowledgeExperienceGraph,
     GraphNode,
@@ -26,7 +27,11 @@ from agent.experiments.knowledge_graph.relationship_type_bank import (
     RelationshipTypeBank,
 )
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.chain_of_action.trigger import UserInputTrigger
+from agent.chain_of_action.trigger import (
+    UserInputTrigger,
+    WakeupTrigger,
+    format_trigger_for_prompt,
+)
 from agent.chain_of_action.action.action_types import ActionType
 from agent.llm import LLM, SupportedModel
 from agent.state import State
@@ -184,84 +189,29 @@ class ValidatedKnowledgeGraphBuilder:
         """Create experience node preserving full trigger context"""
 
         # Build meaningful name and description
-        user_input = None
-        if isinstance(trigger.trigger, UserInputTrigger):
-            user_input = trigger.trigger.content
-
-        if user_input:
-            name = (
-                f"User: {user_input[:50]}..."
-                if len(user_input) > 50
-                else f"User: {user_input}"
-            )
-        else:
-            name = f"Experience at {trigger.timestamp.strftime('%H:%M')}"
-
-        # Build rich description
         description_parts = []
-        if user_input:
-            description_parts.append(f"User said: {user_input}")
 
-        # Add agent actions with more detail
-        if trigger.actions_taken:
-            for action in trigger.actions_taken:
-                if action.type == ActionType.THINK:
-                    description_parts.append(
-                        f"Agent thought: {action.input.focus[:100]}..."
-                    )
-                elif action.type == ActionType.SPEAK:
-                    # Use actual spoken text from results
-                    if action.result and action.result.type == "success":
-                        response = action.result.content.response
-                        if response:
-                            description_parts.append(f"Agent said: {response[:100]}...")
-                elif action.type == ActionType.UPDATE_MOOD:
-                    description_parts.append(
-                        f"Agent updated mood to {action.input.new_mood}: {action.input.reason[:50]}..."
-                    )
-                elif action.type == ActionType.UPDATE_APPEARANCE:
-                    description_parts.append(
-                        f"Agent updated appearance: {action.input.change_description[:50]}..."
-                    )
+        if isinstance(trigger.trigger, UserInputTrigger):
+            name = (
+                f"User said: {trigger.trigger.content[:50]}..."
+                if len(trigger.trigger.content) > 50
+                else f"User: {trigger.trigger.content}"
+            )
+        elif isinstance(trigger.trigger, WakeupTrigger):
+            name = "Wakeup at " + trigger.timestamp.strftime("%H:%M")
+        else:
+            name = "Experience at " + trigger.timestamp.strftime("%H:%M")
 
-        description = (
-            "; ".join(description_parts) if description_parts else "Experience"
-        )
+        description = trigger.compressed_summary or "No summary available."
 
         return GraphNode(
             id=f"exp_{trigger.entry_id}",
             node_type=NodeType.EXPERIENCE,
             name=name,
             description=description,
-            properties={
-                "timestamp": trigger.timestamp.isoformat(),
-                "user_input": user_input,
-                "actions": (
-                    [
-                        {
-                            "type": action.type,
-                            "focus": (
-                                action.input.focus
-                                if action.type == ActionType.THINK
-                                else ""
-                            ),
-                            "intent": (
-                                action.input.intent
-                                if action.type == ActionType.SPEAK
-                                else ""
-                            ),
-                            "tone": (
-                                action.input.tone
-                                if action.type == ActionType.SPEAK
-                                else ""
-                            ),
-                        }
-                        for action in trigger.actions_taken
-                    ]
-                    if trigger.actions_taken
-                    else []
-                ),
-            },
+            properties=trigger.model_dump(
+                mode="json", include={"trigger", "actions_taken", "timestamp"}
+            ),
             source_trigger_id=trigger.entry_id,
         )
 
