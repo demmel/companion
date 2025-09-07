@@ -14,10 +14,8 @@ from agent.state import State
 from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
     KnowledgeExperienceGraph,
 )
-from agent.experiments.knowledge_graph.kg_query_extraction import (
-    KnowledgeGraphQuery,
-)
 from agent.experiments.knowledge_graph.knowledge_graph_querying import (
+    GraphQuery,
     ContextualInformation,
     ContextEntity,
     ContextRelationship,
@@ -49,7 +47,7 @@ class KGContextBuilder:
 
     def build_context_from_kg_query(
         self,
-        kg_query: KnowledgeGraphQuery,
+        kg_query: GraphQuery,
         format_type: ContextFormat = ContextFormat.STRUCTURED,
         max_context_length: int = 2000,
     ) -> str:
@@ -94,7 +92,7 @@ class KGContextBuilder:
         return context
 
     def _execute_kg_query(
-        self, kg_query: KnowledgeGraphQuery
+        self, kg_query: GraphQuery
     ) -> Optional[ContextualInformation]:
         """Execute a KG query and return contextual information"""
 
@@ -180,7 +178,7 @@ class KGContextBuilder:
                 break
 
         # Include recent experiences if requested
-        if kg_query.include_recent_experiences:
+        if kg_query.include_recent:
             recent_experiences = [
                 node
                 for node in self.graph.get_all_nodes()
@@ -385,11 +383,12 @@ def test_context_formats():
     context_builder = KGContextBuilder(graph, state)
 
     # Test different formats with a sample query
-    test_query = KnowledgeGraphQuery(
+    test_query = GraphQuery(
         focus_entities=["David", "anxiety"],
         relationship_types=["involves", "caused", "relates_to"],
         max_depth=2,
-        include_recent_experiences=True,
+        include_recent=True,
+        context_purpose="testing different context formats",
     )
 
     print(f"\n🧪 Testing Context Formats...")

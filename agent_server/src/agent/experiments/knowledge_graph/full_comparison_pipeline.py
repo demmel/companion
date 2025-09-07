@@ -24,7 +24,9 @@ from agent.memory.memory_extraction import (
 from agent.experiments.knowledge_graph.knowledge_graph_builder import (
     ValidatedKnowledgeGraphBuilder,
 )
-from agent.experiments.knowledge_graph.kg_query_extraction import extract_kg_queries
+from agent.experiments.knowledge_graph.knowledge_graph_querying import (
+    KnowledgeGraphQuerying,
+)
 from agent.experiments.knowledge_graph.kg_context_builder import (
     KGContextBuilder,
     ContextFormat,
@@ -220,27 +222,35 @@ class FullComparisonPipeline:
         start_time = time.time()
 
         try:
-            # Extract KG queries using new component
-            kg_extraction = extract_kg_queries(
-                state=self.state,
-                trigger=trigger,
-                trigger_history=self.trigger_history,
-                available_entities=self.available_entities,
-                available_relationship_types=self.available_relationship_types,
-                llm=self.llm,
-                model=self.model,
+            # Use the consolidated querying system
+            querying = KnowledgeGraphQuerying(
+                self.kg_builder.graph, self.llm, self.model, self.state
+            )
+            recent_triggers = self.trigger_history.get_all_entries()[
+                -3:
+            ]  # Last 3 for context
+
+            # Get user input from trigger
+            user_input = trigger.content
+
+            query_determination = querying.determine_context_needs(
+                user_input, recent_triggers
             )
 
-            if kg_extraction and kg_extraction.should_query and kg_extraction.kg_query:
+            if (
+                query_determination
+                and query_determination.should_query
+                and query_determination.query
+            ):
                 results.kg_should_query = True
-                results.kg_focus_entities = kg_extraction.kg_query.focus_entities
+                results.kg_focus_entities = query_determination.query.focus_entities
                 results.kg_relationship_types = (
-                    kg_extraction.kg_query.relationship_types
+                    query_determination.query.relationship_types
                 )
 
                 # Build context using experimental context builder
                 kg_context = self.kg_context_builder.build_context_from_kg_query(
-                    kg_extraction.kg_query,
+                    query_determination.query,
                     format_type=format_type,
                     max_context_length=2000,
                 )
