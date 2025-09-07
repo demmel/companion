@@ -205,11 +205,9 @@ def build(conversation: str, triggers: Optional[int], output: str):
             success = kg_builder.process_trigger_incremental(trigger, previous_trigger)
             if success:
                 successful += 1
+            kg_builder.save_graph(output)
+            relationship_bank.save_bank()
             previous_trigger = trigger
-
-    # Save the graph
-    kg_builder.save_graph(output)
-    relationship_bank.save_bank()
 
     # Show final statistics
     stats = kg_builder.get_stats()
