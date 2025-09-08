@@ -28,6 +28,7 @@ from agent.experiments.knowledge_graph.llm_knowledge_extraction import (
 from agent.experiments.knowledge_graph.relationship_type_bank import (
     RelationshipTypeBank,
 )
+from agent.chain_of_action.prompts import format_single_trigger_entry
 from agent.experiments.knowledge_graph.performance_profiler import (
     profiler,
     PerformanceBreakdown,
@@ -691,7 +692,7 @@ class ValidatedKnowledgeGraphBuilder:
                 )
 
         # Get full text for N-ary extraction
-        trigger_text = self._get_trigger_text(trigger)
+        trigger_text = format_single_trigger_entry(trigger, use_summary=False)
         context = f"Experience node: {experience_node.description}"
 
         with profiler.section("nary_relationship_extraction"):
@@ -728,28 +729,6 @@ class ValidatedKnowledgeGraphBuilder:
             f"Added {valid_relationships} valid N-ary relationships (validation rate: {valid_relationships/len(nary_relationships) if nary_relationships else 0:.2f})"
         )
 
-    def _get_trigger_text(self, trigger: TriggerHistoryEntry) -> str:
-        """Extract text content from trigger for N-ary relationship extraction"""
-        text_parts = []
-
-        # Add trigger context
-        trigger_message = (
-            trigger.trigger.content
-            if isinstance(trigger.trigger, UserInputTrigger)
-            else None
-        )
-        if trigger_message:
-            text_parts.append(str(trigger_message))
-
-        # Add action results
-        for action in trigger.actions_taken:
-            if action.result.type == "success" and action.result.content:
-                # Use the standardized result summary method
-                result_summary = action.result.content.result_summary()
-                if result_summary:
-                    text_parts.append(str(result_summary))
-
-        return " ".join(text_parts)
 
     def _map_entity_type_to_node_type(self, entity_type: str) -> NodeType:
         """Map extracted entity type to graph node type"""
