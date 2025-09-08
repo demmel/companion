@@ -29,6 +29,7 @@ from agent.experiments.knowledge_graph.relationship_type_bank import (
     RelationshipTypeBank,
 )
 from agent.chain_of_action.prompts import format_single_trigger_entry
+from agent.experiments.knowledge_graph.n_ary_extraction import ExistingEntityData
 from agent.experiments.knowledge_graph.performance_profiler import (
     profiler,
     PerformanceBreakdown,
@@ -684,11 +685,11 @@ class ValidatedKnowledgeGraphBuilder:
                 NodeType.GOAL,
             ]:
                 existing_entities.append(
-                    {
-                        "name": node.name,
-                        "type": node.node_type.value,
-                        "description": node.description,
-                    }
+                    ExistingEntityData(
+                        name=node.name,
+                        type=node.node_type.value,
+                        description=node.description,
+                    )
                 )
 
         # Get full text for N-ary extraction
