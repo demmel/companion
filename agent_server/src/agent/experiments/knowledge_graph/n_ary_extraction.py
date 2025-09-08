@@ -123,10 +123,12 @@ SEMANTIC ROLES AVAILABLE:
 EXTRACTION GUIDELINES:
 1. Look for relationships that involve 3 or more entities with distinct roles
 2. Identify the relationship type (gave, prefers, used, causes, creates, etc.)
-3. Assign semantic roles to each participant
-4. Match against the predefined patterns when possible
-5. Extract evidence text that supports each relationship
-6. Focus on meaningful relationships that capture the full semantic structure
+3. Use GENERIC relationship types - NEVER include specific names (e.g., use 'prefers' not 'David_prefers')
+4. Assign semantic roles to each participant
+5. Match against the predefined patterns when possible
+6. Extract evidence text that supports each relationship
+7. Focus on meaningful relationships that capture the full semantic structure
+8. AVOID backwards causation - emotions/feelings cannot cause physical objects or people
 
 EXAMPLES:
 - "David gave me the penthouse" → gave(agent: David, beneficiary: me, object: penthouse)

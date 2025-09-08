@@ -25,6 +25,9 @@ from agent.experiments.knowledge_graph.knowledge_graph_querying import (
     GraphQuery,
     KnowledgeGraphQuerying,
 )
+from agent.experiments.knowledge_graph.graph_maintenance import (
+    GraphMaintenanceSystem,
+)
 from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.state import State, Value, Priority
@@ -193,6 +196,9 @@ def build(conversation: str, triggers: Optional[int], output: str):
         llm, model, initial_state, relationship_bank
     )
 
+    # Initialize graph maintenance
+    graph_maintenance = GraphMaintenanceSystem(llm, model, initial_state)
+
     click.echo(f"✅ Setup complete! Initial state (mood: {initial_state.current_mood})")
 
     # Process triggers
@@ -212,10 +218,28 @@ def build(conversation: str, triggers: Optional[int], output: str):
         show_pos=True,
         width=80,
     ) as bar:
-        for trigger in bar:
+        for i, trigger in enumerate(bar):
             success = kg_builder.process_trigger_incremental(trigger, previous_trigger)
             if success:
                 successful += 1
+
+            # Run maintenance every 5 triggers or on the last trigger
+            if (i + 1) % 5 == 0 or i == len(triggers_to_process) - 1:
+                click.echo(f"\n🔧 Running graph maintenance...")
+                maintenance_results = graph_maintenance.analyze_graph(kg_builder.graph)
+                if len(maintenance_results.contradictions) > 0:
+                    click.echo(
+                        f"   Found {len(maintenance_results.contradictions)} contradictions"
+                    )
+                if len(maintenance_results.logical_leaps) > 0:
+                    click.echo(
+                        f"   Found {len(maintenance_results.logical_leaps)} logical leaps"
+                    )
+                if len(maintenance_results.semantic_refinements) > 0:
+                    click.echo(
+                        f"   Found {len(maintenance_results.semantic_refinements)} refinement opportunities"
+                    )
+
             kg_builder.save_graph(output)
             relationship_bank.save_bank()
             previous_trigger = trigger
@@ -229,9 +253,11 @@ def build(conversation: str, triggers: Optional[int], output: str):
     click.echo(f"   Relationship types: {len(stats.get('relationship_types', {}))}")
     click.echo(f"   Entity evolutions: {kg_builder.entity_evolution_count}")
 
-    # Show performance breakdown
+    # Show performance breakdown including profiler data
     click.echo(f"\n⚡ Performance Breakdown:")
-    kg_builder.print_performance_breakdown()
+    from agent.experiments.knowledge_graph.performance_profiler import profiler
+
+    profiler.print_breakdown_report()
 
     click.echo(f"\n💾 Saved to: {output}")
     click.echo(f"💾 Relationships saved to: {relationship_bank_file}")

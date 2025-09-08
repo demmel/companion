@@ -29,6 +29,12 @@ from agent.experiments.knowledge_graph.relationship_type_bank import (
 )
 from agent.experiments.knowledge_graph.performance_profiler import profiler
 from agent.experiments.knowledge_graph.knn_entity_search import KNNEntityDeduplicator
+from agent.experiments.knowledge_graph.n_ary_extraction import (
+    NaryRelationshipExtractor,
+)
+from agent.experiments.knowledge_graph.n_ary_relationship import (
+    NaryRelationshipManager,
+)
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.chain_of_action.trigger import (
     UserInputTrigger,
@@ -216,6 +222,10 @@ class ValidatedKnowledgeGraphBuilder:
         # kNN-based entity deduplication system
         self.entity_deduplicator = KNNEntityDeduplicator(similarity_threshold=0.85)
 
+        # N-ary relationship extraction and management
+        self.nary_extractor = NaryRelationshipExtractor(llm, model)
+        self.nary_manager = NaryRelationshipManager()
+
         # Performance metrics tracking
         self.metrics = PerformanceMetrics()
 
@@ -230,24 +240,18 @@ class ValidatedKnowledgeGraphBuilder:
                 if action.type == ActionType.UPDATE_MOOD:
                     # Extract mood change from result
                     mood_result = action.result.content
-                    if hasattr(mood_result, "new_mood"):
-                        old_mood = self.state.current_mood
-                        self.state.current_mood = mood_result.new_mood
-                        if hasattr(mood_result, "new_intensity"):
-                            self.state.mood_intensity = mood_result.new_intensity
-                        logger.debug(
-                            f"Applied mood change: {old_mood} -> {mood_result.new_mood}"
-                        )
+                    old_mood = self.state.current_mood
+                    self.state.current_mood = mood_result.new_mood
+                    self.state.mood_intensity = mood_result.new_intensity
 
                 elif action.type == ActionType.UPDATE_APPEARANCE:
                     # Extract appearance change from result
                     appearance_result = action.result.content
-                    if hasattr(appearance_result, "new_appearance"):
-                        old_appearance = self.state.current_appearance
-                        self.state.current_appearance = appearance_result.new_appearance
-                        logger.debug(
-                            f"Applied appearance change: {old_appearance[:50]}... -> {appearance_result.new_appearance[:50]}..."
-                        )
+                    old_appearance = self.state.current_appearance
+                    self.state.current_appearance = appearance_result.new_appearance
+                    logger.debug(
+                        f"Applied appearance change: {old_appearance[:50]}... -> {appearance_result.new_appearance[:50]}..."
+                    )
 
                 # Note: Other action types like SPEAK, THINK don't modify core state
                 # but could be extended here if needed
@@ -585,101 +589,90 @@ class ValidatedKnowledgeGraphBuilder:
         experience_node: GraphNode,
         trigger: TriggerHistoryEntry,
     ) -> None:
-        """Build relationships between knowledge nodes from extraction"""
+        """Build N-ary relationships between knowledge nodes from extraction"""
 
-        for rel_extraction in extraction.relationships:
-            # Find the source and target nodes
-            source_name = rel_extraction.source_entity.lower().strip()
-            target_name = rel_extraction.target_entity.lower().strip()
+        # Extract existing entities for context
+        existing_entities = []
+        for node_id, node in self.graph.nodes.items():
+            if node.node_type in [
+                NodeType.PERSON,
+                NodeType.CONCEPT,
+                NodeType.OBJECT,
+                NodeType.EMOTION,
+                NodeType.GOAL,
+            ]:
+                existing_entities.append(
+                    {
+                        "name": node.name,
+                        "type": node.node_type.value,
+                        "description": node.description,
+                    }
+                )
 
-            # Use new collision-aware lookup
-            source_node_id = self._find_entity_by_name(source_name)
-            target_node_id = self._find_entity_by_name(target_name)
+        # Get full text for N-ary extraction
+        trigger_text = self._get_trigger_text(trigger)
+        context = f"Experience node: {experience_node.description}"
 
-            if source_node_id and target_node_id:
-                # Use relationship bank to get or create relationship type
-                rel_type, should_flip = (
-                    self.relationship_bank.get_or_create_relationship_type(
-                        proposed_type=rel_extraction.relationship_type,
-                        description=rel_extraction.description,
-                        source_entity=rel_extraction.source_entity,
-                        target_entity=rel_extraction.target_entity,
-                        context=f"From trigger {trigger.entry_id}: {rel_extraction.evidence}",
+        with profiler.section("nary_relationship_extraction"):
+            # Extract N-ary relationships using semantic roles
+            nary_relationships = self.nary_extractor.extract_nary_relationships(
+                text=trigger_text, context=context, existing_entities=existing_entities
+            )
+
+        logger.info(f"Extracted {len(nary_relationships)} N-ary relationships")
+
+        with profiler.section("nary_relationship_processing"):
+            # Process N-ary relationships
+            valid_relationships = 0
+            for nary_rel in nary_relationships:
+                # Convert N-ary relationship to our internal format
+                nary_relationship = self.nary_extractor.convert_to_nary_relationship(
+                    nary_rel, self.entity_name_to_node_id, trigger.entry_id
+                )
+
+                if nary_relationship:
+                    # Add to N-ary manager
+                    self.nary_manager.add_nary_relationship(nary_relationship)
+
+                    # Also create binary relationship for backward compatibility
+                    binary_rel = nary_relationship.to_binary_relationship()
+                    self.graph.add_relationship(binary_rel)
+
+                    valid_relationships += 1
+                    logger.debug(
+                        f"Added N-ary relationship: {nary_rel.relationship_type} with {len(nary_rel.participants)} participants"
                     )
-                )
 
-                # Handle direction flipping if needed
-                final_source_id = target_node_id if should_flip else source_node_id
-                final_target_id = source_node_id if should_flip else target_node_id
-                final_source_name = (
-                    rel_extraction.target_entity
-                    if should_flip
-                    else rel_extraction.source_entity
-                )
-                final_target_name = (
-                    rel_extraction.source_entity
-                    if should_flip
-                    else rel_extraction.target_entity
-                )
+        logger.info(
+            f"Added {valid_relationships} valid N-ary relationships (validation rate: {valid_relationships/len(nary_relationships) if nary_relationships else 0:.2f})"
+        )
 
-                if should_flip:
-                    logger.info(
-                        f"Flipping relationship direction: {rel_extraction.source_entity} -> {rel_extraction.target_entity} "
-                        f"becomes {rel_extraction.target_entity} -> {rel_extraction.source_entity} for relationship '{rel_type}'"
-                    )
+    def _get_trigger_text(self, trigger: TriggerHistoryEntry) -> str:
+        """Extract text content from trigger for N-ary relationship extraction"""
+        text_parts = []
 
-                # Validate relationship semantics
-                source_node = self.graph.nodes[final_source_id]
-                target_node = self.graph.nodes[final_target_id]
+        # Add trigger context
+        trigger_message = getattr(trigger.trigger, "message", None)
+        if trigger_message:
+            text_parts.append(str(trigger_message))
 
-                validation = self._validate_relationship_semantics(
-                    source_entity_name=final_source_name,
-                    target_entity_name=final_target_name,
-                    relationship_type=rel_type,
-                    description=rel_extraction.description,
-                    source_node_type=source_node.node_type.value,
-                    target_node_type=target_node.node_type.value,
-                )
+        # Add action results
+        for action in trigger.actions_taken:
+            if action.result.type == "success" and action.result.content:
+                # Extract thoughts if available
+                thoughts = getattr(action.result.content, "thoughts", None)
+                if thoughts:
+                    text_parts.append(str(thoughts))
+                # Extract message if available
+                message = getattr(action.result.content, "message", None)
+                if message:
+                    text_parts.append(str(message))
+                # Extract content if available
+                content = getattr(action.result.content, "content", None)
+                if content:
+                    text_parts.append(str(content))
 
-                if not validation.is_valid:
-                    logger.warning(
-                        f"Skipping invalid relationship: {final_source_name} --[{rel_type}]--> {final_target_name}. "
-                        f"Reason: {validation.reasoning}"
-                    )
-                    if validation.suggested_fix:
-                        logger.info(f"Suggestion: {validation.suggested_fix}")
-                    continue  # Skip this relationship
-
-                # Calculate proper strength based on relationship characteristics
-                relationship_strength = self._calculate_relationship_strength(
-                    rel_extraction, rel_type, trigger
-                )
-
-                # Create relationship
-                rel = GraphRelationship(
-                    id=str(uuid.uuid4()),
-                    source_node_id=final_source_id,
-                    target_node_id=final_target_id,
-                    relationship_type=rel_type,
-                    confidence=rel_extraction.confidence,
-                    strength=relationship_strength,
-                    properties={
-                        "description": rel_extraction.description,
-                        "extraction_evidence": rel_extraction.evidence,
-                        "original_rel_type": rel_extraction.relationship_type,
-                        "direction_flipped": should_flip,
-                    },
-                    source_trigger_id=trigger.entry_id,
-                )
-                self.graph.add_relationship(rel)
-
-                logger.debug(
-                    f"Added relationship: {rel_extraction.source_entity} -> {rel_type} -> {rel_extraction.target_entity}"
-                )
-            else:
-                logger.debug(
-                    f"Skipping relationship - nodes not found: {rel_extraction.source_entity} -> {rel_extraction.target_entity}"
-                )
+        return " ".join(text_parts)
 
     def _map_entity_type_to_node_type(self, entity_type: str) -> NodeType:
         """Map extracted entity type to graph node type"""
