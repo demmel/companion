@@ -229,6 +229,10 @@ def build(conversation: str, triggers: Optional[int], output: str):
     click.echo(f"   Relationship types: {len(stats.get('relationship_types', {}))}")
     click.echo(f"   Entity evolutions: {kg_builder.entity_evolution_count}")
 
+    # Show performance breakdown
+    click.echo(f"\n⚡ Performance Breakdown:")
+    kg_builder.print_performance_breakdown()
+
     click.echo(f"\n💾 Saved to: {output}")
     click.echo(f"💾 Relationships saved to: {relationship_bank_file}")
     click.echo("✅ Build completed!")

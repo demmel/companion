@@ -15,6 +15,7 @@ import logging
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
 from agent.state import State
+from agent.memory.embedding_service import get_embedding_service
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class RelationshipTypeEntry(BaseModel):
     usage_count: int
     created_at: datetime
     last_used: datetime
+    embedding: Optional[List[float]] = None
 
 
 class RelationshipTypeBankFileData(BaseModel):
@@ -68,6 +70,7 @@ class RelationshipTypeBank:
         self.model = model
         self.state = state
         self.bank_file = bank_file
+        self.embedding_service = get_embedding_service()
 
         # Registry of relationship types
         self.relationship_types: Dict[str, RelationshipTypeEntry] = {}
@@ -182,6 +185,29 @@ class RelationshipTypeBank:
         target_entity: str,
         context: str,
     ) -> RelationshipTypeMatch:
+        """Use embedding pre-filtering then LLM to find matching relationship type"""
+
+        # First try embedding-based similarity matching
+        embedding_match = self._find_similar_relationship_by_embedding(
+            proposed_type, description
+        )
+
+        if embedding_match:
+            return embedding_match
+
+        # Fall back to LLM matching for uncertain cases
+        return self._llm_find_matching_relationship_type(
+            proposed_type, description, source_entity, target_entity, context
+        )
+
+    def _llm_find_matching_relationship_type(
+        self,
+        proposed_type: str,
+        description: str,
+        source_entity: str,
+        target_entity: str,
+        context: str,
+    ) -> RelationshipTypeMatch:
         """Use LLM to find matching relationship type or decide to create new one"""
 
         # Build existing types summary
@@ -260,6 +286,9 @@ Choose the best relationship type to use, whether to flip direction, and explain
             last_used=datetime.now(),
         )
 
+        # Generate embedding for the new relationship type
+        self._generate_relationship_embedding(entry)
+
         self.relationship_types[rel_type] = entry
         self.save_bank()
 
@@ -280,17 +309,24 @@ Context: {specific_description}
 
 Create a general, reusable description that explains what this relationship type means conceptually, not just this specific instance.
 
+IMPORTANT: Avoid agent-perspective or person-specific language. Relationship types should be neutral and generalizable.
+
 Good examples:
 - "causes": "One entity causes, triggers, or brings about another entity or state"
-- "owns": "Someone possesses or has ownership of something"
+- "owns": "Someone possesses or has ownership of something"  
 - "enables": "One thing allows, permits, or makes possible another thing"
 - "expresses": "One thing conveys, shows, or represents another thing"
 
-Bad examples:
-- "causes": "David's presence caused me to feel excitement" (too specific)
-- "owns": "David owns the penthouse" (just one example)
+Bad examples (too specific):
+- "causes": "David's presence caused me to feel excitement"
+- "owns": "David owns the penthouse"
 
-Write a general description for "{rel_type}" that would apply to other similar relationships, not just this specific case."""
+Bad examples (agent-perspective):
+- "makes_me_feel": "Something that makes me feel an emotion" (should be "affects" or "causes")
+- "David_prefers": "What David prefers" (should be "prefers")
+- "my_goal_is_to": "My goal to do something" (grammatically broken)
+
+Write a neutral, general description for "{rel_type}" that would apply to other similar relationships."""
 
         try:
             from pydantic import BaseModel
@@ -314,6 +350,85 @@ Write a general description for "{rel_type}" that would apply to other similar r
             return (
                 f"A relationship where one entity {rel_type.replace('_', ' ')} another"
             )
+
+    def _find_similar_relationship_by_embedding(
+        self, proposed_type: str, description: str
+    ) -> Optional[RelationshipTypeMatch]:
+        """Use embedding similarity to find matching relationship types before LLM call"""
+
+        if not self.relationship_types:
+            return None
+
+        # Generate embedding for the proposed relationship
+        proposed_text = f"{proposed_type}: {description}"
+        try:
+            proposed_embedding = self.embedding_service.encode(proposed_text)
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate embedding for proposed relationship: {e}"
+            )
+            return None
+
+        # Calculate similarities with existing relationship types
+        similarities = []
+        for rel_name, rel_entry in self.relationship_types.items():
+            if rel_entry.embedding is None:
+                # Generate missing embedding
+                self._generate_relationship_embedding(rel_entry)
+
+            if rel_entry.embedding:
+                try:
+                    similarity = self.embedding_service.cosine_similarity(
+                        proposed_embedding, rel_entry.embedding
+                    )
+                    similarities.append((similarity, rel_name, rel_entry))
+                except Exception:
+                    continue
+
+        if not similarities:
+            return None
+
+        # Sort by similarity (highest first)
+        similarities.sort(key=lambda x: x[0], reverse=True)
+        best_similarity, best_name, best_entry = similarities[0]
+
+        # High similarity threshold for auto-matching
+        if best_similarity >= 0.95:
+            logger.info(
+                f"High embedding similarity ({best_similarity:.3f}) - auto-matching '{proposed_type}' to '{best_name}'"
+            )
+            return RelationshipTypeMatch(
+                use_existing=True,
+                relationship_type=best_name,
+                flip_direction=False,
+                reasoning=f"High embedding similarity ({best_similarity:.3f}) indicates same concept",
+            )
+
+        # Very low similarity threshold for auto-rejection
+        if best_similarity < 0.3:
+            logger.info(
+                f"Low embedding similarity ({best_similarity:.3f}) - creating new type '{proposed_type}'"
+            )
+            return RelationshipTypeMatch(
+                use_existing=False,
+                relationship_type=proposed_type,
+                flip_direction=False,
+                reasoning=f"Low embedding similarity ({best_similarity:.3f}) indicates new concept",
+            )
+
+        # Medium similarity - let LLM decide
+        return None
+
+    def _generate_relationship_embedding(
+        self, rel_entry: RelationshipTypeEntry
+    ) -> None:
+        """Generate embedding for a relationship type entry"""
+        try:
+            embedding_text = f"{rel_entry.name}: {rel_entry.description}"
+            rel_entry.embedding = self.embedding_service.encode(embedding_text)
+            logger.debug(f"Generated embedding for relationship type: {rel_entry.name}")
+        except Exception as e:
+            logger.warning(f"Failed to generate embedding for {rel_entry.name}: {e}")
 
     def _find_directional_opposite(self, relationship_type: str) -> Optional[str]:
         """Find the directional opposite of a relationship type if it exists"""

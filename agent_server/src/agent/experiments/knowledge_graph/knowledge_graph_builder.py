@@ -8,9 +8,11 @@ system, creating meaningful nodes and relationships with confidence scoring.
 
 import time
 import uuid
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from datetime import datetime
 import logging
+from dataclasses import dataclass, field
+from collections import defaultdict
 
 from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
     KnowledgeExperienceGraph,
@@ -25,6 +27,8 @@ from agent.experiments.knowledge_graph.llm_knowledge_extraction import (
 from agent.experiments.knowledge_graph.relationship_type_bank import (
     RelationshipTypeBank,
 )
+from agent.experiments.knowledge_graph.performance_profiler import profiler
+from agent.experiments.knowledge_graph.knn_entity_search import KNNEntityDeduplicator
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.chain_of_action.trigger import (
     UserInputTrigger,
@@ -38,6 +42,115 @@ from agent.memory.embedding_service import get_embedding_service
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PerformanceMetrics:
+    """Track detailed performance metrics for knowledge graph building"""
+
+    # Timing metrics (in seconds)
+    total_time: float = 0.0
+    extraction_time: float = 0.0
+    entity_processing_time: float = 0.0
+    relationship_processing_time: float = 0.0
+    embedding_generation_time: float = 0.0
+
+    # LLM call metrics
+    llm_calls_by_operation: Dict[str, int] = field(
+        default_factory=lambda: defaultdict(int)
+    )
+    llm_time_by_operation: Dict[str, float] = field(
+        default_factory=lambda: defaultdict(float)
+    )
+
+    # Entity processing metrics
+    entities_processed: int = 0
+    entities_deduplicated: int = 0
+    entities_auto_accepted: int = 0
+    entities_auto_rejected: int = 0
+    entities_llm_validated: int = 0
+
+    # Relationship processing metrics
+    relationships_processed: int = 0
+    relationships_type_matched_by_embedding: int = 0
+    relationships_type_matched_by_llm: int = 0
+    relationships_validated_by_embedding: int = 0
+    relationships_validated_by_llm: int = 0
+
+    # Similarity score distributions
+    entity_similarity_scores: List[float] = field(default_factory=list)
+    relationship_type_similarity_scores: List[float] = field(default_factory=list)
+
+    def start_timer(self, operation: str) -> float:
+        """Start timing an operation"""
+        return time.time()
+
+    def end_timer(self, operation: str, start_time: float) -> None:
+        """End timing an operation and record the duration"""
+        duration = time.time() - start_time
+        if operation == "extraction":
+            self.extraction_time += duration
+        elif operation == "entity_processing":
+            self.entity_processing_time += duration
+        elif operation == "relationship_processing":
+            self.relationship_processing_time += duration
+        elif operation == "embedding_generation":
+            self.embedding_generation_time += duration
+
+    def record_llm_call(self, operation: str, duration: float) -> None:
+        """Record an LLM call with its timing"""
+        self.llm_calls_by_operation[operation] += 1
+        self.llm_time_by_operation[operation] += duration
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get a comprehensive summary of performance metrics"""
+        total_llm_calls = sum(self.llm_calls_by_operation.values())
+        total_llm_time = sum(self.llm_time_by_operation.values())
+
+        return {
+            "timing": {
+                "total_time": f"{self.total_time:.2f}s",
+                "extraction_time": f"{self.extraction_time:.2f}s",
+                "entity_processing_time": f"{self.entity_processing_time:.2f}s",
+                "relationship_processing_time": f"{self.relationship_processing_time:.2f}s",
+                "embedding_generation_time": f"{self.embedding_generation_time:.2f}s",
+                "other_time": f"{self.total_time - self.extraction_time - self.entity_processing_time - self.relationship_processing_time - self.embedding_generation_time:.2f}s",
+            },
+            "llm_calls": {
+                "total_calls": total_llm_calls,
+                "total_time": f"{total_llm_time:.2f}s",
+                "by_operation": dict(self.llm_calls_by_operation),
+                "time_by_operation": {
+                    k: f"{v:.2f}s" for k, v in self.llm_time_by_operation.items()
+                },
+            },
+            "entity_processing": {
+                "total_processed": self.entities_processed,
+                "deduplicated": self.entities_deduplicated,
+                "auto_accepted": self.entities_auto_accepted,
+                "auto_rejected": self.entities_auto_rejected,
+                "llm_validated": self.entities_llm_validated,
+                "avg_similarity": (
+                    sum(self.entity_similarity_scores)
+                    / len(self.entity_similarity_scores)
+                    if self.entity_similarity_scores
+                    else 0.0
+                ),
+            },
+            "relationship_processing": {
+                "total_processed": self.relationships_processed,
+                "type_matched_by_embedding": self.relationships_type_matched_by_embedding,
+                "type_matched_by_llm": self.relationships_type_matched_by_llm,
+                "validated_by_embedding": self.relationships_validated_by_embedding,
+                "validated_by_llm": self.relationships_validated_by_llm,
+                "avg_type_similarity": (
+                    sum(self.relationship_type_similarity_scores)
+                    / len(self.relationship_type_similarity_scores)
+                    if self.relationship_type_similarity_scores
+                    else 0.0
+                ),
+            },
+        }
 
 
 class RelationshipValidation(BaseModel):
@@ -89,13 +202,22 @@ class ValidatedKnowledgeGraphBuilder:
         )
 
         # Track entities across triggers for deduplication
+        # Using composite keys to handle name collisions: {name_type_key: node_id}
         self.entity_name_to_node_id: Dict[str, str] = {}
+        # Also maintain reverse lookup for similarity matching: {node_id: composite_key}
+        self.node_id_to_entity_key: Dict[str, str] = {}
 
         # Track statistics for analysis
         self.entity_evolution_count = 0
 
         # Embedding service for node similarity and deduplication
         self.embedding_service = get_embedding_service()
+
+        # kNN-based entity deduplication system
+        self.entity_deduplicator = KNNEntityDeduplicator(similarity_threshold=0.85)
+
+        # Performance metrics tracking
+        self.metrics = PerformanceMetrics()
 
     def apply_action_effects_to_state(self, trigger: TriggerHistoryEntry) -> None:
         """Apply the effects of actions in this trigger to the current historical state"""
@@ -141,58 +263,98 @@ class ValidatedKnowledgeGraphBuilder:
             logger.debug(f"Trigger {trigger.entry_id} already processed, skipping")
             return True
 
-        time_start = time.time()
+        with profiler.section("trigger_processing_total"):
+            # Start total timing for this trigger
+            trigger_start_time = self.metrics.start_timer("total")
 
-        logger.info(f"Processing trigger: {trigger.entry_id} at {trigger.timestamp}")
-
-        # Always create experience node first
-        experience_node = self._create_experience_node(trigger)
-        self.graph.add_node(experience_node)
-
-        # Add temporal relationship to previous experience
-        if previous_trigger:
-            self._add_temporal_relationship(trigger, previous_trigger, experience_node)
-
-        # Get recent nodes for context (last 10 nodes for cross-trigger relationships)
-        recent_nodes = []
-        if len(self.graph.nodes) > 0:
-            # Get most recently added nodes
-            sorted_nodes = sorted(
-                self.graph.nodes.values(), key=lambda n: n.created_at, reverse=True
-            )
-            recent_nodes = [
-                {
-                    "name": n.name,
-                    "description": n.description,
-                    "type": n.node_type.value,
-                }
-                for n in sorted_nodes[:10]
-            ]
-
-        # Extract knowledge using historical state (not final state)
-        state_to_use = self.state
-        extraction = self.extractor.extract_knowledge(
-            trigger, state_to_use, recent_nodes
-        )
-        if extraction:
-            # Validate extraction quality
-            validation = self.extractor.validate_extraction(extraction, trigger)
             logger.info(
-                f"Extracted {validation['entities_count']} entities, {validation['relationships_count']} relationships"
+                f"Processing trigger: {trigger.entry_id} at {trigger.timestamp}"
             )
 
-            # Only use high-quality extractions
-            entity_validation_rate = sum(
-                1 for e in validation["entity_validation"] if e["found_in_text"]
-            ) / max(1, len(validation["entity_validation"]))
+            result = self._process_trigger_sections(
+                trigger, previous_trigger, trigger_start_time
+            )
+            return result
+
+    def _process_trigger_sections(
+        self,
+        trigger: TriggerHistoryEntry,
+        previous_trigger: Optional[TriggerHistoryEntry],
+        trigger_start_time: float,
+    ) -> bool:
+        """Process trigger with section-level instrumentation"""
+
+        with profiler.section("experience_node_creation"):
+            # Always create experience node first
+            experience_node = self._create_experience_node(trigger)
+            self.graph.add_node(experience_node)
+
+        with profiler.section("temporal_relationship_setup"):
+            # Add temporal relationship to previous experience
+            if previous_trigger:
+                self._add_temporal_relationship(
+                    trigger, previous_trigger, experience_node
+                )
+
+        with profiler.section("context_preparation"):
+            # Get recent nodes for context (last 10 nodes for cross-trigger relationships)
+            recent_nodes = []
+            if len(self.graph.nodes) > 0:
+                # Get most recently added nodes
+                sorted_nodes = sorted(
+                    self.graph.nodes.values(), key=lambda n: n.created_at, reverse=True
+                )
+                recent_nodes = [
+                    {
+                        "name": n.name,
+                        "description": n.description,
+                        "type": n.node_type.value,
+                    }
+                    for n in sorted_nodes[:10]
+                ]
+
+        with profiler.section("llm_knowledge_extraction"):
+            # Extract knowledge using historical state (not final state)
+            extraction_start_time = self.metrics.start_timer("extraction")
+            state_to_use = self.state
+            extraction = self.extractor.extract_knowledge(
+                trigger, state_to_use, recent_nodes
+            )
+            self.metrics.end_timer("extraction", extraction_start_time)
+        if extraction:
+            with profiler.section("extraction_validation"):
+                # Validate extraction quality
+                validation = self.extractor.validate_extraction(extraction, trigger)
+                logger.info(
+                    f"Extracted {validation['entities_count']} entities, {validation['relationships_count']} relationships"
+                )
+
+                # Only use high-quality extractions
+                entity_validation_rate = sum(
+                    1 for e in validation["entity_validation"] if e["found_in_text"]
+                ) / max(1, len(validation["entity_validation"]))
 
             if (
                 entity_validation_rate >= 0.0
             ):  # Ultra low threshold to test evolution mechanism
-                self._build_knowledge_nodes(extraction, experience_node, trigger)
-                self._build_knowledge_relationships(
-                    extraction, experience_node, trigger
-                )
+                with profiler.section("entity_processing"):
+                    # Time entity processing
+                    entity_start_time = self.metrics.start_timer("entity_processing")
+                    self._build_knowledge_nodes(extraction, experience_node, trigger)
+                    self.metrics.end_timer("entity_processing", entity_start_time)
+
+                with profiler.section("relationship_processing"):
+                    # Time relationship processing
+                    relationship_start_time = self.metrics.start_timer(
+                        "relationship_processing"
+                    )
+                    self._build_knowledge_relationships(
+                        extraction, experience_node, trigger
+                    )
+                    self.metrics.end_timer(
+                        "relationship_processing", relationship_start_time
+                    )
+
                 logger.info(
                     f"Added knowledge nodes (validation rate: {entity_validation_rate:.2f})"
                 )
@@ -205,16 +367,18 @@ class ValidatedKnowledgeGraphBuilder:
                 f"Knowledge extraction failed for trigger {trigger.entry_id}"
             )
 
-        # Mark as processed
-        self.graph.processed_triggers.add(trigger.entry_id)
+        with profiler.section("trigger_finalization"):
+            # Mark as processed
+            self.graph.processed_triggers.add(trigger.entry_id)
 
-        # Apply action effects to historical state AFTER processing
-        self.apply_action_effects_to_state(trigger)
+            # Apply action effects to historical state AFTER processing
+            self.apply_action_effects_to_state(trigger)
 
-        time_end = time.time()
-        logger.info(
-            f"Finished processing trigger {trigger.entry_id} in {time_end - time_start:.2f} seconds"
-        )
+            # Complete timing and log performance
+            self.metrics.end_timer("total", trigger_start_time)
+            logger.info(
+                f"Finished processing trigger {trigger.entry_id} in {self.metrics.total_time:.2f} seconds"
+            )
 
         return True
 
@@ -260,6 +424,8 @@ class ValidatedKnowledgeGraphBuilder:
     def _generate_node_embedding(self, node: GraphNode) -> None:
         """Generate and set embedding for a node based on name and description"""
         try:
+            embedding_start = self.metrics.start_timer("embedding_generation")
+
             # Create a comprehensive text for embedding that captures the node's semantics
             embedding_text = f"{node.name}: {node.description}"
 
@@ -268,6 +434,8 @@ class ValidatedKnowledgeGraphBuilder:
 
             # Generate embedding
             embedding = self.embedding_service.encode(embedding_text)
+
+            self.metrics.end_timer("embedding_generation", embedding_start)
             node.embedding = embedding
 
             logger.debug(
@@ -313,16 +481,21 @@ class ValidatedKnowledgeGraphBuilder:
         """Build knowledge nodes from validated extraction"""
 
         for entity in extraction.entities:
+            self.metrics.entities_processed += 1
+
             # Map entity types to node types
             node_type = self._map_entity_type_to_node_type(entity.type)
 
-            # Check if entity already exists using semantic similarity
-            existing_entity_name = self._find_similar_entity(
-                entity.name, entity.type, entity.description, entity.evidence
-            )
+            # Use kNN-based entity deduplication
+            with profiler.section("knn_entity_deduplication"):
+                existing_entity_name = self.entity_deduplicator.find_duplicate_entity(
+                    entity.name, entity.type, entity.description, entity.evidence
+                )
 
             if existing_entity_name:
+                self.metrics.entities_deduplicated += 1
                 # Entity exists, evolve its description with new information
+                # existing_entity_name is now a composite key from _find_similar_entity
                 existing_node_id = self.entity_name_to_node_id[existing_entity_name]
                 existing_node = self.graph.nodes[existing_node_id]
 
@@ -375,13 +548,24 @@ class ValidatedKnowledgeGraphBuilder:
                 self._generate_node_embedding(knowledge_node)
 
                 self.graph.add_node(knowledge_node)
-                self.entity_name_to_node_id[normalized_name] = knowledge_node.id
+                # Use composite key to handle name collisions
+                composite_key = self._make_entity_key(entity.name, entity.type)
+                self.entity_name_to_node_id[composite_key] = knowledge_node.id
+                self.node_id_to_entity_key[knowledge_node.id] = composite_key
+
+                # Add to kNN search index for future deduplication
+                self.entity_deduplicator.add_entity_to_index(
+                    knowledge_node, composite_key
+                )
 
             # Create relationship between experience and knowledge node
-            # For experience -> entity relationships, strength is based on entity importance
-            experience_strength = min(
-                entity.confidence + 0.1, 1.0
-            )  # Slightly higher than confidence
+            # For experience -> entity relationships, strength is based on semantic importance
+            experience_strength = self._calculate_experience_entity_strength(
+                entity.confidence,
+                entity.type,
+                relationship_type="involves",
+                is_experience_relationship=True,
+            )
 
             rel = GraphRelationship(
                 id=str(uuid.uuid4()),
@@ -408,8 +592,9 @@ class ValidatedKnowledgeGraphBuilder:
             source_name = rel_extraction.source_entity.lower().strip()
             target_name = rel_extraction.target_entity.lower().strip()
 
-            source_node_id = self.entity_name_to_node_id.get(source_name)
-            target_node_id = self.entity_name_to_node_id.get(target_name)
+            # Use new collision-aware lookup
+            source_node_id = self._find_entity_by_name(source_name)
+            target_node_id = self._find_entity_by_name(target_name)
 
             if source_node_id and target_node_id:
                 # Use relationship bank to get or create relationship type
@@ -505,9 +690,9 @@ class ValidatedKnowledgeGraphBuilder:
             "concept": NodeType.CONCEPT,
             "goal": NodeType.GOAL,
             "object": NodeType.OBJECT,  # Physical objects get their own type
-            "tool": NodeType.OBJECT,  # Tools are objects
-            "place": NodeType.OBJECT,  # Places are objects
-            "item": NodeType.OBJECT,  # Items are objects
+            "tool": NodeType.CONCEPT,  # Tools are abstract capabilities/concepts
+            "place": NodeType.CONCEPT,  # Places can be conceptual (locations, virtual spaces)
+            "item": NodeType.OBJECT,  # Items are physical objects
             "topic": NodeType.CONCEPT,
             "theme": NodeType.CONCEPT,
         }
@@ -515,12 +700,43 @@ class ValidatedKnowledgeGraphBuilder:
         return type_mapping.get(entity_type.lower(), NodeType.CONCEPT)
 
     def _map_extracted_relationship_type(self, rel_type: str) -> str:
-        """Keep extracted relationship type as free-form string (no more enum mapping)"""
+        """Clean and validate relationship types with structural validation"""
 
         # Clean up the relationship type but keep it dynamic
         cleaned = rel_type.lower().strip().replace(" ", "_")
 
-        # Some basic normalization but preserve richness
+        # Structural validation to catch problematic patterns
+        if not cleaned or len(cleaned) < 2:
+            logger.warning(
+                f"Invalid relationship type (too short): '{rel_type}' -> using 'relates_to'"
+            )
+            return "relates_to"
+
+        # Detect agent-specific relationship names (user identified these as problematic)
+        agent_specific_patterns = [
+            "my_",
+            "_prefers",
+            "_goal_is_",
+            "david_",
+            "_me_",
+            "i_",
+        ]
+        for pattern in agent_specific_patterns:
+            if pattern in cleaned:
+                logger.warning(
+                    f"Agent-specific relationship detected: '{cleaned}' - should be generalized"
+                )
+                # For now, continue but flag for attention
+
+        # Detect grammatically broken relationship types
+        broken_patterns = ["_is_to_", "_goal_is_to", "_want_to_"]
+        for pattern in broken_patterns:
+            if pattern in cleaned:
+                logger.warning(
+                    f"Grammatically broken relationship: '{cleaned}' -> using 'relates_to'"
+                )
+                return "relates_to"
+
         return cleaned if cleaned else "relates_to"
 
     def _evolve_entity_description(
@@ -601,43 +817,72 @@ Description:"""
         if not candidate_entities:
             return ""  # No entities of this type exist yet
 
-        # Generate embedding for the new entity
-        new_entity_text = f"[{entity_type}] {entity_name}: {entity_description}"
-        try:
-            new_entity_embedding = self.embedding_service.encode(new_entity_text)
-        except Exception as e:
-            logger.warning(
-                f"Failed to generate embedding for entity similarity check: {e}"
-            )
-            # Fallback to word-based filtering
-            return self._find_similar_entity_fallback(
-                entity_name,
-                entity_type,
-                entity_description,
-                entity_evidence,
-                candidate_entities,
-            )
-
-        # Calculate embedding similarities with all candidates
-        embedding_matches = []
-        for existing_name, existing_node in candidate_entities:
-            if existing_node.embedding is None:
-                # Generate missing embedding on the fly
-                self._generate_node_embedding(existing_node)
-
-            if existing_node.embedding is not None:
-                similarity = self.embedding_service.cosine_similarity(
-                    new_entity_embedding, existing_node.embedding
+        with profiler.section("embedding_generation"):
+            # Generate embedding for the new entity
+            new_entity_text = f"[{entity_type}] {entity_name}: {entity_description}"
+            try:
+                new_entity_embedding = self.embedding_service.encode(new_entity_text)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to generate embedding for entity similarity check: {e}"
                 )
-                embedding_matches.append((similarity, existing_name, existing_node))
+                # Fallback to word-based filtering
+                return self._find_similar_entity_fallback(
+                    entity_name,
+                    entity_type,
+                    entity_description,
+                    entity_evidence,
+                    candidate_entities,
+                )
+
+        with profiler.section("similarity_search"):
+            # Calculate embedding similarities with all candidates
+            embedding_matches = []
+            for existing_name, existing_node in candidate_entities:
+                if existing_node.embedding is None:
+                    with profiler.section("missing_embedding_generation"):
+                        # Generate missing embedding on the fly
+                        self._generate_node_embedding(existing_node)
+
+                if existing_node.embedding is not None:
+                    similarity = self.embedding_service.cosine_similarity(
+                        new_entity_embedding, existing_node.embedding
+                    )
+                    embedding_matches.append((similarity, existing_name, existing_node))
+                else:
+                    # If embedding generation failed, skip this candidate
+                    continue
 
         # Sort by similarity score (highest first)
         embedding_matches.sort(key=lambda x: x[0], reverse=True)
 
-        # Only consider high-similarity candidates for LLM review
-        high_similarity_threshold = (
-            0.85  # Cosine similarity > 0.85 suggests likely match
-        )
+        if not embedding_matches:
+            return ""  # No candidates found
+
+        # Get the highest similarity match
+        best_similarity, best_name, best_node = embedding_matches[0]
+
+        # Track similarity score for analysis
+        self.metrics.entity_similarity_scores.append(best_similarity)
+
+        # Very high similarity threshold for auto-accept (skip LLM)
+        if best_similarity >= 0.95:
+            self.metrics.entities_auto_accepted += 1
+            logger.info(
+                f"Very high similarity ({best_similarity:.3f}) - auto-accepting entity match: {best_name}"
+            )
+            return best_name
+
+        # Very low similarity threshold for auto-reject (skip LLM)
+        if best_similarity < 0.3:
+            self.metrics.entities_auto_rejected += 1
+            logger.debug(
+                f"Very low similarity ({best_similarity:.3f}) - auto-rejecting all matches"
+            )
+            return ""
+
+        # Medium-high similarity candidates for LLM review
+        high_similarity_threshold = 0.85
         potential_matches = [
             (name, node)
             for sim, name, node in embedding_matches
@@ -723,6 +968,93 @@ Description:"""
 
         return ""  # No similar entity found in fallback
 
+    def _check_relationship_coherence_by_embedding(
+        self,
+        source_entity_name: str,
+        target_entity_name: str,
+        relationship_type: str,
+        source_node_type: str,
+        target_node_type: str,
+    ) -> Optional[RelationshipValidation]:
+        """Check relationship semantic coherence using embeddings before LLM call"""
+
+        try:
+            # Create text representation of the relationship
+            relationship_text = (
+                f"{source_entity_name} {relationship_type} {target_entity_name}"
+            )
+            relationship_embedding = self.embedding_service.encode(relationship_text)
+
+            # Create embeddings for known good and bad relationship patterns
+            good_patterns = [
+                f"{source_node_type} {relationship_type} {target_node_type}",
+                f"person causes emotion",
+                f"object enables action",
+                f"concept relates to concept",
+                f"person creates object",
+            ]
+
+            bad_patterns = [
+                f"emotion creates person",
+                f"object thinks about person",
+                f"emotion owns physical object",
+                f"abstract concept physically touches concrete object",
+            ]
+
+            # Calculate similarity to good patterns
+            good_similarities = []
+            for pattern in good_patterns:
+                try:
+                    pattern_embedding = self.embedding_service.encode(pattern)
+                    similarity = self.embedding_service.cosine_similarity(
+                        relationship_embedding, pattern_embedding
+                    )
+                    good_similarities.append(similarity)
+                except Exception:
+                    continue
+
+            # Calculate similarity to bad patterns
+            bad_similarities = []
+            for pattern in bad_patterns:
+                try:
+                    pattern_embedding = self.embedding_service.encode(pattern)
+                    similarity = self.embedding_service.cosine_similarity(
+                        relationship_embedding, pattern_embedding
+                    )
+                    bad_similarities.append(similarity)
+                except Exception:
+                    continue
+
+            if good_similarities and bad_similarities:
+                max_good = max(good_similarities)
+                max_bad = max(bad_similarities)
+
+                # High confidence valid relationship
+                if max_good > 0.8 and max_good > max_bad + 0.2:
+                    logger.debug(
+                        f"High embedding coherence ({max_good:.3f}) - auto-validating: {relationship_text}"
+                    )
+                    return RelationshipValidation(
+                        is_valid=True,
+                        reasoning=f"High embedding coherence ({max_good:.3f}) with valid patterns",
+                    )
+
+                # High confidence invalid relationship
+                if max_bad > 0.8 and max_bad > max_good + 0.2:
+                    logger.debug(
+                        f"High embedding incoherence ({max_bad:.3f}) - auto-rejecting: {relationship_text}"
+                    )
+                    return RelationshipValidation(
+                        is_valid=False,
+                        reasoning=f"High embedding similarity ({max_bad:.3f}) with invalid patterns",
+                    )
+
+        except Exception as e:
+            logger.warning(f"Embedding relationship coherence check failed: {e}")
+
+        # Uncertain case - let LLM decide
+        return None
+
     def _validate_relationship_semantics(
         self,
         source_entity_name: str,
@@ -732,7 +1064,40 @@ Description:"""
         source_node_type: str,
         target_node_type: str,
     ) -> RelationshipValidation:
-        """Validate whether a relationship makes semantic sense using LLM"""
+        """Validate whether a relationship makes semantic sense using embedding pre-filtering then LLM"""
+
+        # Try embedding-based semantic coherence check first
+        embedding_validation = self._check_relationship_coherence_by_embedding(
+            source_entity_name,
+            target_entity_name,
+            relationship_type,
+            source_node_type,
+            target_node_type,
+        )
+
+        if embedding_validation:
+            return embedding_validation
+
+        # Fall back to LLM validation for uncertain cases
+        return self._llm_validate_relationship_semantics(
+            source_entity_name,
+            target_entity_name,
+            relationship_type,
+            description,
+            source_node_type,
+            target_node_type,
+        )
+
+    def _llm_validate_relationship_semantics(
+        self,
+        source_entity_name: str,
+        target_entity_name: str,
+        relationship_type: str,
+        description: str,
+        source_node_type: str,
+        target_node_type: str,
+    ) -> RelationshipValidation:
+        """Validate relationship using LLM"""
 
         prompt = f"""I need to validate whether a proposed relationship makes semantic sense.
 
@@ -900,9 +1265,116 @@ If they are the same entity, provide the existing entity's normalized name."""
 
         return final_strength
 
+    def _calculate_experience_entity_strength(
+        self,
+        entity_confidence: float,
+        entity_type: str,
+        relationship_type: str = "involves",
+        is_experience_relationship: bool = False,
+    ) -> float:
+        """Calculate relationship strength for experience-entity relationships based on semantic importance"""
+
+        # Base strength from entity confidence
+        base_strength = entity_confidence
+
+        # Entity type importance modifiers
+        entity_importance = {
+            "person": 0.9,  # People are very important
+            "emotion": 0.8,  # Emotions are highly significant
+            "goal": 0.8,  # Goals are important
+            "concept": 0.7,  # Concepts are moderately important
+            "object": 0.5,  # Objects are less important
+            "tool": 0.6,  # Tools have moderate importance
+            "place": 0.6,  # Places have moderate importance
+        }
+
+        type_modifier = entity_importance.get(entity_type.lower(), 0.6)
+
+        # Experience relationships are generally important but not overwhelming
+        if is_experience_relationship:
+            experience_modifier = 0.8
+        else:
+            experience_modifier = 1.0
+
+        # Calculate final strength as weighted combination
+        # Using entity confidence as primary signal, type importance as secondary
+        final_strength = (
+            (base_strength * 0.7) + (type_modifier * 0.2) + (experience_modifier * 0.1)
+        )
+
+        # Ensure bounds [0.1, 1.0]
+        final_strength = min(max(final_strength, 0.1), 1.0)
+
+        logger.debug(
+            f"Experience-entity strength: {entity_type} confidence={entity_confidence:.2f} "
+            f"type_mod={type_modifier:.2f} final={final_strength:.2f}"
+        )
+
+        return final_strength
+
+    def _make_entity_key(self, name: str, entity_type: str) -> str:
+        """Create composite key to handle entity name collisions"""
+        normalized_name = name.lower().strip()
+        return f"{normalized_name}|{entity_type.lower()}"
+
+    def _lookup_entity_by_name_type(self, name: str, entity_type: str) -> Optional[str]:
+        """Look up entity node ID by name and type, handling collisions"""
+        composite_key = self._make_entity_key(name, entity_type)
+        return self.entity_name_to_node_id.get(composite_key)
+
+    def _find_entity_by_name(self, name: str) -> Optional[str]:
+        """Find entity node ID by name (without type) - returns first match if multiple types"""
+        normalized_name = name.lower().strip()
+
+        # Look for any composite key that starts with this name
+        for composite_key, node_id in self.entity_name_to_node_id.items():
+            if composite_key.startswith(f"{normalized_name}|"):
+                return node_id
+
+        return None
+
     def get_stats(self) -> Dict[str, Any]:
         """Get comprehensive graph statistics"""
         return self.graph.get_stats()
+
+    def get_performance_breakdown(self) -> Dict[str, Any]:
+        """Get section-level performance breakdown"""
+        return profiler.get_breakdown_report()
+
+    def print_performance_breakdown(self) -> None:
+        """Print formatted performance breakdown"""
+        profiler.print_breakdown_report()
+
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive performance metrics"""
+        metrics = self.metrics.get_summary()
+
+        # Add LLM call statistics from the LLM's built-in tracking
+        if hasattr(self.llm, "call_stats") and self.llm.call_stats:
+            llm_stats = {}
+            total_llm_calls = 0
+            total_llm_time = 0.0
+
+            for caller, stats in self.llm.call_stats.items():
+                llm_stats[caller] = {
+                    "calls": stats.count,
+                    "total_time": f"{stats.total_time:.2f}s",
+                    "avg_time": (
+                        f"{stats.total_time/stats.count:.2f}s"
+                        if stats.count > 0
+                        else "0.00s"
+                    ),
+                }
+                total_llm_calls += stats.count
+                total_llm_time += stats.total_time
+
+            metrics["llm_calls_detailed"] = {
+                "total_calls": total_llm_calls,
+                "total_time": f"{total_llm_time:.2f}s",
+                "by_operation": llm_stats,
+            }
+
+        return metrics
 
     def save_graph(self, filename: str) -> None:
         """Save the built graph"""
@@ -971,6 +1443,19 @@ def test_validated_graph_builder():
     print(
         f"\n  Successfully processed: {successful_count}/{len(all_triggers)} triggers"
     )
+
+    # Show performance metrics
+    print(f"\n⚡ Performance Metrics:")
+    perf_metrics = builder.get_performance_metrics()
+
+    for section, data in perf_metrics.items():
+        print(f"  {section.replace('_', ' ').title()}:")
+        if isinstance(data, dict):
+            for key, value in data.items():
+                print(f"    {key}: {value}")
+        else:
+            print(f"    {data}")
+        print()
 
     # Save the validated graph
     builder.save_graph("validated_knowledge_graph.json")
