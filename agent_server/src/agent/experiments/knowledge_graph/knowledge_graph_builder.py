@@ -19,6 +19,7 @@ from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
     GraphNode,
     GraphRelationship,
     NodeType,
+    GraphStats,
 )
 from agent.experiments.knowledge_graph.llm_knowledge_extraction import (
     LLMKnowledgeExtractor,
@@ -27,7 +28,10 @@ from agent.experiments.knowledge_graph.llm_knowledge_extraction import (
 from agent.experiments.knowledge_graph.relationship_type_bank import (
     RelationshipTypeBank,
 )
-from agent.experiments.knowledge_graph.performance_profiler import profiler
+from agent.experiments.knowledge_graph.performance_profiler import (
+    profiler,
+    PerformanceBreakdown,
+)
 from agent.experiments.knowledge_graph.knn_entity_search import KNNEntityDeduplicator
 from agent.experiments.knowledge_graph.n_ary_extraction import (
     NaryRelationshipExtractor,
@@ -48,6 +52,75 @@ from agent.memory.embedding_service import get_embedding_service
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TimingMetrics:
+    total_time: str
+    extraction_time: str
+    entity_processing_time: str
+    relationship_processing_time: str
+    embedding_generation_time: str
+    other_time: str
+
+
+@dataclass
+class LLMCallMetrics:
+    total_calls: int
+    total_time: str
+    by_operation: Dict[str, int]
+    time_by_operation: Dict[str, str]
+
+
+@dataclass
+class EntityProcessingMetrics:
+    total_processed: int
+    deduplicated: int
+    auto_accepted: int
+    auto_rejected: int
+    llm_validated: int
+    avg_similarity: float
+
+
+@dataclass
+class RelationshipProcessingMetrics:
+    total_processed: int
+    type_matched_by_embedding: int
+    type_matched_by_llm: int
+    validated_by_embedding: int
+    validated_by_llm: int
+    avg_type_similarity: float
+
+
+@dataclass
+class PerformanceMetricsSummary:
+    timing: TimingMetrics
+    llm_calls: LLMCallMetrics
+    entity_processing: EntityProcessingMetrics
+    relationship_processing: RelationshipProcessingMetrics
+
+
+@dataclass
+class DetailedLLMStats:
+    calls: int
+    total_time: str
+    avg_time: str
+
+
+@dataclass
+class DetailedLLMCallMetrics:
+    total_calls: int
+    total_time: str
+    by_operation: Dict[str, DetailedLLMStats]
+
+
+@dataclass
+class EnhancedPerformanceMetrics:
+    timing: TimingMetrics
+    llm_calls: LLMCallMetrics
+    entity_processing: EntityProcessingMetrics
+    relationship_processing: RelationshipProcessingMetrics
+    llm_calls_detailed: Optional[DetailedLLMCallMetrics] = None
 
 
 @dataclass
@@ -108,55 +181,63 @@ class PerformanceMetrics:
         self.llm_calls_by_operation[operation] += 1
         self.llm_time_by_operation[operation] += duration
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> PerformanceMetricsSummary:
         """Get a comprehensive summary of performance metrics"""
         total_llm_calls = sum(self.llm_calls_by_operation.values())
         total_llm_time = sum(self.llm_time_by_operation.values())
 
-        return {
-            "timing": {
-                "total_time": f"{self.total_time:.2f}s",
-                "extraction_time": f"{self.extraction_time:.2f}s",
-                "entity_processing_time": f"{self.entity_processing_time:.2f}s",
-                "relationship_processing_time": f"{self.relationship_processing_time:.2f}s",
-                "embedding_generation_time": f"{self.embedding_generation_time:.2f}s",
-                "other_time": f"{self.total_time - self.extraction_time - self.entity_processing_time - self.relationship_processing_time - self.embedding_generation_time:.2f}s",
-            },
-            "llm_calls": {
-                "total_calls": total_llm_calls,
-                "total_time": f"{total_llm_time:.2f}s",
-                "by_operation": dict(self.llm_calls_by_operation),
-                "time_by_operation": {
+        other_time = (
+            self.total_time
+            - self.extraction_time
+            - self.entity_processing_time
+            - self.relationship_processing_time
+            - self.embedding_generation_time
+        )
+
+        return PerformanceMetricsSummary(
+            timing=TimingMetrics(
+                total_time=f"{self.total_time:.2f}s",
+                extraction_time=f"{self.extraction_time:.2f}s",
+                entity_processing_time=f"{self.entity_processing_time:.2f}s",
+                relationship_processing_time=f"{self.relationship_processing_time:.2f}s",
+                embedding_generation_time=f"{self.embedding_generation_time:.2f}s",
+                other_time=f"{other_time:.2f}s",
+            ),
+            llm_calls=LLMCallMetrics(
+                total_calls=total_llm_calls,
+                total_time=f"{total_llm_time:.2f}s",
+                by_operation=dict(self.llm_calls_by_operation),
+                time_by_operation={
                     k: f"{v:.2f}s" for k, v in self.llm_time_by_operation.items()
                 },
-            },
-            "entity_processing": {
-                "total_processed": self.entities_processed,
-                "deduplicated": self.entities_deduplicated,
-                "auto_accepted": self.entities_auto_accepted,
-                "auto_rejected": self.entities_auto_rejected,
-                "llm_validated": self.entities_llm_validated,
-                "avg_similarity": (
+            ),
+            entity_processing=EntityProcessingMetrics(
+                total_processed=self.entities_processed,
+                deduplicated=self.entities_deduplicated,
+                auto_accepted=self.entities_auto_accepted,
+                auto_rejected=self.entities_auto_rejected,
+                llm_validated=self.entities_llm_validated,
+                avg_similarity=(
                     sum(self.entity_similarity_scores)
                     / len(self.entity_similarity_scores)
                     if self.entity_similarity_scores
                     else 0.0
                 ),
-            },
-            "relationship_processing": {
-                "total_processed": self.relationships_processed,
-                "type_matched_by_embedding": self.relationships_type_matched_by_embedding,
-                "type_matched_by_llm": self.relationships_type_matched_by_llm,
-                "validated_by_embedding": self.relationships_validated_by_embedding,
-                "validated_by_llm": self.relationships_validated_by_llm,
-                "avg_type_similarity": (
+            ),
+            relationship_processing=RelationshipProcessingMetrics(
+                total_processed=self.relationships_processed,
+                type_matched_by_embedding=self.relationships_type_matched_by_embedding,
+                type_matched_by_llm=self.relationships_type_matched_by_llm,
+                validated_by_embedding=self.relationships_validated_by_embedding,
+                validated_by_llm=self.relationships_validated_by_llm,
+                avg_type_similarity=(
                     sum(self.relationship_type_similarity_scores)
                     / len(self.relationship_type_similarity_scores)
                     if self.relationship_type_similarity_scores
                     else 0.0
                 ),
-            },
-        }
+            ),
+        )
 
 
 class RelationshipValidation(BaseModel):
@@ -330,13 +411,13 @@ class ValidatedKnowledgeGraphBuilder:
                 # Validate extraction quality
                 validation = self.extractor.validate_extraction(extraction, trigger)
                 logger.info(
-                    f"Extracted {validation['entities_count']} entities, {validation['relationships_count']} relationships"
+                    f"Extracted {validation.entities_count} entities, {validation.relationships_count} relationships"
                 )
 
                 # Only use high-quality extractions
                 entity_validation_rate = sum(
-                    1 for e in validation["entity_validation"] if e["found_in_text"]
-                ) / max(1, len(validation["entity_validation"]))
+                    1 for e in validation.entity_validation if e.found_in_text
+                ) / max(1, len(validation.entity_validation))
 
             if (
                 entity_validation_rate >= 0.0
@@ -652,25 +733,21 @@ class ValidatedKnowledgeGraphBuilder:
         text_parts = []
 
         # Add trigger context
-        trigger_message = getattr(trigger.trigger, "message", None)
+        trigger_message = (
+            trigger.trigger.content
+            if isinstance(trigger.trigger, UserInputTrigger)
+            else None
+        )
         if trigger_message:
             text_parts.append(str(trigger_message))
 
         # Add action results
         for action in trigger.actions_taken:
             if action.result.type == "success" and action.result.content:
-                # Extract thoughts if available
-                thoughts = getattr(action.result.content, "thoughts", None)
-                if thoughts:
-                    text_parts.append(str(thoughts))
-                # Extract message if available
-                message = getattr(action.result.content, "message", None)
-                if message:
-                    text_parts.append(str(message))
-                # Extract content if available
-                content = getattr(action.result.content, "content", None)
-                if content:
-                    text_parts.append(str(content))
+                # Use the standardized result summary method
+                result_summary = action.result.content.result_summary()
+                if result_summary:
+                    text_parts.append(str(result_summary))
 
         return " ".join(text_parts)
 
@@ -1326,11 +1403,11 @@ If they are the same entity, provide the existing entity's normalized name."""
 
         return None
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> GraphStats:
         """Get comprehensive graph statistics"""
         return self.graph.get_stats()
 
-    def get_performance_breakdown(self) -> Dict[str, Any]:
+    def get_performance_breakdown(self) -> PerformanceBreakdown:
         """Get section-level performance breakdown"""
         return profiler.get_breakdown_report()
 
@@ -1338,36 +1415,44 @@ If they are the same entity, provide the existing entity's normalized name."""
         """Print formatted performance breakdown"""
         profiler.print_breakdown_report()
 
-    def get_performance_metrics(self) -> Dict[str, Any]:
+    def get_performance_metrics(self) -> EnhancedPerformanceMetrics:
         """Get comprehensive performance metrics"""
-        metrics = self.metrics.get_summary()
+        summary = self.metrics.get_summary()
+
+        detailed_llm_calls = None
 
         # Add LLM call statistics from the LLM's built-in tracking
-        if hasattr(self.llm, "call_stats") and self.llm.call_stats:
-            llm_stats = {}
-            total_llm_calls = 0
-            total_llm_time = 0.0
 
-            for caller, stats in self.llm.call_stats.items():
-                llm_stats[caller] = {
-                    "calls": stats.count,
-                    "total_time": f"{stats.total_time:.2f}s",
-                    "avg_time": (
-                        f"{stats.total_time/stats.count:.2f}s"
-                        if stats.count > 0
-                        else "0.00s"
-                    ),
-                }
-                total_llm_calls += stats.count
-                total_llm_time += stats.total_time
+        llm_stats = {}
+        total_llm_calls = 0
+        total_llm_time = 0.0
 
-            metrics["llm_calls_detailed"] = {
-                "total_calls": total_llm_calls,
-                "total_time": f"{total_llm_time:.2f}s",
-                "by_operation": llm_stats,
-            }
+        for caller, stats in self.llm.call_stats.items():
+            llm_stats[caller] = DetailedLLMStats(
+                calls=stats.count,
+                total_time=f"{stats.total_time:.2f}s",
+                avg_time=(
+                    f"{stats.total_time/stats.count:.2f}s"
+                    if stats.count > 0
+                    else "0.00s"
+                ),
+            )
+            total_llm_calls += stats.count
+            total_llm_time += stats.total_time
 
-        return metrics
+        detailed_llm_calls = DetailedLLMCallMetrics(
+            total_calls=total_llm_calls,
+            total_time=f"{total_llm_time:.2f}s",
+            by_operation=llm_stats,
+        )
+
+        return EnhancedPerformanceMetrics(
+            timing=summary.timing,
+            llm_calls=summary.llm_calls,
+            entity_processing=summary.entity_processing,
+            relationship_processing=summary.relationship_processing,
+            llm_calls_detailed=detailed_llm_calls,
+        )
 
     def save_graph(self, filename: str) -> None:
         """Save the built graph"""
@@ -1418,20 +1503,35 @@ def test_validated_graph_builder():
         if (i + 1) % 5 == 0:
             stats = builder.get_stats()
             print(
-                f"    Current stats: {stats['total_nodes']} nodes, {stats['total_relationships']} relationships"
+                f"    Current stats: {stats.total_nodes} nodes, {stats.total_relationships} relationships"
             )
 
     # Final statistics
     print(f"\n📊 Final Graph Statistics:")
     stats = builder.get_stats()
 
-    for key, value in stats.items():
-        if isinstance(value, dict) and value:
-            print(f"  {key}:")
-            for subkey, subvalue in value.items():
-                print(f"    {subkey}: {subvalue}")
-        elif not isinstance(value, dict):
-            print(f"  {key}: {value}")
+    print(f"  total_nodes: {stats.total_nodes}")
+    print(f"  total_relationships: {stats.total_relationships}")
+    print(f"  processed_triggers: {stats.processed_triggers}")
+    if stats.node_types:
+        print(f"  node_types:")
+        for subkey, subvalue in stats.node_types.items():
+            print(f"    {subkey}: {subvalue}")
+    if stats.relationship_types:
+        print(f"  relationship_types:")
+        for subkey, subvalue in stats.relationship_types.items():
+            print(f"    {subkey}: {subvalue}")
+    print(f"  confidence_distribution:")
+    print(f"    mean: {stats.confidence_distribution.mean}")
+    print(
+        f"    high_confidence_count: {stats.confidence_distribution.high_confidence_count}"
+    )
+    print(
+        f"    medium_confidence_count: {stats.confidence_distribution.medium_confidence_count}"
+    )
+    print(
+        f"    low_confidence_count: {stats.confidence_distribution.low_confidence_count}"
+    )
 
     print(
         f"\n  Successfully processed: {successful_count}/{len(all_triggers)} triggers"
@@ -1441,14 +1541,49 @@ def test_validated_graph_builder():
     print(f"\n⚡ Performance Metrics:")
     perf_metrics = builder.get_performance_metrics()
 
-    for section, data in perf_metrics.items():
-        print(f"  {section.replace('_', ' ').title()}:")
-        if isinstance(data, dict):
-            for key, value in data.items():
-                print(f"    {key}: {value}")
-        else:
-            print(f"    {data}")
-        print()
+    print(f"  Timing:")
+    print(f"    total_time: {perf_metrics.timing.total_time}")
+    print(f"    extraction_time: {perf_metrics.timing.extraction_time}")
+    print(f"    entity_processing_time: {perf_metrics.timing.entity_processing_time}")
+    print(
+        f"    relationship_processing_time: {perf_metrics.timing.relationship_processing_time}"
+    )
+    print()
+
+    print(f"  LLM Calls:")
+    print(f"    total_calls: {perf_metrics.llm_calls.total_calls}")
+    print(f"    total_time: {perf_metrics.llm_calls.total_time}")
+    if perf_metrics.llm_calls.by_operation:
+        print(f"    by_operation:")
+        for op, count in perf_metrics.llm_calls.by_operation.items():
+            print(f"      {op}: {count}")
+    print()
+
+    print(f"  Entity Processing:")
+    print(f"    total_processed: {perf_metrics.entity_processing.total_processed}")
+    print(f"    deduplicated: {perf_metrics.entity_processing.deduplicated}")
+    print(f"    auto_accepted: {perf_metrics.entity_processing.auto_accepted}")
+    print(f"    auto_rejected: {perf_metrics.entity_processing.auto_rejected}")
+    print(f"    llm_validated: {perf_metrics.entity_processing.llm_validated}")
+    print()
+
+    print(f"  Relationship Processing:")
+    print(
+        f"    total_processed: {perf_metrics.relationship_processing.total_processed}"
+    )
+    print(
+        f"    type_matched_by_embedding: {perf_metrics.relationship_processing.type_matched_by_embedding}"
+    )
+    print(
+        f"    type_matched_by_llm: {perf_metrics.relationship_processing.type_matched_by_llm}"
+    )
+    print(
+        f"    validated_by_embedding: {perf_metrics.relationship_processing.validated_by_embedding}"
+    )
+    print(
+        f"    validated_by_llm: {perf_metrics.relationship_processing.validated_by_llm}"
+    )
+    print()
 
     # Save the validated graph
     builder.save_graph("validated_knowledge_graph.json")

@@ -18,6 +18,23 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class EntityMetadata:
+    node_id: str
+    composite_key: str
+    entity_type: str
+    node: GraphNode
+    name: str
+
+
+@dataclass
+class EntitySearchStatistics:
+    total_entities: int
+    entities_by_type: Dict[str, int]
+    average_embedding_norm: float
+    similarity_threshold: float
+
+
+@dataclass
 class EntityMatch:
     """Result of entity similarity search"""
 
@@ -36,9 +53,9 @@ class KNNEntitySearch:
 
         # Cache for entity embeddings and metadata
         self.entity_embeddings: List[np.ndarray] = []
-        self.entity_metadata: List[Dict[str, Any]] = (
+        self.entity_metadata: List[EntityMetadata] = (
             []
-        )  # Store node_id, composite_key, node
+        )  # Store node_id, composite_key, entity_type
         self.embedding_index_dirty = True
 
     def add_entity(self, node: GraphNode, composite_key: str) -> None:
@@ -47,13 +64,13 @@ class KNNEntitySearch:
         if node.embedding is not None:
             self.entity_embeddings.append(np.array(node.embedding))
             self.entity_metadata.append(
-                {
-                    "node_id": node.id,
-                    "composite_key": composite_key,
-                    "node": node,
-                    "entity_type": node.node_type.value,
-                    "name": node.name,
-                }
+                EntityMetadata(
+                    node_id=node.id,
+                    composite_key=composite_key,
+                    node=node,
+                    entity_type=node.node_type.value,
+                    name=node.name,
+                )
             )
             self.embedding_index_dirty = True
 
@@ -103,7 +120,7 @@ class KNNEntitySearch:
         if type_filter:
             type_mask = np.array(
                 [
-                    self.entity_metadata[idx]["entity_type"] == entity_type
+                    self.entity_metadata[idx].entity_type == entity_type
                     for idx in valid_indices
                 ]
             )
@@ -127,10 +144,10 @@ class KNNEntitySearch:
 
                 results.append(
                     EntityMatch(
-                        node_id=metadata["node_id"],
-                        node=metadata["node"],
+                        node_id=metadata.node_id,
+                        node=metadata.node,
                         similarity=similarity,
-                        composite_key=metadata["composite_key"],
+                        composite_key=metadata.composite_key,
                     )
                 )
 
@@ -171,7 +188,7 @@ class KNNEntitySearch:
         """Update the embedding for an existing entity"""
 
         for i, metadata in enumerate(self.entity_metadata):
-            if metadata["node_id"] == node_id:
+            if metadata.node_id == node_id:
                 self.entity_embeddings[i] = new_embedding
                 break
 
@@ -180,7 +197,7 @@ class KNNEntitySearch:
 
         indices_to_remove = []
         for i, metadata in enumerate(self.entity_metadata):
-            if metadata["node_id"] == node_id:
+            if metadata.node_id == node_id:
                 indices_to_remove.append(i)
 
         # Remove in reverse order to maintain indices
@@ -190,20 +207,21 @@ class KNNEntitySearch:
 
         self.embedding_index_dirty = True
 
-    def get_entity_statistics(self) -> Dict[str, Any]:
+    def get_entity_statistics(self) -> EntitySearchStatistics:
         """Get statistics about the entity search index"""
 
         if not self.entity_metadata:
-            return {
-                "total_entities": 0,
-                "entities_by_type": {},
-                "average_embedding_norm": 0.0,
-            }
+            return EntitySearchStatistics(
+                total_entities=0,
+                entities_by_type={},
+                average_embedding_norm=0.0,
+                similarity_threshold=self.similarity_threshold,
+            )
 
         # Count entities by type
         type_counts = {}
         for metadata in self.entity_metadata:
-            entity_type = metadata["entity_type"]
+            entity_type = metadata.entity_type
             type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
 
         # Calculate average embedding norm
@@ -213,12 +231,12 @@ class KNNEntitySearch:
         else:
             avg_norm = 0.0
 
-        return {
-            "total_entities": len(self.entity_metadata),
-            "entities_by_type": type_counts,
-            "average_embedding_norm": float(avg_norm),
-            "similarity_threshold": self.similarity_threshold,
-        }
+        return EntitySearchStatistics(
+            total_entities=len(self.entity_metadata),
+            entities_by_type=type_counts,
+            average_embedding_norm=float(avg_norm),
+            similarity_threshold=self.similarity_threshold,
+        )
 
     def clear_index(self) -> None:
         """Clear all entities from the search index"""
@@ -282,6 +300,6 @@ class KNNEntityDeduplicator:
 
         return None
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> EntitySearchStatistics:
         """Get deduplication statistics"""
         return self.knn_search.get_entity_statistics()

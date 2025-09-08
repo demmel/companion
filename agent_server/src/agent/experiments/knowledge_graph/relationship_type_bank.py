@@ -9,6 +9,7 @@ synonymous duplicates and provide consistency in relationship naming.
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
+from dataclasses import dataclass
 from typing import Tuple
 import logging
 
@@ -18,6 +19,22 @@ from agent.state import State
 from agent.memory.embedding_service import get_embedding_service
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RelationshipTypeInfo:
+    name: str
+    usage_count: int
+    description: str
+
+
+@dataclass
+class RelationshipTypeStats:
+    total_types: int
+    total_usage: int
+    most_used_type: Optional[str] = None
+    most_used_count: int = 0
+    types: Optional[List[RelationshipTypeInfo]] = None
 
 
 class RelationshipTypeMatch(BaseModel):
@@ -453,38 +470,46 @@ Write a neutral, general description for "{rel_type}" that would apply to other 
 
         return directional_pairs.get(relationship_type)
 
-    def get_relationship_stats(self) -> Dict[str, Any]:
+    def get_relationship_stats(self) -> RelationshipTypeStats:
         """Get statistics about relationship types"""
         if not self.relationship_types:
-            return {"total_types": 0, "total_usage": 0}
+            return RelationshipTypeStats(
+                total_types=0,
+                total_usage=0,
+                most_used_type=None,
+                most_used_count=0,
+                types=None,
+            )
 
         total_usage = sum(
             entry.usage_count for entry in self.relationship_types.values()
         )
         most_used = max(self.relationship_types.values(), key=lambda x: x.usage_count)
 
-        return {
-            "total_types": len(self.relationship_types),
-            "total_usage": total_usage,
-            "most_used_type": most_used.name,
-            "most_used_count": most_used.usage_count,
-            "types": [
-                {
-                    "name": entry.name,
-                    "usage_count": entry.usage_count,
-                    "description": (
-                        entry.description[:50] + "..."
-                        if len(entry.description) > 50
-                        else entry.description
-                    ),
-                }
-                for entry in sorted(
-                    self.relationship_types.values(),
-                    key=lambda x: x.usage_count,
-                    reverse=True,
-                )
-            ],
-        }
+        types_info = [
+            RelationshipTypeInfo(
+                name=entry.name,
+                usage_count=entry.usage_count,
+                description=(
+                    entry.description[:50] + "..."
+                    if len(entry.description) > 50
+                    else entry.description
+                ),
+            )
+            for entry in sorted(
+                self.relationship_types.values(),
+                key=lambda x: x.usage_count,
+                reverse=True,
+            )
+        ]
+
+        return RelationshipTypeStats(
+            total_types=len(self.relationship_types),
+            total_usage=total_usage,
+            most_used_type=most_used.name,
+            most_used_count=most_used.usage_count,
+            types=types_info,
+        )
 
     def save_bank(self):
         """Save relationship type bank to file"""
@@ -589,14 +614,16 @@ if __name__ == "__main__":
     # Show final stats
     print(f"\n📊 Final Bank Stats:")
     stats = bank.get_relationship_stats()
-    for key, value in stats.items():
-        if key == "types":
-            print(f"  {key}:")
-            for type_info in value:
-                print(
-                    f"    - {type_info['name']} ({type_info['usage_count']} uses): {type_info['description']}"
-                )
-        else:
-            print(f"  {key}: {value}")
+    print(f"  total_types: {stats.total_types}")
+    print(f"  total_usage: {stats.total_usage}")
+    if stats.most_used_type:
+        print(f"  most_used_type: {stats.most_used_type}")
+        print(f"  most_used_count: {stats.most_used_count}")
+    if stats.types:
+        print(f"  types:")
+        for type_info in stats.types:
+            print(
+                f"    - {type_info.name} ({type_info.usage_count} uses): {type_info.description}"
+            )
 
     print(f"\n✅ Relationship type bank test completed!")

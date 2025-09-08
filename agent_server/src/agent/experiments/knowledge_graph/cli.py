@@ -248,9 +248,9 @@ def build(conversation: str, triggers: Optional[int], output: str):
     stats = kg_builder.get_stats()
     click.echo(f"\n📊 Knowledge Graph Complete:")
     click.echo(f"   Triggers processed: {successful}/{len(triggers_to_process)}")
-    click.echo(f"   Nodes: {stats['total_nodes']}")
-    click.echo(f"   Relationships: {stats['total_relationships']}")
-    click.echo(f"   Relationship types: {len(stats.get('relationship_types', {}))}")
+    click.echo(f"   Nodes: {stats.total_nodes}")
+    click.echo(f"   Relationships: {stats.total_relationships}")
+    click.echo(f"   Relationship types: {len(stats.relationship_types)}")
     click.echo(f"   Entity evolutions: {kg_builder.entity_evolution_count}")
 
     # Show performance breakdown including profiler data

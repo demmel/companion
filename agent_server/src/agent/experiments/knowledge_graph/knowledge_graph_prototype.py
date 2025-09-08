@@ -10,8 +10,27 @@ import uuid
 import json
 from typing import Dict, List, Optional, Set, Tuple, Any
 from datetime import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
+
+
+@dataclass
+class ConfidenceDistribution:
+    mean: float = 0.0
+    high_confidence_count: int = 0
+    medium_confidence_count: int = 0
+    low_confidence_count: int = 0
+
+
+@dataclass
+class GraphStats:
+    total_nodes: int
+    total_relationships: int
+    processed_triggers: int
+    node_types: Dict[str, int]
+    relationship_types: Dict[str, int]
+    confidence_distribution: ConfidenceDistribution
+
 
 # Removed pydantic import - not needed for prototype
 import logging
@@ -95,42 +114,25 @@ class RelationshipType(str, Enum):
     CONTRIBUTED_TO = "contributed_to"  # Partial causation
 
 
-@dataclass
-class GraphNode:
+class GraphNode(BaseModel):
     """A node in the knowledge+experience graph"""
 
     id: str
     node_type: NodeType
     name: str
     description: str
-    properties: Dict[str, Any] = field(default_factory=dict)
+    properties: Dict[str, Any] = Field(default_factory=dict)
     embedding: Optional[List[float]] = None
-    created_at: datetime = field(default_factory=datetime.now)
-    last_accessed: datetime = field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_accessed: datetime = Field(default_factory=datetime.now)
     access_count: int = 0
     importance: float = 1.0
 
     # For experience nodes - preserve full trigger context
     source_trigger_id: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "id": self.id,
-            "node_type": self.node_type.value,
-            "name": self.name,
-            "description": self.description,
-            "properties": self.properties,
-            "embedding": self.embedding,
-            "created_at": self.created_at.isoformat(),
-            "last_accessed": self.last_accessed.isoformat(),
-            "access_count": self.access_count,
-            "importance": self.importance,
-            "source_trigger_id": self.source_trigger_id,
-        }
 
-
-@dataclass
-class GraphRelationship:
+class GraphRelationship(BaseModel):
     """A relationship between nodes with confidence scoring and temporal bounds"""
 
     id: str
@@ -139,40 +141,20 @@ class GraphRelationship:
     relationship_type: str  # Dynamic relationship types instead of enum
     confidence: float  # 0.0 to 1.0
     strength: float = 1.0  # Relationship strength
-    created_at: datetime = field(default_factory=datetime.now)
-    last_reinforced: datetime = field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_reinforced: datetime = Field(default_factory=datetime.now)
     reinforcement_count: int = 1
-    properties: Dict[str, Any] = field(default_factory=dict)
+    properties: Dict[str, Any] = Field(default_factory=dict)
     source_trigger_id: Optional[str] = None
 
     # Temporal bounds for relationship validity
-    valid_from: datetime = field(default_factory=datetime.now)
+    valid_from: datetime = Field(default_factory=datetime.now)
     valid_to: Optional[datetime] = None  # None means currently valid
     lifecycle_state: RelationshipLifecycleState = RelationshipLifecycleState.ACTIVE
 
     # Supersession tracking for temporal relationships
     superseded_by: Optional[str] = None  # ID of relationship that supersedes this one
     supersedes: Optional[str] = None  # ID of relationship this one supersedes
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "id": self.id,
-            "source_node_id": self.source_node_id,
-            "target_node_id": self.target_node_id,
-            "relationship_type": self.relationship_type,
-            "confidence": self.confidence,
-            "strength": self.strength,
-            "created_at": self.created_at.isoformat(),
-            "last_reinforced": self.last_reinforced.isoformat(),
-            "reinforcement_count": self.reinforcement_count,
-            "properties": self.properties,
-            "source_trigger_id": self.source_trigger_id,
-            "valid_from": self.valid_from.isoformat(),
-            "valid_to": self.valid_to.isoformat() if self.valid_to else None,
-            "lifecycle_state": self.lifecycle_state.value,
-            "superseded_by": self.superseded_by,
-            "supersedes": self.supersedes,
-        }
 
 
 class KnowledgeExperienceGraph:
@@ -531,13 +513,13 @@ Analyze this situation and determine if this is a correction or evolution."""
     def export_to_dict(self) -> Dict[str, Any]:
         """Export entire graph to dictionary"""
         return {
-            "nodes": [node.to_dict() for node in self.nodes.values()],
-            "relationships": [rel.to_dict() for rel in self.relationships.values()],
+            "nodes": [node.model_dump() for node in self.nodes.values()],
+            "relationships": [rel.model_dump() for rel in self.relationships.values()],
             "processed_triggers": list(self.processed_triggers),
-            "stats": self.get_stats(),
+            "stats": asdict(self.get_stats()),
         }
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> GraphStats:
         """Get graph statistics"""
         node_counts = {
             nt.value: len(nodes)
@@ -552,31 +534,30 @@ Analyze this situation and determine if this is a correction or evolution."""
 
         # Confidence distribution
         confidences = [rel.confidence for rel in self.relationships.values()]
-        confidence_dist = {}
         if confidences:
-            confidence_dist = {
-                "mean": sum(confidences) / len(confidences),
-                "high_confidence_count": sum(1 for c in confidences if c >= 0.8),
-                "medium_confidence_count": sum(
-                    1 for c in confidences if 0.5 <= c < 0.8
-                ),
-                "low_confidence_count": sum(1 for c in confidences if c < 0.5),
-            }
+            confidence_dist = ConfidenceDistribution(
+                mean=sum(confidences) / len(confidences),
+                high_confidence_count=sum(1 for c in confidences if c >= 0.8),
+                medium_confidence_count=sum(1 for c in confidences if 0.5 <= c < 0.8),
+                low_confidence_count=sum(1 for c in confidences if c < 0.5),
+            )
+        else:
+            confidence_dist = ConfidenceDistribution()
 
-        return {
-            "total_nodes": len(self.nodes),
-            "total_relationships": len(self.relationships),
-            "processed_triggers": len(self.processed_triggers),
-            "node_types": node_counts,
-            "relationship_types": rel_counts,
-            "confidence_distribution": confidence_dist,
-        }
+        return GraphStats(
+            total_nodes=len(self.nodes),
+            total_relationships=len(self.relationships),
+            processed_triggers=len(self.processed_triggers),
+            node_types=node_counts,
+            relationship_types=rel_counts,
+            confidence_distribution=confidence_dist,
+        )
 
     def save_to_file(self, filename: str) -> None:
         """Save graph to JSON file"""
         data = {
-            "nodes": [node.to_dict() for node in self.nodes.values()],
-            "relationships": [rel.to_dict() for rel in self.relationships.values()],
+            "nodes": [node.model_dump() for node in self.nodes.values()],
+            "relationships": [rel.model_dump() for rel in self.relationships.values()],
             "processed_triggers": list(self.processed_triggers),
         }
 
@@ -874,13 +855,13 @@ def main():
         if (i + 1) % 10 == 0:
             stats = graph.get_stats()
             print(
-                f"    Graph stats: {stats['total_nodes']} nodes, {stats['total_relationships']} relationships"
+                f"    Graph stats: {stats.total_nodes} nodes, {stats.total_relationships} relationships"
             )
 
     # Final statistics
     print("\n📈 Final Graph Statistics:")
     stats = graph.get_stats()
-    for key, value in stats.items():
+    for key, value in asdict(stats).items():
         if isinstance(value, dict):
             print(f"  {key}:")
             for subkey, subvalue in value.items():

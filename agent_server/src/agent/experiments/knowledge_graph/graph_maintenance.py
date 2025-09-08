@@ -104,11 +104,17 @@ class GraphMaintenanceSystem:
             r
             for r in all_relationships
             if graph.nodes.get(
-                r.source_node_id, GraphNode("", NodeType.EXPERIENCE, "", "")
+                r.source_node_id,
+                GraphNode(
+                    id="", node_type=NodeType.EXPERIENCE, name="", description=""
+                ),
             ).node_type
             != NodeType.EXPERIENCE
             and graph.nodes.get(
-                r.target_node_id, GraphNode("", NodeType.EXPERIENCE, "", "")
+                r.target_node_id,
+                GraphNode(
+                    id="", node_type=NodeType.EXPERIENCE, name="", description=""
+                ),
             ).node_type
             != NodeType.EXPERIENCE
         ]

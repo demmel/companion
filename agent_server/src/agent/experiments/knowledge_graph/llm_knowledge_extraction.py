@@ -10,6 +10,7 @@ placeholder extraction with real semantic understanding.
 import json
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
+from dataclasses import dataclass
 import logging
 
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
@@ -20,6 +21,38 @@ from agent.structured_llm import direct_structured_llm_call
 from agent.state import State
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EntityValidation:
+    entity: str
+    type: str
+    confidence: float
+    found_in_text: bool
+    evidence_provided: bool
+
+
+@dataclass
+class RelationshipValidation:
+    relationship: str
+    confidence: float
+    source_exists: bool
+    target_exists: bool
+    evidence_provided: bool
+
+
+@dataclass
+class ExtractionValidation:
+    trigger_id: str
+    entities_count: int
+    relationships_count: int
+    has_emotional_context: bool
+    themes_count: int
+    factual_claims_count: int
+    commitments_count: int
+    questions_count: int
+    entity_validation: List[EntityValidation]
+    relationship_validation: List[RelationshipValidation]
 
 
 class ExtractedEntity(BaseModel):
@@ -217,7 +250,7 @@ class LLMKnowledgeExtractor:
 
     def validate_extraction(
         self, extraction: KnowledgeExtraction, trigger: TriggerHistoryEntry
-    ) -> Dict[str, Any]:
+    ) -> ExtractionValidation:
         """Validate the quality of an extraction"""
 
         # Get original text for validation
@@ -242,30 +275,20 @@ class LLMKnowledgeExtractor:
 
         all_text = " ".join([user_input] + action_texts).lower()
 
-        validation = {
-            "trigger_id": trigger.entry_id,
-            "entities_count": len(extraction.entities),
-            "relationships_count": len(extraction.relationships),
-            "has_emotional_context": extraction.emotional_context is not None,
-            "themes_count": len(extraction.key_themes),
-            "factual_claims_count": len(extraction.factual_claims),
-            "commitments_count": len(extraction.commitments_or_promises),
-            "questions_count": len(extraction.questions_or_unknowns),
-            "entity_validation": [],
-            "relationship_validation": [],
-        }
+        entity_validations = []
+        relationship_validations = []
 
         # Validate entities - check if entity names appear in original text
         for entity in extraction.entities:
             entity_in_text = entity.name.lower() in all_text
-            validation["entity_validation"].append(
-                {
-                    "entity": entity.name,
-                    "type": entity.type,
-                    "confidence": entity.confidence,
-                    "found_in_text": entity_in_text,
-                    "evidence_provided": len(entity.evidence) > 0,
-                }
+            entity_validations.append(
+                EntityValidation(
+                    entity=entity.name,
+                    type=entity.type,
+                    confidence=entity.confidence,
+                    found_in_text=entity_in_text,
+                    evidence_provided=len(entity.evidence) > 0,
+                )
             )
 
         # Validate relationships - check if both entities exist and make sense
@@ -280,17 +303,28 @@ class LLMKnowledgeExtractor:
                 or rel.target_entity.lower() in all_text
             )
 
-            validation["relationship_validation"].append(
-                {
-                    "relationship": f"{rel.source_entity} -> {rel.relationship_type} -> {rel.target_entity}",
-                    "confidence": rel.confidence,
-                    "source_exists": source_exists,
-                    "target_exists": target_exists,
-                    "evidence_provided": len(rel.evidence) > 0,
-                }
+            relationship_validations.append(
+                RelationshipValidation(
+                    relationship=f"{rel.source_entity} -> {rel.relationship_type} -> {rel.target_entity}",
+                    confidence=rel.confidence,
+                    source_exists=source_exists,
+                    target_exists=target_exists,
+                    evidence_provided=len(rel.evidence) > 0,
+                )
             )
 
-        return validation
+        return ExtractionValidation(
+            trigger_id=trigger.entry_id,
+            entities_count=len(extraction.entities),
+            relationships_count=len(extraction.relationships),
+            has_emotional_context=extraction.emotional_context is not None,
+            themes_count=len(extraction.key_themes),
+            factual_claims_count=len(extraction.factual_claims),
+            commitments_count=len(extraction.commitments_or_promises),
+            questions_count=len(extraction.questions_or_unknowns),
+            entity_validation=entity_validations,
+            relationship_validation=relationship_validations,
+        )
 
 
 def test_knowledge_extraction():
@@ -337,10 +371,10 @@ def test_knowledge_extraction():
             validations.append(validation)
 
             print(
-                f"  ✅ Extracted: {validation['entities_count']} entities, {validation['relationships_count']} relationships"
+                f"  ✅ Extracted: {validation.entities_count} entities, {validation.relationships_count} relationships"
             )
             print(
-                f"     Themes: {validation['themes_count']}, Facts: {validation['factual_claims_count']}"
+                f"     Themes: {validation.themes_count}, Facts: {validation.factual_claims_count}"
             )
 
             # Show some extracted entities
@@ -351,15 +385,15 @@ def test_knowledge_extraction():
 
             # Show validation issues
             invalid_entities = [
-                e for e in validation["entity_validation"] if not e["found_in_text"]
+                e for e in validation.entity_validation if not e.found_in_text
             ]
             if invalid_entities:
                 print(f"     ⚠️  Entities not found in text: {len(invalid_entities)}")
 
             invalid_rels = [
                 r
-                for r in validation["relationship_validation"]
-                if not (r["source_exists"] and r["target_exists"])
+                for r in validation.relationship_validation
+                if not (r.source_exists and r.target_exists)
             ]
             if invalid_rels:
                 print(f"     ⚠️  Invalid relationships: {len(invalid_rels)}")

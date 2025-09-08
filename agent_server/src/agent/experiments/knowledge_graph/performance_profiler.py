@@ -13,6 +13,27 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Any
 from collections import defaultdict
 
+
+@dataclass
+class SectionStats:
+    total_time: float
+    call_count: int
+    avg_time: float
+    min_time: float
+    max_time: float
+    times: List[float]
+    percentage_of_total: float = 0.0
+
+
+@dataclass
+class PerformanceBreakdown:
+    session_total_time: float
+    measured_total_time: float
+    unmeasured_time: float
+    unmeasured_percentage: float
+    sections: Dict[str, SectionStats]
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,16 +61,16 @@ class SectionTiming:
         """Average time per call"""
         return self.total_time / self.call_count if self.call_count > 0 else 0.0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> SectionStats:
         """Get comprehensive statistics"""
-        return {
-            "total_time": self.total_time,
-            "call_count": self.call_count,
-            "avg_time": self.avg_time,
-            "min_time": self.min_time if self.min_time != float("inf") else 0.0,
-            "max_time": self.max_time,
-            "times": self.times[-10:],  # Last 10 measurements for analysis
-        }
+        return SectionStats(
+            total_time=self.total_time,
+            call_count=self.call_count,
+            avg_time=self.avg_time,
+            min_time=self.min_time if self.min_time != float("inf") else 0.0,
+            max_time=self.max_time,
+            times=self.times[-10:],  # Last 10 measurements for analysis
+        )
 
 
 class PerformanceProfiler:
@@ -88,7 +109,7 @@ class PerformanceProfiler:
 
             logger.debug(f"Section '{section_name}' completed in {duration:.3f}s")
 
-    def get_breakdown_report(self) -> Dict[str, Any]:
+    def get_breakdown_report(self) -> PerformanceBreakdown:
         """Generate comprehensive performance breakdown report"""
 
         total_session_time = time.time() - self.session_start_time
@@ -101,28 +122,28 @@ class PerformanceProfiler:
             self.sections.values(), key=lambda s: s.total_time, reverse=True
         )
 
-        breakdown = {
-            "session_total_time": total_session_time,
-            "measured_total_time": total_measured_time,
-            "unmeasured_time": total_session_time - total_measured_time,
-            "unmeasured_percentage": (
-                ((total_session_time - total_measured_time) / total_session_time * 100)
-                if total_session_time > 0
-                else 0
-            ),
-            "sections": {},
-        }
+        sections = {}
 
         for section in sorted_sections:
             section_stats = section.get_stats()
-            section_stats["percentage_of_total"] = (
+            section_stats.percentage_of_total = (
                 (section.total_time / total_session_time * 100)
                 if total_session_time > 0
                 else 0
             )
-            breakdown["sections"][section.name] = section_stats
+            sections[section.name] = section_stats
 
-        return breakdown
+        return PerformanceBreakdown(
+            session_total_time=total_session_time,
+            measured_total_time=total_measured_time,
+            unmeasured_time=total_session_time - total_measured_time,
+            unmeasured_percentage=(
+                ((total_session_time - total_measured_time) / total_session_time * 100)
+                if total_session_time > 0
+                else 0
+            ),
+            sections=sections,
+        )
 
     def print_breakdown_report(self) -> None:
         """Print a formatted performance breakdown report"""
@@ -133,26 +154,26 @@ class PerformanceProfiler:
         print("📊 KNOWLEDGE GRAPH PERFORMANCE BREAKDOWN")
         print("=" * 80)
 
-        print(f"Session Total Time: {report['session_total_time']:.2f}s")
-        print(f"Measured Time: {report['measured_total_time']:.2f}s")
+        print(f"Session Total Time: {report.session_total_time:.2f}s")
+        print(f"Measured Time: {report.measured_total_time:.2f}s")
         print(
-            f"Unmeasured Time: {report['unmeasured_time']:.2f}s ({report['unmeasured_percentage']:.1f}%)"
+            f"Unmeasured Time: {report.unmeasured_time:.2f}s ({report.unmeasured_percentage:.1f}%)"
         )
 
         print(f"\n🔍 SECTION BREAKDOWN:")
         print("-" * 80)
 
-        for section_name, stats in report["sections"].items():
+        for section_name, stats in report.sections.items():
             print(
-                f"{section_name:.<40} {stats['total_time']:>8.2f}s ({stats['percentage_of_total']:>5.1f}%)"
+                f"{section_name:.<40} {stats.total_time:>8.2f}s ({stats.percentage_of_total:>5.1f}%)"
             )
             print(
-                f"{'':.<40} {stats['call_count']:>4} calls, avg: {stats['avg_time']:>6.3f}s"
+                f"{'':.<40} {stats.call_count:>4} calls, avg: {stats.avg_time:>6.3f}s"
             )
 
-            if stats["call_count"] > 1:
+            if stats.call_count > 1:
                 print(
-                    f"{'':.<40} min: {stats['min_time']:>6.3f}s, max: {stats['max_time']:>6.3f}s"
+                    f"{'':.<40} min: {stats.min_time:>6.3f}s, max: {stats.max_time:>6.3f}s"
                 )
             print()
 
@@ -162,13 +183,13 @@ class PerformanceProfiler:
 
         bottlenecks = [
             (name, stats)
-            for name, stats in report["sections"].items()
-            if stats["percentage_of_total"] > 10
+            for name, stats in report.sections.items()
+            if stats.percentage_of_total > 10
         ]
 
         if bottlenecks:
             for name, stats in bottlenecks:
-                print(f"• {name}: {stats['percentage_of_total']:.1f}% of total time")
+                print(f"• {name}: {stats.percentage_of_total:.1f}% of total time")
         else:
             print("• No major bottlenecks (>10% of total time) identified")
 

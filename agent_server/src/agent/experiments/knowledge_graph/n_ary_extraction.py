@@ -9,6 +9,15 @@ replacing the binary-only extraction system.
 import uuid
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
+from dataclasses import dataclass
+
+
+@dataclass
+class ExistingEntityData:
+    name: str
+    type: str
+    description: str
+
 
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
@@ -66,7 +75,7 @@ class NaryRelationshipExtractor:
         self,
         text: str,
         context: str = "",
-        existing_entities: Optional[List[Dict[str, str]]] = None,
+        existing_entities: Optional[List[ExistingEntityData]] = None,
     ) -> List[ExtractedNaryRelationship]:
         """Extract N-ary relationships from text"""
 
@@ -93,7 +102,7 @@ class NaryRelationshipExtractor:
         entities_context = ""
         if existing_entities:
             entities_list = [
-                f"- {e['name']} ({e['type']}): {e['description']}"
+                f"- {e.name} ({e.type}): {e.description}"
                 for e in existing_entities[:10]
             ]
             entities_context = f"\n\nEXISTING ENTITIES:\n" + "\n".join(entities_list)

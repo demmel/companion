@@ -61,7 +61,7 @@ def simple_comparison_test():
 
     stats = kg_builder.get_stats()
     print(
-        f"✅ Knowledge graph: {stats['total_nodes']} nodes, {stats['total_relationships']} relationships"
+        f"✅ Knowledge graph: {stats.total_nodes} nodes, {stats.total_relationships} relationships"
     )
 
     # Test scenarios
@@ -143,7 +143,7 @@ def simple_comparison_test():
         )
 
         print(f"   Knowledge graph context generated")
-        print(f"   Graph nodes total: {stats['total_nodes']}")
+        print(f"   Graph nodes total: {stats.total_nodes}")
 
         if "KEY ENTITIES" in formatted_kg_context:
             entity_count = len(

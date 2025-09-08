@@ -107,7 +107,7 @@ class FullComparisonPipeline:
 
         stats = self.kg_builder.get_stats()
         print(
-            f"✅ Built KG: {stats['total_nodes']} nodes, {stats['total_relationships']} relationships"
+            f"✅ Built KG: {stats.total_nodes} nodes, {stats.total_relationships} relationships"
         )
 
         # Create experimental components
