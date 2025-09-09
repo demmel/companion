@@ -58,7 +58,9 @@ class EmbeddingService:
         assert self._model is not None, "Model must be loaded before encoding"
 
         start_time = time.time()
-        embedding = self._model.encode(text, convert_to_numpy=True)
+        embedding = self._model.encode(
+            text, convert_to_numpy=True, show_progress_bar=False
+        )
         encode_time = time.time() - start_time
 
         logger.debug(
@@ -82,7 +84,9 @@ class EmbeddingService:
         assert self._model is not None, "Model must be loaded before encoding batch"
 
         start_time = time.time()
-        embeddings = self._model.encode(texts, convert_to_numpy=True)
+        embeddings = self._model.encode(
+            texts, convert_to_numpy=True, show_progress_bar=False
+        )
         encode_time = time.time() - start_time
 
         logger.info(

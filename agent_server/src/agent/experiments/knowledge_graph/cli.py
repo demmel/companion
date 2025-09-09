@@ -18,8 +18,8 @@ from agent.llm import create_llm, SupportedModel
 from agent.experiments.knowledge_graph.knowledge_graph_builder import (
     ValidatedKnowledgeGraphBuilder,
 )
-from agent.experiments.knowledge_graph.relationship_type_bank import (
-    RelationshipTypeBank,
+from agent.experiments.knowledge_graph.relationship_schema_bank import (
+    RelationshipSchemaBank,
 )
 from agent.experiments.knowledge_graph.knowledge_graph_querying import (
     GraphQuery,
@@ -158,7 +158,10 @@ def cli(verbose: bool):
 @click.option(
     "--output", "-o", required=True, help="Output file path for the knowledge graph"
 )
-def build(conversation: str, triggers: Optional[int], output: str):
+@click.option(
+    "--profile", "-p", is_flag=True, help="Enable cProfile performance profiling"
+)
+def build(conversation: str, triggers: Optional[int], output: str, profile: bool):
     """Build knowledge graph from conversation triggers and save it"""
 
     click.echo(f"🏗️  Building Knowledge Graph")
@@ -187,7 +190,9 @@ def build(conversation: str, triggers: Optional[int], output: str):
 
     # Create relationship bank file based on output name
     relationship_bank_file = output.replace(".json", "_relationships.json")
-    relationship_bank = RelationshipTypeBank(llm, model, state, relationship_bank_file)
+    relationship_bank = RelationshipSchemaBank(
+        llm, model, state, relationship_bank_file
+    )
 
     # Initialize historical state progression
     initial_state = build_state_from_initial_exchange(initial_exchange)
@@ -207,57 +212,115 @@ def build(conversation: str, triggers: Optional[int], output: str):
 
     click.echo(f"\n🔄 Processing {len(triggers_to_process)} triggers...")
 
-    previous_trigger = None
-    successful = 0
+    # Initialize cProfile if requested
+    if profile:
+        import cProfile
+        import pstats
+        import tempfile
+        import os
 
-    with click.progressbar(
-        triggers_to_process,
-        label="Building knowledge graph",
-        show_eta=True,
-        show_percent=True,
-        show_pos=True,
-        width=80,
-    ) as bar:
-        for i, trigger in enumerate(bar):
-            success = kg_builder.process_trigger_incremental(trigger, previous_trigger)
-            if success:
-                successful += 1
+        pr = cProfile.Profile()
+        pr.enable()
 
-            # Run maintenance every 5 triggers or on the last trigger
-            if (i + 1) % 5 == 0 or i == len(triggers_to_process) - 1:
-                click.echo(f"\n🔧 Running graph maintenance...")
-                maintenance_results = graph_maintenance.analyze_graph(kg_builder.graph)
-                if len(maintenance_results.contradictions) > 0:
-                    click.echo(
-                        f"   Found {len(maintenance_results.contradictions)} contradictions"
-                    )
-                if len(maintenance_results.logical_leaps) > 0:
-                    click.echo(
-                        f"   Found {len(maintenance_results.logical_leaps)} logical leaps"
-                    )
-                if len(maintenance_results.semantic_refinements) > 0:
-                    click.echo(
-                        f"   Found {len(maintenance_results.semantic_refinements)} refinement opportunities"
-                    )
+    def process_triggers():
+        previous_trigger = None
+        successful = 0
 
-            kg_builder.save_graph(output)
-            relationship_bank.save_bank()
-            previous_trigger = trigger
+        with click.progressbar(
+            triggers_to_process,
+            label="Building knowledge graph",
+            show_eta=True,
+            show_percent=True,
+            show_pos=True,
+            width=80,
+        ) as bar:
+            for i, trigger in enumerate(bar):
+                success = kg_builder.process_trigger_incremental(
+                    trigger, previous_trigger
+                )
+                if success:
+                    successful += 1
+
+                # Run maintenance every 5 triggers or on the last trigger
+                if (i + 1) % 5 == 0 or i == len(triggers_to_process) - 1:
+                    click.echo(f"\n🔧 Running graph maintenance...")
+                    maintenance_results = graph_maintenance.analyze_graph(
+                        kg_builder.graph
+                    )
+                    if len(maintenance_results.contradictions) > 0:
+                        click.echo(
+                            f"   Found {len(maintenance_results.contradictions)} contradictions"
+                        )
+                    if len(maintenance_results.logical_leaps) > 0:
+                        click.echo(
+                            f"   Found {len(maintenance_results.logical_leaps)} logical leaps"
+                        )
+                    if len(maintenance_results.semantic_refinements) > 0:
+                        click.echo(
+                            f"   Found {len(maintenance_results.semantic_refinements)} refinement opportunities"
+                        )
+
+                kg_builder.save_graph(output)
+                relationship_bank.save_bank()
+                previous_trigger = trigger
+
+        return successful
+
+    successful = process_triggers()
+
+    llm.log_stats_summary()
+
+    # Process profiling results if enabled
+    if profile:
+        pr.disable()
+
+        # Create temporary file for profile stats
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".prof", delete=False) as f:
+            temp_file = f.name
+
+        pr.dump_stats(temp_file)
+        profile_stats = pstats.Stats(temp_file)
 
     # Show final statistics
-    stats = kg_builder.get_stats()
+    graph_stats = kg_builder.get_stats()
     click.echo(f"\n📊 Knowledge Graph Complete:")
     click.echo(f"   Triggers processed: {successful}/{len(triggers_to_process)}")
-    click.echo(f"   Nodes: {stats.total_nodes}")
-    click.echo(f"   Relationships: {stats.total_relationships}")
-    click.echo(f"   Relationship types: {len(stats.relationship_types)}")
+    click.echo(f"   Nodes: {graph_stats.total_nodes}")
+    click.echo(f"   Relationships: {graph_stats.total_relationships}")
+    click.echo(f"   Relationship types: {len(graph_stats.relationship_types)}")
     click.echo(f"   Entity evolutions: {kg_builder.entity_evolution_count}")
 
-    # Show performance breakdown including profiler data
-    click.echo(f"\n⚡ Performance Breakdown:")
-    from agent.experiments.knowledge_graph.performance_profiler import profiler
+    # Show performance breakdown
+    if profile:
+        click.echo(f"\n⚡ cProfile Performance Analysis:")
+        click.echo("=" * 60)
 
-    profiler.print_breakdown_report()
+        # Show top functions by cumulative time
+        click.echo("Top 15 functions by cumulative time:")
+        profile_stats.sort_stats("cumulative").print_stats(15)
+
+        # Show top functions by internal time
+        click.echo("\nTop 15 functions by internal time:")
+        profile_stats.sort_stats("time").print_stats(15)
+
+        # Show functions related to specific modules
+        click.echo("\nKnowledge graph related functions:")
+        profile_stats.print_stats("knowledge_graph")
+
+        click.echo("\nLLM related functions:")
+        profile_stats.print_stats("llm")
+
+        click.echo("\nEmbedding related functions:")
+        profile_stats.print_stats("embedding")
+
+        # Clean up temporary file
+        import os
+
+        os.unlink(temp_file)
+    else:
+        click.echo(
+            f"\n💡 Use --profile flag for detailed cProfile performance analysis"
+        )
 
     click.echo(f"\n💾 Saved to: {output}")
     click.echo(f"💾 Relationships saved to: {relationship_bank_file}")
