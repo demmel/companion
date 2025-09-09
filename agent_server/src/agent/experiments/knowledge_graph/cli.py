@@ -33,6 +33,19 @@ from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.state import State, Value, Priority
 from datetime import datetime
 
+from tqdm import tqdm
+
+
+class TqdmLoggingHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(msg)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
+
 
 def build_state_from_initial_exchange(initial_exchange: TriggerHistoryEntry) -> State:
     """Extract initial state from the thought action in initial exchange"""
@@ -145,7 +158,7 @@ def cli(verbose: bool):
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler()],
+        handlers=[TqdmLoggingHandler()],
         force=True,  # Override existing configuration
     )
 
@@ -226,43 +239,33 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
         previous_trigger = None
         successful = 0
 
-        with click.progressbar(
-            triggers_to_process,
-            label="Building knowledge graph",
-            show_eta=True,
-            show_percent=True,
-            show_pos=True,
-            width=80,
-        ) as bar:
-            for i, trigger in enumerate(bar):
-                success = kg_builder.process_trigger_incremental(
-                    trigger, previous_trigger
-                )
-                if success:
-                    successful += 1
+        for i, trigger in tqdm(
+            enumerate(triggers_to_process), total=len(triggers_to_process)
+        ):
+            success = kg_builder.process_trigger_incremental(trigger, previous_trigger)
+            if success:
+                successful += 1
 
-                # Run maintenance every 5 triggers or on the last trigger
-                if (i + 1) % 5 == 0 or i == len(triggers_to_process) - 1:
-                    click.echo(f"\n🔧 Running graph maintenance...")
-                    maintenance_results = graph_maintenance.analyze_graph(
-                        kg_builder.graph
+            # Run maintenance every 5 triggers or on the last trigger
+            if (i + 1) % 5 == 0 or i == len(triggers_to_process) - 1:
+                tqdm.write(f"\n🔧 Running graph maintenance...")
+                maintenance_results = graph_maintenance.analyze_graph(kg_builder.graph)
+                if len(maintenance_results.contradictions) > 0:
+                    tqdm.write(
+                        f"   Found {len(maintenance_results.contradictions)} contradictions"
                     )
-                    if len(maintenance_results.contradictions) > 0:
-                        click.echo(
-                            f"   Found {len(maintenance_results.contradictions)} contradictions"
-                        )
-                    if len(maintenance_results.logical_leaps) > 0:
-                        click.echo(
-                            f"   Found {len(maintenance_results.logical_leaps)} logical leaps"
-                        )
-                    if len(maintenance_results.semantic_refinements) > 0:
-                        click.echo(
-                            f"   Found {len(maintenance_results.semantic_refinements)} refinement opportunities"
-                        )
+                if len(maintenance_results.logical_leaps) > 0:
+                    tqdm.write(
+                        f"   Found {len(maintenance_results.logical_leaps)} logical leaps"
+                    )
+                if len(maintenance_results.semantic_refinements) > 0:
+                    tqdm.write(
+                        f"   Found {len(maintenance_results.semantic_refinements)} refinement opportunities"
+                    )
 
-                kg_builder.save_graph(output)
-                relationship_bank.save_bank()
-                previous_trigger = trigger
+            kg_builder.save_graph(output)
+            relationship_bank.save_bank()
+            previous_trigger = trigger
 
         return successful
 
