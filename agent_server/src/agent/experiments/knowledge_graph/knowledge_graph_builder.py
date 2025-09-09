@@ -30,7 +30,9 @@ from agent.experiments.knowledge_graph.relationship_schema_bank import (
 )
 from agent.chain_of_action.prompts import format_single_trigger_entry
 from agent.experiments.knowledge_graph.n_ary_extraction import ExistingEntityData
-from agent.experiments.knowledge_graph.knn_entity_search import KNNEntityDeduplicator
+from agent.experiments.knowledge_graph.knn_entity_search import (
+    KNNEntitySearch,
+)
 from agent.experiments.knowledge_graph.n_ary_extraction import (
     NaryRelationshipExtractor,
 )
@@ -286,12 +288,6 @@ class ValidatedKnowledgeGraphBuilder:
             llm, model, state
         )
 
-        # Track entities across triggers for deduplication
-        # Using composite keys to handle name collisions: {name_type_key: node_id}
-        self.entity_name_to_node_id: Dict[str, str] = {}
-        # Also maintain reverse lookup for similarity matching: {node_id: composite_key}
-        self.node_id_to_entity_key: Dict[str, str] = {}
-
         # Track statistics for analysis
         self.entity_evolution_count = 0
 
@@ -299,7 +295,7 @@ class ValidatedKnowledgeGraphBuilder:
         self.embedding_service = get_embedding_service()
 
         # kNN-based entity deduplication system
-        self.entity_deduplicator = KNNEntityDeduplicator(similarity_threshold=0.85)
+        self.node_search = KNNEntitySearch[GraphNode]()
 
         # N-ary relationship extraction and management
         self.nary_extractor = NaryRelationshipExtractor(
@@ -367,7 +363,7 @@ class ValidatedKnowledgeGraphBuilder:
         """Process trigger with section-level instrumentation"""
 
         # Always create experience node first
-        experience_node = self._create_experience_node(trigger)
+        experience_node: GraphNode = self._create_experience_node(trigger)
         self.graph.add_node(experience_node)
 
         # Add temporal relationship to previous experience
@@ -569,15 +565,14 @@ class ValidatedKnowledgeGraphBuilder:
             node_type = self._map_entity_type_to_node_type(entity.type)
 
             # Use kNN-based entity deduplication
-            existing_entity_name = self.entity_deduplicator.find_duplicate_entity(
-                entity.name, entity.type, entity.description, entity.evidence
+            existing_entity_id = self.resolve_entity_to_node_id(
+                entity.name, entity.type, entity.description
             )
 
-            if existing_entity_name:
+            if existing_entity_id:
                 self.metrics.entities_deduplicated += 1
                 # Entity exists, evolve its description with new information
-                # existing_entity_name is now a composite key from _find_similar_entity
-                existing_node_id = self.entity_name_to_node_id[existing_entity_name]
+                existing_node_id = existing_entity_id
                 existing_node = self.graph.nodes[existing_node_id]
 
                 # Evolve the description by combining old and new insights
@@ -631,13 +626,9 @@ class ValidatedKnowledgeGraphBuilder:
                 self.graph.add_node(knowledge_node)
                 # Use composite key to handle name collisions
                 composite_key = self._make_entity_key(entity.name, entity.type)
-                self.entity_name_to_node_id[composite_key] = knowledge_node.id
-                self.node_id_to_entity_key[knowledge_node.id] = composite_key
 
                 # Add to kNN search index for future deduplication
-                self.entity_deduplicator.add_entity_to_index(
-                    knowledge_node, composite_key
-                )
+                self.node_search.add_entity(knowledge_node)
 
             # Create relationship between experience and knowledge node
             # Use direct builtin schema access for high-confidence "involves" relationship
@@ -687,19 +678,16 @@ class ValidatedKnowledgeGraphBuilder:
             ]:
                 existing_entities.append(
                     ExistingEntityData(
+                        id=node_id,
                         name=node.name,
                         type=node.node_type.value,
                         description=node.description,
                     )
                 )
 
-        # Get full text for N-ary extraction
-        trigger_text = format_single_trigger_entry(trigger, use_summary=False)
-        context = f"Experience node: {experience_node.description}"
-
         # Extract N-ary relationships using semantic roles
         nary_relationships = self.nary_extractor.extract_nary_relationships(
-            text=trigger_text, context=context, existing_entities=existing_entities
+            trigger=trigger, existing_entities=existing_entities
         )
 
         logger.info(f"Extracted {len(nary_relationships)} N-ary relationships")
@@ -851,16 +839,16 @@ Description:"""
     ) -> str:
         """Find if there's an existing entity that represents the same thing using embedding-based similarity"""
 
-        if not self.entity_name_to_node_id:
-            return ""  # No existing entities
+        if not self.graph.get_all_nodes():
+            return ""  # Graph is empty
 
         # Get entities of the same type for comparison
         candidate_entities = []
-        for existing_name, node_id in self.entity_name_to_node_id.items():
-            existing_node = self.graph.nodes[node_id]
+        for node in self.graph.get_all_nodes():
+            existing_node = self.graph.nodes[node.id]
             # Only compare entities of the same type to avoid false matches
             if existing_node.node_type.value == entity_type:
-                candidate_entities.append((existing_name, existing_node))
+                candidate_entities.append((node.name, existing_node))
 
         if not candidate_entities:
             return ""  # No entities of this type exist yet
@@ -1366,33 +1354,9 @@ If they are the same entity, provide the existing entity's normalized name."""
         self, entity_name: str, entity_type: str, entity_description: str
     ) -> Optional[str]:
         """Resolve entity to node ID using kNN similarity"""
-        similar_entity_key = self.entity_deduplicator.find_duplicate_entity(
-            entity_name,
-            entity_type,
-            entity_description,
-            "",  # No evidence for N-ary participants
+        return self.node_search.find_duplicate_entity(
+            f"{entity_name} ({entity_type}): {entity_description}",
         )
-
-        if similar_entity_key and similar_entity_key in self.entity_name_to_node_id:
-            return self.entity_name_to_node_id[similar_entity_key]
-
-        return None
-
-    def _lookup_entity_by_name_type(self, name: str, entity_type: str) -> Optional[str]:
-        """Look up entity node ID by name and type, handling collisions"""
-        composite_key = self._make_entity_key(name, entity_type)
-        return self.entity_name_to_node_id.get(composite_key)
-
-    def _find_entity_by_name(self, name: str) -> Optional[str]:
-        """Find entity node ID by name (without type) - returns first match if multiple types"""
-        normalized_name = name.lower().strip()
-
-        # Look for any composite key that starts with this name
-        for composite_key, node_id in self.entity_name_to_node_id.items():
-            if composite_key.startswith(f"{normalized_name}|"):
-                return node_id
-
-        return None
 
     def get_stats(self) -> GraphStats:
         """Get comprehensive graph statistics"""

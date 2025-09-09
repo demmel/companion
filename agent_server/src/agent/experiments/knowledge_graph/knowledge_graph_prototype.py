@@ -13,6 +13,9 @@ from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
+from agent.experiments.knowledge_graph.knn_entity_search import IKNNEntity
+import numpy as np
+
 
 @dataclass
 class ConfidenceDistribution:
@@ -114,7 +117,7 @@ class RelationshipType(str, Enum):
     CONTRIBUTED_TO = "contributed_to"  # Partial causation
 
 
-class GraphNode(BaseModel):
+class GraphNode(BaseModel, IKNNEntity):
     """A node in the knowledge+experience graph"""
 
     id: str
@@ -130,6 +133,16 @@ class GraphNode(BaseModel):
 
     # For experience nodes - preserve full trigger context
     source_trigger_id: Optional[str] = None
+
+    def get_id(self) -> str:
+        return self.id
+
+    def get_embedding(self) -> np.ndarray:
+        assert self.embedding is not None
+        return np.array(self.embedding)
+
+    def get_text(self) -> str:
+        return f"{self.name} ({self.node_type.value}): {self.description}"
 
 
 class GraphRelationship(BaseModel):

@@ -6,8 +6,9 @@ Implements proper k-nearest neighbors search for entity similarity matching,
 replacing simple pairwise comparisons with efficient similarity search.
 """
 
+from asyncio import Protocol
 import numpy as np
-from typing import List, Dict, Optional, Any
+from typing import Generic, List, Dict, Optional, Any, TypeVar
 from dataclasses import dataclass
 import logging
 
@@ -17,77 +18,56 @@ from agent.memory.embedding_service import get_embedding_service
 logger = logging.getLogger(__name__)
 
 
+class IKNNEntity(Protocol):
+    def get_id(self) -> str: ...
+    def get_embedding(self) -> np.ndarray: ...
+    def get_text(self) -> str: ...
+
+
+T = TypeVar("T", bound=IKNNEntity)
+
+
 @dataclass
-class EntityMetadata:
-    node_id: str
-    composite_key: str
-    entity_type: str
-    node: GraphNode
-    name: str
+class EntityMatch(Generic[T]):
+    t: T
+    similarity: float
 
 
 @dataclass
 class EntitySearchStatistics:
     total_entities: int
-    entities_by_type: Dict[str, int]
     average_embedding_norm: float
-    similarity_threshold: float
 
 
-@dataclass
-class EntityMatch:
-    """Result of entity similarity search"""
-
-    node_id: str
-    node: GraphNode
-    similarity: float
-    composite_key: str
-
-
-class KNNEntitySearch:
+class KNNEntitySearch(Generic[T]):
     """k-nearest neighbors search for entity deduplication"""
 
-    def __init__(self, similarity_threshold: float = 0.7):
+    def __init__(self):
         self.embedding_service = get_embedding_service()
-        self.similarity_threshold = similarity_threshold
 
         # Cache for entity embeddings and metadata
-        self.entity_embeddings: List[np.ndarray] = []
-        self.entity_metadata: List[EntityMetadata] = (
-            []
-        )  # Store node_id, composite_key, entity_type
+        self.entity_metadata: List[T] = []  # Store node_id, composite_key, entity_type
         self.embedding_index_dirty = True
 
-    def add_entity(self, node: GraphNode, composite_key: str) -> None:
+    def add_entity(self, t: T) -> None:
         """Add an entity to the search index"""
 
-        if node.embedding is not None:
-            self.entity_embeddings.append(np.array(node.embedding))
-            self.entity_metadata.append(
-                EntityMetadata(
-                    node_id=node.id,
-                    composite_key=composite_key,
-                    node=node,
-                    entity_type=node.node_type.value,
-                    name=node.name,
-                )
-            )
-            self.embedding_index_dirty = True
+        self.entity_metadata.append(t)
+        self.embedding_index_dirty = True
 
     def find_similar_entities(
         self,
         query_embedding: np.ndarray,
-        entity_type: str,
         k: int = 5,
-        type_filter: bool = True,
-    ) -> List[EntityMatch]:
+        similarity_threshold: float = 0.85,
+    ) -> List[EntityMatch[T]]:
         """Find k most similar entities using cosine similarity"""
 
-        if not self.entity_embeddings:
+        if not self.entity_metadata:
             return []
 
         # Convert to numpy array for vectorized operations
-        embeddings_matrix = np.vstack(self.entity_embeddings)
+        embeddings_matrix = np.vstack([t.get_embedding() for t in self.entity_metadata])
 
         # Calculate cosine similarities
         query_norm = np.linalg.norm(query_embedding)
@@ -116,18 +96,6 @@ class KNNEntitySearch:
         # Map back to original indices
         valid_indices = np.where(non_zero_mask)[0]
 
-        # Filter by entity type if requested
-        if type_filter:
-            type_mask = np.array(
-                [
-                    self.entity_metadata[idx].entity_type == entity_type
-                    for idx in valid_indices
-                ]
-            )
-            if np.any(type_mask):
-                similarities = similarities[type_mask]
-                valid_indices = valid_indices[type_mask]
-
         if len(similarities) == 0:
             return []
 
@@ -138,28 +106,19 @@ class KNNEntitySearch:
         results = []
         for idx in top_k_indices:
             similarity = float(similarities[idx])
-            if similarity >= self.similarity_threshold:
+            if similarity >= similarity_threshold:
                 original_idx = valid_indices[idx]
                 metadata = self.entity_metadata[original_idx]
-
-                results.append(
-                    EntityMatch(
-                        node_id=metadata.node_id,
-                        node=metadata.node,
-                        similarity=similarity,
-                        composite_key=metadata.composite_key,
-                    )
-                )
+                results.append(metadata)
 
         return results
 
     def find_best_match(
-        self, entity_name: str, entity_type: str, entity_description: str
-    ) -> Optional[EntityMatch]:
+        self,
+        query_text: str,
+    ) -> Optional[EntityMatch[T]]:
         """Find the best matching entity for deduplication"""
 
-        # Generate embedding for query entity
-        query_text = f"[{entity_type}] {entity_name}: {entity_description}"
         try:
             query_embedding = np.array(self.embedding_service.encode(query_text))
         except Exception as e:
@@ -168,7 +127,8 @@ class KNNEntitySearch:
 
         # Find similar entities
         matches = self.find_similar_entities(
-            query_embedding, entity_type, k=3, type_filter=True  # Get top 3 matches
+            query_embedding,
+            k=3,
         )
 
         if not matches:
@@ -178,31 +138,63 @@ class KNNEntitySearch:
         best_match = matches[0]
 
         logger.debug(
-            f"Found {len(matches)} similar entities for '{entity_name}', "
-            f"best match: '{best_match.node.name}' (similarity: {best_match.similarity:.3f})"
+            f"Found {len(matches)} similar entities for '{query_text}', "
+            f"best match: '{best_match.t.get_id()}' (similarity: {best_match.similarity:.3f})"
         )
 
         return best_match
 
-    def update_entity_embedding(self, node_id: str, new_embedding: np.ndarray) -> None:
-        """Update the embedding for an existing entity"""
+    def find_duplicate_entity(
+        self,
+        query_text: str,
+        similarity_threshold: float = 0.85,
+        auto_accept_threshold: float = 0.95,
+        auto_reject_threshold: float = 0.3,
+    ) -> Optional[str]:
+        """Find duplicate entity using kNN search, returns composite key if found"""
 
-        for i, metadata in enumerate(self.entity_metadata):
-            if metadata.node_id == node_id:
-                self.entity_embeddings[i] = new_embedding
-                break
+        best_match = self.find_best_match(query_text)
 
-    def remove_entity(self, node_id: str) -> None:
+        if not best_match:
+            return None
+
+        # Auto-accept for very high similarity
+        if best_match.similarity >= auto_accept_threshold:
+            logger.info(
+                f"Auto-accepting entity match (similarity: {best_match.similarity:.3f}): "
+                f"'{query_text}' -> '{best_match.t.get_text()}'"
+            )
+            return best_match.t.get_id()
+
+        # Auto-reject for very low similarity
+        if best_match.similarity < auto_reject_threshold:
+            logger.debug(
+                f"Auto-rejecting entity match (similarity: {best_match.similarity:.3f}): "
+                f"'{query_text}' vs '{best_match.t.get_text()}'"
+            )
+            return None
+
+        # For medium similarities, could add LLM validation here if needed
+        # For now, use threshold-based decision
+        if best_match.similarity >= similarity_threshold:
+            logger.info(
+                f"Accepting entity match (similarity: {best_match.similarity:.3f}): "
+                f"'{query_text}' -> '{best_match.t.get_text()}'"
+            )
+            return best_match.t.get_id()
+
+        return None
+
+    def remove_entity(self, id: str) -> None:
         """Remove an entity from the search index"""
 
         indices_to_remove = []
         for i, metadata in enumerate(self.entity_metadata):
-            if metadata.node_id == node_id:
+            if metadata.get_id() == id:
                 indices_to_remove.append(i)
 
         # Remove in reverse order to maintain indices
         for i in reversed(indices_to_remove):
-            del self.entity_embeddings[i]
             del self.entity_metadata[i]
 
         self.embedding_index_dirty = True
@@ -213,93 +205,22 @@ class KNNEntitySearch:
         if not self.entity_metadata:
             return EntitySearchStatistics(
                 total_entities=0,
-                entities_by_type={},
                 average_embedding_norm=0.0,
-                similarity_threshold=self.similarity_threshold,
             )
 
-        # Count entities by type
-        type_counts = {}
-        for metadata in self.entity_metadata:
-            entity_type = metadata.entity_type
-            type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
-
         # Calculate average embedding norm
-        if self.entity_embeddings:
-            norms = [np.linalg.norm(emb) for emb in self.entity_embeddings]
+        if self.entity_metadata:
+            norms = [np.linalg.norm(e.get_embedding()) for e in self.entity_metadata]
             avg_norm = np.mean(norms)
         else:
             avg_norm = 0.0
 
         return EntitySearchStatistics(
             total_entities=len(self.entity_metadata),
-            entities_by_type=type_counts,
             average_embedding_norm=float(avg_norm),
-            similarity_threshold=self.similarity_threshold,
         )
 
     def clear_index(self) -> None:
         """Clear all entities from the search index"""
-        self.entity_embeddings.clear()
         self.entity_metadata.clear()
         self.embedding_index_dirty = True
-
-
-class KNNEntityDeduplicator:
-    """Entity deduplication using kNN search"""
-
-    def __init__(self, similarity_threshold: float = 0.85):
-        self.knn_search = KNNEntitySearch(similarity_threshold)
-        self.auto_accept_threshold = 0.95
-        self.auto_reject_threshold = 0.3
-
-    def add_entity_to_index(self, node: GraphNode, composite_key: str) -> None:
-        """Add entity to the kNN search index"""
-        self.knn_search.add_entity(node, composite_key)
-
-    def find_duplicate_entity(
-        self,
-        entity_name: str,
-        entity_type: str,
-        entity_description: str,
-        entity_evidence: str,
-    ) -> Optional[str]:
-        """Find duplicate entity using kNN search, returns composite key if found"""
-
-        best_match = self.knn_search.find_best_match(
-            entity_name, entity_type, entity_description
-        )
-
-        if not best_match:
-            return None
-
-        # Auto-accept for very high similarity
-        if best_match.similarity >= self.auto_accept_threshold:
-            logger.info(
-                f"Auto-accepting entity match (similarity: {best_match.similarity:.3f}): "
-                f"'{entity_name}' -> '{best_match.node.name}'"
-            )
-            return best_match.composite_key
-
-        # Auto-reject for very low similarity
-        if best_match.similarity < self.auto_reject_threshold:
-            logger.debug(
-                f"Auto-rejecting entity match (similarity: {best_match.similarity:.3f}): "
-                f"'{entity_name}' vs '{best_match.node.name}'"
-            )
-            return None
-
-        # For medium similarities, could add LLM validation here if needed
-        # For now, use threshold-based decision
-        if best_match.similarity >= self.knn_search.similarity_threshold:
-            logger.info(
-                f"Accepting entity match (similarity: {best_match.similarity:.3f}): "
-                f"'{entity_name}' -> '{best_match.node.name}'"
-            )
-            return best_match.composite_key
-
-        return None
-
-    def get_statistics(self) -> EntitySearchStatistics:
-        """Get deduplication statistics"""
-        return self.knn_search.get_entity_statistics()
