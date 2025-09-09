@@ -12,7 +12,6 @@ from typing import Generic, List, Dict, Optional, Any, TypeVar
 from dataclasses import dataclass
 import logging
 
-from agent.experiments.knowledge_graph.knowledge_graph_prototype import GraphNode
 from agent.memory.embedding_service import get_embedding_service
 
 logger = logging.getLogger(__name__)
@@ -102,14 +101,14 @@ class KNNEntitySearch(Generic[T]):
         # Get top-k most similar
         top_k_indices = np.argsort(similarities)[::-1][:k]
 
-        # Filter by similarity threshold
+        # Filter by similarity threshold and create EntityMatch objects
         results = []
         for idx in top_k_indices:
             similarity = float(similarities[idx])
             if similarity >= similarity_threshold:
                 original_idx = valid_indices[idx]
                 metadata = self.entity_metadata[original_idx]
-                results.append(metadata)
+                results.append(EntityMatch(t=metadata, similarity=similarity))
 
         return results
 
