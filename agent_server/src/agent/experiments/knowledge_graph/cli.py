@@ -10,8 +10,13 @@ Proper CLI interface with clean separation of concerns:
 
 import logging
 import json
+import tempfile
+import pstats
+import cProfile
+import os
 from typing import List, Optional
 import click
+import numpy as np
 
 from agent.conversation_persistence import ConversationPersistence
 from agent.llm import create_llm, SupportedModel
@@ -24,6 +29,10 @@ from agent.experiments.knowledge_graph.relationship_schema_bank import (
 from agent.experiments.knowledge_graph.knowledge_graph_querying import (
     GraphQuery,
     KnowledgeGraphQuerying,
+)
+from agent.experiments.knowledge_graph.visualization import (
+    KnowledgeGraphVisualizer,
+    EmbeddingPoint,
 )
 from agent.experiments.knowledge_graph.graph_maintenance import (
     GraphMaintenanceSystem,
@@ -226,12 +235,8 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
     click.echo(f"\n🔄 Processing {len(triggers_to_process)} triggers...")
 
     # Initialize cProfile if requested
+    pr = None
     if profile:
-        import cProfile
-        import pstats
-        import tempfile
-        import os
-
         pr = cProfile.Profile()
         pr.enable()
 
@@ -274,7 +279,9 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
     llm.log_stats_summary()
 
     # Process profiling results if enabled
-    if profile:
+    profile_stats = None
+    temp_file = None
+    if profile and pr is not None:
         pr.disable()
 
         # Create temporary file for profile stats
@@ -293,33 +300,65 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
     click.echo(f"   Relationship types: {len(graph_stats.relationship_types)}")
     click.echo(f"   Entity evolutions: {kg_builder.entity_evolution_count}")
 
+    # Generate interactive visualization
+    click.echo(f"\n🎨 Generating interactive visualization...")
+    viz_output = output.replace(".json", "_visualization.html")
+
+    try:
+        visualizer = KnowledgeGraphVisualizer(viz_output)
+
+        # Create trigger embeddings for visualization
+        # Collect trigger embeddings from experience nodes
+        trigger_embeddings = []
+        for node in kg_builder.graph.get_all_nodes():
+            if node.node_type.value == "experience" and node.embedding:
+                trigger_embeddings.append(
+                    EmbeddingPoint(
+                        id=node.id,
+                        text=f"Trigger: {node.name}",
+                        embedding=np.array(node.embedding),
+                        type="trigger",
+                        category="experience",
+                    )
+                )
+
+        visualization_path = visualizer.create_visualization(
+            kg=kg_builder.graph,
+            schema_bank=relationship_bank,
+            trigger_embeddings=trigger_embeddings,
+        )
+        click.echo(f"   Visualization saved: {visualization_path}")
+
+    except Exception as e:
+        click.echo(f"   ⚠️  Visualization generation failed: {e}", err=True)
+
     # Show performance breakdown
     if profile:
         click.echo(f"\n⚡ cProfile Performance Analysis:")
         click.echo("=" * 60)
 
-        # Show top functions by cumulative time
-        click.echo("Top 15 functions by cumulative time:")
-        profile_stats.sort_stats("cumulative").print_stats(15)
+        if profile_stats is not None:
+            # Show top functions by cumulative time
+            click.echo("Top 15 functions by cumulative time:")
+            profile_stats.sort_stats("cumulative").print_stats(15)
 
-        # Show top functions by internal time
-        click.echo("\nTop 15 functions by internal time:")
-        profile_stats.sort_stats("time").print_stats(15)
+            # Show top functions by internal time
+            click.echo("\nTop 15 functions by internal time:")
+            profile_stats.sort_stats("time").print_stats(15)
 
-        # Show functions related to specific modules
-        click.echo("\nKnowledge graph related functions:")
-        profile_stats.print_stats("knowledge_graph")
+            # Show functions related to specific modules
+            click.echo("\nKnowledge graph related functions:")
+            profile_stats.print_stats("knowledge_graph")
 
-        click.echo("\nLLM related functions:")
-        profile_stats.print_stats("llm")
+            click.echo("\nLLM related functions:")
+            profile_stats.print_stats("llm")
 
-        click.echo("\nEmbedding related functions:")
-        profile_stats.print_stats("embedding")
+            click.echo("\nEmbedding related functions:")
+            profile_stats.print_stats("embedding")
 
         # Clean up temporary file
-        import os
-
-        os.unlink(temp_file)
+        if temp_file is not None:
+            os.unlink(temp_file)
     else:
         click.echo(
             f"\n💡 Use --profile flag for detailed cProfile performance analysis"
@@ -688,6 +727,102 @@ def deduplicate(
         )
 
     click.echo(f"\n✅ Deduplication scan completed!")
+
+
+@cli.command()
+@click.argument("graph_file", type=click.Path(exists=True))
+@click.option(
+    "--output", "-o", default="kg_visualization.html", help="Output visualization file"
+)
+def visualize(graph_file: str, output: str):
+    """Create interactive visualization from saved KG and relationship files"""
+
+    from pathlib import Path
+
+    click.echo(f"🎨 Creating Knowledge Graph Visualization")
+    click.echo("=" * 50)
+    click.echo(f"Graph file: {graph_file}")
+
+    # Derive schema bank file from graph file
+    graph_path = Path(graph_file)
+    schema_bank_file = graph_path.parent / f"{graph_path.stem}_relationships.json"
+    click.echo(f"Schema bank file: {schema_bank_file}")
+    click.echo(f"Output: {output}")
+
+    try:
+        # Load the knowledge graph
+        from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
+            KnowledgeExperienceGraph,
+        )
+
+        graph = KnowledgeExperienceGraph.load_from_file(graph_file)
+        click.echo(
+            f"✅ Loaded graph: {len(graph.get_all_nodes())} nodes, {len(graph.get_all_relationships())} relationships"
+        )
+
+        # N-ary relationships are now stored directly in the graph
+        click.echo(
+            f"✅ Found {len(graph.get_nary_relationships())} n-ary relationships in graph"
+        )
+
+        # Load schema bank from file if it exists
+        from agent.experiments.knowledge_graph.relationship_schema_bank import (
+            RelationshipSchemaBank,
+        )
+        from agent.llm import create_llm, SupportedModel
+        from agent.state import State, Value, Priority
+
+        # Create minimal state for schema bank (it won't be used)
+        dummy_state = State(
+            name="visualization",
+            role="Visualization",
+            current_mood="neutral",
+            mood_intensity="medium",
+            current_environment="visualization",
+            current_appearance="n/a",
+            core_values=[],
+            current_priorities=[],
+            next_priority_id=1,
+        )
+
+        llm = create_llm()
+        model = SupportedModel.MISTRAL_SMALL_3_2_Q4
+
+        # Initialize schema bank with the derived file path
+        schema_bank = RelationshipSchemaBank(
+            llm=llm, model=model, state=dummy_state, bank_file=str(schema_bank_file)
+        )
+
+        # Collect trigger embeddings from experience nodes
+        trigger_embeddings = []
+        for node in graph.get_all_nodes():
+            if node.node_type.value == "experience" and node.embedding:
+                trigger_embeddings.append(
+                    EmbeddingPoint(
+                        id=node.id,
+                        text=f"Trigger: {node.name}",
+                        embedding=np.array(node.embedding),
+                        type="trigger",
+                        category="experience",
+                    )
+                )
+
+        click.echo(f"✅ Collected {len(trigger_embeddings)} trigger embeddings")
+
+        # Create visualization
+        visualizer = KnowledgeGraphVisualizer(output)
+        result_path = visualizer.create_visualization(
+            kg=graph, schema_bank=schema_bank, trigger_embeddings=trigger_embeddings
+        )
+
+        click.echo(f"✅ Visualization saved to: {result_path}")
+        click.echo(
+            f"📊 Open {result_path} in your browser to view the interactive dashboard"
+        )
+
+    except Exception as e:
+        click.echo(f"❌ Visualization failed: {e}", err=True)
+        raise
 
 
 if __name__ == "__main__":
