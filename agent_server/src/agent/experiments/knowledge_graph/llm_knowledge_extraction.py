@@ -16,9 +16,10 @@ import logging
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.chain_of_action.trigger import UserInputTrigger
 from agent.chain_of_action.action.action_types import ActionType
+from agent.chain_of_action.prompts import format_single_trigger_entry, format_section
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
-from agent.state import State
+from agent.state import State, build_agent_state_description
 
 logger = logging.getLogger(__name__)
 
@@ -128,45 +129,31 @@ class KnowledgeExtraction(BaseModel):
 def build_knowledge_extraction_prompt(
     trigger: TriggerHistoryEntry, state: State, recent_nodes: Optional[List] = None
 ) -> str:
-    """Build prompt for LLM to extract knowledge from a trigger"""
+    """Build prompt for LLM to extract knowledge from a trigger using proven formatting"""
 
-    # Extract content from trigger
-    user_input = ""
-    agent_actions_text = ""
-
-    if isinstance(trigger.trigger, UserInputTrigger):
-        user_input = trigger.trigger.content or ""
-
-    if trigger.actions_taken:
-        action_texts = []
-        for action in trigger.actions_taken:
-            if action.type == ActionType.THINK:
-                focus = action.input.focus
-                if focus:
-                    action_texts.append(f"THOUGHT: {focus}")
-            elif action.type == ActionType.SPEAK:
-                # Use the actual spoken text from results, not intent
-                if action.result and action.result.type == "success":
-                    response = action.result.content.response
-                    if response:
-                        action_texts.append(f"RESPONSE: {response}")
-        agent_actions_text = "\n".join(action_texts)
+    # Use proven trigger formatting from chain_of_action/prompts.py
+    trigger_text = format_single_trigger_entry(trigger, use_summary=False)
+    state_desc = build_agent_state_description(state)
+    
+    sections = []
+    
+    # Add state context
+    sections.append(format_section("CURRENT CONTEXT", state_desc))
+    
+    # Add the trigger experience using proven formatting
+    sections.append(format_section("MY RECENT EXPERIENCE", trigger_text))
+    
+    # Add recent knowledge context if available
+    if recent_nodes:
+        recent_knowledge_text = "\n".join([
+            f"- {node.get('name', 'Unknown')}: {node.get('description', '')}"
+            for node in recent_nodes[:10]
+        ])
+        sections.append(format_section("RECENT KNOWLEDGE I'VE BEEN BUILDING", recent_knowledge_text))
 
     prompt = f"""I am {state.name}, {state.role}. I need to extract meaningful knowledge from my recent experience to build my personal memory and understanding. This is me reflecting on what I learned, felt, promised, or experienced during this interaction.
 
-CONVERSATION EXCHANGE:
-Time: {trigger.timestamp}
-
-{f'USER SAID: {user_input}' if user_input else 'NO USER INPUT'}
-
-{f'MY ACTIONS/THOUGHTS:\n{agent_actions_text}' if agent_actions_text else 'NO AGENT ACTIONS'}
-
-Current Context: I am {state.name}, currently feeling {state.current_mood}. I am in {state.current_environment} and I appear as: {state.current_appearance}.
-
-{f'''
-RECENT KNOWLEDGE I'VE BEEN BUILDING:
-{chr(10).join([f"- {node.get('name', 'Unknown')}: {node.get('description', '')}" for node in (recent_nodes or [])[:10]])}
-''' if recent_nodes else ''}
+{"\n".join(sections)}
 
 From my first-person perspective, extract knowledge using "I/me/my" language ONLY:
 

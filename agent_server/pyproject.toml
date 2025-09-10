@@ -33,6 +33,9 @@ dependencies = [
     "sentence-transformers>=5.1.0",
     "nltk>=3.9.1",
     "tqdm>=4.67.1",
+    "plotly>=6.3.0",
+    "scikit-learn>=1.7.1",
+    "pandas>=2.3.2",
 ]
 
 [tool.uv.sources]

@@ -8,25 +8,23 @@ using incremental processing (no future knowledge) with confidence-weighted rela
 
 import uuid
 import json
-from typing import Dict, List, Optional, Set, Tuple, Any
+from typing import Dict, List, Optional, Set, Tuple, Any, Type
 from datetime import datetime
-from dataclasses import dataclass, field, asdict
 from enum import Enum
 
 from agent.experiments.knowledge_graph.knn_entity_search import IKNNEntity
 import numpy as np
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class ConfidenceDistribution:
+class ConfidenceDistribution(BaseModel):
     mean: float = 0.0
     high_confidence_count: int = 0
     medium_confidence_count: int = 0
     low_confidence_count: int = 0
 
 
-@dataclass
-class GraphStats:
+class GraphStats(BaseModel):
     total_nodes: int
     total_relationships: int
     processed_triggers: int
@@ -35,7 +33,11 @@ class GraphStats:
     confidence_distribution: ConfidenceDistribution
 
 
-# Removed pydantic import - not needed for prototype
+# KnowledgeGraphData will be defined after imports are resolved
+# to avoid forward reference issues
+_KnowledgeGraphData: Any = None
+
+
 import logging
 
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
@@ -43,7 +45,6 @@ from agent.chain_of_action.trigger import UserInputTrigger
 from agent.chain_of_action.action.action_types import ActionType
 from agent.conversation_persistence import ConversationPersistence
 from agent.llm import LLM, SupportedModel, create_llm
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,9 @@ class GraphNode(BaseModel, IKNNEntity):
         return self.id
 
     def get_embedding(self) -> np.ndarray:
-        assert self.embedding is not None
+        if self.embedding is None:
+            # Return empty array if embedding generation failed
+            return np.array([])
         return np.array(self.embedding)
 
     def get_text(self) -> str:
@@ -178,6 +181,13 @@ class KnowledgeExperienceGraph:
         self.nodes: Dict[str, GraphNode] = {}
         self.relationships: Dict[str, GraphRelationship] = {}
 
+        # N-ary relationships storage (the main relationship system)
+        from agent.experiments.knowledge_graph.n_ary_relationship import (
+            NaryRelationship,
+        )
+
+        self.nary_relationships: Dict[str, NaryRelationship] = {}
+
         # Indexes for efficient lookup
         self.nodes_by_type: Dict[NodeType, Set[str]] = {nt: set() for nt in NodeType}
         self.relationships_by_source: Dict[str, Set[str]] = {}
@@ -212,6 +222,18 @@ class KnowledgeExperienceGraph:
             f"Added relationship: {relationship.relationship_type} "
             f"(confidence: {relationship.confidence:.2f})"
         )
+
+    def add_nary_relationship(self, nary_relationship) -> None:
+        """Add an n-ary relationship to the graph"""
+        self.nary_relationships[nary_relationship.id] = nary_relationship
+        logger.debug(
+            f"Added n-ary relationship: {nary_relationship.relationship_type} "
+            f"with {len(nary_relationship.participants)} participants"
+        )
+
+    def get_nary_relationships(self) -> List:
+        """Get all n-ary relationships"""
+        return list(self.nary_relationships.values())
 
     def get_node(self, node_id: str) -> Optional[GraphNode]:
         """Get a node by ID"""
@@ -524,13 +546,8 @@ Analyze this situation and determine if this is a correction or evolution."""
         return history
 
     def export_to_dict(self) -> Dict[str, Any]:
-        """Export entire graph to dictionary"""
-        return {
-            "nodes": [node.model_dump() for node in self.nodes.values()],
-            "relationships": [rel.model_dump() for rel in self.relationships.values()],
-            "processed_triggers": list(self.processed_triggers),
-            "stats": asdict(self.get_stats()),
-        }
+        """Export entire graph to dictionary using Pydantic serialization"""
+        return self.to_data().model_dump()
 
     def get_stats(self) -> GraphStats:
         """Get graph statistics"""
@@ -566,90 +583,210 @@ Analyze this situation and determine if this is a correction or evolution."""
             confidence_distribution=confidence_dist,
         )
 
+    def to_data(self):
+        """Convert to serializable Pydantic data model"""
+        if _KnowledgeGraphData is None:
+            raise RuntimeError("KnowledgeGraphData model not initialized")
+
+        from agent.experiments.knowledge_graph.n_ary_relationship import (
+            NaryRelationship,
+        )
+
+        return _KnowledgeGraphData(
+            nodes=list(self.nodes.values()),
+            relationships=list(self.relationships.values()),
+            nary_relationships=list(self.nary_relationships.values()),
+            processed_triggers=list(self.processed_triggers),
+        )
+
+    @classmethod
+    def from_data(cls, data) -> "KnowledgeExperienceGraph":
+        """Reconstruct KnowledgeExperienceGraph from Pydantic data model"""
+        graph = cls()
+
+        # Add nodes first (this rebuilds indexes)
+        for node in data.nodes:
+            graph.add_node(node)
+
+        # Add relationships (this rebuilds relationship indexes)
+        for rel in data.relationships:
+            graph.add_relationship(rel)
+
+        # Add n-ary relationships
+        for nrel in data.nary_relationships:
+            graph.add_nary_relationship(nrel)
+
+        # Set processed triggers
+        graph.processed_triggers = set(data.processed_triggers)
+
+        return graph
+
     def save_to_file(self, filename: str) -> None:
-        """Save graph to JSON file"""
-        data = {
-            "nodes": [node.model_dump() for node in self.nodes.values()],
-            "relationships": [rel.model_dump() for rel in self.relationships.values()],
-            "processed_triggers": list(self.processed_triggers),
-        }
+        """Save graph to JSON file using Pydantic serialization"""
+        data = self.to_data()
 
         with open(filename, "w") as f:
-            json.dump(data, f, indent=2, default=str)
+            f.write(data.model_dump_json(indent=2))
 
         logger.info(f"Saved graph to {filename}")
 
     @classmethod
     def load_from_file(cls, filename: str) -> "KnowledgeExperienceGraph":
-        """Load graph from JSON file"""
+        """Load graph from JSON file using Pydantic deserialization"""
+        with open(filename, "r") as f:
+            json_data = f.read()
+
+        # Try to load using new Pydantic format if available
+        if _KnowledgeGraphData is not None:
+            try:
+                data = _KnowledgeGraphData.model_validate_json(json_data)
+                graph = cls.from_data(data)
+                logger.info(f"Loaded graph from {filename}")
+                return graph
+
+            except Exception as e:
+                # Fallback to manual loading for backward compatibility
+                logger.warning(
+                    f"Failed to load with Pydantic format, falling back to manual parsing: {e}"
+                )
+        else:
+            logger.info("KnowledgeGraphData not available, using legacy loading")
+
+        return cls._load_legacy_format(filename)
+
+    @classmethod
+    def _load_legacy_format(cls, filename: str) -> "KnowledgeExperienceGraph":
+        """Load graph from legacy JSON format for backward compatibility"""
         with open(filename, "r") as f:
             data = json.load(f)
 
         graph = cls()
 
-        # Load nodes
+        # Load nodes - use Pydantic validation for individual objects
         for node_data in data["nodes"]:
-            node = GraphNode(
-                id=node_data["id"],
-                node_type=NodeType(node_data["node_type"]),
-                name=node_data["name"],
-                description=node_data["description"],
-                importance=node_data["importance"],
-                created_at=datetime.fromisoformat(node_data["created_at"]),
-                properties=node_data.get("properties", {}),
-            )
-            graph.add_node(node)
-
-        # Load relationships
-        for rel_data in data["relationships"]:
-            # Handle optional fields that may not exist in older saves
-            created_at = datetime.now()
-            if "created_at" in rel_data:
-                if isinstance(rel_data["created_at"], str):
-                    created_at = datetime.fromisoformat(rel_data["created_at"])
-                else:
-                    created_at = rel_data["created_at"]
-
-            # Handle temporal fields with backwards compatibility
-            valid_from = created_at
-            if "valid_from" in rel_data:
-                valid_from = datetime.fromisoformat(rel_data["valid_from"])
-
-            valid_to = None
-            if "valid_to" in rel_data and rel_data["valid_to"]:
-                valid_to = datetime.fromisoformat(rel_data["valid_to"])
-
-            lifecycle_state = RelationshipLifecycleState.ACTIVE
-            if "lifecycle_state" in rel_data:
-                lifecycle_state = RelationshipLifecycleState(
-                    rel_data["lifecycle_state"]
+            try:
+                node = GraphNode.model_validate(node_data)
+                graph.add_node(node)
+            except Exception:
+                # Fallback for very old node formats
+                node = GraphNode(
+                    id=node_data["id"],
+                    node_type=NodeType(node_data["node_type"]),
+                    name=node_data["name"],
+                    description=node_data["description"],
+                    importance=node_data["importance"],
+                    created_at=(
+                        datetime.fromisoformat(node_data["created_at"])
+                        if isinstance(node_data["created_at"], str)
+                        else node_data["created_at"]
+                    ),
+                    properties=node_data.get("properties", {}),
                 )
+                graph.add_node(node)
 
-            rel = GraphRelationship(
-                id=rel_data["id"],
-                source_node_id=rel_data["source_node_id"],
-                target_node_id=rel_data["target_node_id"],
-                relationship_type=rel_data["relationship_type"],
-                confidence=rel_data["confidence"],
-                strength=rel_data.get("strength", 1.0),
-                created_at=created_at,
-                last_reinforced=created_at,
-                reinforcement_count=rel_data.get("reinforcement_count", 1),
-                properties=rel_data.get("properties", {}),
-                source_trigger_id=rel_data.get("source_trigger_id"),
-                valid_from=valid_from,
-                valid_to=valid_to,
-                lifecycle_state=lifecycle_state,
-                superseded_by=rel_data.get("superseded_by"),
-                supersedes=rel_data.get("supersedes"),
+        # Load relationships - use Pydantic validation for individual objects
+        for rel_data in data["relationships"]:
+            try:
+                rel = GraphRelationship.model_validate(rel_data)
+                graph.add_relationship(rel)
+            except Exception:
+                # Fallback for old relationship formats with complex compatibility logic
+                # Handle optional fields that may not exist in older saves
+                created_at = datetime.now()
+                if "created_at" in rel_data:
+                    if isinstance(rel_data["created_at"], str):
+                        created_at = datetime.fromisoformat(rel_data["created_at"])
+                    else:
+                        created_at = rel_data["created_at"]
+
+                rel = GraphRelationship(
+                    id=rel_data["id"],
+                    source_node_id=rel_data["source_node_id"],
+                    target_node_id=rel_data["target_node_id"],
+                    relationship_type=rel_data["relationship_type"],
+                    confidence=rel_data["confidence"],
+                    strength=rel_data.get("strength", 1.0),
+                    created_at=created_at,
+                    last_reinforced=created_at,
+                    reinforcement_count=rel_data.get("reinforcement_count", 1),
+                    properties=rel_data.get("properties", {}),
+                    source_trigger_id=rel_data.get("source_trigger_id"),
+                    valid_from=created_at,
+                    valid_to=None,
+                    lifecycle_state=RelationshipLifecycleState.ACTIVE,
+                    superseded_by=rel_data.get("superseded_by"),
+                    supersedes=rel_data.get("supersedes"),
+                )
+                graph.add_relationship(rel)
+
+        # Load n-ary relationships
+        if "nary_relationships" in data:
+            from agent.experiments.knowledge_graph.n_ary_relationship import (
+                NaryRelationship,
             )
-            graph.add_relationship(rel)
+
+            for nrel_data in data["nary_relationships"]:
+                try:
+                    nary_rel = NaryRelationship.model_validate(nrel_data)
+                    graph.add_nary_relationship(nary_rel)
+                except Exception:
+                    # Fallback with defaults for missing fields
+                    nary_rel = NaryRelationship(
+                        id=nrel_data["id"],
+                        relationship_type=nrel_data["relationship_type"],
+                        participants=nrel_data["participants"],
+                        confidence=nrel_data["confidence"],
+                        strength=nrel_data.get("strength", nrel_data["confidence"]),
+                        source_trigger_id=nrel_data.get("source_trigger_id", "unknown"),
+                        created_at=(
+                            datetime.fromisoformat(nrel_data["created_at"])
+                            if isinstance(nrel_data["created_at"], str)
+                            else nrel_data["created_at"]
+                        ),
+                        properties=nrel_data.get("properties", {}),
+                        pattern=nrel_data.get("pattern"),
+                    )
+                    graph.add_nary_relationship(nary_rel)
 
         # Load processed triggers
         graph.processed_triggers = set(data.get("processed_triggers", []))
 
-        logger.info(f"Loaded graph from {filename}")
+        logger.info(f"Loaded graph from {filename} (legacy format)")
         return graph
+
+
+def _rebuild_pydantic_models():
+    """Create KnowledgeGraphData model after all forward references are resolved"""
+    global _KnowledgeGraphData
+
+    try:
+        # Import NaryRelationship here to avoid circular import
+        from agent.experiments.knowledge_graph.n_ary_relationship import (
+            NaryRelationship,
+        )
+
+        # Define KnowledgeGraphData now that all types are available
+        class KnowledgeGraphData(BaseModel):
+            """Pydantic surrogate model for KnowledgeExperienceGraph serialization"""
+
+            nodes: List[GraphNode]
+            relationships: List[GraphRelationship]
+            nary_relationships: List[NaryRelationship]
+            processed_triggers: List[str]
+
+            class Config:
+                arbitrary_types_allowed = True
+
+        # Make it available globally
+        globals()["_KnowledgeGraphData"] = KnowledgeGraphData
+
+    except Exception as e:
+        # If model creation fails, we'll fall back to legacy loading
+        logger.warning(f"Failed to create KnowledgeGraphData model: {e}")
+
+
+# Rebuild models when module is loaded
+_rebuild_pydantic_models()
 
 
 class TriggerProcessor:
@@ -874,7 +1011,7 @@ def main():
     # Final statistics
     print("\n📈 Final Graph Statistics:")
     stats = graph.get_stats()
-    for key, value in asdict(stats).items():
+    for key, value in stats.model_dump().items():
         if isinstance(value, dict):
             print(f"  {key}:")
             for subkey, subvalue in value.items():

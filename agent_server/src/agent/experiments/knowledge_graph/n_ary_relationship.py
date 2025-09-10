@@ -10,10 +10,19 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 from pydantic import BaseModel, Field
 from enum import Enum
+import numpy as np
+import logging
 
 from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
     GraphRelationship,
 )
+from agent.experiments.knowledge_graph.knn_entity_search import (
+    IKNNEntity,
+    KNNEntitySearch,
+)
+from agent.memory.embedding_service import get_embedding_service
+
+logger = logging.getLogger(__name__)
 
 
 class SemanticRole(str, Enum):
@@ -63,7 +72,7 @@ class RelationshipPattern(BaseModel):
         return required_roles.issubset(participant_roles)
 
 
-class NaryRelationship(BaseModel):
+class NaryRelationship(BaseModel, IKNNEntity):
     """Represents a relationship with multiple participants and semantic roles"""
 
     id: str
@@ -79,6 +88,123 @@ class NaryRelationship(BaseModel):
     source_trigger_id: str
     created_at: datetime = Field(default_factory=datetime.now)
     pattern: Optional[str] = None  # Which pattern this relationship follows
+
+    # Optional embedding for KNN search
+    _embedding: Optional[np.ndarray] = None
+    _embedding_text: Optional[str] = None
+
+    def get_id(self) -> str:
+        """Return unique identifier for KNN search"""
+        return self.id
+
+    def get_embedding(self) -> np.ndarray:
+        """Return embedding for KNN search"""
+        if self._embedding is None:
+            # Generate embedding on demand
+            text = self.get_text()
+            try:
+                embedding_service = get_embedding_service()
+                embedding_list = embedding_service.encode(text)
+                if embedding_list:
+                    self._embedding = np.array(embedding_list)
+                    self._embedding_text = text
+                else:
+                    self._embedding = np.array([])
+            except Exception:
+                self._embedding = np.array([])
+
+        return self._embedding if self._embedding is not None else np.array([])
+
+    def get_text(self) -> str:
+        """Return text representation for KNN search"""
+        # Create a canonical text representation of this relationship
+        # Format: relationship_type(role1=participant1, role2=participant2, ...)
+        participants_text = ", ".join(
+            [
+                f"{role}={participant_id}"
+                for role, participant_id in sorted(self.participants.items())
+            ]
+        )
+
+        base_text = f"{self.relationship_type}({participants_text})"
+
+        # Add evidence if available
+        if "evidence" in self.properties:
+            base_text += f" | Evidence: {self.properties['evidence']}"
+
+        # Add pattern if available
+        if self.pattern:
+            base_text += f" | Pattern: {self.pattern}"
+
+        return base_text
+
+    def strengthen_with_evidence(
+        self, new_evidence: str, new_confidence: float
+    ) -> None:
+        """Strengthen this relationship with new evidence instead of creating duplicate"""
+
+        # Update confidence using weighted average
+        # Give more weight to higher confidence evidence
+        current_weight = self.confidence
+        new_weight = new_confidence
+        total_weight = current_weight + new_weight
+
+        if total_weight > 0:
+            self.confidence = (
+                self.confidence * current_weight + new_confidence * new_weight
+            ) / total_weight
+            # Cap at 1.0
+            self.confidence = min(self.confidence, 1.0)
+
+        # Update strength similarly
+        self.strength = (
+            (self.strength * current_weight + new_confidence * new_weight)
+            / total_weight
+            if total_weight > 0
+            else self.strength
+        )
+        self.strength = min(self.strength, 1.0)
+
+        # Add new evidence to properties
+        existing_evidence = self.properties.get("evidence", "")
+        if existing_evidence:
+            # Combine evidence, avoid exact duplicates
+            if new_evidence not in existing_evidence:
+                self.properties["evidence"] = existing_evidence + " | " + new_evidence
+        else:
+            self.properties["evidence"] = new_evidence
+
+        # Update last seen timestamp
+        self.properties["last_strengthened"] = datetime.now().isoformat()
+
+        # Reset embedding cache since evidence changed
+        self._embedding = None
+        self._embedding_text = None
+
+    def is_similar_relationship(
+        self, other: "NaryRelationship", similarity_threshold: float = 0.85
+    ) -> bool:
+        """Check if this relationship is similar to another (for deduplication)"""
+
+        # Must have same relationship type
+        if self.relationship_type != other.relationship_type:
+            return False
+
+        # Must have same participants (regardless of role mapping differences)
+        self_participants = set(self.participants.values())
+        other_participants = set(other.participants.values())
+
+        if self_participants != other_participants:
+            return False
+
+        # Check role mapping similarity (allow for minor role name differences)
+        if set(self.participants.keys()) == set(other.participants.keys()):
+            # Exact role match
+            return True
+
+        # Could add more sophisticated role similarity checking here
+        # For now, require exact participant and role structure
+        return False
 
     def get_primary_participants(self) -> Tuple[str, str]:
         """Get the two most important participants for binary compatibility"""
@@ -274,8 +400,13 @@ class NaryRelationshipManager:
         self.nary_relationships: Dict[str, NaryRelationship] = {}
         self.patterns = RELATIONSHIP_PATTERNS
 
-    def add_nary_relationship(self, nary_rel: NaryRelationship) -> None:
-        """Add an N-ary relationship to the manager"""
+        # KNN search for relationship deduplication
+        self.relationship_search = KNNEntitySearch[NaryRelationship]()
+
+    def add_nary_relationship(
+        self, nary_rel: NaryRelationship, new_evidence: str, new_confidence: float
+    ) -> str:
+        """Add an N-ary relationship to the manager with deduplication"""
 
         # Identify pattern if not already set
         if not nary_rel.pattern:
@@ -285,7 +416,47 @@ class NaryRelationshipManager:
             if pattern:
                 nary_rel.pattern = pattern.pattern_name
 
-        self.nary_relationships[nary_rel.id] = nary_rel
+        # Check for similar existing relationships
+        similar_rel = self.find_similar_relationship(nary_rel)
+
+        if similar_rel:
+            # Strengthen existing relationship instead of creating duplicate
+            evidence = new_evidence or nary_rel.properties.get("evidence", "")
+            confidence = new_confidence or nary_rel.confidence
+
+            similar_rel.strengthen_with_evidence(evidence, confidence)
+            logger.info(
+                f"Strengthened existing relationship: {similar_rel.id} (similarity found)"
+            )
+            return similar_rel.id
+        else:
+            # Add new relationship
+            self.nary_relationships[nary_rel.id] = nary_rel
+            self.relationship_search.add_entity(nary_rel)
+            logger.info(f"Added new relationship: {nary_rel.id}")
+            return nary_rel.id
+
+    def find_similar_relationship(
+        self, nary_rel: NaryRelationship
+    ) -> Optional[NaryRelationship]:
+        """Find similar relationship using KNN search"""
+
+        if not self.nary_relationships:
+            return None
+
+        try:
+            # Use KNN search to find similar relationships
+            best_match = self.relationship_search.find_best_match(nary_rel.get_text())
+
+            if best_match and best_match.similarity >= 0.85:
+                # Additional verification with our similarity method
+                if nary_rel.is_similar_relationship(best_match.t):
+                    return best_match.t
+
+        except Exception as e:
+            logger.warning(f"KNN relationship search failed: {e}")
+
+        return None
 
     def get_nary_relationship(self, relationship_id: str) -> Optional[NaryRelationship]:
         """Get an N-ary relationship by ID"""

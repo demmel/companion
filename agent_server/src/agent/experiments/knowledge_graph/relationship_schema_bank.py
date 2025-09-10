@@ -13,11 +13,16 @@ from dataclasses import dataclass
 from typing import Tuple
 import logging
 import json
+import numpy as np
 
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
 from agent.state import State
 from agent.memory.embedding_service import get_embedding_service
+from agent.experiments.knowledge_graph.knn_entity_search import (
+    IKNNEntity,
+    KNNEntitySearch,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +62,7 @@ class RelationshipSchemaMatch(BaseModel):
     reasoning: str = Field(description="Why this choice was made")
 
 
-class RelationshipSchemaEntry(BaseModel):
+class RelationshipSchemaEntry(BaseModel, IKNNEntity):
     """Entry in the relationship schema bank"""
 
     name: str
@@ -73,6 +78,19 @@ class RelationshipSchemaEntry(BaseModel):
     created_at: datetime
     last_used: datetime
     embedding: Optional[List[float]] = None
+
+    def get_id(self) -> str:
+        """Return unique identifier for KNN search"""
+        return self.name
+
+    def get_embedding(self) -> np.ndarray:
+        """Return embedding for KNN search"""
+        return np.array(self.embedding)
+
+    def get_text(self) -> str:
+        """Return text representation for KNN search"""
+        roles_text = ", ".join(self.semantic_roles)
+        return f"{self.name} ({self.category}): {roles_text} - {self.description}"
 
 
 class RelationshipSchemaBankFileData(BaseModel):
@@ -103,6 +121,9 @@ class RelationshipSchemaBank:
 
         # Registry of relationship schemas
         self.relationship_schemas: Dict[str, RelationshipSchemaEntry] = {}
+
+        # KNN search for schema similarity
+        self.schema_search = KNNEntitySearch[RelationshipSchemaEntry]()
 
         # Load existing bank if it exists
         self.load_bank()
@@ -296,63 +317,56 @@ Choose the best relationship schema to use and explain why."""
         description: str,
         category: str,
     ) -> Optional[RelationshipSchemaMatch]:
-        """Find similar schema using embedding similarity"""
+        """Find similar schema using KNN search"""
 
         if not self.relationship_schemas:
             return None
 
-        # Create text representation for embedding
+        # Create text representation for KNN search
         roles_text = ", ".join(proposed_roles)
         proposed_text = f"{proposed_type} ({category}): {roles_text} - {description}"
 
         try:
-            proposed_embedding = self.embedding_service.encode(proposed_text)
-            if not proposed_embedding:
+            # Use KNN search to find best match
+            best_match = self.schema_search.find_best_match(proposed_text)
+
+            if not best_match:
                 return None
 
-            best_similarity = 0.0
-            best_name = ""
-
-            for name, entry in self.relationship_schemas.items():
-                if not entry.embedding:
-                    # Generate embedding if missing
-                    self._generate_schema_embedding(entry)
-
-                if entry.embedding:
-                    similarity = self._cosine_similarity(
-                        proposed_embedding, entry.embedding
-                    )
-                    if similarity > best_similarity:
-                        best_similarity = similarity
-                        best_name = name
+            similarity = best_match.similarity
+            existing_entry = best_match.t
 
             # High similarity threshold for auto-acceptance
-            if best_similarity >= 0.85:
-                existing_entry = self.relationship_schemas[best_name]
+            if similarity >= 0.85:
                 logger.info(
-                    f"High embedding similarity ({best_similarity:.3f}) - using existing schema '{best_name}'"
+                    f"Schema KNN match: '{proposed_type}' → '{existing_entry.name}' (similarity: {similarity:.3f})"
                 )
                 return RelationshipSchemaMatch(
                     use_existing=True,
-                    relationship_type=best_name,
+                    relationship_type=existing_entry.name,
                     semantic_roles=existing_entry.semantic_roles,
-                    reasoning=f"High embedding similarity ({best_similarity:.3f}) indicates same concept",
+                    reasoning=f"High KNN similarity ({similarity:.3f}) indicates same concept",
                 )
 
             # Very low similarity threshold for auto-rejection
-            if best_similarity < 0.3:
+            if similarity < 0.3:
                 logger.info(
-                    f"Low embedding similarity ({best_similarity:.3f}) - creating new schema '{proposed_type}'"
+                    f"Schema KNN reject: '{proposed_type}' best match '{existing_entry.name}' (similarity: {similarity:.3f}) - creating new"
                 )
                 return RelationshipSchemaMatch(
                     use_existing=False,
                     relationship_type=proposed_type,
                     semantic_roles=proposed_roles,
-                    reasoning=f"Low embedding similarity ({best_similarity:.3f}) indicates new concept",
+                    reasoning=f"Low KNN similarity ({similarity:.3f}) indicates new concept",
                 )
 
+            # Medium similarity - log for LLM fallback
+            logger.info(
+                f"Schema KNN uncertain: '{proposed_type}' vs '{existing_entry.name}' (similarity: {similarity:.3f}) - using LLM"
+            )
+
         except Exception as e:
-            logger.warning(f"Embedding similarity check failed: {e}")
+            logger.warning(f"Schema KNN search failed: {e}")
 
         # Medium similarity - let LLM decide
         return None
@@ -384,6 +398,9 @@ Choose the best relationship schema to use and explain why."""
         # Store in registry
         self.relationship_schemas[schema_type] = entry
 
+        # Add to KNN search index
+        self.schema_search.add_entity(entry)
+
         # Save to file
         self.save_bank()
 
@@ -411,22 +428,7 @@ Choose the best relationship schema to use and explain why."""
                 f"Error generating embedding for schema '{schema_entry.name}': {e}"
             )
 
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
-
-        import math
-
-        if len(vec1) != len(vec2):
-            return 0.0
-
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
-        magnitude1 = math.sqrt(sum(a * a for a in vec1))
-        magnitude2 = math.sqrt(sum(a * a for a in vec2))
-
-        if magnitude1 == 0.0 or magnitude2 == 0.0:
-            return 0.0
-
-        return dot_product / (magnitude1 * magnitude2)
+    # Cosine similarity method removed - now using KNN search
 
     def get_relationship_stats(self) -> RelationshipBankStats:
         """Get statistics about relationship schemas"""
@@ -501,7 +503,11 @@ Choose the best relationship schema to use and explain why."""
                         entry_dict["last_used"].replace("Z", "+00:00")
                     )
 
-                self.relationship_schemas[name] = RelationshipSchemaEntry(**entry_dict)
+                entry = RelationshipSchemaEntry(**entry_dict)
+                self.relationship_schemas[name] = entry
+
+                # Add to KNN search index
+                self.schema_search.add_entity(entry)
 
             logger.info(
                 f"Loaded {len(self.relationship_schemas)} relationship schemas from {self.bank_file}"
@@ -581,6 +587,9 @@ Choose the best relationship schema to use and explain why."""
             self._generate_schema_embedding(entry)
 
             self.relationship_schemas[entry.name] = entry
+
+            # Add to KNN search index
+            self.schema_search.add_entity(entry)
 
         logger.info(f"Initialized {len(core_schemas)} core relationship schemas")
 
