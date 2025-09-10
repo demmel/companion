@@ -78,9 +78,18 @@ class KNNEntitySearch(Generic[T]):
 
         # Normalize all embeddings
         embedding_norms = np.linalg.norm(embeddings_matrix, axis=1)
+        
+        # Embedding diagnostics
+        zero_embeddings = np.sum(embedding_norms == 0)
+        if zero_embeddings > 0:
+            logger.warning(f"Found {zero_embeddings} zero embeddings in entity index")
+        
+        logger.info(f"🔢 Entity embedding norms: min={embedding_norms.min():.3f}, max={embedding_norms.max():.3f}, mean={embedding_norms.mean():.3f}")
+        
         # Avoid division by zero
         non_zero_mask = embedding_norms != 0
         if not np.any(non_zero_mask):
+            logger.warning("All entity embeddings are zero, cannot compute similarities")
             return []
 
         # Only calculate similarities for non-zero embeddings
@@ -91,6 +100,15 @@ class KNNEntitySearch(Generic[T]):
 
         # Calculate cosine similarities (dot product of normalized vectors)
         similarities = np.dot(normalized_embeddings, normalized_query)
+
+        # Similarity diagnostics
+        if len(similarities) > 0:
+            logger.info(f"🔢 Similarity scores: min={similarities.min():.3f}, max={similarities.max():.3f}, mean={similarities.mean():.3f}")
+            
+            # Show top 3 similarities for debugging
+            sorted_sims = np.sort(similarities)[::-1]
+            top_3 = sorted_sims[:min(3, len(sorted_sims))]
+            logger.info(f"🔢 Top 3 similarities: {[f'{s:.3f}' for s in top_3]}")
 
         # Map back to original indices
         valid_indices = np.where(non_zero_mask)[0]
@@ -122,6 +140,19 @@ class KNNEntitySearch(Generic[T]):
             query_embedding = np.array(self.embedding_service.encode(query_text))
         except Exception as e:
             logger.warning(f"Failed to generate query embedding: {e}")
+            return None
+        
+        # Embedding quality diagnostics
+        query_norm = np.linalg.norm(query_embedding)
+        if query_norm == 0:
+            logger.warning(f"Generated zero embedding for query: '{query_text}'")
+            return None
+        
+        logger.info(f"🔢 Query embedding norm: {query_norm:.3f} for '{query_text[:50]}...'")
+        
+        # Check for empty index
+        if not self.entity_metadata:
+            logger.info(f"🔍 Empty entity index, cannot find matches")
             return None
 
         # Find similar entities
@@ -155,7 +186,11 @@ class KNNEntitySearch(Generic[T]):
         best_match = self.find_best_match(query_text)
 
         if not best_match:
+            logger.info(f"🔍 No entities found in index for query: '{query_text}' (index size: {len(self.entity_metadata)})")
             return None
+        
+        # Always log the best match found for diagnostics
+        logger.info(f"🔍 Best match for '{query_text}': similarity={best_match.similarity:.3f}, entity='{best_match.t.get_text()}'")
 
         # Auto-accept for very high similarity
         if best_match.similarity >= auto_accept_threshold:
@@ -167,7 +202,7 @@ class KNNEntitySearch(Generic[T]):
 
         # Auto-reject for very low similarity
         if best_match.similarity < auto_reject_threshold:
-            logger.debug(
+            logger.info(
                 f"Auto-rejecting entity match (similarity: {best_match.similarity:.3f}): "
                 f"'{query_text}' vs '{best_match.t.get_text()}'"
             )
@@ -182,6 +217,11 @@ class KNNEntitySearch(Generic[T]):
             )
             return best_match.t.get_id()
 
+        # Log when we reject a potentially good match
+        logger.info(
+            f"🚫 Rejecting entity match below threshold (similarity: {best_match.similarity:.3f} < {similarity_threshold}): "
+            f"'{query_text}' vs '{best_match.t.get_text()}'"
+        )
         return None
 
     def remove_entity(self, id: str) -> None:
