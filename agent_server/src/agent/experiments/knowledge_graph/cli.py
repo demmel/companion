@@ -43,6 +43,7 @@ from agent.state import State, Value, Priority
 from datetime import datetime
 
 from tqdm import tqdm
+from agent.ui_output import ui_print
 
 
 class TqdmLoggingHandler(logging.Handler):
@@ -156,20 +157,30 @@ def build_state_from_initial_exchange(initial_exchange: TriggerHistoryEntry) -> 
     )
 
 
+def setup_dual_logging(verbose: bool = False):
+    """Set up dual logging: detailed logs to file, clean console via ui_print"""
+    # Create logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    
+    # Clear any existing handlers
+    root_logger.handlers.clear()
+    
+    # File handler for detailed logs
+    file_handler = logging.FileHandler('kg_build.log', mode='w')
+    file_handler.setLevel(logging.DEBUG)
+    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_formatter)
+    root_logger.addHandler(file_handler)
+    
+    # No console handler - all user-facing output goes through ui_print
+    # Errors should be handled explicitly in code and shown via ui_print for better UX
+
 @click.group()
-@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging to file")
 def cli(verbose: bool):
     """Knowledge Graph Experiment CLI"""
-    # Always show INFO level for user feedback, DEBUG only in verbose mode
-    level = logging.DEBUG if verbose else logging.INFO
-
-    # Configure root logger
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[TqdmLoggingHandler()],
-        force=True,  # Override existing configuration
-    )
+    setup_dual_logging(verbose)
 
 
 @cli.command()
@@ -186,11 +197,12 @@ def cli(verbose: bool):
 def build(conversation: str, triggers: Optional[int], output: str, profile: bool):
     """Build knowledge graph from conversation triggers and save it"""
 
-    click.echo(f"🏗️  Building Knowledge Graph")
-    click.echo("=" * 50)
-    click.echo(f"Conversation: {conversation}")
-    click.echo(f"Triggers to process: {triggers or 'all available'}")
-    click.echo(f"Output file: {output}")
+    ui_print(f"🏗️  Building Knowledge Graph")
+    ui_print("=" * 50)
+    ui_print(f"Conversation: {conversation}")
+    ui_print(f"Triggers to process: {triggers or 'all available'}")
+    ui_print(f"Output file: {output}")
+    ui_print(f"📁 Detailed logs: kg_build.log")
 
     # Load conversation data
     persistence = ConversationPersistence()
@@ -202,7 +214,7 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
         click.echo("❌ Could not load conversation data", err=True)
         return
 
-    click.echo(
+    ui_print(
         f"✅ Loaded conversation: {len(trigger_history.get_all_entries())} triggers available"
     )
 
@@ -226,13 +238,13 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
     # Initialize graph maintenance
     graph_maintenance = GraphMaintenanceSystem(llm, model, initial_state)
 
-    click.echo(f"✅ Setup complete! Initial state (mood: {initial_state.current_mood})")
+    ui_print(f"✅ Setup complete! Initial state (mood: {initial_state.current_mood})")
 
     # Process triggers
     all_triggers = trigger_history.get_all_entries()
     triggers_to_process = all_triggers[:triggers] if triggers else all_triggers
 
-    click.echo(f"\n🔄 Processing {len(triggers_to_process)} triggers...")
+    ui_print(f"\n🔄 Processing {len(triggers_to_process)} triggers...")
 
     # Initialize cProfile if requested
     pr = None
@@ -253,18 +265,18 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
 
             # Run maintenance every 5 triggers or on the last trigger
             if (i + 1) % 5 == 0 or i == len(triggers_to_process) - 1:
-                tqdm.write(f"\n🔧 Running graph maintenance...")
+                ui_print(f"\n🔧 Running graph maintenance...")
                 maintenance_results = graph_maintenance.analyze_graph(kg_builder.graph)
                 if len(maintenance_results.contradictions) > 0:
-                    tqdm.write(
+                    ui_print(
                         f"   Found {len(maintenance_results.contradictions)} contradictions"
                     )
                 if len(maintenance_results.logical_leaps) > 0:
-                    tqdm.write(
+                    ui_print(
                         f"   Found {len(maintenance_results.logical_leaps)} logical leaps"
                     )
                 if len(maintenance_results.semantic_refinements) > 0:
-                    tqdm.write(
+                    ui_print(
                         f"   Found {len(maintenance_results.semantic_refinements)} refinement opportunities"
                     )
 

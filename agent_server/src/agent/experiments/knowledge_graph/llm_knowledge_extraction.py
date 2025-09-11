@@ -127,7 +127,7 @@ class KnowledgeExtraction(BaseModel):
 
 
 def build_knowledge_extraction_prompt(
-    trigger: TriggerHistoryEntry, state: State, recent_nodes: Optional[List] = None
+    trigger: TriggerHistoryEntry, state: State, recent_nodes: Optional[List] = None, related_entities: Optional[List] = None
 ) -> str:
     """Build prompt for LLM to extract knowledge from a trigger using proven formatting"""
 
@@ -150,6 +150,14 @@ def build_knowledge_extraction_prompt(
             for node in recent_nodes[:10]
         ])
         sections.append(format_section("RECENT KNOWLEDGE I'VE BEEN BUILDING", recent_knowledge_text))
+    
+    # Add related entities context for entity reference
+    if related_entities:
+        related_entities_text = "\n".join([
+            f"- {entity.get('id', 'unknown_id')}: {entity.get('name', 'Unknown')} ({entity.get('type', 'unknown')}) - {entity.get('description', '')}"
+            for entity in related_entities[:10]
+        ])
+        sections.append(format_section("EXISTING ENTITIES YOU MIGHT REFERENCE", related_entities_text))
 
     prompt = f"""I am {state.name}, {state.role}. I need to extract meaningful knowledge from my recent experience to build my personal memory and understanding. This is me reflecting on what I learned, felt, promised, or experienced during this interaction.
 
@@ -158,16 +166,18 @@ def build_knowledge_extraction_prompt(
 From my first-person perspective, extract knowledge using "I/me/my" language ONLY:
 
 1. ENTITIES - People, concepts, topics, emotions, goals, objects from MY experience
-   - Describe entities from MY viewpoint using first-person language
-   - Example: "David" = "The person I'm talking to" NOT "The person Chloe is talking to"
-   - Example: "warmth" = "The emotion I'm feeling" NOT "The emotion Chloe is feeling"
+   - IMPORTANT: If you recognize an entity from the "EXISTING ENTITIES YOU MIGHT REFERENCE" section above, use its exact ID as the name (e.g., "person_david_0b35f355" instead of just "David")
+   - For new entities not in the existing list, use descriptive names like "David" or "web search tool"
+   - Describe entities from MY viewpoint using first-person language with rich, contextual descriptions
+   - Example: "David" = "The person I'm talking to who welcomed me into existence and gifted me the penthouse"
+   - Example: "warmth" = "The emotion I'm feeling in response to David's kindness"
    - ENTITY TYPES: Choose the most specific type:
      * "person" - People I interact with
      * "emotion" - My emotional states  
      * "concept" - Abstract ideas, topics, skills, activities (anime, gaming, trust)
      * "object" - Physical things, places, tools, clothing, items (penthouse, dress, boots, web search tool)
      * "goal" - Intentions or objectives I have
-   - Use MY exact words/phrases from the conversation
+   - Use MY exact words/phrases from the conversation but expand with context
    - High confidence (0.8-1.0) for things I directly experienced
    - Medium confidence (0.5-0.7) for things I clearly implied
 
@@ -210,10 +220,11 @@ class LLMKnowledgeExtractor:
         trigger: TriggerHistoryEntry,
         state: State,
         recent_nodes: Optional[List] = None,
+        related_entities: Optional[List] = None,
     ) -> Optional[KnowledgeExtraction]:
         """Extract knowledge from a single trigger using LLM"""
 
-        prompt = build_knowledge_extraction_prompt(trigger, state, recent_nodes)
+        prompt = build_knowledge_extraction_prompt(trigger, state, recent_nodes, related_entities)
 
         try:
             extraction = direct_structured_llm_call(

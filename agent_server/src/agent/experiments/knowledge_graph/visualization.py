@@ -32,6 +32,182 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class QuadTreeNode:
+    """Node in a Barnes-Hut quadtree for force approximation"""
+
+    # Bounding box
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+
+    # Center of mass and total mass
+    center_of_mass: np.ndarray
+    total_mass: float
+
+    # Children (None if leaf)
+    children: Optional[List["QuadTreeNode"]] = None
+
+    # Entities in this node (only for leaves)
+    entities: Optional[List[str]] = None
+
+    def is_leaf(self) -> bool:
+        return self.children is None
+
+    def contains_point(self, x: float, y: float) -> bool:
+        return self.x_min <= x <= self.x_max and self.y_min <= y <= self.y_max
+
+    def get_width(self) -> float:
+        return self.x_max - self.x_min
+
+    def get_height(self) -> float:
+        return self.y_max - self.y_min
+
+
+class BarnesHutQuadTree:
+    """Barnes-Hut quadtree for O(n log n) force approximation"""
+
+    def __init__(self, positions: Dict[str, np.ndarray], theta: float = 0.5):
+        self.theta = theta  # Approximation parameter
+        self.positions = positions
+        self.root = self._build_tree()
+
+    def _build_tree(self) -> QuadTreeNode:
+        """Build the quadtree from current positions"""
+        if not self.positions:
+            return QuadTreeNode(0, 0, 1, 1, np.zeros(2), 0.0, entities=[])
+
+        # Find bounding box
+        all_pos = np.array(list(self.positions.values()))
+        x_min, y_min = np.min(all_pos, axis=0)
+        x_max, y_max = np.max(all_pos, axis=0)
+
+        # Add padding
+        padding = max(x_max - x_min, y_max - y_min) * 0.1
+        x_min -= padding
+        y_min -= padding
+        x_max += padding
+        y_max += padding
+
+        # Create root and insert all entities
+        root = QuadTreeNode(x_min, y_min, x_max, y_max, np.zeros(2), 0.0, entities=[])
+
+        for entity, pos in self.positions.items():
+            self._insert(root, entity, pos)
+
+        return root
+
+    def _insert(self, node: QuadTreeNode, entity: str, pos: np.ndarray) -> None:
+        """Insert an entity into the quadtree"""
+        # Update center of mass
+        old_mass = node.total_mass
+        new_mass = old_mass + 1.0
+        node.center_of_mass = (node.center_of_mass * old_mass + pos) / new_mass
+        node.total_mass = new_mass
+
+        if node.is_leaf():
+            if not node.entities:
+                node.entities = []
+
+            if len(node.entities) == 0:
+                # Empty leaf - just add entity
+                node.entities.append(entity)
+            elif len(node.entities) == 1:
+                # Need to subdivide
+                existing_entity = node.entities[0]
+                existing_pos = self.positions[existing_entity]
+
+                # Subdivide
+                self._subdivide(node)
+
+                assert (
+                    node.children is not None
+                ), "Node should have children after subdivision"
+
+                # Reinsert existing entity
+                for child in node.children:
+                    if child.contains_point(existing_pos[0], existing_pos[1]):
+                        self._insert(child, existing_entity, existing_pos)
+                        break
+
+                # Insert new entity
+                for child in node.children:
+                    if child.contains_point(pos[0], pos[1]):
+                        self._insert(child, entity, pos)
+                        break
+
+                node.entities = None  # No longer a leaf
+            else:
+                # Multiple entities - shouldn't happen with proper subdivision
+                node.entities.append(entity)
+        else:
+            # Internal node - find appropriate child
+            assert node.children is not None, "Internal node must have children"
+            for child in node.children:
+                if child.contains_point(pos[0], pos[1]):
+                    self._insert(child, entity, pos)
+                    break
+
+    def _subdivide(self, node: QuadTreeNode) -> None:
+        """Subdivide a node into 4 children"""
+        x_mid = (node.x_min + node.x_max) / 2
+        y_mid = (node.y_min + node.y_max) / 2
+
+        # Create 4 children: NW, NE, SW, SE
+        node.children = [
+            QuadTreeNode(
+                node.x_min, y_mid, x_mid, node.y_max, np.zeros(2), 0.0, entities=[]
+            ),  # NW
+            QuadTreeNode(
+                x_mid, y_mid, node.x_max, node.y_max, np.zeros(2), 0.0, entities=[]
+            ),  # NE
+            QuadTreeNode(
+                node.x_min, node.y_min, x_mid, y_mid, np.zeros(2), 0.0, entities=[]
+            ),  # SW
+            QuadTreeNode(
+                x_mid, node.y_min, node.x_max, y_mid, np.zeros(2), 0.0, entities=[]
+            ),  # SE
+        ]
+
+    def calculate_force(self, entity: str, k: float) -> np.ndarray:
+        """Calculate repulsive force on entity using Barnes-Hut approximation"""
+        entity_pos = self.positions[entity]
+        return self._calculate_force_recursive(self.root, entity, entity_pos, k)
+
+    def _calculate_force_recursive(
+        self, node: QuadTreeNode, entity: str, entity_pos: np.ndarray, k: float
+    ) -> np.ndarray:
+        """Recursively calculate force using Barnes-Hut approximation"""
+        if node.total_mass == 0:
+            return np.zeros(2)
+
+        # Distance to center of mass
+        delta = entity_pos - node.center_of_mass
+        distance = max(float(np.linalg.norm(delta)), 0.01)
+
+        # Check if we can use approximation
+        if node.is_leaf() or (node.get_width() / distance) < self.theta:
+            # Use approximation or exact calculation for leaf
+            if node.is_leaf() and node.entities and entity in node.entities:
+                # Don't apply force to self
+                return np.zeros(2)
+
+            # Repulsive force: F = k² * mass / distance²
+            force_magnitude = k * k * node.total_mass / (distance * distance)
+            force_direction = delta / distance
+            return force_direction * force_magnitude
+        else:
+            # Recurse into children
+            total_force = np.zeros(2)
+            assert node.children is not None, "Node should have children to recurse"
+            for child in node.children:
+                total_force += self._calculate_force_recursive(
+                    child, entity, entity_pos, k
+                )
+            return total_force
+
+
+@dataclass
 class EmbeddingPoint:
     """A point in embedding space with metadata"""
 
@@ -418,10 +594,15 @@ class KnowledgeGraphVisualizer:
 
         return self._fruchterman_reingold_layout(entities, edges)
 
-    def _fruchterman_reingold_layout(self, entities, edges):
+    def _fruchterman_reingold_layout(
+        self, entities, edges, theta: float = 0.5
+    ) -> Dict[str, np.ndarray]:
         """Implement Fruchterman-Reingold force-directed algorithm"""
         n = len(entities)
         entity_list = list(entities.keys())
+
+        if n == 0:
+            return {}
 
         # Algorithm parameters (from FR paper)
         area = n * 100  # Layout area
@@ -443,30 +624,18 @@ class KnowledgeGraphVisualizer:
             # Initialize displacement vectors
             displacement = {entity: np.zeros(2) for entity in entity_list}
 
-            # Calculate repulsive forces between all pairs of nodes
-            for i in range(n):
-                for j in range(i + 1, n):
-                    v = entity_list[i]
-                    u = entity_list[j]
-
-                    delta = positions[v] - positions[u]
-                    distance = max(
-                        np.linalg.norm(delta), 0.01
-                    )  # Avoid division by zero
-
-                    # Repulsive force: f_r(d) = k²/d
-                    force_magnitude = k * k / distance
-                    force_direction = delta / distance
-
-                    displacement[v] += force_direction * force_magnitude
-                    displacement[u] -= force_direction * force_magnitude
+            # Build Barnes-Hut quadtree and calculate repulsive forces
+            quadtree = BarnesHutQuadTree(positions, theta)
+            for entity in entity_list:
+                repulsive_force = quadtree.calculate_force(entity, k)
+                displacement[entity] += repulsive_force
 
             # Calculate attractive forces along edges
             for edge in edges:
                 v, u = edge
                 if v in positions and u in positions:
                     delta = positions[v] - positions[u]
-                    distance = max(np.linalg.norm(delta), 0.01)
+                    distance = max(float(np.linalg.norm(delta)), 0.01)
 
                     # Attractive force: f_a(d) = d²/k
                     force_magnitude = distance * distance / k
@@ -475,20 +644,20 @@ class KnowledgeGraphVisualizer:
                     displacement[v] -= force_direction * force_magnitude
                     displacement[u] += force_direction * force_magnitude
 
-        # Limit displacement by temperature and update positions
-        for entity in entity_list:
-            disp_magnitude = np.linalg.norm(displacement[entity])
-            if disp_magnitude > 0:
-                # Limit displacement to current temperature
-                limited_displacement = (
-                    displacement[entity]
-                    * min(disp_magnitude, temperature)
-                    / disp_magnitude
-                )
-                positions[entity] += limited_displacement
+            # Limit displacement by temperature and update positions
+            for entity in entity_list:
+                disp_magnitude = np.linalg.norm(displacement[entity])
+                if disp_magnitude > 0:
+                    # Limit displacement to current temperature
+                    limited_displacement = (
+                        displacement[entity]
+                        * min(float(disp_magnitude), temperature)
+                        / disp_magnitude
+                    )
+                    positions[entity] += limited_displacement
 
-                # Keep within bounds
-                positions[entity] = np.clip(positions[entity], -area, area)
+                    # Keep within bounds
+                    positions[entity] = np.clip(positions[entity], -area, area)
 
         # Center and translate to positive coordinates
         if positions:
@@ -497,7 +666,7 @@ class KnowledgeGraphVisualizer:
             for entity in positions:
                 positions[entity] -= np.array([min_x - 50, min_y - 50])
 
-            return positions
+        return positions
 
     def _add_embedding_space(
         self,
