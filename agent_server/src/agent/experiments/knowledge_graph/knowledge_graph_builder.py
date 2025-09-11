@@ -15,10 +15,9 @@ import numpy as np
 from dataclasses import dataclass, field
 from collections import defaultdict
 
-from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
+from agent.experiments.knowledge_graph.knowledge_graph import (
     KnowledgeExperienceGraph,
     GraphNode,
-    GraphRelationship,
     NodeType,
     GraphStats,
 )
@@ -30,7 +29,10 @@ from agent.experiments.knowledge_graph.relationship_schema_bank import (
     RelationshipSchemaBank,
 )
 from agent.chain_of_action.prompts import format_single_trigger_entry
-from agent.experiments.knowledge_graph.n_ary_extraction import ExistingEntityData, ExtractedNaryRelationship
+from agent.experiments.knowledge_graph.n_ary_extraction import (
+    ExistingEntityData,
+    ExtractedNaryRelationship,
+)
 from agent.experiments.knowledge_graph.knn_entity_search import (
     KNNEntitySearch,
 )
@@ -299,10 +301,10 @@ class ValidatedKnowledgeGraphBuilder:
 
         # Performance metrics tracking (initialize early for embedding generation)
         self.metrics = PerformanceMetrics()
-        
+
         # kNN-based entity deduplication system
         self.node_search = KNNEntitySearch[GraphNode]()
-        
+
         # Initialize with self/agent entity for pronoun resolution
         self._initialize_self_entity()
 
@@ -354,11 +356,15 @@ class ValidatedKnowledgeGraphBuilder:
         trigger_start_time = self.metrics.start_timer("total")
 
         logger.info(f"Processing trigger: {trigger.entry_id} at {trigger.timestamp}")
-        
+
         # Show what trigger we're processing
         if isinstance(trigger.trigger, UserInputTrigger):
-            content_preview = trigger.trigger.content[:60] + "..." if len(trigger.trigger.content) > 60 else trigger.trigger.content
-            ui_print(f"🔄 Processing: \"{content_preview}\"")
+            content_preview = (
+                trigger.trigger.content[:60] + "..."
+                if len(trigger.trigger.content) > 60
+                else trigger.trigger.content
+            )
+            ui_print(f'🔄 Processing: "{content_preview}"')
         elif isinstance(trigger.trigger, WakeupTrigger):
             ui_print(f"🔄 Processing: Wakeup at {trigger.timestamp.strftime('%H:%M')}")
         else:
@@ -403,7 +409,7 @@ class ValidatedKnowledgeGraphBuilder:
 
         # Find entities similar to the trigger before extraction to provide context
         related_entities = self._find_trigger_related_entities(trigger)
-        
+
         # Extract knowledge using historical state (not final state)
         ui_print(f"  🧠 Extracting knowledge...")
         extraction_start_time = self.metrics.start_timer("extraction")
@@ -418,7 +424,9 @@ class ValidatedKnowledgeGraphBuilder:
             logger.info(
                 f"Extracted {validation.entities_count} entities, {validation.relationships_count} relationships"
             )
-            ui_print(f"  📝 Extracted {validation.entities_count} entities, {validation.relationships_count} relationships")
+            ui_print(
+                f"  📝 Extracted {validation.entities_count} entities, {validation.relationships_count} relationships"
+            )
 
             # Only use high-quality extractions
             entity_validation_rate = sum(
@@ -430,7 +438,9 @@ class ValidatedKnowledgeGraphBuilder:
             ):  # Ultra low threshold to test evolution mechanism
                 # Time entity processing
                 entity_start_time = self.metrics.start_timer("entity_processing")
-                fresh_entity_ids = self._build_knowledge_nodes(extraction, experience_node, trigger)
+                fresh_entity_ids = self._build_knowledge_nodes(
+                    extraction, experience_node, trigger
+                )
                 self.metrics.end_timer("entity_processing", entity_start_time)
 
                 # Time relationship processing
@@ -468,10 +478,12 @@ class ValidatedKnowledgeGraphBuilder:
         logger.info(
             f"Finished processing trigger {trigger.entry_id} in {self.metrics.total_time:.2f} seconds"
         )
-        
+
         # Show summary of what was built
         current_stats = self.get_stats()
-        ui_print(f"  ✅ Complete - Graph: {current_stats.total_nodes} nodes, {current_stats.total_relationships + len(self.graph.nary_relationships)} relationships")
+        ui_print(
+            f"  ✅ Complete - Graph: {current_stats.total_nodes} nodes, {current_stats.total_relationships + len(self.graph.nary_relationships)} relationships"
+        )
 
         return True
 
@@ -582,7 +594,7 @@ class ValidatedKnowledgeGraphBuilder:
         trigger: TriggerHistoryEntry,
     ) -> List[str]:
         """Build knowledge nodes from validated extraction"""
-        
+
         # Track entity IDs processed in this trigger for N-ary context
         processed_entity_ids = []
 
@@ -658,9 +670,13 @@ class ValidatedKnowledgeGraphBuilder:
                 composite_key = self._make_entity_key(entity.name, entity.type)
 
                 # Add to kNN search index for future deduplication
-                logger.info(f"📝 Adding entity to KNN index: ID:{knowledge_node.get_id()}, Text:{knowledge_node.get_text()}")
+                logger.info(
+                    f"📝 Adding entity to KNN index: ID:{knowledge_node.get_id()}, Text:{knowledge_node.get_text()}"
+                )
                 self.node_search.add_entity(knowledge_node)
-                logger.info(f"📊 KNN index now has {len(self.node_search.entity_metadata)} entities")
+                logger.info(
+                    f"📊 KNN index now has {len(self.node_search.entity_metadata)} entities"
+                )
 
             # Track this entity ID for N-ary context
             processed_entity_ids.append(knowledge_node.id)
@@ -729,7 +745,7 @@ class ValidatedKnowledgeGraphBuilder:
             # Skip fresh entities to avoid duplicates
             if node_id in fresh_entity_ids:
                 continue
-                
+
             if node.node_type in [
                 NodeType.PERSON,
                 NodeType.CONCEPT,
@@ -748,16 +764,24 @@ class ValidatedKnowledgeGraphBuilder:
 
         # Combine with fresh entities first (highest priority)
         existing_entities = fresh_entities + other_entities
-        
-        logger.info(f"🔄 N-ary context: {len(fresh_entities)} fresh entities, {len(other_entities)} existing entities")
+
+        logger.info(
+            f"🔄 N-ary context: {len(fresh_entities)} fresh entities, {len(other_entities)} existing entities"
+        )
 
         # Extract N-ary relationships using semantic roles
-        logger.info(f"🔄 Starting N-ary relationship extraction with {len(existing_entities)} existing entities")
-        logger.info(f"📊 KNN index has {len(self.node_search.entity_metadata)} entities before N-ary processing")
-        
+        logger.info(
+            f"🔄 Starting N-ary relationship extraction with {len(existing_entities)} existing entities"
+        )
+        logger.info(
+            f"📊 KNN index has {len(self.node_search.entity_metadata)} entities before N-ary processing"
+        )
+
         ui_print(f"    🤖 Analyzing semantic relationships...")
-        nary_relationships: List[ExtractedNaryRelationship] = self.nary_extractor.extract_nary_relationships(
-            trigger=trigger, existing_entities=existing_entities
+        nary_relationships: List[ExtractedNaryRelationship] = (
+            self.nary_extractor.extract_nary_relationships(
+                trigger=trigger, existing_entities=existing_entities
+            )
         )
 
         logger.info(f"✨ Extracted {len(nary_relationships)} N-ary relationships")
@@ -768,8 +792,10 @@ class ValidatedKnowledgeGraphBuilder:
         valid_relationships = 0
         for extracted_rel in nary_relationships:
             # Convert N-ary relationship to our internal format using entity resolution
-            nary_relationship: Optional[NaryRelationship] = self.nary_extractor.convert_to_nary_relationship(
-                extracted_rel, trigger.entry_id, self
+            nary_relationship: Optional[NaryRelationship] = (
+                self.nary_extractor.convert_to_nary_relationship(
+                    extracted_rel, trigger.entry_id, self
+                )
             )
 
             if nary_relationship:
@@ -777,7 +803,7 @@ class ValidatedKnowledgeGraphBuilder:
                 self.graph.add_nary_relationship(nary_relationship)
 
                 valid_relationships += 1
-                
+
                 # Show the relationship being created using the converted relationship (not extracted)
                 participant_names = []
                 for role, entity_id in nary_relationship.participants.items():
@@ -785,12 +811,16 @@ class ValidatedKnowledgeGraphBuilder:
                         participant_names.append(self.graph.nodes[entity_id].name)
                     else:
                         participant_names.append(entity_id)
-                
+
                 if len(participant_names) == 2:
-                    ui_print(f"    🔗 {participant_names[0]} --[{nary_relationship.relationship_type}]--> {participant_names[1]}")
+                    ui_print(
+                        f"    🔗 {participant_names[0]} --[{nary_relationship.relationship_type}]--> {participant_names[1]}"
+                    )
                 else:
-                    ui_print(f"    🔗 {nary_relationship.relationship_type}: {', '.join(participant_names)}")
-                
+                    ui_print(
+                        f"    🔗 {nary_relationship.relationship_type}: {', '.join(participant_names)}"
+                    )
+
                 logger.debug(
                     f"Added N-ary relationship: {nary_relationship.relationship_type} with {len(nary_relationship.participants)} participants"
                 )
@@ -1440,33 +1470,43 @@ If they are the same entity, provide the existing entity's normalized name."""
         """Resolve entity to node ID using kNN similarity with pronoun resolution"""
         # Handle pronoun resolution first
         resolved_entity_name = self._resolve_pronouns_to_names(entity_name, entity_type)
-        
+
         query_text = f"{resolved_entity_name} ({entity_type}): {entity_description}"
 
         # Log the resolution attempt
         if resolved_entity_name != entity_name:
-            logger.info(f"🔄 Resolved pronoun '{entity_name}' to '{resolved_entity_name}'")
+            logger.info(
+                f"🔄 Resolved pronoun '{entity_name}' to '{resolved_entity_name}'"
+            )
         logger.info(f"🔍 Attempting to resolve entity: '{query_text}'")
-        logger.info(f"📊 KNN index has {len(self.node_search.entity_metadata)} entities")
-        
+        logger.info(
+            f"📊 KNN index has {len(self.node_search.entity_metadata)} entities"
+        )
+
         # Log all available entities for debugging when there are few
         if len(self.node_search.entity_metadata) <= 10:
             available_entities = [
-                f"ID:{meta.get_id()}, Text:{meta.get_text()}" for meta in self.node_search.entity_metadata
+                f"ID:{meta.get_id()}, Text:{meta.get_text()}"
+                for meta in self.node_search.entity_metadata
             ]
             logger.info(f"📋 All available entities: {available_entities}")
         else:
             # Just show first 5 if there are many
             available_entities = [
-                f"ID:{meta.get_id()}, Text:{meta.get_text()}" for meta in self.node_search.entity_metadata[:5]
+                f"ID:{meta.get_id()}, Text:{meta.get_text()}"
+                for meta in self.node_search.entity_metadata[:5]
             ]
             logger.info(f"📋 Available entities (first 5): {available_entities}")
 
         # Implement tiered entity resolution with LLM validation
         result = self._tiered_entity_resolution(
-            query_text, entity_name, entity_type, entity_description, resolved_entity_name
+            query_text,
+            entity_name,
+            entity_type,
+            entity_description,
+            resolved_entity_name,
         )
-        
+
         if result:
             logger.info(f"✅ Resolved '{entity_name}' to node ID: {result}")
         else:
@@ -1475,71 +1515,81 @@ If they are the same entity, provide the existing entity's normalized name."""
             )
 
         return result
-    
+
     def _tiered_entity_resolution(
-        self, 
-        query_text: str, 
-        entity_name: str, 
-        entity_type: str, 
+        self,
+        query_text: str,
+        entity_name: str,
+        entity_type: str,
         entity_description: str,
-        resolved_entity_name: str
+        resolved_entity_name: str,
     ) -> Optional[str]:
         """Implement tiered entity resolution with LLM validation for ambiguous cases"""
-        
+
         # First, try to find the best match
         best_match = self.node_search.find_best_match(query_text)
-        
+
         # If no match at all, try with original name as backup
         if not best_match and resolved_entity_name != entity_name:
             original_query = f"{entity_name} ({entity_type}): {entity_description}"
             best_match = self.node_search.find_best_match(original_query)
-        
+
         if not best_match:
-            logger.info(f"🔍 No entities found in index for query: '{query_text}' (index size: {len(self.node_search.entity_metadata)})")
+            logger.info(
+                f"🔍 No entities found in index for query: '{query_text}' (index size: {len(self.node_search.entity_metadata)})"
+            )
             return None
-            
+
         similarity = best_match.similarity
-        logger.info(f"🔢 Best match similarity: {similarity:.3f} for '{best_match.t.get_text()}'")
-        
+        logger.info(
+            f"🔢 Best match similarity: {similarity:.3f} for '{best_match.t.get_text()}'"
+        )
+
         # Tier 1: High similarity - auto accept
         if similarity >= 0.85:
             logger.info(f"✅ Auto-accepting high similarity match: {similarity:.3f}")
             self.metrics.entities_auto_accepted += 1
             return best_match.t.get_id()
-        
+
         # Tier 2: Medium similarity - LLM validation
         elif similarity >= 0.7:
-            logger.info(f"🤖 LLM validation needed for medium similarity: {similarity:.3f}")
+            logger.info(
+                f"🤖 LLM validation needed for medium similarity: {similarity:.3f}"
+            )
             self.metrics.entities_llm_validated += 1
-            
+
             # Use LLM to determine if entities are the same
             if self._llm_validate_entity_match(
-                entity_name, entity_type, entity_description,
-                best_match.t.name, best_match.t.node_type.value, best_match.t.description
+                entity_name,
+                entity_type,
+                entity_description,
+                best_match.t.name,
+                best_match.t.node_type.value,
+                best_match.t.description,
             ):
                 logger.info(f"✅ LLM validated entity match")
                 return best_match.t.get_id()
             else:
                 logger.info(f"❌ LLM rejected entity match")
                 return None
-        
+
         # Tier 3: Low similarity - auto reject
         else:
             logger.info(f"❌ Auto-rejecting low similarity match: {similarity:.3f}")
             self.metrics.entities_auto_rejected += 1
             return None
-    
+
     def _llm_validate_entity_match(
         self,
         new_entity_name: str,
-        new_entity_type: str, 
+        new_entity_type: str,
         new_entity_description: str,
         existing_entity_name: str,
         existing_entity_type: str,
-        existing_entity_description: str
+        existing_entity_description: str,
     ) -> bool:
         """Use LLM to validate if two entities are the same"""
-        
+
         try:
             validation = direct_structured_llm_call(
                 prompt=f"""I need to determine if these two entities represent the same thing:
@@ -1574,29 +1624,29 @@ Examples of DIFFERENT entities:
                 llm=self.llm,
                 caller="entity_similarity_validation",
             )
-            
+
             return validation.is_same_entity
-            
+
         except Exception as e:
             logger.warning(f"LLM entity validation failed: {e}, defaulting to reject")
             return False
-    
+
     def _resolve_pronouns_to_names(self, entity_name: str, entity_type: str) -> str:
         """Resolve pronouns and contextual references to actual names"""
         name_lower = entity_name.lower().strip()
-        
+
         # Handle first-person pronouns (I, me, myself)
         if name_lower in ["i", "me", "myself"] and entity_type == "person":
             return self.state.name
-        
-        # Handle user references based on common patterns  
+
+        # Handle user references based on common patterns
         if "user" in name_lower and entity_type == "person":
             return self.state.name
-            
+
         # Handle "test user" specifically from our test
         if name_lower in ["test user", "the user"] and entity_type == "person":
             return self.state.name
-        
+
         # Return original name if no pronoun resolution needed
         return entity_name
 
@@ -1611,66 +1661,80 @@ Examples of DIFFERENT entities:
             properties={
                 "is_self": True,
                 "role": self.state.role,
-                "entity_type": "person"
+                "entity_type": "person",
             },
             importance=1.0,  # High importance for self
-            source_trigger_id="agent_initialization"
+            source_trigger_id="agent_initialization",
         )
-        
+
         # Generate embedding for the self node
         self._generate_node_embedding(self_node)
-        
+
         # Add to graph and KNN index
         self.graph.add_node(self_node)
         self.node_search.add_entity(self_node)
-        
-        logger.info(f"🤖 Initialized self entity: {self.state.name} (ID: {self_node.id})")
+
+        logger.info(
+            f"🤖 Initialized self entity: {self.state.name} (ID: {self_node.id})"
+        )
 
     def verify_entity_match(
-        self, entity_id: str, provided_name: str, provided_type: str, provided_description: str
+        self,
+        entity_id: str,
+        provided_name: str,
+        provided_type: str,
+        provided_description: str,
     ) -> bool:
         """Verify that provided entity data matches the entity ID using similarity"""
         try:
             if entity_id not in self.graph.nodes:
                 return False
-                
+
             actual_entity = self.graph.nodes[entity_id]
-            
+
             # Create text representations for similarity comparison
             provided_text = f"{provided_name} ({provided_type}): {provided_description}"
             actual_text = f"{actual_entity.name} ({actual_entity.node_type.value}): {actual_entity.description}"
-            
+
             # Use embedding service for similarity comparison
             similarity = self.embedding_service.cosine_similarity(
                 self.embedding_service.encode(provided_text),
-                self.embedding_service.encode(actual_text)
+                self.embedding_service.encode(actual_text),
             )
-            
+
             # Use same threshold as KNN matching
             is_match = similarity > 0.75
-            
+
             if is_match:
-                logger.debug(f"✅ Entity ID verified: {entity_id} (similarity: {similarity:.3f})")
+                logger.debug(
+                    f"✅ Entity ID verified: {entity_id} (similarity: {similarity:.3f})"
+                )
             else:
-                logger.warning(f"❌ Entity ID mismatch: {entity_id} (similarity: {similarity:.3f})")
+                logger.warning(
+                    f"❌ Entity ID mismatch: {entity_id} (similarity: {similarity:.3f})"
+                )
                 logger.debug(f"   Provided: {provided_text}")
                 logger.debug(f"   Actual:   {actual_text}")
-            
+
             return is_match
-            
+
         except Exception as e:
             logger.error(f"Entity verification failed: {e}")
             return False
 
     def create_entity_from_nary_participant(
-        self, entity_name: str, entity_type: str, entity_description: str, source_trigger_id: str
+        self,
+        entity_name: str,
+        entity_type: str,
+        entity_description: str,
+        source_trigger_id: str,
     ) -> Optional[str]:
         """Create a new entity from N-ary relationship participant data"""
         try:
             # Map entity type to node type
             node_type = self._map_entity_type_to_node_type(entity_type)
-            
-            # Create new knowledge node  
+
+            # Create new knowledge node
             normalized_name = entity_name.lower().strip()
             knowledge_node = GraphNode(
                 id=f"{node_type.value}_{normalized_name.replace(' ', '_')}_{str(uuid.uuid4())[:8]}",
@@ -1682,23 +1746,25 @@ Examples of DIFFERENT entities:
                     "evidence": f"Referenced in N-ary relationship",
                     "source_triggers": [source_trigger_id],
                     "entity_type": entity_type,
-                    "created_from_nary": True
+                    "created_from_nary": True,
                 },
                 importance=0.8,  # Medium importance
                 source_trigger_id=source_trigger_id,
             )
-            
+
             # Generate embedding for the new knowledge node
             self._generate_node_embedding(knowledge_node)
-            
+
             # Add to graph and KNN index
             self.graph.add_node(knowledge_node)
             self.node_search.add_entity(knowledge_node)
-            
-            logger.info(f"📝 Created N-ary entity: ID:{knowledge_node.get_id()}, Text:{knowledge_node.get_text()}")
-            
+
+            logger.info(
+                f"📝 Created N-ary entity: ID:{knowledge_node.get_id()}, Text:{knowledge_node.get_text()}"
+            )
+
             return knowledge_node.id
-            
+
         except Exception as e:
             logger.error(f"Failed to create entity from N-ary participant: {e}")
             return None
@@ -1750,53 +1816,56 @@ Examples of DIFFERENT entities:
         self, trigger: TriggerHistoryEntry, k: int = 10
     ) -> List[Dict[str, str]]:
         """Find entities most similar to the trigger content for context during extraction"""
-        
+
         if not self.graph.get_all_nodes():
             return []
-            
+
         # Get trigger text for embedding
         trigger_text = format_single_trigger_entry(trigger, use_summary=False)
-        
+
         try:
             # Generate embedding for the trigger
             trigger_embedding_list = self.embedding_service.encode(trigger_text)
             trigger_embedding = np.array(trigger_embedding_list)
-            
+
             # Filter to exclude experience nodes and find similar entities
             entity_nodes = [
-                node for node in self.graph.get_all_nodes() 
+                node
+                for node in self.graph.get_all_nodes()
                 if node.node_type != NodeType.EXPERIENCE
             ]
-            
+
             if not entity_nodes:
                 return []
-            
+
             # Use KNN search to find similar entities
             matches = self.node_search.find_similar_entities(
-                trigger_embedding, 
-                k=k, 
-                similarity_threshold=0.3  # Lower threshold for context gathering
+                trigger_embedding,
+                k=k,
+                similarity_threshold=0.3,  # Lower threshold for context gathering
             )
-            
+
             # Convert to format expected by knowledge extraction
             related_entities = []
             for match in matches:
-                related_entities.append({
-                    "id": match.t.id,
-                    "name": match.t.name,
-                    "type": match.t.node_type.value,
-                    "description": match.t.description,
-                    "similarity": match.similarity
-                })
-            
+                related_entities.append(
+                    {
+                        "id": match.t.id,
+                        "name": match.t.name,
+                        "type": match.t.node_type.value,
+                        "description": match.t.description,
+                        "similarity": match.similarity,
+                    }
+                )
+
             if related_entities:
                 logger.info(
                     f"🔍 Found {len(related_entities)} entities related to trigger "
                     f"(similarities: {[f'{e['similarity']:.3f}' for e in related_entities[:3]]})"
                 )
-            
+
             return related_entities
-            
+
         except Exception as e:
             logger.warning(f"Failed to find trigger-related entities: {e}")
             return []
@@ -1953,14 +2022,10 @@ def test_validated_graph_builder():
         print(f"    Sources: {source_count} triggers, Access: {node.access_count}")
 
     print(f"\n🔗 Sample Relationships:")
-    sample_rels = list(builder.graph.relationships.values())[:5]
+    sample_rels = list(builder.graph.nary_relationships.values())[:5]
     for rel in sample_rels:
-        source_name = builder.graph.nodes[rel.source_node_id].name
-        target_name = builder.graph.nodes[rel.target_node_id].name
-        print(
-            f"  {source_name} --[{rel.relationship_type}]--> {target_name} (conf: {rel.confidence:.2f})"
-        )
-
+        # TODO: Show n-ary relationships properly
+        pass
     print(f"\n✅ Validated knowledge graph building completed!")
 
 

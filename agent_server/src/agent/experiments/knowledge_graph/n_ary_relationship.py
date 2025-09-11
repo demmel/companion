@@ -13,8 +13,8 @@ from enum import Enum
 import numpy as np
 import logging
 
-from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
-    GraphRelationship,
+from agent.experiments.knowledge_graph.knowledge_graph import (
+    RelationshipLifecycleState,
 )
 from agent.experiments.knowledge_graph.knn_entity_search import (
     IKNNEntity,
@@ -88,6 +88,17 @@ class NaryRelationship(BaseModel, IKNNEntity):
     source_trigger_id: str
     created_at: datetime = Field(default_factory=datetime.now)
     pattern: Optional[str] = None  # Which pattern this relationship follows
+
+    # Lifecycle management (migrated from binary relationships)
+    lifecycle_state: RelationshipLifecycleState = Field(
+        default=RelationshipLifecycleState.ACTIVE
+    )
+    valid_from: datetime = Field(default_factory=datetime.now)
+    valid_to: Optional[datetime] = None
+    superseded_by: Optional[str] = None  # ID of relationship that supersedes this one
+    supersedes: Optional[str] = None  # ID of relationship this one supersedes
+    last_reinforced: datetime = Field(default_factory=datetime.now)
+    reinforcement_count: int = Field(default=0)
 
     # Optional embedding for KNN search
     _embedding: Optional[np.ndarray] = None
@@ -174,8 +185,9 @@ class NaryRelationship(BaseModel, IKNNEntity):
         else:
             self.properties["evidence"] = new_evidence
 
-        # Update last seen timestamp
-        self.properties["last_strengthened"] = datetime.now().isoformat()
+        # Update lifecycle tracking
+        self.last_reinforced = datetime.now()
+        self.reinforcement_count += 1
 
         # Reset embedding cache since evidence changed
         self._embedding = None
@@ -206,63 +218,6 @@ class NaryRelationship(BaseModel, IKNNEntity):
         # For now, require exact participant and role structure
         return False
 
-    def get_primary_participants(self) -> Tuple[str, str]:
-        """Get the two most important participants for binary compatibility"""
-
-        # Priority order for determining primary relationship
-        role_priority = [
-            SemanticRole.AGENT.value,
-            SemanticRole.SUBJECT.value,
-            SemanticRole.SOURCE.value,
-            SemanticRole.PATIENT.value,
-            SemanticRole.OBJECT.value,
-            SemanticRole.TARGET.value,
-            SemanticRole.BENEFICIARY.value,
-            SemanticRole.DESTINATION.value,
-        ]
-
-        sorted_roles = []
-        for role in role_priority:
-            if role in self.participants:
-                sorted_roles.append(role)
-
-        if len(sorted_roles) >= 2:
-            return (
-                self.participants[sorted_roles[0]],
-                self.participants[sorted_roles[1]],
-            )
-        elif len(sorted_roles) == 1:
-            # Single participant relationship
-            participant_id = self.participants[sorted_roles[0]]
-            return participant_id, participant_id
-
-        # Fallback: use first two participants
-        participant_ids = list(self.participants.values())
-        return participant_ids[0], (
-            participant_ids[1] if len(participant_ids) > 1 else participant_ids[0]
-        )
-
-    def to_binary_relationship(self) -> GraphRelationship:
-        """Convert to binary relationship for backward compatibility"""
-
-        source_id, target_id = self.get_primary_participants()
-
-        return GraphRelationship(
-            id=f"binary_{self.id}",
-            source_node_id=source_id,
-            target_node_id=target_id,
-            relationship_type=self.relationship_type,
-            confidence=self.confidence,
-            strength=self.strength,
-            properties={
-                **self.properties,
-                "nary_relationship_id": self.id,
-                "semantic_roles": self.participants,
-                "relationship_pattern": self.pattern,
-            },
-            source_trigger_id=self.source_trigger_id,
-        )
-
     def get_role_for_participant(self, node_id: str) -> Optional[str]:
         """Get the semantic role of a specific participant"""
         for role, participant_id in self.participants.items():
@@ -273,6 +228,33 @@ class NaryRelationship(BaseModel, IKNNEntity):
     def has_participant(self, node_id: str) -> bool:
         """Check if a node is a participant in this relationship"""
         return node_id in self.participants.values()
+
+    def is_valid_at_time(self, at_time: datetime) -> bool:
+        """Check if this relationship is valid at the given time"""
+        if self.lifecycle_state in [
+            RelationshipLifecycleState.DEPRECATED,
+            RelationshipLifecycleState.SUPERSEDED,
+        ]:
+            return False
+
+        if at_time < self.valid_from:
+            return False
+
+        if self.valid_to is not None and at_time > self.valid_to:
+            return False
+
+        return True
+
+    def supersede_with(
+        self, new_relationship_id: str, supersession_time: Optional[datetime] = None
+    ) -> None:
+        """Mark this relationship as superseded by another relationship"""
+        self.lifecycle_state = RelationshipLifecycleState.SUPERSEDED
+        self.superseded_by = new_relationship_id
+        if supersession_time:
+            self.valid_to = supersession_time
+        else:
+            self.valid_to = datetime.now()
 
 
 # Predefined relationship patterns
@@ -488,8 +470,81 @@ class NaryRelationshipManager:
             if rel.pattern == pattern_name
         ]
 
-    def get_all_binary_relationships(self) -> List[GraphRelationship]:
-        """Convert all N-ary relationships to binary relationships"""
+    def get_active_relationships(
+        self, at_time: Optional[datetime] = None
+    ) -> List[NaryRelationship]:
+        """Get all relationships that are active at the given time"""
+        if at_time is None:
+            at_time = datetime.now()
+
         return [
-            rel.to_binary_relationship() for rel in self.nary_relationships.values()
+            rel
+            for rel in self.nary_relationships.values()
+            if rel.is_valid_at_time(at_time)
         ]
+
+    def supersede_relationship(
+        self,
+        old_relationship_id: str,
+        new_relationship_id: str,
+        supersession_time: Optional[datetime] = None,
+    ) -> bool:
+        """Mark an old relationship as superseded by a new one"""
+        old_rel = self.nary_relationships.get(old_relationship_id)
+        new_rel = self.nary_relationships.get(new_relationship_id)
+
+        if not old_rel or not new_rel:
+            return False
+
+        # Mark old relationship as superseded
+        old_rel.supersede_with(new_relationship_id, supersession_time)
+
+        # Mark new relationship as superseding the old one
+        new_rel.supersedes = old_relationship_id
+
+        return True
+
+    def get_relationship_history(self, relationship_id: str) -> List[NaryRelationship]:
+        """Get the evolution history of a relationship (what it superseded and what superseded it)"""
+        relationships = []
+
+        # Find all relationships in the supersession chain
+        current_id = relationship_id
+        visited = set()
+
+        # Go backwards to find the root
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            rel = self.nary_relationships.get(current_id)
+            if not rel:
+                break
+
+            relationships.insert(
+                0, rel
+            )  # Insert at beginning to maintain chronological order
+            current_id = rel.supersedes
+
+        # Go forwards to find subsequent relationships
+        current_id = relationship_id
+        visited = set()
+
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            rel = self.nary_relationships.get(current_id)
+            if not rel:
+                break
+
+            # Find relationship that supersedes this one
+            superseding_rel = None
+            for other_rel in self.nary_relationships.values():
+                if other_rel.supersedes == current_id:
+                    superseding_rel = other_rel
+                    break
+
+            if superseding_rel and superseding_rel not in relationships:
+                relationships.append(superseding_rel)
+                current_id = superseding_rel.id
+            else:
+                break
+
+        return relationships

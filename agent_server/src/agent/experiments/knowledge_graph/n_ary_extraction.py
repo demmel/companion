@@ -290,20 +290,24 @@ Extract all meaningful relationships with their specific descriptions and role s
         failed_entities = []
         for participant in extracted.participants:
             entity_node_id = None
-            
+
             # Strategy 1: Use provided entity_id if available and verified
             if participant.entity_id:
                 if entity_resolver.verify_entity_match(
                     participant.entity_id,
                     participant.entity_name,
                     participant.entity_type,
-                    participant.description
+                    participant.description,
                 ):
                     entity_node_id = participant.entity_id
-                    logger.info(f"✅ Using verified entity ID: {participant.entity_name} -> {entity_node_id}")
+                    logger.info(
+                        f"✅ Using verified entity ID: {participant.entity_name} -> {entity_node_id}"
+                    )
                 else:
-                    logger.warning(f"❌ Entity ID verification failed for {participant.entity_id}, falling back to resolution")
-            
+                    logger.warning(
+                        f"❌ Entity ID verification failed for {participant.entity_id}, falling back to resolution"
+                    )
+
             # Strategy 2: Fall back to KNN resolution if no entity_id or verification failed
             if not entity_node_id:
                 entity_node_id = entity_resolver.resolve_entity_to_node_id(
@@ -312,24 +316,30 @@ Extract all meaningful relationships with their specific descriptions and role s
                     participant.description,
                 )
                 if entity_node_id:
-                    logger.info(f"🔍 Resolved via KNN: {participant.entity_name} -> {entity_node_id}")
+                    logger.info(
+                        f"🔍 Resolved via KNN: {participant.entity_name} -> {entity_node_id}"
+                    )
 
             # Strategy 3: Create new entity if resolution failed
             if not entity_node_id:
                 entity_node_id = entity_resolver.create_entity_from_nary_participant(
                     participant.entity_name,
-                    participant.entity_type, 
+                    participant.entity_type,
                     participant.description,
-                    source_trigger_id
+                    source_trigger_id,
                 )
                 if entity_node_id:
-                    logger.info(f"📝 Created new entity: {participant.entity_name} -> {entity_node_id}")
-                    
+                    logger.info(
+                        f"📝 Created new entity: {participant.entity_name} -> {entity_node_id}"
+                    )
+
             # Final check
             if entity_node_id:
                 participants[participant.semantic_role] = entity_node_id
             else:
-                failed_entities.append(f"{participant.entity_name} ({participant.entity_type})")
+                failed_entities.append(
+                    f"{participant.entity_name} ({participant.entity_type})"
+                )
                 logger.warning(
                     f"❌ All strategies failed for entity: {participant.entity_name} ({participant.entity_type})"
                 )
@@ -340,7 +350,7 @@ Extract all meaningful relationships with their specific descriptions and role s
                 f"found {len(participants)}, need at least 2. Failed entities: {failed_entities}"
             )
             return None  # Need at least 2 participants
-        
+
         if failed_entities:
             logger.info(
                 f"Creating N-ary relationship '{extracted.relationship_type}' with {len(participants)} participants. "

@@ -127,37 +127,50 @@ class KnowledgeExtraction(BaseModel):
 
 
 def build_knowledge_extraction_prompt(
-    trigger: TriggerHistoryEntry, state: State, recent_nodes: Optional[List] = None, related_entities: Optional[List] = None
+    trigger: TriggerHistoryEntry,
+    state: State,
+    recent_nodes: Optional[List] = None,
+    related_entities: Optional[List] = None,
 ) -> str:
     """Build prompt for LLM to extract knowledge from a trigger using proven formatting"""
 
     # Use proven trigger formatting from chain_of_action/prompts.py
     trigger_text = format_single_trigger_entry(trigger, use_summary=False)
     state_desc = build_agent_state_description(state)
-    
+
     sections = []
-    
+
     # Add state context
     sections.append(format_section("CURRENT CONTEXT", state_desc))
-    
+
     # Add the trigger experience using proven formatting
     sections.append(format_section("MY RECENT EXPERIENCE", trigger_text))
-    
+
     # Add recent knowledge context if available
     if recent_nodes:
-        recent_knowledge_text = "\n".join([
-            f"- {node.get('name', 'Unknown')}: {node.get('description', '')}"
-            for node in recent_nodes[:10]
-        ])
-        sections.append(format_section("RECENT KNOWLEDGE I'VE BEEN BUILDING", recent_knowledge_text))
-    
+        recent_knowledge_text = "\n".join(
+            [
+                f"- {node.get('name', 'Unknown')}: {node.get('description', '')}"
+                for node in recent_nodes[:10]
+            ]
+        )
+        sections.append(
+            format_section("RECENT KNOWLEDGE I'VE BEEN BUILDING", recent_knowledge_text)
+        )
+
     # Add related entities context for entity reference
     if related_entities:
-        related_entities_text = "\n".join([
-            f"- {entity.get('id', 'unknown_id')}: {entity.get('name', 'Unknown')} ({entity.get('type', 'unknown')}) - {entity.get('description', '')}"
-            for entity in related_entities[:10]
-        ])
-        sections.append(format_section("EXISTING ENTITIES YOU MIGHT REFERENCE", related_entities_text))
+        related_entities_text = "\n".join(
+            [
+                f"- {entity.get('id', 'unknown_id')}: {entity.get('name', 'Unknown')} ({entity.get('type', 'unknown')}) - {entity.get('description', '')}"
+                for entity in related_entities[:10]
+            ]
+        )
+        sections.append(
+            format_section(
+                "EXISTING ENTITIES YOU MIGHT REFERENCE", related_entities_text
+            )
+        )
 
     prompt = f"""I am {state.name}, {state.role}. I need to extract meaningful knowledge from my recent experience to build my personal memory and understanding. This is me reflecting on what I learned, felt, promised, or experienced during this interaction.
 
@@ -224,7 +237,9 @@ class LLMKnowledgeExtractor:
     ) -> Optional[KnowledgeExtraction]:
         """Extract knowledge from a single trigger using LLM"""
 
-        prompt = build_knowledge_extraction_prompt(trigger, state, recent_nodes, related_entities)
+        prompt = build_knowledge_extraction_prompt(
+            trigger, state, recent_nodes, related_entities
+        )
 
         try:
             extraction = direct_structured_llm_call(

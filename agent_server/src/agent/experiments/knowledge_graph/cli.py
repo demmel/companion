@@ -26,16 +26,9 @@ from agent.experiments.knowledge_graph.knowledge_graph_builder import (
 from agent.experiments.knowledge_graph.relationship_schema_bank import (
     RelationshipSchemaBank,
 )
-from agent.experiments.knowledge_graph.knowledge_graph_querying import (
-    GraphQuery,
-    KnowledgeGraphQuerying,
-)
 from agent.experiments.knowledge_graph.visualization import (
     KnowledgeGraphVisualizer,
     EmbeddingPoint,
-)
-from agent.experiments.knowledge_graph.graph_maintenance import (
-    GraphMaintenanceSystem,
 )
 from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
@@ -162,19 +155,22 @@ def setup_dual_logging(verbose: bool = False):
     # Create logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-    
+
     # Clear any existing handlers
     root_logger.handlers.clear()
-    
+
     # File handler for detailed logs
-    file_handler = logging.FileHandler('kg_build.log', mode='w')
+    file_handler = logging.FileHandler("kg_build.log", mode="w")
     file_handler.setLevel(logging.DEBUG)
-    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     file_handler.setFormatter(file_formatter)
     root_logger.addHandler(file_handler)
-    
+
     # No console handler - all user-facing output goes through ui_print
     # Errors should be handled explicitly in code and shown via ui_print for better UX
+
 
 @click.group()
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging to file")
@@ -235,9 +231,6 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
         llm, model, initial_state, relationship_bank
     )
 
-    # Initialize graph maintenance
-    graph_maintenance = GraphMaintenanceSystem(llm, model, initial_state)
-
     ui_print(f"✅ Setup complete! Initial state (mood: {initial_state.current_mood})")
 
     # Process triggers
@@ -262,23 +255,6 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
             success = kg_builder.process_trigger_incremental(trigger, previous_trigger)
             if success:
                 successful += 1
-
-            # Run maintenance every 5 triggers or on the last trigger
-            if (i + 1) % 5 == 0 or i == len(triggers_to_process) - 1:
-                ui_print(f"\n🔧 Running graph maintenance...")
-                maintenance_results = graph_maintenance.analyze_graph(kg_builder.graph)
-                if len(maintenance_results.contradictions) > 0:
-                    ui_print(
-                        f"   Found {len(maintenance_results.contradictions)} contradictions"
-                    )
-                if len(maintenance_results.logical_leaps) > 0:
-                    ui_print(
-                        f"   Found {len(maintenance_results.logical_leaps)} logical leaps"
-                    )
-                if len(maintenance_results.semantic_refinements) > 0:
-                    ui_print(
-                        f"   Found {len(maintenance_results.semantic_refinements)} refinement opportunities"
-                    )
 
             kg_builder.save_graph(output)
             relationship_bank.save_bank()
@@ -383,126 +359,6 @@ def build(conversation: str, triggers: Optional[int], output: str, profile: bool
 
 @cli.command()
 @click.argument("graph_file", type=click.Path(exists=True))
-@click.argument("query_text")
-@click.option(
-    "--max-context",
-    "-m",
-    default=2000,
-    help="Maximum context length for graph traversal",
-)
-@click.option(
-    "--format",
-    "-f",
-    type=click.Choice(
-        ["structured", "narrative", "bullet_points", "confidence_weighted"]
-    ),
-    default="structured",
-    help="Context format to use",
-)
-@click.option(
-    "--conversation", "-c", default="baseline", help="Conversation for state context"
-)
-def query(
-    graph_file: str, query_text: str, max_context: int, format: str, conversation: str
-):
-    """Query a pre-built knowledge graph"""
-
-    click.echo(f"🔍 Querying Knowledge Graph")
-    click.echo("=" * 50)
-    click.echo(f"Graph file: {graph_file}")
-    click.echo(f"Query: '{query_text}'")
-    click.echo(f"Max context: {max_context} chars")
-    click.echo(f"Format: {format}")
-
-    # Load the saved graph
-    try:
-        from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
-            KnowledgeExperienceGraph,
-        )
-
-        graph = KnowledgeExperienceGraph.load_from_file(graph_file)
-        click.echo(
-            f"✅ Loaded knowledge graph: {len(graph.get_all_nodes())} nodes, {len(graph.get_all_relationships())} relationships"
-        )
-    except Exception as e:
-        click.echo(f"❌ Failed to load graph: {e}", err=True)
-        return
-
-    # Load conversation data for state context
-    try:
-        persistence = ConversationPersistence()
-        trigger_history, state, initial_exchange = persistence.load_conversation(
-            conversation
-        )
-        if state is None:
-            click.echo("❌ Could not load conversation data", err=True)
-            return
-        click.echo(f"✅ Loaded conversation context")
-    except Exception as e:
-        click.echo(f"❌ Failed to load conversation: {e}", err=True)
-        return
-
-    # Initialize LLM and querying system
-    llm = create_llm()
-    model = SupportedModel.MISTRAL_SMALL_3_2_Q4
-
-    querying = KnowledgeGraphQuerying(graph, llm, model, state)
-
-    # Create a fake recent triggers context for the query system
-    recent_triggers = trigger_history.get_all_entries()[-3:]  # Last 3 for context
-
-    click.echo(f"\n🧠 Processing Query...")
-
-    # Determine what context is needed
-    query_determination = querying.determine_context_needs(query_text, recent_triggers)
-
-    if query_determination is None or not query_determination.should_query:
-        click.echo("❌ Query determined that no graph context is needed")
-        click.echo(
-            f"Reasoning: {query_determination.reasoning if query_determination else 'Unknown'}"
-        )
-        return
-
-    click.echo(f"✅ Query analysis: {query_determination.reasoning}")
-    if query_determination.query:
-        click.echo(f"Focus entities: {query_determination.query.focus_entities}")
-        click.echo(
-            f"Relationship types: {query_determination.query.relationship_types}"
-        )
-
-    # Execute the graph query using the querying system's built-in method
-    # This bypasses the context builder since they use incompatible GraphQuery objects
-    formatted_context = querying.construct_agent_context(query_text, recent_triggers)
-
-    # Truncate to max_context if needed
-    if len(formatted_context) > max_context:
-        formatted_context = formatted_context[:max_context] + "..."
-
-    # Get context details for breakdown (this may not work perfectly but shows concept)
-    context = querying.execute_graph_query(
-        query_determination.query or GraphQuery(context_purpose="general")
-    )
-
-    click.echo(f"\n📝 Context Result ({format.upper()}):")
-    click.echo("=" * 60)
-    click.echo(formatted_context)
-    click.echo("=" * 60)
-    click.echo(f"Context length: {len(formatted_context)} characters")
-
-    # Show context breakdown
-    click.echo(f"\n📊 Context Breakdown:")
-    click.echo(f"   Entities found: {len(context.relevant_entities)}")
-    click.echo(f"   Relationships: {len(context.relevant_relationships)}")
-    click.echo(f"   Recent experiences: {len(context.recent_experiences)}")
-    click.echo(f"   Patterns identified: {len(context.patterns_and_insights)}")
-    click.echo(f"   Emotional context: {len(context.emotional_context)}")
-    click.echo(f"   Commitments: {len(context.commitments_and_promises)}")
-
-    click.echo(f"\n✅ Query completed!")
-
-
-@cli.command()
-@click.argument("graph_file", type=click.Path(exists=True))
 @click.argument("triggers_file", type=click.Path(exists=True))
 @click.option(
     "--scenarios",
@@ -569,181 +425,6 @@ def compare(
 @cli.command()
 @click.argument("graph_file", type=click.Path(exists=True))
 @click.option(
-    "--similarity-threshold",
-    "-t",
-    default=0.85,
-    help="Cosine similarity threshold for duplicate detection (0.0-1.0)",
-)
-@click.option(
-    "--auto-merge",
-    "-a",
-    is_flag=True,
-    help="Automatically merge high-confidence duplicates without review",
-)
-@click.option(
-    "--dry-run",
-    "-n",
-    is_flag=True,
-    help="Show what would be merged without making changes",
-)
-def deduplicate(
-    graph_file: str, similarity_threshold: float, auto_merge: bool, dry_run: bool
-):
-    """Scan knowledge graph for duplicates using embedding similarity"""
-
-    click.echo(f"🔍 Knowledge Graph Deduplication")
-    click.echo("=" * 50)
-    click.echo(f"Graph file: {graph_file}")
-    click.echo(f"Similarity threshold: {similarity_threshold}")
-    click.echo(f"Auto-merge: {auto_merge}")
-    click.echo(f"Dry run: {dry_run}")
-
-    # Load the knowledge graph
-    try:
-        from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
-            KnowledgeExperienceGraph,
-        )
-        from agent.memory.embedding_service import get_embedding_service
-
-        graph = KnowledgeExperienceGraph.load_from_file(graph_file)
-        click.echo(
-            f"✅ Loaded graph: {len(graph.get_all_nodes())} nodes, {len(graph.get_all_relationships())} relationships"
-        )
-
-        embedding_service = get_embedding_service()
-        click.echo(f"✅ Loaded embedding service")
-
-    except Exception as e:
-        click.echo(f"❌ Failed to load graph or embedding service: {e}", err=True)
-        return
-
-    # Scan for node duplicates using embeddings
-    click.echo(f"\n🔍 Scanning for duplicate nodes...")
-
-    node_duplicates = []
-    nodes = list(graph.get_all_nodes())
-
-    # Group nodes by type for more efficient comparison
-    nodes_by_type = {}
-    for node in nodes:
-        node_type = node.node_type.value
-        if node_type not in nodes_by_type:
-            nodes_by_type[node_type] = []
-        nodes_by_type[node_type].append(node)
-
-    duplicate_pairs = []
-    total_comparisons = 0
-
-    # Compare nodes within each type
-    for node_type, type_nodes in nodes_by_type.items():
-        click.echo(f"   Checking {len(type_nodes)} {node_type} nodes...")
-
-        for i in range(len(type_nodes)):
-            for j in range(i + 1, len(type_nodes)):
-                node1, node2 = type_nodes[i], type_nodes[j]
-                total_comparisons += 1
-
-                # Generate embeddings if missing
-                if node1.embedding is None:
-                    embedding_text = (
-                        f"[{node1.node_type.value}] {node1.name}: {node1.description}"
-                    )
-                    node1.embedding = embedding_service.encode(embedding_text)
-
-                if node2.embedding is None:
-                    embedding_text = (
-                        f"[{node2.node_type.value}] {node2.name}: {node2.description}"
-                    )
-                    node2.embedding = embedding_service.encode(embedding_text)
-
-                # Calculate similarity
-                similarity = embedding_service.cosine_similarity(
-                    node1.embedding, node2.embedding
-                )
-
-                if similarity >= similarity_threshold:
-                    duplicate_pairs.append((node1, node2, similarity))
-
-    click.echo(f"   Completed {total_comparisons} comparisons")
-
-    if not duplicate_pairs:
-        click.echo("✅ No duplicate nodes found!")
-        return
-
-    click.echo(f"\n📋 Found {len(duplicate_pairs)} potential duplicate pairs:")
-
-    for i, (node1, node2, similarity) in enumerate(duplicate_pairs):
-        click.echo(f"\n--- Duplicate {i+1} (similarity: {similarity:.3f}) ---")
-        click.echo(f"Node 1: {node1.name} ({node1.node_type.value})")
-        click.echo(f"  Description: {node1.description[:100]}...")
-        click.echo(f"  Created: {node1.created_at}")
-        click.echo(f"  Access count: {node1.access_count}")
-
-        click.echo(f"Node 2: {node2.name} ({node2.node_type.value})")
-        click.echo(f"  Description: {node2.description[:100]}...")
-        click.echo(f"  Created: {node2.created_at}")
-        click.echo(f"  Access count: {node2.access_count}")
-
-    # Scan for relationship duplicates
-    click.echo(f"\n🔍 Scanning for duplicate relationships...")
-
-    relationships = list(graph.get_all_relationships())
-    relationship_groups = {}
-
-    # Group relationships by source-target-type triplets
-    for rel in relationships:
-        key = (rel.source_node_id, rel.target_node_id, rel.relationship_type)
-        if key not in relationship_groups:
-            relationship_groups[key] = []
-        relationship_groups[key].append(rel)
-
-    duplicate_relationships = [
-        (key, rels) for key, rels in relationship_groups.items() if len(rels) > 1
-    ]
-
-    if duplicate_relationships:
-        click.echo(
-            f"\n📋 Found {len(duplicate_relationships)} sets of duplicate relationships:"
-        )
-
-        for i, ((source_id, target_id, rel_type), rels) in enumerate(
-            duplicate_relationships
-        ):
-            source_node = graph.get_node(source_id)
-            target_node = graph.get_node(target_id)
-
-            click.echo(f"\n--- Duplicate Relationship Set {i+1} ---")
-            click.echo(
-                f"Relationship: {source_node.name if source_node else source_id} --[{rel_type}]--> {target_node.name if target_node else target_id}"
-            )
-            click.echo(f"Duplicate count: {len(rels)}")
-
-            for j, rel in enumerate(rels):
-                click.echo(
-                    f"  {j+1}. Created: {rel.created_at}, Confidence: {rel.confidence}, Strength: {rel.strength}"
-                )
-
-    else:
-        click.echo("✅ No duplicate relationships found!")
-
-    if dry_run:
-        click.echo(
-            f"\n💡 This was a dry run. Use --auto-merge to actually merge duplicates."
-        )
-    elif auto_merge:
-        click.echo(f"\n⚠️  Auto-merge functionality not yet implemented")
-        click.echo("Would merge duplicate nodes and relationships here")
-    else:
-        click.echo(
-            f"\n💡 Use --auto-merge to automatically merge duplicates, or --dry-run to preview changes"
-        )
-
-    click.echo(f"\n✅ Deduplication scan completed!")
-
-
-@cli.command()
-@click.argument("graph_file", type=click.Path(exists=True))
-@click.option(
     "--output", "-o", default="kg_visualization.html", help="Output visualization file"
 )
 def visualize(graph_file: str, output: str):
@@ -763,13 +444,13 @@ def visualize(graph_file: str, output: str):
 
     try:
         # Load the knowledge graph
-        from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
+        from agent.experiments.knowledge_graph.knowledge_graph import (
             KnowledgeExperienceGraph,
         )
 
         graph = KnowledgeExperienceGraph.load_from_file(graph_file)
         click.echo(
-            f"✅ Loaded graph: {len(graph.get_all_nodes())} nodes, {len(graph.get_all_relationships())} relationships"
+            f"✅ Loaded graph: {len(graph.get_all_nodes())} nodes, {len(graph.get_nary_relationships())} relationships"
         )
 
         # N-ary relationships are now stored directly in the graph

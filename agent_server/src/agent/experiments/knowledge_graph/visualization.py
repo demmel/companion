@@ -17,7 +17,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.manifold import TSNE
 
-from agent.experiments.knowledge_graph.knowledge_graph_prototype import (
+from agent.experiments.knowledge_graph.knowledge_graph import (
     KnowledgeExperienceGraph,
     GraphNode,
 )
