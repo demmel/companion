@@ -13,7 +13,10 @@ from datetime import datetime
 from enum import Enum
 
 from agent.experiments.knowledge_graph.knn_entity_search import IKNNEntity
-from agent.experiments.knowledge_graph.n_ary_relationship import NaryRelationship
+from agent.experiments.knowledge_graph.n_ary_relationship import (
+    NaryRelationship,
+    RelationshipLifecycleState,
+)
 import numpy as np
 from pydantic import BaseModel, Field
 
@@ -64,15 +67,6 @@ class NodeType(str, Enum):
     PATTERN = "pattern"  # Behavioral/learning patterns
     CONTEXT = "context"  # Situational contexts
     OBJECT = "object"  # Physical objects, tools, places, tangible items
-
-
-class RelationshipLifecycleState(str, Enum):
-    """Lifecycle states for temporal relationship management"""
-
-    ACTIVE = "active"  # Currently valid relationship
-    HISTORICAL = "historical"  # Was valid in the past, superseded by new information
-    DEPRECATED = "deprecated"  # Was incorrect, should not have existed
-    SUPERSEDED = "superseded"  # Was correct but replaced by evolved knowledge
 
 
 class ChangeType(str, Enum):

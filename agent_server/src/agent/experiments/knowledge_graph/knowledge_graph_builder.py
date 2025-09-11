@@ -40,7 +40,6 @@ from agent.experiments.knowledge_graph.n_ary_extraction import (
     NaryRelationshipExtractor,
 )
 from agent.experiments.knowledge_graph.n_ary_relationship import (
-    NaryRelationshipManager,
     NaryRelationship,
 )
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
@@ -312,7 +311,6 @@ class ValidatedKnowledgeGraphBuilder:
         self.nary_extractor = NaryRelationshipExtractor(
             llm, model, self.relationship_bank
         )
-        self.nary_manager = NaryRelationshipManager()
 
     def apply_action_effects_to_state(self, trigger: TriggerHistoryEntry) -> None:
         """Apply the effects of actions in this trigger to the current historical state"""
