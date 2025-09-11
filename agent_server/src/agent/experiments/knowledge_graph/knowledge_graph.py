@@ -6,9 +6,7 @@ Standalone prototype that builds a knowledge+experience graph from trigger histo
 using incremental processing (no future knowledge) with confidence-weighted relationships.
 """
 
-import uuid
-import json
-from typing import Dict, List, Optional, Set, Tuple, Any, Type
+from typing import Dict, List, Optional, Set, Any
 from datetime import datetime
 from enum import Enum
 
@@ -37,18 +35,9 @@ class GraphStats(BaseModel):
     confidence_distribution: ConfidenceDistribution
 
 
-# KnowledgeGraphData will be defined after imports are resolved
-# to avoid forward reference issues
-_KnowledgeGraphData: Any = None
-
-
 import logging
 
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.chain_of_action.trigger import UserInputTrigger
-from agent.chain_of_action.action.action_types import ActionType
-from agent.conversation_persistence import ConversationPersistence
-from agent.llm import LLM, SupportedModel, create_llm
+from agent.llm import LLM, SupportedModel
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +109,17 @@ class GraphNode(BaseModel, IKNNEntity):
 
     def get_text(self) -> str:
         return f"{self.name} ({self.node_type.value}): {self.description}"
+
+
+class KnowledgeGraphData(BaseModel):
+    """Pydantic surrogate model for KnowledgeExperienceGraph serialization"""
+
+    nodes: List[GraphNode]
+    nary_relationships: List[NaryRelationship]
+    processed_triggers: List[str]
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class KnowledgeExperienceGraph:
@@ -365,77 +365,9 @@ Analyze this situation and determine if this is a correction or evolution."""
         """Get a node by ID"""
         return self.nodes.get(node_id)
 
-    def find_nodes_by_name(
-        self, name: str, node_type: Optional[NodeType] = None
-    ) -> List[GraphNode]:
-        """Find nodes by name (case-insensitive)"""
-        matches = []
-        candidate_nodes = (
-            self.nodes_by_type.get(node_type, set()) if node_type else self.nodes.keys()
-        )
-
-        for node_id in candidate_nodes:
-            node = self.nodes[node_id]
-            if name.lower() in node.name.lower():
-                matches.append(node)
-
-        return matches
-
-    def get_neighbors(
-        self,
-        node_id: str,
-        relationship_types: Optional[List[str]] = None,
-        semantic_roles: Optional[List[str]] = None,
-        min_confidence: float = 0.0,
-    ):
-        """Get neighboring nodes through n-ary relationships"""
-        neighbors = []
-
-        for nary_rel in self.nary_relationships.values():
-            # Check if this node participates in the relationship
-            if not nary_rel.has_participant(node_id):
-                continue
-
-            # Filter by relationship type if specified
-            if (
-                relationship_types
-                and nary_rel.relationship_type not in relationship_types
-            ):
-                continue
-
-            # Filter by confidence
-            if nary_rel.confidence < min_confidence:
-                continue
-
-            # Filter by semantic role if specified
-            node_role = nary_rel.get_role_for_participant(node_id)
-            if semantic_roles and node_role not in semantic_roles:
-                continue
-
-            # Add all other participants as neighbors
-            for role, participant_id in nary_rel.participants.items():
-                if participant_id != node_id:  # Don't include self
-                    neighbor_node = self.nodes.get(participant_id)
-                    if neighbor_node:
-                        neighbors.append((neighbor_node, nary_rel, role))
-
-        return neighbors
-
     def get_all_nodes(self) -> List[GraphNode]:
         """Get all nodes in the graph"""
         return list(self.nodes.values())
-
-    def get_node_by_name(self, name: str) -> Optional[GraphNode]:
-        """Get first node with matching name (case-insensitive)"""
-        name_lower = name.lower()
-        for node in self.nodes.values():
-            if node.name.lower() == name_lower:
-                return node
-        return None
-
-    def export_to_dict(self) -> Dict[str, Any]:
-        """Export entire graph to dictionary using Pydantic serialization"""
-        return self.to_data().model_dump()
 
     def get_stats(self) -> GraphStats:
         """Get graph statistics"""
@@ -476,22 +408,15 @@ Analyze this situation and determine if this is a correction or evolution."""
 
     def to_data(self):
         """Convert to serializable Pydantic data model"""
-        if _KnowledgeGraphData is None:
-            raise RuntimeError("KnowledgeGraphData model not initialized")
 
-        from agent.experiments.knowledge_graph.n_ary_relationship import (
-            NaryRelationship,
-        )
-
-        return _KnowledgeGraphData(
+        return KnowledgeGraphData(
             nodes=list(self.nodes.values()),
-            relationships=[],  # Empty list since we removed binary relationships
             nary_relationships=list(self.nary_relationships.values()),
             processed_triggers=list(self.processed_triggers),
         )
 
     @classmethod
-    def from_data(cls, data) -> "KnowledgeExperienceGraph":
+    def from_data(cls, data: KnowledgeGraphData) -> "KnowledgeExperienceGraph":
         """Reconstruct KnowledgeExperienceGraph from Pydantic data model"""
         graph = cls()
 
@@ -524,102 +449,7 @@ Analyze this situation and determine if this is a correction or evolution."""
         with open(filename, "r") as f:
             json_data = f.read()
 
-        # Try to load using new Pydantic format if available
-        if _KnowledgeGraphData is not None:
-            try:
-                data = _KnowledgeGraphData.model_validate_json(json_data)
-                graph = cls.from_data(data)
-                logger.info(f"Loaded graph from {filename}")
-                return graph
-
-            except Exception as e:
-                # Fallback to manual loading for backward compatibility
-                logger.warning(
-                    f"Failed to load with Pydantic format, falling back to manual parsing: {e}"
-                )
-        else:
-            logger.info("KnowledgeGraphData not available, using legacy loading")
-
-        return cls._load_legacy_format(filename)
-
-    @classmethod
-    def _load_legacy_format(cls, filename: str) -> "KnowledgeExperienceGraph":
-        """Load graph from legacy JSON format for backward compatibility"""
-        with open(filename, "r") as f:
-            data = json.load(f)
-
-        graph = cls()
-
-        # Load nodes - use Pydantic validation for individual objects
-        for node_data in data["nodes"]:
-            try:
-                node = GraphNode.model_validate(node_data)
-                graph.add_node(node)
-            except Exception:
-                # Fallback for very old node formats
-                node = GraphNode(
-                    id=node_data["id"],
-                    node_type=NodeType(node_data["node_type"]),
-                    name=node_data["name"],
-                    description=node_data["description"],
-                    importance=node_data["importance"],
-                    created_at=(
-                        datetime.fromisoformat(node_data["created_at"])
-                        if isinstance(node_data["created_at"], str)
-                        else node_data["created_at"]
-                    ),
-                    properties=node_data.get("properties", {}),
-                )
-                graph.add_node(node)
-
-        # Skip legacy binary relationships - they are no longer supported
-        if "relationships" in data:
-            logger.info(
-                f"Skipping {len(data.get('relationships', []))} legacy binary relationships"
-            )
-
-        # Load n-ary relationships
-        if "nary_relationships" in data:
-            from agent.experiments.knowledge_graph.n_ary_relationship import (
-                NaryRelationship,
-            )
-
-            for nrel_data in data["nary_relationships"]:
-                try:
-                    nary_rel = NaryRelationship.model_validate(nrel_data)
-                    graph.add_nary_relationship(nary_rel)
-                except Exception:
-                    # Fallback with defaults for missing fields
-                    nary_rel = NaryRelationship(
-                        id=nrel_data["id"],
-                        relationship_type=nrel_data["relationship_type"],
-                        participants=nrel_data["participants"],
-                        confidence=nrel_data["confidence"],
-                        strength=nrel_data.get("strength", nrel_data["confidence"]),
-                        source_trigger_id=nrel_data.get("source_trigger_id", "unknown"),
-                        created_at=(
-                            datetime.fromisoformat(nrel_data["created_at"])
-                            if isinstance(nrel_data["created_at"], str)
-                            else nrel_data["created_at"]
-                        ),
-                        properties=nrel_data.get("properties", {}),
-                        pattern=nrel_data.get("pattern"),
-                    )
-                    graph.add_nary_relationship(nary_rel)
-
-        # Load processed triggers
-        graph.processed_triggers = set(data.get("processed_triggers", []))
-
-        logger.info(f"Loaded graph from {filename} (legacy format)")
+        data = KnowledgeGraphData.model_validate_json(json_data)
+        graph = cls.from_data(data)
+        logger.info(f"Loaded graph from {filename}")
         return graph
-
-
-class KnowledgeGraphData(BaseModel):
-    """Pydantic surrogate model for KnowledgeExperienceGraph serialization"""
-
-    nodes: List[GraphNode]
-    nary_relationships: List[NaryRelationship]
-    processed_triggers: List[str]
-
-    class Config:
-        arbitrary_types_allowed = True
