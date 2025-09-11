@@ -84,7 +84,7 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
       </div>
 
       {/* Content */}
-      <div className={css({ color: "gray.200" })}>{getTriggerContent()}</div>
+      <div className={css({ color: "gray.200", whiteSpace: "pre-wrap" })}>{getTriggerContent()}</div>
     </div>
   );
 }
