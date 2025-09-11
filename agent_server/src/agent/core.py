@@ -231,7 +231,7 @@ class Agent:
             # else: drop event (no client connected)
 
         if should_yield:
-            time.sleep(0.1)  # Yield to allow event to be processed
+            time.sleep(0)  # Yield to allow event to be processed
 
     def set_client_queue(self, client_queue: queue.Queue[AgentEvent]) -> None:
         """Set the current client queue (replaces existing client)"""
