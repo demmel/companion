@@ -247,8 +247,8 @@ class PerformanceMetrics:
 class RelationshipValidation(BaseModel):
     """Result of relationship semantic validation"""
 
-    is_valid: bool = Field(description="Whether this relationship makes semantic sense")
     reasoning: str = Field(description="Why this relationship is valid or invalid")
+    is_valid: bool = Field(description="Whether this relationship makes semantic sense")
     suggested_fix: Optional[str] = Field(
         default=None,
         description="If invalid, suggest a better relationship or approach",
@@ -258,15 +258,15 @@ class RelationshipValidation(BaseModel):
 class EntitySimilarityMatch(BaseModel):
     """Result of entity similarity matching"""
 
+    reasoning: str = Field(
+        description="Explanation of why they are the same or different"
+    )
     is_same_entity: bool = Field(
         description="Whether the proposed entity is the same as an existing entity"
     )
     existing_entity_name: str = Field(
         default="",
         description="The normalized name of the existing entity if it's the same, empty otherwise",
-    )
-    reasoning: str = Field(
-        description="Explanation of why they are the same or different"
     )
 
 
@@ -311,6 +311,13 @@ class ValidatedKnowledgeGraphBuilder:
         self.nary_extractor = NaryRelationshipExtractor(
             llm, model, self.relationship_bank
         )
+
+        # Lifecycle manager for n-ary relationship temporal management
+        from agent.experiments.knowledge_graph.nary_lifecycle_manager import (
+            NaryLifecycleManager,
+        )
+
+        self.lifecycle_manager = NaryLifecycleManager(llm, model)
 
     def apply_action_effects_to_state(self, trigger: TriggerHistoryEntry) -> None:
         """Apply the effects of actions in this trigger to the current historical state"""
@@ -797,8 +804,10 @@ class ValidatedKnowledgeGraphBuilder:
             )
 
             if nary_relationship:
-                # Add directly to graph's n-ary relationship storage
-                self.graph.add_nary_relationship(nary_relationship)
+                # Use lifecycle manager for proper change detection and supersession
+                self.lifecycle_manager.add_relationship_with_lifecycle_management(
+                    self.graph, nary_relationship, trigger
+                )
 
                 valid_relationships += 1
 

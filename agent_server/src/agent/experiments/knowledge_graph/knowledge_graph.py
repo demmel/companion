@@ -70,10 +70,10 @@ class ChangeType(str, Enum):
 class ChangeDetectionResult(BaseModel):
     """Result of analyzing whether new information is correction or evolution"""
 
+    reasoning: str = Field(description="Why this classification was made")
     change_type: ChangeType = Field(
         description="Whether this is a correction or evolution"
     )
-    reasoning: str = Field(description="Why this classification was made")
     confidence: float = Field(description="Confidence in this classification (0.0-1.0)")
     should_supersede: bool = Field(
         description="Whether existing relationships should be superseded"

@@ -48,6 +48,7 @@ class RelationshipBankStats:
 class RelationshipSchemaMatch(BaseModel):
     """Result of relationship schema matching"""
 
+    reasoning: str = Field(description="Why this choice was made")
     use_existing: bool = Field(
         description="Whether to use an existing relationship schema"
     )
@@ -59,7 +60,6 @@ class RelationshipSchemaMatch(BaseModel):
         default=None,
         description="Mapping from proposed roles to existing schema roles if different",
     )
-    reasoning: str = Field(description="Why this choice was made")
 
 
 class RelationshipSchemaEntry(BaseModel, IKNNEntity):
