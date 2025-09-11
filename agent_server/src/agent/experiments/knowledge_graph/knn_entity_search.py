@@ -167,6 +167,7 @@ class KNNEntitySearch(Generic[T]):
         matches = self.find_similar_entities(
             query_embedding,
             k=3,
+            similarity_threshold=0.6,  # Lower threshold to enable tiered resolution
         )
 
         if not matches:

@@ -44,6 +44,10 @@ class NaryRelationship(BaseModel, IKNNEntity):
     # Example: {"agent": "person_david", "beneficiary": "person_me", "object": "object_penthouse"}
 
     properties: Dict[str, Any] = Field(default_factory=dict)
+    evidence: List[str] = Field(
+        default_factory=list,
+        description="List of evidence supporting this relationship",
+    )
     source_trigger_id: str
     created_at: datetime = Field(default_factory=datetime.now)
     category: Optional[str] = None  # e.g. "transaction", "preference", "usage"
@@ -99,8 +103,8 @@ class NaryRelationship(BaseModel, IKNNEntity):
         base_text = f"{self.relationship_type}({participants_text})"
 
         # Add evidence if available
-        if "evidence" in self.properties:
-            base_text += f" | Evidence: {self.properties['evidence']}"
+        if self.evidence:
+            base_text += f" | Evidence: {' | '.join(self.evidence)}"
 
         # Add pattern if available
         if self.category:
@@ -135,14 +139,9 @@ class NaryRelationship(BaseModel, IKNNEntity):
         )
         self.strength = min(self.strength, 1.0)
 
-        # Add new evidence to properties
-        existing_evidence = self.properties.get("evidence", "")
-        if existing_evidence:
-            # Combine evidence, avoid exact duplicates
-            if new_evidence not in existing_evidence:
-                self.properties["evidence"] = existing_evidence + " | " + new_evidence
-        else:
-            self.properties["evidence"] = new_evidence
+        # Add new evidence to evidence list
+        if new_evidence and new_evidence not in self.evidence:
+            self.evidence.append(new_evidence)
 
         # Update lifecycle tracking
         self.last_reinforced = datetime.now()

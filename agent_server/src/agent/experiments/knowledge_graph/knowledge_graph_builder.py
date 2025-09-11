@@ -583,8 +583,8 @@ class ValidatedKnowledgeGraphBuilder:
                 strength=1.0,  # High strength for temporal relationships
                 properties={
                     "time_diff_seconds": time_diff_seconds,
-                    "evidence": f"Timestamp sequence: {previous_trigger.timestamp} → {current_trigger.timestamp}",
                 },
+                evidence=[f"Timestamp sequence: {previous_trigger.timestamp} → {current_trigger.timestamp}"],
                 source_trigger_id=current_trigger.entry_id,
                 category="temporal_sequence",
             )
@@ -709,9 +709,9 @@ class ValidatedKnowledgeGraphBuilder:
                 confidence=entity.confidence,
                 strength=experience_strength,
                 properties={
-                    "extraction_evidence": entity.evidence,
                     "entity_type": entity.type,
                 },
+                evidence=[entity.evidence] if entity.evidence else [],
                 source_trigger_id=trigger.entry_id,
                 category="experience_involvement",
             )
