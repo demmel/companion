@@ -369,5 +369,5 @@ Extract all meaningful relationships with their specific descriptions and role s
                 "extraction_reasoning": "Extracted via N-ary schema system",
             },
             source_trigger_id=source_trigger_id,
-            pattern=extracted.category,  # Use category instead of old pattern_type
+            category=extracted.category,  # Use category instead of old pattern_type
         )

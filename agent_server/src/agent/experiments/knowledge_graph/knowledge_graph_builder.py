@@ -586,7 +586,7 @@ class ValidatedKnowledgeGraphBuilder:
                     "evidence": f"Timestamp sequence: {previous_trigger.timestamp} → {current_trigger.timestamp}",
                 },
                 source_trigger_id=current_trigger.entry_id,
-                pattern="temporal_sequence",
+                category="temporal_sequence",
             )
 
             # Add directly to graph's n-ary storage
@@ -713,7 +713,7 @@ class ValidatedKnowledgeGraphBuilder:
                     "entity_type": entity.type,
                 },
                 source_trigger_id=trigger.entry_id,
-                pattern="experience_involvement",
+                category="experience_involvement",
             )
 
             # Add directly to graph's n-ary storage

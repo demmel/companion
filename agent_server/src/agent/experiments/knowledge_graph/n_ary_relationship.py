@@ -46,7 +46,7 @@ class NaryRelationship(BaseModel, IKNNEntity):
     properties: Dict[str, Any] = Field(default_factory=dict)
     source_trigger_id: str
     created_at: datetime = Field(default_factory=datetime.now)
-    pattern: Optional[str] = None  # Which pattern this relationship follows
+    category: Optional[str] = None  # e.g. "transaction", "preference", "usage"
 
     # Lifecycle management (migrated from binary relationships)
     lifecycle_state: RelationshipLifecycleState = Field(
@@ -103,8 +103,8 @@ class NaryRelationship(BaseModel, IKNNEntity):
             base_text += f" | Evidence: {self.properties['evidence']}"
 
         # Add pattern if available
-        if self.pattern:
-            base_text += f" | Pattern: {self.pattern}"
+        if self.category:
+            base_text += f" | Pattern: {self.category}"
 
         return base_text
 
