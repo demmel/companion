@@ -6,12 +6,17 @@ import ollama
 import time
 import logging
 from collections import defaultdict
-from typing import Iterator, List, Dict, Optional
+from typing import Iterator, List, Dict, Optional, Union, Sequence
+from pathlib import Path
 from pydantic import BaseModel
 from dataclasses import dataclass, field
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# Type alias for image data
+ImageInput = Union[str, bytes, Path]
+ImagesInput = Optional[Sequence[ImageInput]]
 
 
 @dataclass
@@ -178,6 +183,7 @@ class LLM:
         top_k: Optional[int] = None,
         repeat_penalty: Optional[float] = None,
         num_predict: Optional[int] = None,
+        images: ImagesInput = None,
         **kwargs,
     ):
         """Send direct generation request (no chat template) to LLM"""
@@ -208,15 +214,21 @@ class LLM:
             stream=stream,
             options=options,
             keep_alive=keep_alive or config.keep_alive,
+            images=[ollama.Image(value=image) for image in images] if images else None,
         )
 
     def generate_streaming(
-        self, model: SupportedModel, prompt: str, caller: str, **kwargs
+        self,
+        model: SupportedModel,
+        prompt: str,
+        caller: str,
+        images: ImagesInput = None,
+        **kwargs,
     ) -> Iterator[ollama.GenerateResponse]:
         """Convenience method for streaming direct generation"""
         start_time = time.time()
 
-        yield from self.generate(model, prompt, caller, stream=True, **kwargs)  # type: ignore
+        yield from self.generate(model, prompt, caller, stream=True, images=images, **kwargs)  # type: ignore
 
         end_time = time.time()
         duration = end_time - start_time
@@ -231,6 +243,7 @@ class LLM:
         caller: str,
         num_predict: Optional[int] = None,
         repeat_penalty: Optional[float] = None,
+        images: ImagesInput = None,
         **kwargs,
     ) -> str:
         """Convenience method for non-streaming direct generation"""
@@ -242,6 +255,7 @@ class LLM:
             stream=False,
             num_predict=num_predict,
             repeat_penalty=repeat_penalty,
+            images=images,
             **kwargs,
         )
 

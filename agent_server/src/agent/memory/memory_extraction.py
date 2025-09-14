@@ -42,12 +42,16 @@ def extract_memory_queries(
     prompt = build_memory_extraction_prompt(state, trigger, trigger_history)
 
     try:
+        # Get images from trigger
+        trigger_images = trigger.get_images()
+
         response = direct_structured_llm_call(
             prompt=prompt,
             response_model=LLMMemoryExtraction,
             model=model,
             llm=llm,
             caller="memory_extraction",
+            images=trigger_images,
             temperature=0.3,
         )
         elapsed = time.time() - start_time

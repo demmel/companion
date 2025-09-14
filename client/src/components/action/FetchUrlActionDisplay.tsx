@@ -9,11 +9,12 @@ interface FetchUrlActionDisplayProps {
 
 export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   const isStreaming = action.status.type === "streaming";
-  const result = action.status.type === "error" ? 
-    `Error: ${action.status.error}` : 
-    action.status.result;
+  const result =
+    action.status.type === "error"
+      ? `Error: ${action.status.error}`
+      : action.status.result;
   const hasContent = result?.trim().length > 0;
 
   return (
@@ -33,25 +34,37 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
       {/* Header with icon and URL */}
       <div className={css({ display: "flex", alignItems: "center", gap: 2 })}>
         {isStreaming ? (
-          <Loader2 size={16} className={css({ animation: "spin 1s linear infinite", color: "purple.500" })} />
+          <Loader2
+            size={16}
+            className={css({
+              animation: "spin 1s linear infinite",
+              color: "purple.500",
+            })}
+          />
         ) : (
           <ExternalLink size={16} className={css({ color: "purple.500" })} />
         )}
-        
+
         <div className={css({ flex: 1 })}>
           <div className={css({ color: "purple.300", fontWeight: "medium" })}>
             {isStreaming ? "Fetching content..." : "Fetched URL"}
           </div>
           {action.url && (
-            <div className={css({ color: "purple.200", fontSize: "xs", truncate: true })}>
-              <a 
-                href={action.url} 
-                target="_blank" 
+            <div
+              className={css({
+                color: "purple.200",
+                fontSize: "xs",
+                truncate: true,
+              })}
+            >
+              <a
+                href={action.url}
+                target="_blank"
                 rel="noopener noreferrer"
-                className={css({ 
-                  color: "purple.200", 
+                className={css({
+                  color: "purple.200",
                   textDecoration: "underline",
-                  _hover: { color: "purple.100" }
+                  _hover: { color: "purple.100" },
                 })}
               >
                 {action.url}
@@ -63,7 +76,13 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
 
       {/* Looking for context */}
       {action.looking_for && (
-        <div className={css({ color: "purple.400", fontSize: "xs", fontStyle: "italic" })}>
+        <div
+          className={css({
+            color: "purple.400",
+            fontSize: "xs",
+            fontStyle: "italic",
+          })}
+        >
           Looking for: {action.looking_for}
         </div>
       )}
@@ -90,7 +109,7 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
             })}
           >
             <span>{isStreaming ? "Processing..." : "Summary"}</span>
-            <ChevronDown 
+            <ChevronDown
               size={14}
               className={css({
                 transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
@@ -98,33 +117,39 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
               })}
             />
           </button>
-          
+
           {isExpanded && (
-            <div className={css({ 
-              color: "purple.100", 
-              fontSize: "xl",
-              lineHeight: "relaxed",
-              whiteSpace: "pre-wrap",
-              p: 2,
-              bg: "purple.950/50",
-              rounded: "sm",
-              border: "1px solid",
-              borderColor: "purple.800",
-              mx: 2,
-              mb: 2
-            })}>
+            <div
+              className={css({
+                color: "purple.100",
+                fontSize: "xl",
+                lineHeight: "relaxed",
+                whiteSpace: "pre-wrap",
+                p: 2,
+                bg: "purple.950/50",
+                rounded: "sm",
+                border: "1px solid",
+                borderColor: "purple.800",
+                mx: 2,
+                mb: 2,
+              })}
+            >
               {result?.trim() || (isStreaming ? "..." : "No content available")}
               {isStreaming && result && (
-                <span className={css({ 
-                  animation: "blink 1s infinite",
-                  color: "purple.500" 
-                })}>▍</span>
+                <span
+                  className={css({
+                    animation: "blink 1s infinite",
+                    color: "purple.500",
+                  })}
+                >
+                  ▍
+                </span>
               )}
             </div>
           )}
         </div>
       )}
-      
+
       <style>
         {`
           @keyframes blink {

@@ -4,14 +4,23 @@ FastAPI server for single-user agent system
 
 import json
 import logging
-import os
+import uuid
+import shutil
+from pathlib import Path
 
 from agent.types import Message
 from agent.llm import create_llm, SupportedModel
 from typing import List, Optional
 from datetime import datetime
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import (
+    FastAPI,
+    WebSocket,
+    WebSocketDisconnect,
+    UploadFile,
+    File,
+    HTTPException,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -29,9 +38,6 @@ from agent.api_types import (
     convert_trigger_history_entry_to_dto,
     convert_summary_to_dto,
 )
-from agent.conversation_persistence import AgentData
-from agent.state import State
-from agent.chain_of_action.trigger_history import TriggerHistory
 
 
 # Response Models
@@ -57,6 +63,12 @@ class AutoWakeupSetResponse(BaseModel):
     enabled: bool
     message: str
     timestamp: str
+
+
+class ImageUploadResponse(BaseModel):
+    id: str
+    size: int
+    url: str
 
 
 # Set up logging
@@ -333,18 +345,43 @@ async def websocket_chat(websocket: WebSocket):
                     data = await websocket.receive_text()
                     message_data = json.loads(data)
                     message = message_data.get("message", "")
+                    image_ids = message_data.get("image_ids", [])
 
-                    # Handle empty message as wakeup trigger
-                    if not message.strip():
-                        # Create wakeup trigger instead of user input trigger
-                        message = None  # Signal to use wakeup trigger
+                    # Resolve image IDs to file paths
+                    image_paths = None
+                    if image_ids:
+                        upload_dir = agent_paths.get_uploaded_images_dir()
+                        image_paths = []
+                        for image_id in image_ids:
+                            # Find the image file with this ID (could be any supported extension)
+                            for ext in [".jpg", ".jpeg", ".png", ".webp"]:
+                                image_file = upload_dir / f"{image_id}{ext}"
+                                if image_file.exists():
+                                    image_paths.append(str(image_file))
+                                    break
+                            else:
+                                logger.warning(f"Image not found for ID: {image_id}")
+
+                    # Create appropriate trigger
+                    if not message.strip() and not image_paths:
+                        from agent.chain_of_action.trigger import WakeupTrigger
+
+                        user_trigger = WakeupTrigger()
+                    else:
+                        from agent.chain_of_action.trigger import UserInputTrigger
+
+                        user_trigger = UserInputTrigger(
+                            content=message, user_name="User", image_paths=image_paths
+                        )
 
                     # Process message in background thread
-                    logger.info(f"Processing message: {message}")
+                    logger.info(
+                        f"Processing trigger: {user_trigger.type}, images: {len(image_paths) if image_paths else 0}"
+                    )
 
                     def process_message():
                         try:
-                            app.state.agent.chat_stream(message)
+                            app.state.agent.chat_stream(trigger=user_trigger)
                         except Exception as e:
                             # Put error event in queue
                             from agent.api_types import AgentErrorEvent
@@ -435,6 +472,62 @@ async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
     )
 
 
+@app.post("/api/upload-image", response_model=ImageUploadResponse)
+async def upload_image(file: UploadFile = File(...)):
+    """Upload an image file and return a unique ID"""
+
+    # Check file size before processing (max 10MB)
+    max_size = 10 * 1024 * 1024  # 10MB
+    if file.size and file.size > max_size:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image type. Allowed: {', '.join(allowed_types)}",
+        )
+
+    # Generate unique ID and filename
+    image_id = str(uuid.uuid4())
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    file_extension = Path(file.filename).suffix
+    if not file_extension:
+        raise HTTPException(status_code=400, detail="File must have a valid extension")
+
+    new_filename = f"{image_id}{file_extension}"
+
+    # Get upload directory and ensure it exists
+    upload_dir = agent_paths.get_uploaded_images_dir()
+    upload_dir.mkdir(exist_ok=True)
+
+    # Save file
+    file_path = upload_dir / new_filename
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        logger.error(f"Failed to save uploaded image: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save image")
+
+    # Get file size for response
+    file_size = file_path.stat().st_size
+
+    logger.info(f"Image uploaded: {image_id} ({file.filename}, {file_size} bytes)")
+
+    return ImageUploadResponse(
+        id=image_id,
+        size=file_size,
+        url=f"/uploaded_images/{new_filename}",
+    )
+
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
@@ -469,12 +562,17 @@ if client_dist_dir.exists():
         name="generated_images",
     )
 
+    # Mount uploaded images directory
+    app.mount(
+        "/uploaded_images",
+        StaticFiles(directory=agent_paths.get_uploaded_images_dir()),
+        name="uploaded_images",
+    )
+
     # Catch-all route for React SPA (must be last!)
     @app.get("/{path:path}")
     async def serve_spa(path: str):
         """Serve React SPA, fallback to index.html for client-side routing"""
-
-        logger.info(f"Serving SPA for path: {path}")
 
         # Try to serve specific file first
         file_path = client_dist_dir / path

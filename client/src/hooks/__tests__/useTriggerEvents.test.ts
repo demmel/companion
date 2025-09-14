@@ -103,7 +103,9 @@ describe("useTriggerEvents", () => {
     expect(action.type).toBe("speak");
     expect(action.status.type).toBe("success");
     if (action.status.type === "success") {
-      expect(action.status.result).toBe("Hello! I'm doing well, thanks for asking!");
+      expect(action.status.result).toBe(
+        "Hello! I'm doing well, thanks for asking!",
+      );
     }
     expect(action.duration_ms).toBe(1500);
   });
@@ -160,7 +162,9 @@ describe("useTriggerEvents", () => {
     expect(activeAction.type).toBe("think");
     expect(activeAction.status.type).toBe("streaming");
     if (activeAction.status.type === "streaming") {
-      expect(activeAction.status.result).toBe("I should be authentic and friendly...");
+      expect(activeAction.status.result).toBe(
+        "I should be authentic and friendly...",
+      );
     }
   });
 
@@ -660,7 +664,7 @@ describe("useTriggerEvents", () => {
       ({ events }) => useTriggerEvents(events),
       {
         initialProps: { events },
-      }
+      },
     );
 
     expect(result.current.streamingEntries).toHaveLength(1);
@@ -745,7 +749,9 @@ describe("useTriggerEvents", () => {
     const action = trigger.actions_taken[0] as any;
 
     expect(action.type).toBe("update_appearance");
-    expect(action.image_description).toBe("An ethereal being with flowing robes");
+    expect(action.image_description).toBe(
+      "An ethereal being with flowing robes",
+    );
     expect(action.image_url).toBe("http://example.com/image.png");
   });
 });

@@ -1,5 +1,11 @@
 import { css } from "@styled-system/css";
-import { FileText, Clock, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  FileText,
+  Clock,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { Summary } from "@/types";
 
 interface SummaryCardProps {
@@ -8,12 +14,16 @@ interface SummaryCardProps {
   onToggleExpanded?: () => void;
 }
 
-export function SummaryCard({ summary, isExpanded = true, onToggleExpanded }: SummaryCardProps) {
+export function SummaryCard({
+  summary,
+  isExpanded = true,
+  onToggleExpanded,
+}: SummaryCardProps) {
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], {
       year: "numeric",
-      month: "2-digit", 
+      month: "2-digit",
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
@@ -48,17 +58,33 @@ export function SummaryCard({ summary, isExpanded = true, onToggleExpanded }: Su
             mb: isExpanded ? 3 : 0,
           })}
         >
-          <div className={css({ display: "flex", alignItems: "center", gap: 2 })}>
+          <div
+            className={css({ display: "flex", alignItems: "center", gap: 2 })}
+          >
             {isInProgress ? (
-              <Loader2 size={16} className={css({ color: "yellow.500", animation: "spin 2s linear infinite" })} />
+              <Loader2
+                size={16}
+                className={css({
+                  color: "yellow.500",
+                  animation: "spin 2s linear infinite",
+                })}
+              />
             ) : (
               <FileText size={16} className={css({ color: "yellow.500" })} />
             )}
-            <span className={css({ fontSize: "lg", fontWeight: "medium", color: "gray.200" })}>
+            <span
+              className={css({
+                fontSize: "lg",
+                fontWeight: "medium",
+                color: "gray.200",
+              })}
+            >
               {isInProgress ? "Summarizing..." : "Summary"}
             </span>
           </div>
-          <div className={css({ display: "flex", alignItems: "center", gap: 3 })}>
+          <div
+            className={css({ display: "flex", alignItems: "center", gap: 3 })}
+          >
             <div
               className={css({
                 display: "flex",
@@ -71,7 +97,7 @@ export function SummaryCard({ summary, isExpanded = true, onToggleExpanded }: Su
               <Clock size={12} />
               <span>{formatTime(summary.created_at)}</span>
             </div>
-            
+
             {onToggleExpanded && (
               <button
                 onClick={onToggleExpanded}
@@ -103,15 +129,16 @@ export function SummaryCard({ summary, isExpanded = true, onToggleExpanded }: Su
 
         {/* Content - collapsible */}
         {isExpanded && (
-          <div className={css({ 
-            color: "gray.200",
-            whiteSpace: "pre-wrap",
-            lineHeight: 1.6,
-          })}>
-            {isInProgress 
+          <div
+            className={css({
+              color: "gray.200",
+              whiteSpace: "pre-wrap",
+              lineHeight: 1.6,
+            })}
+          >
+            {isInProgress
               ? `Summarizing ${summary.messages_to_summarize} messages (keeping ${summary.recent_messages_kept} recent)...`
-              : summary.summary_text
-            }
+              : summary.summary_text}
           </div>
         )}
       </div>

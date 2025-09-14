@@ -226,10 +226,13 @@ Now I'll elaborate on my communication intent and respond naturally as myself:""
                 logger.debug(f"TONE: {action_input.tone}")
             logger.debug("=" * 40)
 
+            # Get images from trigger
+            trigger_images = context.trigger.get_images()
+
             # Use streaming generation with progress callback
             full_response = ""
             for response_chunk in llm.generate_streaming(
-                model, direct_prompt, caller="speak_action"
+                model, direct_prompt, caller="speak_action", images=trigger_images
             ):
                 if "response" in response_chunk:
                     chunk_text = response_chunk["response"]

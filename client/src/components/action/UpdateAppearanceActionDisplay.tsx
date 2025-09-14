@@ -1,16 +1,20 @@
 import { css } from "@styled-system/css";
 import { Loader2, Image as ImageIcon } from "lucide-react";
 import { UpdateAppearanceAction } from "@/types";
+import { ImageDisplay } from "../common/ImageDisplay";
 
 interface UpdateAppearanceActionDisplayProps {
   action: UpdateAppearanceAction;
 }
 
-export function UpdateAppearanceActionDisplay({ action }: UpdateAppearanceActionDisplayProps) {
+export function UpdateAppearanceActionDisplay({
+  action,
+}: UpdateAppearanceActionDisplayProps) {
   const isStreaming = action.status.type === "streaming";
-  const result = action.status.type === "error" ? 
-    `Error: ${action.status.error}` : 
-    action.status.result;
+  const result =
+    action.status.type === "error"
+      ? `Error: ${action.status.error}`
+      : action.status.result;
   return (
     <div
       className={css({
@@ -55,17 +59,11 @@ export function UpdateAppearanceActionDisplay({ action }: UpdateAppearanceAction
       {/* Show image if available */}
       {action.image_url && (
         <div className={css({ mb: 3 })}>
-          <img
+          <ImageDisplay
             src={action.image_url}
             alt={action.image_description || "Agent appearance"}
-            className={css({
-              maxW: "full",
-              h: "auto",
-              rounded: "lg",
-              border: "1px solid",
-              borderColor: "gray.600",
-            })}
-            style={{ maxHeight: "300px" }}
+            maxWidth="100%"
+            maxHeight="300px"
           />
         </div>
       )}

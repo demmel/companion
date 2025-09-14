@@ -584,7 +584,9 @@ class ValidatedKnowledgeGraphBuilder:
                 properties={
                     "time_diff_seconds": time_diff_seconds,
                 },
-                evidence=[f"Timestamp sequence: {previous_trigger.timestamp} → {current_trigger.timestamp}"],
+                evidence=[
+                    f"Timestamp sequence: {previous_trigger.timestamp} → {current_trigger.timestamp}"
+                ],
                 source_trigger_id=current_trigger.entry_id,
                 category="temporal_sequence",
             )

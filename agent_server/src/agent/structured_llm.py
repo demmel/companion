@@ -9,6 +9,7 @@ import json
 import logging
 from enum import Enum
 from typing import TypeVar, Type, Dict, Any, Optional
+from agent.llm import ImagesInput
 from pydantic import BaseModel, ValidationError
 
 from agent.llm import LLM, Message, SupportedModel
@@ -432,6 +433,7 @@ def direct_structured_llm_call(
     temperature: float = 0.1,
     format: ResponseFormat = ResponseFormat.JSON,
     max_retries: int = 3,
+    images: ImagesInput = None,
 ) -> T:
     """
     Direct generation structured LLM call for first-person prompts
@@ -473,6 +475,7 @@ def direct_structured_llm_call(
                 temperature=temperature,
                 num_predict=4096,
                 caller=caller,
+                images=images,
             )
 
             if not response_text:

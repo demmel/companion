@@ -7,14 +7,19 @@ interface SearchWebActionDisplayProps {
   action: SearchWebAction;
 }
 
-export function SearchWebActionDisplay({ action }: SearchWebActionDisplayProps) {
+export function SearchWebActionDisplay({
+  action,
+}: SearchWebActionDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   const isStreaming = action.status.type === "streaming";
-  const result = action.status.type === "error" ? 
-    `Error: ${action.status.error}` : 
-    action.status.result;
-  const hasContent = (result?.trim().length > 0) || (action.search_results && action.search_results.length > 0);
+  const result =
+    action.status.type === "error"
+      ? `Error: ${action.status.error}`
+      : action.status.result;
+  const hasContent =
+    result?.trim().length > 0 ||
+    (action.search_results && action.search_results.length > 0);
 
   return (
     <div
@@ -33,19 +38,33 @@ export function SearchWebActionDisplay({ action }: SearchWebActionDisplayProps) 
       {/* Header with icon and search query */}
       <div className={css({ display: "flex", alignItems: "center", gap: 2 })}>
         {isStreaming ? (
-          <Loader2 size={16} className={css({ animation: "spin 1s linear infinite", color: "blue.500" })} />
+          <Loader2
+            size={16}
+            className={css({
+              animation: "spin 1s linear infinite",
+              color: "blue.500",
+            })}
+          />
         ) : (
           <Search size={16} className={css({ color: "blue.500" })} />
         )}
-        
+
         <div className={css({ flex: 1 })}>
           <div className={css({ color: "blue.300", fontWeight: "medium" })}>
-            {isStreaming ? "Searching web..." : 
-             action.status.type === "error" ? "Search failed" :
-             `Found ${action.search_results?.length || 0} results`}
+            {isStreaming
+              ? "Searching web..."
+              : action.status.type === "error"
+                ? "Search failed"
+                : `Found ${action.search_results?.length || 0} results`}
           </div>
           {action.query && (
-            <div className={css({ color: "blue.200", fontSize: "xs", truncate: true })}>
+            <div
+              className={css({
+                color: "blue.200",
+                fontSize: "xs",
+                truncate: true,
+              })}
+            >
               "{action.query}"
             </div>
           )}
@@ -54,7 +73,13 @@ export function SearchWebActionDisplay({ action }: SearchWebActionDisplayProps) 
 
       {/* Purpose context */}
       {action.purpose && (
-        <div className={css({ color: "blue.400", fontSize: "xs", fontStyle: "italic" })}>
+        <div
+          className={css({
+            color: "blue.400",
+            fontSize: "xs",
+            fontStyle: "italic",
+          })}
+        >
           Purpose: {action.purpose}
         </div>
       )}
@@ -81,7 +106,7 @@ export function SearchWebActionDisplay({ action }: SearchWebActionDisplayProps) 
             })}
           >
             <span>{isStreaming ? "Searching..." : "Search Results"}</span>
-            <ChevronDown 
+            <ChevronDown
               size={14}
               className={css({
                 transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
@@ -89,34 +114,46 @@ export function SearchWebActionDisplay({ action }: SearchWebActionDisplayProps) 
               })}
             />
           </button>
-          
+
           {isExpanded && (
-            <div className={css({ 
-              color: "blue.100", 
-              fontSize: "sm",
-              lineHeight: "relaxed",
-              p: 2,
-              bg: "blue.950/50",
-              rounded: "sm",
-              border: "1px solid",
-              borderColor: "blue.800",
-              mx: 2,
-              mb: 2
-            })}>
+            <div
+              className={css({
+                color: "blue.100",
+                fontSize: "sm",
+                lineHeight: "relaxed",
+                p: 2,
+                bg: "blue.950/50",
+                rounded: "sm",
+                border: "1px solid",
+                borderColor: "blue.800",
+                mx: 2,
+                mb: 2,
+              })}
+            >
               {action.status.type === "error" ? (
                 result?.trim() || "Search failed"
               ) : isStreaming ? (
                 <div>
                   Searching for results...
-                  <span className={css({ 
-                    animation: "blink 1s infinite",
-                    color: "blue.500" 
-                  })}>▍</span>
+                  <span
+                    className={css({
+                      animation: "blink 1s infinite",
+                      color: "blue.500",
+                    })}
+                  >
+                    ▍
+                  </span>
                 </div>
               ) : action.search_results && action.search_results.length > 0 ? (
-                <div className={css({ display: "flex", flexDirection: "column", gap: 3 })}>
+                <div
+                  className={css({
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 3,
+                  })}
+                >
                   {action.search_results.map((searchResult, index) => (
-                    <div 
+                    <div
                       key={index}
                       className={css({
                         p: 2,
@@ -126,43 +163,61 @@ export function SearchWebActionDisplay({ action }: SearchWebActionDisplayProps) 
                         rounded: "sm",
                       })}
                     >
-                      <div className={css({ display: "flex", alignItems: "flex-start", gap: 2, mb: 1 })}>
-                        <ExternalLink size={12} className={css({ color: "blue.500", mt: 0.5, flexShrink: 0 })} />
+                      <div
+                        className={css({
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 2,
+                          mb: 1,
+                        })}
+                      >
+                        <ExternalLink
+                          size={12}
+                          className={css({
+                            color: "blue.500",
+                            mt: 0.5,
+                            flexShrink: 0,
+                          })}
+                        />
                         <div className={css({ flex: 1, minWidth: 0 })}>
-                          <a 
-                            href={searchResult.url} 
-                            target="_blank" 
+                          <a
+                            href={searchResult.url}
+                            target="_blank"
                             rel="noopener noreferrer"
-                            className={css({ 
-                              color: "blue.200", 
+                            className={css({
+                              color: "blue.200",
                               fontWeight: "medium",
                               textDecoration: "underline",
                               _hover: { color: "blue.100" },
                               fontSize: "sm",
                               lineHeight: "tight",
-                              display: "block"
+                              display: "block",
                             })}
                           >
                             {searchResult.title}
                           </a>
-                          <div className={css({ 
-                            color: "blue.400", 
-                            fontSize: "xs", 
-                            mt: 1,
-                            truncate: true 
-                          })}>
+                          <div
+                            className={css({
+                              color: "blue.400",
+                              fontSize: "xs",
+                              mt: 1,
+                              truncate: true,
+                            })}
+                          >
                             {searchResult.url}
                           </div>
                         </div>
                       </div>
                       {searchResult.snippet && (
-                        <div className={css({ 
-                          color: "blue.100", 
-                          fontSize: "xs",
-                          lineHeight: "relaxed",
-                          mt: 2,
-                          pl: 4
-                        })}>
+                        <div
+                          className={css({
+                            color: "blue.100",
+                            fontSize: "xs",
+                            lineHeight: "relaxed",
+                            mt: 2,
+                            pl: 4,
+                          })}
+                        >
                           {searchResult.snippet}
                         </div>
                       )}
@@ -176,7 +231,7 @@ export function SearchWebActionDisplay({ action }: SearchWebActionDisplayProps) 
           )}
         </div>
       )}
-      
+
       <style>
         {`
           @keyframes blink {

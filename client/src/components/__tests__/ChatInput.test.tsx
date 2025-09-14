@@ -2,12 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatInput } from "../ChatInput";
+import type { AgentClient } from "@/client";
+
+// Mock AgentClient
+const mockClient = {
+  uploadImage: vi.fn(),
+} as unknown as AgentClient;
 
 describe("ChatInput", () => {
   const defaultProps = {
     value: "",
     onChange: vi.fn(),
     onSubmit: vi.fn(),
+    client: mockClient,
   };
 
   beforeEach(() => {

@@ -109,8 +109,14 @@ class ActionBasedReasoningLoop:
             registry=self.registry,
         )
 
+        # Get images from trigger
+        trigger_images = trigger.get_images()
+
         situational_analysis = llm.generate_complete(
-            model, situational_analysis_prompt, caller="situational_analysis"
+            model,
+            situational_analysis_prompt,
+            caller="situational_analysis",
+            images=trigger_images,
         )
         trigger_entry.situational_context = situational_analysis
 
@@ -297,9 +303,15 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
         max_retries = 3
         compression_threshold = 0.9  # 90% of original size
 
+        # Get images from trigger
+        trigger_images = trigger_entry.trigger.get_images()
+
         for attempt in range(max_retries):
             compressed_summary = llm.generate_complete(
-                model, prompt, caller=f"compress_trigger_entry_attempt_{attempt+1}"
+                model,
+                prompt,
+                caller=f"compress_trigger_entry_attempt_{attempt+1}",
+                images=trigger_images,
             )
 
             compressed_summary = compressed_summary.strip()

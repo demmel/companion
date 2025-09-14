@@ -17,30 +17,35 @@ export interface UseTimelineHistoryReturn {
   clear: () => void;
 }
 
-export function useTimelineHistory(client: AgentClient): UseTimelineHistoryReturn {
+export function useTimelineHistory(
+  client: AgentClient,
+): UseTimelineHistoryReturn {
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [previousCursor, setPreviousCursor] = useState<string | null>(null);
   const [canLoadMore, setCanLoadMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasLoadedAnyData, setHasLoadedAnyData] = useState(false);
 
-  const processTimelineResponse = useCallback((response: TimelineResponse, isPrepend: boolean = false) => {
-    // Use all timeline entries (triggers and summaries)
-    const newEntries = response.entries;
+  const processTimelineResponse = useCallback(
+    (response: TimelineResponse, isPrepend: boolean = false) => {
+      // Use all timeline entries (triggers and summaries)
+      const newEntries = response.entries;
 
-    // Update entries
-    if (isPrepend) {
-      // Prepend older data for "load more"
-      setEntries(prev => [...newEntries, ...prev]);
-    } else {
-      // Replace for initial load
-      setEntries(newEntries);
-    }
+      // Update entries
+      if (isPrepend) {
+        // Prepend older data for "load more"
+        setEntries((prev) => [...newEntries, ...prev]);
+      } else {
+        // Replace for initial load
+        setEntries(newEntries);
+      }
 
-    // Update pagination state
-    setPreviousCursor(response.pagination.previous_cursor || null);
-    setCanLoadMore(response.pagination.has_previous);
-  }, []);
+      // Update pagination state
+      setPreviousCursor(response.pagination.previous_cursor || null);
+      setCanLoadMore(response.pagination.has_previous);
+    },
+    [],
+  );
 
   const loadInitialData = useCallback(async () => {
     if (isLoadingMore) return;

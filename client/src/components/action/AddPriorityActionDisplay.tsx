@@ -6,12 +6,15 @@ interface AddPriorityActionDisplayProps {
   action: AddPriorityAction;
 }
 
-export function AddPriorityActionDisplay({ action }: AddPriorityActionDisplayProps) {
+export function AddPriorityActionDisplay({
+  action,
+}: AddPriorityActionDisplayProps) {
   const isStreaming = action.status.type === "streaming";
-  const result = action.status.type === "error" ? 
-    `Error: ${action.status.error}` : 
-    action.status.result;
-    
+  const result =
+    action.status.type === "error"
+      ? `Error: ${action.status.error}`
+      : action.status.result;
+
   return (
     <div
       className={css({
@@ -27,11 +30,17 @@ export function AddPriorityActionDisplay({ action }: AddPriorityActionDisplayPro
       })}
     >
       {isStreaming ? (
-        <Loader2 size={16} className={css({ animation: "spin 1s linear infinite", color: "green.500" })} />
+        <Loader2
+          size={16}
+          className={css({
+            animation: "spin 1s linear infinite",
+            color: "green.500",
+          })}
+        />
       ) : (
         <Plus size={16} className={css({ color: "green.500" })} />
       )}
-      
+
       <div className={css({ flex: 1, color: "green.300" })}>
         {isStreaming ? (
           <span className={css({ fontStyle: "italic" })}>

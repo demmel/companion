@@ -1,6 +1,10 @@
 import { Send, Coffee } from "lucide-react";
 import { css } from "@styled-system/css";
 import { useRef, useEffect } from "react";
+import { FileUploadButton } from "./FileUploadButton";
+import { ImagePreviewGrid } from "./ImagePreviewGrid";
+import { useImageUpload } from "@/hooks/useImageUpload";
+import { AgentClient } from "@/client";
 
 interface ContextInfo {
   estimated_tokens: number;
@@ -13,13 +17,14 @@ interface ContextInfo {
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (message: string) => void;
+  onSubmit: (message: string, imageIds?: string[]) => void;
   disabled?: boolean;
   placeholder?: string;
   onClear?: () => void;
   clearDisabled?: boolean;
   contextInfo?: ContextInfo | null;
   allowEmptySubmit?: boolean;
+  client: AgentClient;
 }
 
 export function ChatInput({
@@ -32,8 +37,11 @@ export function ChatInput({
   clearDisabled = false,
   contextInfo,
   allowEmptySubmit = false,
+  client,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { uploadedImages, uploading, uploadImages, removeImage, clearImages } =
+    useImageUpload(client);
 
   const resetTextareaHeight = () => {
     if (textareaRef.current) {
@@ -46,9 +54,12 @@ export function ChatInput({
     e.preventDefault();
 
     if (disabled) return;
-    if (!value.trim() && !allowEmptySubmit) return;
+    if (!value.trim() && uploadedImages.length === 0 && !allowEmptySubmit)
+      return;
 
-    onSubmit(value);
+    const imageIds = uploadedImages.map((img) => img.id);
+    onSubmit(value, imageIds);
+    clearImages(); // Clear images after sending
     resetTextareaHeight();
   };
 
@@ -68,14 +79,32 @@ export function ChatInput({
         p: 4,
       })}
     >
+      <ImagePreviewGrid images={uploadedImages} onRemove={removeImage} />
+
       <form
         onSubmit={handleSubmit}
         className={css({
+          position: "relative",
           display: "flex",
           gap: 3,
           alignItems: "flex-end",
         })}
       >
+        <div
+          className={css({
+            position: "absolute",
+            left: 2,
+            top: "50%",
+            transform: "translateY(-50%)",
+            zIndex: 10,
+          })}
+        >
+          <FileUploadButton
+            uploading={uploading}
+            onUpload={uploadImages}
+            disabled={disabled}
+          />
+        </div>
         <textarea
           ref={textareaRef}
           value={value}
@@ -86,14 +115,22 @@ export function ChatInput({
             if (e.key === "Enter" && e.ctrlKey) {
               e.preventDefault();
               if (disabled) return;
-              if (!value.trim() && !allowEmptySubmit) return;
-              onSubmit(value);
+              if (
+                !value.trim() &&
+                uploadedImages.length === 0 &&
+                !allowEmptySubmit
+              )
+                return;
+              const imageIds = uploadedImages.map((img) => img.id);
+              onSubmit(value, imageIds);
+              clearImages();
               resetTextareaHeight();
             }
           }}
           className={css({
             flex: 1,
-            px: 4,
+            pl: 12, // Extra left padding to avoid overlapping with + button
+            pr: 4,
             py: 3,
             bg: "gray.700",
             border: "1px solid",
@@ -127,7 +164,10 @@ export function ChatInput({
         />
         <button
           type="submit"
-          disabled={disabled || (!value.trim() && !allowEmptySubmit)}
+          disabled={
+            disabled ||
+            (!value.trim() && uploadedImages.length === 0 && !allowEmptySubmit)
+          }
           className={css({
             px: 4,
             py: 3,
@@ -147,7 +187,7 @@ export function ChatInput({
             transition: "colors",
           })}
         >
-          {!value.trim() && allowEmptySubmit ? (
+          {!value.trim() && uploadedImages.length === 0 && allowEmptySubmit ? (
             <Coffee size={16} />
           ) : (
             <Send size={16} />

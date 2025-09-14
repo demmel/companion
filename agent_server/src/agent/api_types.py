@@ -20,6 +20,7 @@ class UserInputTriggerDTO(BaseModel):
     content: str
     user_name: str
     timestamp: str
+    image_urls: Optional[List[str]] = None
 
 
 class WakeupTriggerDTO(BaseModel):
@@ -278,10 +279,20 @@ def convert_trigger_to_dto(trigger) -> TriggerDTO:
     from agent.chain_of_action.trigger import UserInputTrigger, WakeupTrigger
 
     if isinstance(trigger, UserInputTrigger):
+        # Convert file paths to URLs for client
+        image_urls = None
+        if trigger.image_paths:
+            from pathlib import Path
+
+            image_urls = [
+                f"/uploaded_images/{Path(path).name}" for path in trigger.image_paths
+            ]
+
         return UserInputTriggerDTO(
             content=trigger.content,
             user_name=trigger.user_name,
             timestamp=trigger.timestamp.isoformat(),
+            image_urls=image_urls,
         )
     elif isinstance(trigger, WakeupTrigger):
         return WakeupTriggerDTO(

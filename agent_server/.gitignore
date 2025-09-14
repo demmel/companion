@@ -17,5 +17,6 @@ wheels/
 
 # Generated files and binary artifacts
 generated_images/
+uploaded_images/
 conversations/
 models/

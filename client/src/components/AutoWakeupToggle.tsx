@@ -70,7 +70,13 @@ export function AutoWakeupToggle({ client }: AutoWakeupToggleProps) {
           cursor: loading ? "not-allowed" : "pointer",
           opacity: loading ? 0.5 : 1,
           _hover: {
-            bg: loading ? (enabled ? "blue.600" : "gray.600") : (enabled ? "blue.700" : "gray.500"),
+            bg: loading
+              ? enabled
+                ? "blue.600"
+                : "gray.600"
+              : enabled
+                ? "blue.700"
+                : "gray.500",
           },
         })}
       >

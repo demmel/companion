@@ -36,6 +36,7 @@ dependencies = [
     "plotly>=6.3.0",
     "scikit-learn>=1.7.1",
     "pandas>=2.3.2",
+    "python-multipart>=0.0.20",
 ]
 
 [tool.uv.sources]

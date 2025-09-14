@@ -1,4 +1,9 @@
-import { TimelineResponse, AutoWakeupStatusResponse, AutoWakeupSetResponse } from "./types";
+import {
+  TimelineResponse,
+  AutoWakeupStatusResponse,
+  AutoWakeupSetResponse,
+  ImageUploadResponse,
+} from "./types";
 
 interface ClientConfig {
   host?: string;
@@ -60,11 +65,14 @@ export class AgentClient {
     return response.json();
   }
 
-  async getTimeline(pageSize: number = 20, before?: string): Promise<TimelineResponse> {
+  async getTimeline(
+    pageSize: number = 20,
+    before?: string,
+  ): Promise<TimelineResponse> {
     const params = new URLSearchParams();
-    params.set('page_size', pageSize.toString());
+    params.set("page_size", pageSize.toString());
     if (before) {
-      params.set('before', before);
+      params.set("before", before);
     }
 
     const response = await fetch(`${this.httpBaseUrl}/api/timeline?${params}`);
@@ -80,7 +88,9 @@ export class AgentClient {
     const response = await fetch(`${this.httpBaseUrl}/api/auto-wakeup`);
 
     if (!response.ok) {
-      throw new Error(`Failed to get auto-wakeup status: ${response.statusText}`);
+      throw new Error(
+        `Failed to get auto-wakeup status: ${response.statusText}`,
+      );
     }
 
     return response.json();
@@ -96,7 +106,25 @@ export class AgentClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to set auto-wakeup status: ${response.statusText}`);
+      throw new Error(
+        `Failed to set auto-wakeup status: ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  async uploadImage(file: File): Promise<ImageUploadResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${this.httpBaseUrl}/api/upload-image`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Image upload failed: ${response.statusText}`);
     }
 
     return response.json();

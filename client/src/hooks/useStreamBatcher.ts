@@ -38,7 +38,9 @@ export function useStreamBatcher(
 
           case "trigger_completed":
             // Accept if we have this trigger, then clean it up
-            const hasCompletedTrigger = activeTriggerIds.current.has(event.entry_id);
+            const hasCompletedTrigger = activeTriggerIds.current.has(
+              event.entry_id,
+            );
             activeTriggerIds.current.delete(event.entry_id);
             return hasCompletedTrigger;
 
@@ -62,7 +64,7 @@ export function useStreamBatcher(
 
       if (!shouldAcceptEvent) {
         // Count orphaned event but don't process it
-        setOrphanedEventCount(count => count + 1);
+        setOrphanedEventCount((count) => count + 1);
         return;
       }
 

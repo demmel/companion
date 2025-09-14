@@ -8,7 +8,7 @@ import {
   SearchWebAction,
   Trigger,
   ContextInfo,
-  BaseAction
+  BaseAction,
 } from "../types";
 import { debug } from "@/utils/debug";
 
@@ -21,7 +21,7 @@ interface BaseActionBuilder extends BaseAction {
 
 type PartialAction = Partial<Action>;
 type ActionBuilder = PartialAction & {
-  type: Action['type']
+  type: Action["type"];
 } & BaseActionBuilder;
 
 // Single active trigger builder (only one trigger can be active at a time)
@@ -46,7 +46,7 @@ export interface UseTriggerEventsReturn {
  */
 function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
   const baseAction = {
-    ...actionBuilder
+    ...actionBuilder,
   };
 
   switch (actionBuilder.type) {
@@ -57,8 +57,8 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
     case "add_priority":
     case "remove_priority":
       return {
-        ...baseAction
-      } as Action
+        ...baseAction,
+      } as Action;
     case "update_appearance":
       return {
         ...baseAction,
@@ -80,7 +80,9 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
       } as SearchWebAction;
     default:
       const exhaustiveCheck: never = actionBuilder;
-      throw new Error(`Unknown action type: ${(exhaustiveCheck as ActionBuilder).type}`);
+      throw new Error(
+        `Unknown action type: ${(exhaustiveCheck as ActionBuilder).type}`,
+      );
   }
 }
 
@@ -89,10 +91,15 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
  * Each trigger entry represents a user input and all the actions taken in response.
  * Only one trigger can be active at a time.
  */
-export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsReturn {
+export function useTriggerEvents(
+  events: ClientAgentEvent[],
+): UseTriggerEventsReturn {
   // Only streaming entries - no historical data
-  const [streamingEntries, setStreamingEntries] = useState<TriggerHistoryEntry[]>([]);
-  const [activeTrigger, setActiveTrigger] = useState<ActiveTriggerBuilder | null>(null);
+  const [streamingEntries, setStreamingEntries] = useState<
+    TriggerHistoryEntry[]
+  >([]);
+  const [activeTrigger, setActiveTrigger] =
+    useState<ActiveTriggerBuilder | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
   const lastProcessedEventId = useRef<number | null>(null);
@@ -100,11 +107,13 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
   useEffect(() => {
     if (events.length === 0) return;
 
-    let currentTrigger = activeTrigger ? {
-      ...activeTrigger,
-      actions: [...activeTrigger.actions],
-      actionMap: new Map(activeTrigger.actionMap)
-    } : null;
+    let currentTrigger = activeTrigger
+      ? {
+          ...activeTrigger,
+          actions: [...activeTrigger.actions],
+          actionMap: new Map(activeTrigger.actionMap),
+        }
+      : null;
     let hasActiveStreaming = isStreamActive;
 
     for (const event of events) {
@@ -123,7 +132,9 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
         case "trigger_started": {
           // Start a new trigger (should be only one active)
           if (currentTrigger && currentTrigger.entry_id !== event.entry_id) {
-            debug.warn("Starting new trigger while another is active. This shouldn't happen.");
+            debug.warn(
+              "Starting new trigger while another is active. This shouldn't happen.",
+            );
           }
 
           currentTrigger = {
@@ -140,7 +151,9 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
         case "action_started": {
           // Start tracking a new action
           if (!currentTrigger || currentTrigger.entry_id !== event.entry_id) {
-            debug.warn(`Received action_started for unknown entry_id: ${event.entry_id}`);
+            debug.warn(
+              `Received action_started for unknown entry_id: ${event.entry_id}`,
+            );
             continue;
           }
 
@@ -154,7 +167,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
               type: "streaming",
               result: "",
             },
-            type: event.action_type as ActionBuilder['type'],
+            type: event.action_type as ActionBuilder["type"],
             context_given: event.context_given,
             duration_ms: 0, // Duration will be updated later
             partial_results: [],
@@ -169,7 +182,9 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
         case "action_progress": {
           // Update the most recent action of this type with streaming progress
           if (!currentTrigger || currentTrigger.entry_id !== event.entry_id) {
-            debug.warn(`Received action_progress for unknown entry_id: ${event.entry_id}`);
+            debug.warn(
+              `Received action_progress for unknown entry_id: ${event.entry_id}`,
+            );
             continue;
           }
 
@@ -185,7 +200,9 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
               result: targetAction.partial_results.join(""),
             };
           } else {
-            debug.warn(`Received action_progress for unknown action: ${actionKey} in entry ${event.entry_id}`);
+            debug.warn(
+              `Received action_progress for unknown action: ${actionKey} in entry ${event.entry_id}`,
+            );
           }
 
           hasActiveStreaming = true;
@@ -195,7 +212,9 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
         case "action_completed": {
           // Complete the most recent action of this type
           if (!currentTrigger || currentTrigger.entry_id !== event.entry_id) {
-            debug.warn(`Received action_completed for unknown entry_id: ${event.entry_id}`);
+            debug.warn(
+              `Received action_completed for unknown entry_id: ${event.entry_id}`,
+            );
             continue;
           }
 
@@ -206,12 +225,14 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
           if (actionIndex !== undefined) {
             const targetAction = {
               ...currentTrigger.actions[actionIndex],
-              ...event.action
+              ...event.action,
             };
 
             currentTrigger.actions[actionIndex] = targetAction;
           } else {
-            debug.warn(`Received action_completed for unknown action: ${actionKey} in entry ${event.entry_id}`);
+            debug.warn(
+              `Received action_completed for unknown action: ${actionKey} in entry ${event.entry_id}`,
+            );
           }
 
           hasActiveStreaming = true;
@@ -221,25 +242,27 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
         case "trigger_completed": {
           // Complete the trigger and convert to final entry
           if (!currentTrigger || currentTrigger.entry_id !== event.entry_id) {
-            debug.warn(`Received trigger_completed for unknown entry_id: ${event.entry_id}`);
+            debug.warn(
+              `Received trigger_completed for unknown entry_id: ${event.entry_id}`,
+            );
             continue;
           }
 
           if (!currentTrigger.trigger) {
-            debug.warn(`Trigger completed but no trigger data found for entry_id: ${event.entry_id}`);
+            debug.warn(
+              `Trigger completed but no trigger data found for entry_id: ${event.entry_id}`,
+            );
             continue;
           }
 
           // Convert action builders to final actions (sorted by sequence, then action number)
           const actions: Action[] = [];
-          const sortedActions = [...currentTrigger.actions].sort(
-            (a, b) => {
-              if (a.sequence_number !== b.sequence_number) {
-                return a.sequence_number - b.sequence_number;
-              }
-              return a.action_number - b.action_number;
+          const sortedActions = [...currentTrigger.actions].sort((a, b) => {
+            if (a.sequence_number !== b.sequence_number) {
+              return a.sequence_number - b.sequence_number;
             }
-          );
+            return a.action_number - b.action_number;
+          });
 
           for (const actionBuilder of sortedActions) {
             if (actionBuilder.status.type !== "streaming") {
@@ -266,7 +289,7 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
           setContextInfo(newContextInfo);
 
           // Add to streaming entries and clear active trigger
-          setStreamingEntries(prev => [...prev, triggerEntry]);
+          setStreamingEntries((prev) => [...prev, triggerEntry]);
           currentTrigger = null;
 
           hasActiveStreaming = false; // This trigger is complete
@@ -284,11 +307,14 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
       }
     }
 
-    console.log(`[${new Date().toISOString()}] Setting activeTrigger and isStreamActive`, {
-      currentTriggerEntryId: currentTrigger?.entry_id,
-      hasActiveStreaming,
-      actionsCount: currentTrigger?.actions.length || 0
-    });
+    console.log(
+      `[${new Date().toISOString()}] Setting activeTrigger and isStreamActive`,
+      {
+        currentTriggerEntryId: currentTrigger?.entry_id,
+        hasActiveStreaming,
+        actionsCount: currentTrigger?.actions.length || 0,
+      },
+    );
 
     setActiveTrigger(currentTrigger);
     setIsStreamActive(hasActiveStreaming);
@@ -300,7 +326,9 @@ export function useTriggerEvents(events: ClientAgentEvent[]): UseTriggerEventsRe
 
     if (activeTrigger) {
       // Convert active trigger to TriggerHistoryEntry
-      const activeActions: Action[] = activeTrigger.actions.map(convertActionBuilderToAction);
+      const activeActions: Action[] = activeTrigger.actions.map(
+        convertActionBuilderToAction,
+      );
 
       const activeTriggerEntry: TriggerHistoryEntry = {
         trigger: activeTrigger.trigger,

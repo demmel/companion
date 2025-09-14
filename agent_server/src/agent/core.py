@@ -3,11 +3,10 @@ Core agent implementation
 """
 
 from datetime import datetime
-import json
 import time
 import threading
 import queue
-from typing import List, Optional, Iterator
+from typing import List, Optional
 from agent.chain_of_action.action_registry import ActionRegistry
 from pydantic import BaseModel
 
@@ -21,7 +20,6 @@ from agent.chain_of_action.action.action_data import (
     ThinkActionData,
     UpdateAppearanceActionData,
 )
-from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.action.actions.think_action import ThinkInput, ThinkOutput
 from agent.chain_of_action.action.actions.update_appearance_action import (
     UpdateAppearanceInput,
@@ -30,9 +28,12 @@ from agent.chain_of_action.action.actions.update_appearance_action import (
 from agent.chain_of_action.action.base_action_data import (
     ActionFailureResult,
     ActionSuccessResult,
-    BaseActionData,
 )
-from agent.chain_of_action.trigger import Trigger, UserInputTrigger, WakeupTrigger
+from agent.chain_of_action.trigger import (
+    Trigger,
+    UserInputTrigger,
+    WakeupTrigger,
+)
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.llm import LLM, SupportedModel
 from agent.state import State
@@ -45,18 +46,11 @@ from agent.state import (
 )
 from agent.types import ToolCallError
 
-from .llm import LLM, SupportedModel, Message as LLMMessage
+from .llm import LLM, SupportedModel
 
 from .types import (
-    AgentMessage,
-    ConversationData,
     ImageGenerationToolContent,
-    Message,
     SummarizationContent,
-    TextContent,
-    ThoughtContent,
-    ToolCall,
-    ToolCallFinished,
     ToolCallSuccess,
 )
 from agent.api_types import (
@@ -267,9 +261,7 @@ class Agent:
                 # Trigger a wakeup by calling chat_stream with None in background thread
                 def trigger_wakeup():
                     try:
-                        self.chat_stream(
-                            None
-                        )  # None = WakeupTrigger - will wait if processing
+                        self.chat_stream(WakeupTrigger())
                     except Exception as e:
                         logger.error(f"Auto-wakeup processing error: {e}")
 
@@ -293,7 +285,7 @@ class Agent:
             summarize_at_tokens=self.auto_summarize_threshold,
         )
 
-    def chat_stream(self, user_input: Optional[str]) -> None:
+    def chat_stream(self, trigger: Trigger) -> None:
         """Streaming chat interface that yields typed events using reasoning loop"""
         # Wait for any existing processing to complete, then acquire processing
         with self.processing_condition:
@@ -312,11 +304,11 @@ class Agent:
 
             # Check if agent needs character configuration (first message)
             if self.state is None:
-                if user_input is None:
-                    # Ignore wakeup triggers during initialization - just return
+                if not isinstance(trigger, UserInputTrigger):
+                    # Ignore non-user-input triggers during initialization - just return
                     return
                 # Run initial exchange with character definition
-                self._run_initial_exchange_with_streaming(user_input)
+                self._run_initial_exchange_with_streaming(trigger)
             else:
                 # Check if we need auto-summarization before processing (skip if continuous summarization enabled)
                 if not self.continuous_summarization:
@@ -324,12 +316,6 @@ class Agent:
                     if context_info.estimated_tokens >= context_info.context_limit:
                         # Perform auto-summarization with event emission
                         self._auto_summarize_with_events(self.keep_recent)
-
-                # Create appropriate trigger type
-                if user_input is not None:
-                    trigger = UserInputTrigger(content=user_input, user_name="User")
-                else:
-                    trigger = WakeupTrigger()
 
                 # Use action-based reasoning with callback conversion
                 self._run_chain_of_action_with_streaming(trigger)
@@ -365,14 +351,14 @@ class Agent:
                 # Notify any threads waiting for processing to complete
                 self.processing_condition.notify_all()
 
-    def _run_initial_exchange_with_streaming(self, user_input: str):
+    def _run_initial_exchange_with_streaming(self, trigger: UserInputTrigger):
         """Run initial character configuration with streaming events"""
 
         # First input is character definition, not conversation
         from agent.state_initialization import derive_initial_state_from_message
 
         self.initial_exchange = TriggerHistoryEntry(
-            trigger=UserInputTrigger(content=user_input, user_name="User"),
+            trigger=trigger,
             situational_context="",  # No situational context for initial exchange
             actions_taken=[],
         )
@@ -405,7 +391,7 @@ class Agent:
 
             # Derive agent's state from character definition
             self.state, backstory = derive_initial_state_from_message(
-                user_input, self.llm, self.model
+                trigger.content, self.llm, self.model, trigger.get_images()
             )
 
             # Create and store the action result

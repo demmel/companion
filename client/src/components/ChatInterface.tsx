@@ -17,7 +17,8 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("");
 
   // New architecture: batch events then convert to structured messages
-  const { events, queueEvent, clearEvents, orphanedEventCount } = useStreamBatcher(50);
+  const { events, queueEvent, clearEvents, orphanedEventCount } =
+    useStreamBatcher(50);
 
   useMemo(() => {
     debug.log("Events:", events);
@@ -55,9 +56,9 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = (message: string) => {
+  const handleSubmit = (message: string, imageIds?: string[]) => {
     // Send to server
-    sendMessage(message);
+    sendMessage(message, imageIds);
     setInputValue("");
 
     // Scroll to bottom after sending message
@@ -127,7 +128,11 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         bg: "gray.900",
       })}
     >
-      <ChatHeader isConnected={isConnected} isConnecting={isConnecting} client={client} />
+      <ChatHeader
+        isConnected={isConnected}
+        isConnecting={isConnecting}
+        client={client}
+      />
 
       {/* Show orphaned event notification */}
       {orphanedEventCount > 0 && (
@@ -142,7 +147,8 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
             color: "orange.100",
           })}
         >
-          ⚠️ Connected mid-stream: {orphanedEventCount} event{orphanedEventCount === 1 ? '' : 's'} skipped to maintain consistency
+          ⚠️ Connected mid-stream: {orphanedEventCount} event
+          {orphanedEventCount === 1 ? "" : "s"} skipped to maintain consistency
         </div>
       )}
 
@@ -282,6 +288,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         clearDisabled={isStreamActive}
         contextInfo={contextInfo}
         allowEmptySubmit={triggerEntries.length > 0}
+        client={client}
       />
     </div>
   );

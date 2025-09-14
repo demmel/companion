@@ -59,6 +59,9 @@ class ActionPlanner:
             )
             logger.debug(current_prompt)
 
+            # Get images from trigger
+            trigger_images = trigger.get_images()
+
             # Use structured LLM to plan the actions
             result = direct_structured_llm_call(
                 prompt=current_prompt,
@@ -67,6 +70,7 @@ class ActionPlanner:
                 llm=llm,
                 temperature=0.3,
                 caller="action_planner",
+                images=trigger_images,
             )
 
             # Validate the structured inputs

@@ -2,9 +2,9 @@
 Initialize agent's state based on the first user message
 """
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Tuple
 from pydantic import BaseModel, Field
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM, SupportedModel, ImagesInput
 from agent.structured_llm import direct_structured_llm_call
 from agent.state import State, Priority, Value
 
@@ -44,6 +44,7 @@ def derive_initial_state_from_message(
     first_message: str,
     llm: LLM,
     model: SupportedModel,
+    images: ImagesInput = None,
 ) -> Tuple[State, str]:
     """
     Analyze the first user message and derive agent's initial state
@@ -85,6 +86,7 @@ This is character configuration, not conversation or roleplay."""
         llm=llm,
         temperature=0.7,  # Allow some creativity in state derivation
         caller="state_initialization",
+        images=images,
     )
 
     # Convert to agentState with proper models

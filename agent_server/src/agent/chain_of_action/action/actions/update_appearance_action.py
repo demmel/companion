@@ -20,7 +20,7 @@ from ..base_action_data import (
 )
 
 from agent.state import State
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM, SupportedModel, ImagesInput
 from agent.structured_llm import direct_structured_llm_call
 
 from pydantic import BaseModel, Field
@@ -59,7 +59,12 @@ class AppearanceUpdate(BaseModel):
 
 
 def _build_image_description(
-    appearance: str, environment: str, agent_name: str, llm: LLM, model: SupportedModel
+    appearance: str,
+    environment: str,
+    agent_name: str,
+    llm: LLM,
+    model: SupportedModel,
+    images: ImagesInput = None,
 ) -> str:
     """Use LLM to convert first-person descriptions and combine into image generation prompt"""
 
@@ -81,7 +86,9 @@ Convert to third-person and combine into a coherent image description suitable f
 
 Image description:"""
 
-    response = llm.generate_complete(model, prompt, caller="build_image_description")
+    response = llm.generate_complete(
+        model, prompt, caller="build_image_description", images=images
+    )
     return response.strip()
 
 
@@ -196,6 +203,9 @@ The result should be a natural evolution of my current appearance with the reque
             # Update state with new appearance
             state.current_appearance = appearance_update.updated_appearance
 
+            # Get images from trigger
+            trigger_images = context.trigger.get_images()
+
             # Generate image with updated appearance
             image_description = _build_image_description(
                 state.current_appearance,
@@ -203,6 +213,7 @@ The result should be a natural evolution of my current appearance with the reque
                 state.name,
                 llm,
                 model,
+                trigger_images,
             )
 
             logger.debug(f"Generated image description: {image_description}")

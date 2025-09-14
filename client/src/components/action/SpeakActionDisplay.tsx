@@ -9,12 +9,13 @@ interface SpeakActionDisplayProps {
 
 export function SpeakActionDisplay({ action }: SpeakActionDisplayProps) {
   const [showContext, setShowContext] = useState(false);
-  
+
   const isStreaming = action.status.type === "streaming";
-  const result = action.status.type === "error" ? 
-    `Error: ${action.status.error}` : 
-    action.status.result;
-  
+  const result =
+    action.status.type === "error"
+      ? `Error: ${action.status.error}`
+      : action.status.result;
+
   return (
     <div>
       {/* Main speech content - always visible */}
@@ -29,16 +30,22 @@ export function SpeakActionDisplay({ action }: SpeakActionDisplayProps) {
       >
         {result}
         {isStreaming && (
-          <span className={css({ 
-            animation: "blink 1s infinite",
-            color: "gray.500" 
-          })}>▍</span>
+          <span
+            className={css({
+              animation: "blink 1s infinite",
+              color: "gray.500",
+            })}
+          >
+            ▍
+          </span>
         )}
       </div>
 
       {/* Optional context section for debugging */}
       {action.context_given && (
-        <div className={css({ borderTop: "1px solid", borderColor: "gray.700" })}>
+        <div
+          className={css({ borderTop: "1px solid", borderColor: "gray.700" })}
+        >
           <button
             onClick={() => setShowContext(!showContext)}
             className={css({
@@ -55,7 +62,7 @@ export function SpeakActionDisplay({ action }: SpeakActionDisplayProps) {
             })}
           >
             <span>Why this response</span>
-            <ChevronDown 
+            <ChevronDown
               size={12}
               className={css({
                 transform: showContext ? "rotate(180deg)" : "rotate(0deg)",
@@ -63,15 +70,17 @@ export function SpeakActionDisplay({ action }: SpeakActionDisplayProps) {
               })}
             />
           </button>
-          
+
           {showContext && (
-            <div className={css({ 
-              px: 3, 
-              pb: 2, 
-              fontSize: "sm", 
-              color: "gray.400",
-              fontStyle: "italic" 
-            })}>
+            <div
+              className={css({
+                px: 3,
+                pb: 2,
+                fontSize: "sm",
+                color: "gray.400",
+                fontStyle: "italic",
+              })}
+            >
               {action.context_given}
             </div>
           )}

@@ -25,12 +25,14 @@ class AgentPaths:
 
         # Generated content directories
         self.generated_images_dir = base_path / "generated_images"
+        self.uploaded_images_dir = base_path / "uploaded_images"
 
         # Test and development paths
         self.tests_dir = base_path / "tests"
 
         # Ensure necessary directories exist
         self.generated_images_dir.mkdir(exist_ok=True)
+        self.uploaded_images_dir.mkdir(exist_ok=True)
         self.logs_dir.mkdir(exist_ok=True)
 
     def get_base_path(self) -> Path:
@@ -68,6 +70,10 @@ class AgentPaths:
     def get_generated_images_dir(self) -> Path:
         """Get generated images directory path"""
         return self.generated_images_dir
+
+    def get_uploaded_images_dir(self) -> Path:
+        """Get uploaded images directory path"""
+        return self.uploaded_images_dir
 
     def get_tests_dir(self) -> Path:
         """Get tests directory path"""

@@ -173,10 +173,13 @@ When something happens, I process it through my own unique perspective, drawing 
             logger.debug(f"FOCUS: {action_input.focus}")
             logger.debug("=" * 40)
 
+            # Get images from trigger
+            trigger_images = context.trigger.get_images()
+
             # Use streaming generation with progress callback
             full_response = ""
             for response_chunk in llm.generate_streaming(
-                model, direct_prompt, caller="think_action"
+                model, direct_prompt, caller="think_action", images=trigger_images
             ):
                 if "response" in response_chunk:
                     chunk_text = response_chunk["response"]

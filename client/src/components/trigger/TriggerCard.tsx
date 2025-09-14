@@ -1,6 +1,7 @@
 import { css } from "@styled-system/css";
 import { MessageCircle, User, Clock, Coffee } from "lucide-react";
 import { Trigger } from "@/types";
+import { ImageDisplay } from "../common/ImageDisplay";
 
 interface TriggerCardProps {
   trigger: Trigger;
@@ -84,7 +85,36 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
       </div>
 
       {/* Content */}
-      <div className={css({ color: "gray.200", whiteSpace: "pre-wrap" })}>{getTriggerContent()}</div>
+      <div className={css({ color: "gray.200", whiteSpace: "pre-wrap" })}>
+        {getTriggerContent()}
+      </div>
+
+      {/* Images */}
+      {trigger.type === "user_input" &&
+        trigger.image_urls &&
+        trigger.image_urls.length > 0 && (
+          <div
+            className={css({
+              mt: 3,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 2,
+            })}
+          >
+            {trigger.image_urls.map((imageUrl, index) => {
+              return (
+                <ImageDisplay
+                  key={index}
+                  src={imageUrl}
+                  maxWidth="100px"
+                  maxHeight="100px"
+                  alt={`User provided image ${index + 1}`}
+                  exactSize={true}
+                />
+              );
+            })}
+          </div>
+        )}
     </div>
   );
 }

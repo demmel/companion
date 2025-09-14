@@ -4,6 +4,7 @@ export interface UserInputTrigger {
   content: string;
   user_name: string;
   timestamp: string;
+  image_urls?: string[];
 }
 
 export interface WakeupTrigger {
@@ -156,4 +157,11 @@ export interface AutoWakeupSetResponse {
   enabled: boolean;
   message: string;
   timestamp: string;
+}
+
+// Image upload types
+export interface ImageUploadResponse {
+  id: string;
+  size: number;
+  url: string;
 }

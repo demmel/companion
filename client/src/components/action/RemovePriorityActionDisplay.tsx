@@ -6,12 +6,15 @@ interface RemovePriorityActionDisplayProps {
   action: RemovePriorityAction;
 }
 
-export function RemovePriorityActionDisplay({ action }: RemovePriorityActionDisplayProps) {
+export function RemovePriorityActionDisplay({
+  action,
+}: RemovePriorityActionDisplayProps) {
   const isStreaming = action.status.type === "streaming";
-  const result = action.status.type === "error" ? 
-    `Error: ${action.status.error}` : 
-    action.status.result;
-    
+  const result =
+    action.status.type === "error"
+      ? `Error: ${action.status.error}`
+      : action.status.result;
+
   return (
     <div
       className={css({
@@ -27,11 +30,17 @@ export function RemovePriorityActionDisplay({ action }: RemovePriorityActionDisp
       })}
     >
       {isStreaming ? (
-        <Loader2 size={16} className={css({ animation: "spin 1s linear infinite", color: "red.500" })} />
+        <Loader2
+          size={16}
+          className={css({
+            animation: "spin 1s linear infinite",
+            color: "red.500",
+          })}
+        />
       ) : (
         <Minus size={16} className={css({ color: "red.500" })} />
       )}
-      
+
       <div className={css({ flex: 1, color: "red.300" })}>
         {isStreaming ? (
           <span className={css({ fontStyle: "italic" })}>
