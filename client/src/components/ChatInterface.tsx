@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { ClientAgentEvent, useWebSocket } from "@/hooks/useWebSocket";
 import { useStreamBatcher } from "@/hooks/useStreamBatcher";
 import { useTimeline } from "@/hooks/useTimeline";
+import { useUsername } from "@/contexts/UsernameContext";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
 import { Timeline } from "@/components/Timeline";
@@ -15,6 +16,7 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ client }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("");
+  const { username } = useUsername();
 
   // New architecture: batch events then convert to structured messages
   const { events, queueEvent, clearEvents, orphanedEventCount } =
@@ -57,8 +59,8 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleSubmit = (message: string, imageIds?: string[]) => {
-    // Send to server
-    sendMessage(message, imageIds);
+    // Send to server with username
+    sendMessage(message, username, imageIds);
     setInputValue("");
 
     // Scroll to bottom after sending message

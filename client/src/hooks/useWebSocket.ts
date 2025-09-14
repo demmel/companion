@@ -16,7 +16,7 @@ export interface UseWebSocketOptions {
 export interface UseWebSocketReturn {
   isConnected: boolean;
   isConnecting: boolean;
-  sendMessage: (message: string, imageIds?: string[]) => void;
+  sendMessage: (message: string, username: string, imageIds?: string[]) => void;
   disconnect: () => void;
   connect: () => void;
 }
@@ -107,12 +107,13 @@ export const useWebSocket = ({
     reconnectCountRef.current = 0;
   }, []);
 
-  const sendMessage = useCallback((message: string, imageIds?: string[]) => {
+  const sendMessage = useCallback((message: string, username: string, imageIds?: string[]) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const payload: { message: string; image_ids?: string[] } = { message };
+      const payload: { message: string; image_ids?: string[]; user_name?: string } = { message };
       if (imageIds && imageIds.length > 0) {
         payload.image_ids = imageIds;
       }
+      payload.user_name = username;
       wsRef.current.send(JSON.stringify(payload));
     } else {
       console.warn("WebSocket is not connected");

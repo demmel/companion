@@ -24,7 +24,7 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
   const getTriggerReason = () => {
     switch (trigger.type) {
       case "user_input":
-        return trigger.user_name || "User";
+        return trigger.user_name;
       case "wakeup":
         return "Wakeup";
       default:

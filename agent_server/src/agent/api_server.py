@@ -346,6 +346,7 @@ async def websocket_chat(websocket: WebSocket):
                     message_data = json.loads(data)
                     message = message_data.get("message", "")
                     image_ids = message_data.get("image_ids", [])
+                    user_name = message_data.get("user_name", "User")
 
                     # Resolve image IDs to file paths
                     image_paths = None
@@ -366,22 +367,24 @@ async def websocket_chat(websocket: WebSocket):
                     if not message.strip() and not image_paths:
                         from agent.chain_of_action.trigger import WakeupTrigger
 
-                        user_trigger = WakeupTrigger()
+                        trigger = WakeupTrigger()
                     else:
                         from agent.chain_of_action.trigger import UserInputTrigger
 
-                        user_trigger = UserInputTrigger(
-                            content=message, user_name="User", image_paths=image_paths
+                        trigger = UserInputTrigger(
+                            content=message,
+                            user_name=user_name,
+                            image_paths=image_paths,
                         )
 
                     # Process message in background thread
                     logger.info(
-                        f"Processing trigger: {user_trigger.type}, images: {len(image_paths) if image_paths else 0}"
+                        f"Processing trigger: {trigger.model_dump_json(indent=2)}"
                     )
 
                     def process_message():
                         try:
-                            app.state.agent.chat_stream(trigger=user_trigger)
+                            app.state.agent.chat_stream(trigger=trigger)
                         except Exception as e:
                             # Put error event in queue
                             from agent.api_types import AgentErrorEvent

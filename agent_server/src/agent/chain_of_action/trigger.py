@@ -26,7 +26,7 @@ class UserInputTrigger(BaseTrigger):
 
     type: Literal["user_input"] = "user_input"
     content: str
-    user_name: str = "User"  # Name of the person speaking
+    user_name: str  # Name of the person speaking
     image_paths: ImageFilePaths = None  # Paths to shared images
 
     def get_images(self) -> ImageFilePaths:

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { ChatInterface } from "./components/ChatInterface";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { UsernameProvider } from "./contexts/UsernameContext";
 import { AgentClient } from "./client";
 
 function App() {
@@ -30,7 +31,9 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ChatInterface client={client} />
+      <UsernameProvider>
+        <ChatInterface client={client} />
+      </UsernameProvider>
     </ErrorBoundary>
   );
 }
