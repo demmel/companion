@@ -56,18 +56,18 @@ class AddPriorityInput(BaseModel):
 class AddPrioritySuccessOutput(BaseModel):
     """Output for successful ADD_PRIORITY action"""
 
+    reason: str
     type: Literal["success"] = "success"
     priority_id: str
-    reason: str
 
 
 class AddPriorityDuplicateOutput(BaseModel):
     """Output for duplicate ADD_PRIORITY action"""
 
+    reason: str
     type: Literal["duplicate"] = "duplicate"
     existing_priority_id: str | None = None
     existing_priority_content: str | None = None
-    reason: str
 
 
 class AddPriorityOutput(ActionOutput):
@@ -80,7 +80,7 @@ class AddPriorityOutput(ActionOutput):
         result = self.result
         match result.type:
             case "success":
-                return f"Added new priority: '{self.content}' because {result.reason}"
+                return f"Added new priority: '{self.content}' (id: {result.priority_id}) because {result.reason}"
             case "duplicate":
                 if result.existing_priority_content:
                     return f"Priority '{self.content}' is similar to existing priority '{result.existing_priority_content}' (id: {result.existing_priority_id}). {result.reason}"
