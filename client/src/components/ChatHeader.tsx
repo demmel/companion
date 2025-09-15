@@ -27,8 +27,9 @@ export function ChatHeader({ client }: ChatHeaderProps) {
     };
 
     if (showMenu || showSettings) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showMenu, showSettings]);
 
@@ -38,8 +39,8 @@ export function ChatHeader({ client }: ChatHeaderProps) {
         bg: "gray.800",
         borderBottom: "1px solid",
         borderColor: "gray.600",
-        px: 4,
-        py: 3,
+        px: 2,
+        py: 2,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -74,18 +75,18 @@ export function ChatHeader({ client }: ChatHeaderProps) {
           {showMenu && (
             <div
               className={css({
-                position: 'absolute',
-                top: '100%',
+                position: "absolute",
+                top: "100%",
                 left: 0,
                 mt: 2,
-                bg: 'gray.800',
-                border: '1px solid',
-                borderColor: 'gray.600',
-                rounded: 'lg',
+                bg: "gray.800",
+                border: "1px solid",
+                borderColor: "gray.600",
+                rounded: "lg",
                 py: 2,
-                minWidth: '180px',
+                minWidth: "180px",
                 zIndex: 50,
-                boxShadow: 'lg',
+                boxShadow: "lg",
               })}
             >
               <button
@@ -94,16 +95,16 @@ export function ChatHeader({ client }: ChatHeaderProps) {
                   setShowMenu(false);
                 }}
                 className={css({
-                  w: 'full',
+                  w: "full",
                   px: 4,
                   py: 2,
-                  display: 'flex',
-                  alignItems: 'center',
+                  display: "flex",
+                  alignItems: "center",
                   gap: 2,
-                  color: 'gray.300',
-                  _hover: { bg: 'gray.700', color: 'white' },
-                  transition: 'colors',
-                  textAlign: 'left',
+                  color: "gray.300",
+                  _hover: { bg: "gray.700", color: "white" },
+                  transition: "colors",
+                  textAlign: "left",
                 })}
               >
                 <Settings size={16} />
