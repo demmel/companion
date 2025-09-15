@@ -50,6 +50,7 @@ export interface ActionStartedEvent {
   sequence_number: number;
   action_number: number;
   timestamp: string;
+  reasoning: string;
   type: "action_started";
 }
 

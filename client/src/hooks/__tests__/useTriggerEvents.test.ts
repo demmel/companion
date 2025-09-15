@@ -32,6 +32,7 @@ describe("useTriggerEvents", () => {
         context_given: "Respond warmly to the user's greeting",
         sequence_number: 1,
         action_number: 1,
+        reasoning: "The user is asking about my well-being.",
         timestamp: "2024-01-01T10:00:01Z",
       },
       {
@@ -61,6 +62,7 @@ describe("useTriggerEvents", () => {
         action: {
           type: "speak",
           context_given: "Respond warmly to the user's greeting",
+          reasoning: "The user is asking about my well-being.",
           status: {
             type: "success",
             result: "Hello! I'm doing well, thanks for asking!",
@@ -133,6 +135,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T11:00:01Z",
+        reasoning: "I want to provide a friendly and authentic response.",
       },
       {
         id: 2,
@@ -191,6 +194,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T12:00:01Z",
+        reasoning: "I should update my mood and let the user know.",
       },
       {
         id: 2,
@@ -201,6 +205,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 2,
         timestamp: "2024-01-01T12:00:02Z",
+        reasoning: "I should update my mood to happy.",
       },
       {
         id: 3,
@@ -211,6 +216,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 3,
         timestamp: "2024-01-01T12:00:03Z",
+        reasoning: "I want to acknowledge the user's mood change.",
       },
       {
         id: 4,
@@ -224,6 +230,7 @@ describe("useTriggerEvents", () => {
             result: "I should update my mood and let the user know",
           },
           duration_ms: 500,
+          reasoning: "I should update my mood and let the user know.",
         },
         sequence_number: 1,
         action_number: 1,
@@ -241,6 +248,7 @@ describe("useTriggerEvents", () => {
             result: "Mood updated to happy",
           },
           duration_ms: 200,
+          reasoning: "I should update my mood to happy.",
         },
         sequence_number: 1,
         action_number: 2,
@@ -258,6 +266,7 @@ describe("useTriggerEvents", () => {
             result: "Great! I'm feeling happy now! 😊",
           },
           duration_ms: 800,
+          reasoning: "I want to acknowledge the user's mood change.",
         },
         sequence_number: 1,
         action_number: 3,
@@ -314,6 +323,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T13:00:01Z",
+        reasoning: "First action reasoning",
       },
       {
         id: 2,
@@ -324,6 +334,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 2,
         timestamp: "2024-01-01T13:00:02Z",
+        reasoning: "Second action reasoning",
       },
       // Completion events arrive out of order
       {
@@ -338,6 +349,7 @@ describe("useTriggerEvents", () => {
             result: "Second action result",
           },
           duration_ms: 300,
+          reasoning: "Second action reasoning",
         },
         sequence_number: 1,
         action_number: 2,
@@ -355,6 +367,7 @@ describe("useTriggerEvents", () => {
             result: "First action result",
           },
           duration_ms: 800,
+          reasoning: "First action reasoning",
         },
         sequence_number: 1,
         action_number: 1,
@@ -419,6 +432,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T14:00:01Z",
+        reasoning: "First sequence reasoning",
       },
       {
         id: 2,
@@ -432,6 +446,7 @@ describe("useTriggerEvents", () => {
             result: "First sequence thought",
           },
           duration_ms: 400,
+          reasoning: "First sequence reasoning",
         },
         sequence_number: 1,
         action_number: 1,
@@ -447,6 +462,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 2,
         action_number: 1,
         timestamp: "2024-01-01T14:00:03Z",
+        reasoning: "Second action reasoning",
       },
       {
         id: 4,
@@ -460,6 +476,7 @@ describe("useTriggerEvents", () => {
             result: "Second sequence response",
           },
           duration_ms: 600,
+          reasoning: "Second action reasoning",
         },
         sequence_number: 2,
         action_number: 1,
@@ -580,6 +597,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T16:00:01Z",
+        reasoning: "Valid reasoning",
       },
       // Event with wrong entry_id - should be ignored
       {
@@ -604,6 +622,7 @@ describe("useTriggerEvents", () => {
             result: "Valid result",
           },
           duration_ms: 200,
+          reasoning: "Valid reasoning",
         },
         sequence_number: 1,
         action_number: 1,
@@ -657,6 +676,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T17:00:01Z",
+        reasoning: "Test reasoning",
       },
     ];
 
@@ -706,6 +726,7 @@ describe("useTriggerEvents", () => {
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T18:00:01Z",
+        reasoning: "Need to refresh appearance to match new theme.",
       },
       {
         id: 2,
@@ -721,6 +742,7 @@ describe("useTriggerEvents", () => {
           duration_ms: 2000,
           image_description: "An ethereal being with flowing robes",
           image_url: "http://example.com/image.png",
+          reasoning: "Need to refresh appearance to match new theme.",
         },
         sequence_number: 1,
         action_number: 1,
