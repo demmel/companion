@@ -21,7 +21,7 @@ from agent.chain_of_action.action.action_data import (
     UpdateAppearanceActionData,
 )
 from agent.chain_of_action.action.actions.think_action import ThinkInput, ThinkOutput
-from agent.chain_of_action.action.actions.update_appearance_action import (
+from agent.chain_of_action.action.actions.visual_actions import (
     UpdateAppearanceInput,
     UpdateAppearanceOutput,
 )
@@ -461,7 +461,7 @@ class Agent:
                 image_description = self.state.current_appearance  # Default fallback
                 try:
                     # Build image description from initial state
-                    from agent.chain_of_action.action.actions.update_appearance_action import (
+                    from agent.chain_of_action.action.actions.visual_actions import (
                         _build_image_description,
                     )
 

@@ -17,11 +17,9 @@ from agent.chain_of_action.action.actions.search_web_action import (
 )
 from agent.chain_of_action.action.actions.speak_action import SpeakInput, SpeakOutput
 from agent.chain_of_action.action.actions.think_action import ThinkInput, ThinkOutput
-from agent.chain_of_action.action.actions.update_appearance_action import (
+from agent.chain_of_action.action.actions.visual_actions import (
     UpdateAppearanceInput,
     UpdateAppearanceOutput,
-)
-from agent.chain_of_action.action.actions.update_environment_action import (
     UpdateEnvironmentInput,
     UpdateEnvironmentOutput,
 )

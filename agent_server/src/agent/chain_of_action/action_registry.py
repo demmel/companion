@@ -13,10 +13,8 @@ from agent.chain_of_action.action.actions.priority_actions import (
 from agent.chain_of_action.action.actions.search_web_action import SearchWebAction
 from agent.chain_of_action.action.actions.speak_action import SpeakAction
 from agent.chain_of_action.action.actions.think_action import ThinkAction
-from agent.chain_of_action.action.actions.update_appearance_action import (
+from agent.chain_of_action.action.actions.visual_actions import (
     UpdateAppearanceAction,
-)
-from agent.chain_of_action.action.actions.update_environment_action import (
     UpdateEnvironmentAction,
 )
 from agent.chain_of_action.action.actions.update_mood_action import UpdateMoodAction
