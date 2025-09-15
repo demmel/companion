@@ -57,7 +57,7 @@ export function UpdateAppearanceActionDisplay({
       </div>
 
       {/* Show image if available */}
-      {action.image_url && (
+      {action.image_url ? (
         <div className={css({ mb: 3 })}>
           <ImageDisplay
             src={action.image_url}
@@ -66,6 +66,33 @@ export function UpdateAppearanceActionDisplay({
             maxHeight="300px"
           />
         </div>
+      ) : (
+        isStreaming && (
+          <div
+            className={css({
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              h: "200px",
+              bg: "gray.900",
+              rounded: "lg",
+              border: "2px dashed",
+              borderColor: "gray.600",
+            })}
+          >
+            <div className={css({ textAlign: "center", color: "gray.400" })}>
+              <Loader2
+                size={24}
+                className={css({
+                  animation: "spin 1s linear infinite",
+                  mx: "auto",
+                  mb: 2,
+                })}
+              />
+              <div className={css({ fontSize: "xl" })}>Generating image...</div>
+            </div>
+          </div>
+        )
       )}
 
       {/* Show description */}
@@ -83,34 +110,6 @@ export function UpdateAppearanceActionDisplay({
           result
         )}
       </div>
-
-      {/* Loading state for image generation */}
-      {isStreaming && !action.image_url && (
-        <div
-          className={css({
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            h: "200px",
-            bg: "gray.900",
-            rounded: "lg",
-            border: "2px dashed",
-            borderColor: "gray.600",
-          })}
-        >
-          <div className={css({ textAlign: "center", color: "gray.400" })}>
-            <Loader2
-              size={24}
-              className={css({
-                animation: "spin 1s linear infinite",
-                mx: "auto",
-                mb: 2,
-              })}
-            />
-            <div className={css({ fontSize: "xl" })}>Generating image...</div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

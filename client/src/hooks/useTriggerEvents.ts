@@ -109,10 +109,10 @@ export function useTriggerEvents(
 
     let currentTrigger = activeTrigger
       ? {
-          ...activeTrigger,
-          actions: [...activeTrigger.actions],
-          actionMap: new Map(activeTrigger.actionMap),
-        }
+        ...activeTrigger,
+        actions: [...activeTrigger.actions],
+        actionMap: new Map(activeTrigger.actionMap),
+      }
       : null;
     let hasActiveStreaming = isStreamActive;
 
@@ -171,6 +171,7 @@ export function useTriggerEvents(
             context_given: event.context_given,
             duration_ms: 0, // Duration will be updated later
             partial_results: [],
+            reasoning: event.reasoning,
           });
 
           currentTrigger.actionMap.set(actionKey, actionIndex);
