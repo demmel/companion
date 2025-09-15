@@ -82,6 +82,14 @@ class UpdateAppearanceActionDTO(BaseActionDTO):
     image_url: str
 
 
+class UpdateEnvironmentActionDTO(BaseActionDTO):
+    """DTO for environment update actions"""
+
+    type: Literal["update_environment"] = "update_environment"
+    image_description: str
+    image_url: str
+
+
 class UpdateMoodActionDTO(BaseActionDTO):
     """DTO for mood update actions"""
 
@@ -136,6 +144,7 @@ ActionDTO = Union[
     ThinkActionDTO,
     SpeakActionDTO,
     UpdateAppearanceActionDTO,
+    UpdateEnvironmentActionDTO,
     UpdateMoodActionDTO,
     WaitActionDTO,
     AddPriorityActionDTO,
@@ -337,6 +346,19 @@ def convert_action_to_dto(action: ActionData) -> ActionDTO:
             raise ValueError("Invalid result type for UpdateAppearanceAction")
 
         return UpdateAppearanceActionDTO(
+            **base_data, image_description=image_description, image_url=image_url
+        )
+    elif action.type == ActionType.UPDATE_ENVIRONMENT:
+        image_description = None
+        image_url = None
+
+        if action.result.type == "success":
+            image_description = action.result.content.image_description
+            image_url = action.result.content.image_result.image_url
+        else:
+            raise ValueError("Invalid result type for UpdateEnvironmentAction")
+
+        return UpdateEnvironmentActionDTO(
             **base_data, image_description=image_description, image_url=image_url
         )
     elif action.type == ActionType.UPDATE_MOOD:

@@ -21,6 +21,10 @@ from agent.chain_of_action.action.actions.update_appearance_action import (
     UpdateAppearanceInput,
     UpdateAppearanceOutput,
 )
+from agent.chain_of_action.action.actions.update_environment_action import (
+    UpdateEnvironmentInput,
+    UpdateEnvironmentOutput,
+)
 from agent.chain_of_action.action.actions.update_mood_action import (
     UpdateMoodInput,
     UpdateMoodOutput,
@@ -61,6 +65,12 @@ class UpdateAppearanceActionData(
     type: Literal[ActionType.UPDATE_APPEARANCE] = ActionType.UPDATE_APPEARANCE
 
 
+class UpdateEnvironmentActionData(
+    BaseActionData[UpdateEnvironmentInput, UpdateEnvironmentOutput]
+):
+    type: Literal[ActionType.UPDATE_ENVIRONMENT] = ActionType.UPDATE_ENVIRONMENT
+
+
 class UpdateMoodActionData(BaseActionData[UpdateMoodInput, UpdateMoodOutput]):
     type: Literal[ActionType.UPDATE_MOOD] = ActionType.UPDATE_MOOD
 
@@ -77,6 +87,7 @@ ActionData = (
     | SpeakActionData
     | ThinkActionData
     | UpdateAppearanceActionData
+    | UpdateEnvironmentActionData
     | UpdateMoodActionData
     | WaitActionData
 )
@@ -90,6 +101,7 @@ _ACTION_DATA_CONSTRUCTORS: dict[ActionType, type[ActionData]] = {
     ActionType.SPEAK: SpeakActionData,
     ActionType.THINK: ThinkActionData,
     ActionType.UPDATE_APPEARANCE: UpdateAppearanceActionData,
+    ActionType.UPDATE_ENVIRONMENT: UpdateEnvironmentActionData,
     ActionType.UPDATE_MOOD: UpdateMoodActionData,
     ActionType.WAIT: WaitActionData,
 }

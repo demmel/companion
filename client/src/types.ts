@@ -40,6 +40,12 @@ export interface UpdateAppearanceAction extends BaseAction {
   image_url: string;
 }
 
+export interface UpdateEnvironmentAction extends BaseAction {
+  type: "update_environment";
+  image_description: string;
+  image_url: string;
+}
+
 export interface UpdateMoodAction extends BaseAction {
   type: "update_mood";
 }
@@ -79,6 +85,7 @@ export type Action =
   | ThinkAction
   | SpeakAction
   | UpdateAppearanceAction
+  | UpdateEnvironmentAction
   | UpdateMoodAction
   | WaitAction
   | AddPriorityAction

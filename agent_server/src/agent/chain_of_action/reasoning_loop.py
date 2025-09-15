@@ -9,6 +9,7 @@ from typing import List
 from agent.chain_of_action.action.action_data import (
     cast_base_action_data_to_action_data,
     create_result_summary,
+    WaitActionData,
 )
 from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.action.base_action_data import BaseActionData
@@ -183,7 +184,7 @@ class ActionBasedReasoningLoop:
             wait_actions = [
                 r
                 for r in sequence_results
-                if r.type == ActionType.WAIT and r.result.type == "success"
+                if isinstance(r, WaitActionData) and r.result.type == "success"
             ]
             if wait_actions:
                 logger.debug(

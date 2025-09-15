@@ -5,7 +5,6 @@ Execution context for action sequences.
 from typing import List
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.action.base_action_data import BaseActionData
 
 from .trigger import BaseTrigger
@@ -29,9 +28,11 @@ class ExecutionContext(BaseModel):
 
     def get_thoughts_summary(self) -> str:
         """Get summary of all THINK action results"""
+        from agent.chain_of_action.action.action_data import ThinkActionData
+
         thoughts = [
             r.result.content.result_summary()
             for r in self.completed_actions
-            if r.type == ActionType.THINK and r.result.type == "success"
+            if isinstance(r, ThinkActionData) and r.result.type == "success"
         ]
         return "\n".join(thoughts) if thoughts else "No thoughts yet"

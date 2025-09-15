@@ -4,6 +4,7 @@ import {
   TriggerHistoryEntry,
   Action,
   UpdateAppearanceAction,
+  UpdateEnvironmentAction,
   FetchUrlAction,
   SearchWebAction,
   Trigger,
@@ -65,6 +66,12 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
         image_description: actionBuilder.image_description,
         image_url: actionBuilder.image_url,
       } as UpdateAppearanceAction;
+    case "update_environment":
+      return {
+        ...baseAction,
+        image_description: actionBuilder.image_description,
+        image_url: actionBuilder.image_url,
+      } as UpdateEnvironmentAction;
     case "fetch_url":
       return {
         ...baseAction,

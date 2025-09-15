@@ -16,6 +16,9 @@ from agent.chain_of_action.action.actions.think_action import ThinkAction
 from agent.chain_of_action.action.actions.update_appearance_action import (
     UpdateAppearanceAction,
 )
+from agent.chain_of_action.action.actions.update_environment_action import (
+    UpdateEnvironmentAction,
+)
 from agent.chain_of_action.action.actions.update_mood_action import UpdateMoodAction
 from agent.chain_of_action.action.actions.wait_action import WaitAction
 
@@ -41,6 +44,7 @@ class ActionRegistry:
         self.register(SpeakAction)
         self.register(UpdateMoodAction)
         self.register(UpdateAppearanceAction)
+        self.register(UpdateEnvironmentAction)
         self.register(FetchUrlAction)
         self.register(SearchWebAction)
         self.register(AddPriorityAction)
@@ -73,9 +77,13 @@ class ActionRegistry:
         """Create an action instance for the given action type"""
         action_class = self.get_action(action_type)
 
-        # Pass enable_image_generation flag to UpdateAppearanceAction
+        # Pass enable_image_generation flag to UpdateAppearanceAction and UpdateEnvironmentAction
         if action_class == UpdateAppearanceAction:
             return UpdateAppearanceAction(
+                enable_image_generation=self.enable_image_generation
+            )
+        elif action_class == UpdateEnvironmentAction:
+            return UpdateEnvironmentAction(
                 enable_image_generation=self.enable_image_generation
             )
         else:

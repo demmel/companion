@@ -41,7 +41,6 @@ type ActionResult[T: ActionOutput] = ActionSuccessResult[T] | ActionFailureResul
 class BaseActionData(BaseModel, Generic[TInput, TOutput]):
     """Result of executing an action"""
 
-    type: ActionType
     reasoning: str
     input: TInput
     result: ActionResult[TOutput]

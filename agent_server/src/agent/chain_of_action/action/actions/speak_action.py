@@ -105,10 +105,12 @@ class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):
         )
 
         # Check if there are previous speak actions in this turn
+        from agent.chain_of_action.action.action_data import SpeakActionData
+
         previous_speaks = [
             action
             for action in context.completed_actions
-            if action.type == ActionType.SPEAK and action.result.type == "success"
+            if isinstance(action, SpeakActionData) and action.result.type == "success"
         ]
 
         if previous_speaks:

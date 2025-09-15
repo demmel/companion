@@ -649,7 +649,7 @@ class Agent:
                 sequence_number: int,
                 action_number: int,
                 entry_id: str,
-                reasioning: str,
+                reasoning: str,
             ) -> None:
                 from datetime import datetime
 
@@ -658,6 +658,7 @@ class Agent:
                         entry_id=entry_id,
                         action_type=action_type.value,
                         context_given=context,
+                        reasoning=reasoning,
                         sequence_number=sequence_number,
                         action_number=action_number,
                         timestamp=datetime.now().isoformat(),

@@ -14,9 +14,9 @@ class ActionType(str, Enum):
     # State Management Actions
     UPDATE_MOOD = "update_mood"  # Change mood
     UPDATE_APPEARANCE = "update_appearance"  # Visual changes
+    UPDATE_ENVIRONMENT = "update_environment"  # Setting changes
     # ADD_MEMORY = "add_memory"          # Store important details
     # REMOVE_MEMORY = "remove_memory"    # Forget specific memories
-    # UPDATE_ENVIRONMENT = "update_environment"  # Setting changes
     ADD_PRIORITY = "add_priority"  # Add new priority
     REMOVE_PRIORITY = "remove_priority"  # Remove/complete priority
 

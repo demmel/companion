@@ -3,6 +3,7 @@ import { Action } from "@/types";
 import { ThinkActionDisplay } from "./ThinkActionDisplay";
 import { SpeakActionDisplay } from "./SpeakActionDisplay";
 import { UpdateAppearanceActionDisplay } from "./UpdateAppearanceActionDisplay";
+import { UpdateEnvironmentActionDisplay } from "./UpdateEnvironmentActionDisplay";
 import { UpdateMoodActionDisplay } from "./UpdateMoodActionDisplay";
 import { WaitActionDisplay } from "./WaitActionDisplay";
 import { AddPriorityActionDisplay } from "./AddPriorityActionDisplay";
@@ -27,6 +28,8 @@ export function ActionDisplay({ action }: ActionDisplayProps) {
         return <SpeakActionDisplay action={action} />;
       case "update_appearance":
         return <UpdateAppearanceActionDisplay action={action} />;
+      case "update_environment":
+        return <UpdateEnvironmentActionDisplay action={action} />;
       case "update_mood":
         return <UpdateMoodActionDisplay action={action} />;
       case "wait":
