@@ -10,7 +10,11 @@ import logging
 from agent.chain_of_action.action.action_data import ActionData, create_action_data
 from agent.chain_of_action.action.base_action_data import ActionFailureResult
 from agent.chain_of_action.action.action_types import ActionType
+from agent.chain_of_action.action_plan import ActionPlan
+from agent.chain_of_action.action_registry import ActionRegistry
+from agent.chain_of_action.callbacks import ActionCallback
 from agent.chain_of_action.context import ExecutionContext
+from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.state import State
 from agent.llm import LLM, SupportedModel
 
@@ -28,9 +32,9 @@ class ExecutionUnit(ABC):
         llm: LLM,
         model: SupportedModel,
         sequence_number: int,
-        callback,
-        trigger_entry,
-        action_registry,
+        callback: ActionCallback,
+        trigger_entry: TriggerHistoryEntry,
+        action_registry: ActionRegistry,
     ) -> List[ActionData]:
         """Execute this unit and return action data results"""
         pass
@@ -66,9 +70,9 @@ class SingleActionUnit(ExecutionUnit):
         llm: LLM,
         model: SupportedModel,
         sequence_number: int,
-        callback,
-        trigger_entry,
-        action_registry,
+        callback: ActionCallback,
+        trigger_entry: TriggerHistoryEntry,
+        action_registry: ActionRegistry,
     ) -> List[ActionData]:
         """Execute single action using existing logic"""
 
@@ -125,14 +129,21 @@ class SingleActionUnit(ExecutionUnit):
                 trigger_entry.entry_id,
             )
 
-            logger.debug(f"Action completed: {action_data.type} ({action_data.result.type})")
+            logger.debug(
+                f"Action completed: {action_data.type} ({action_data.result.type})"
+            )
             if action_data.result.type == "success":
-                logger.debug(f"Result: {action_data.result.content.result_summary()[:500]}...")
+                logger.debug(
+                    f"Result: {action_data.result.content.result_summary()[:500]}..."
+                )
 
             return [action_data]
 
         except Exception as e:
-            logger.error(f"Catastrophic failure executing {self.action_plan.action.value}: {e}", exc_info=True)
+            logger.error(
+                f"Catastrophic failure executing {self.action_plan.action.value}: {e}",
+                exc_info=True,
+            )
 
             error_data = create_action_data(
                 type=self.action_plan.action,
@@ -158,7 +169,9 @@ class SingleActionUnit(ExecutionUnit):
 class VisualBatchUnit(ExecutionUnit):
     """Execution unit for batched visual actions"""
 
-    def __init__(self, action1_plan, action2_plan, start_index: int):
+    def __init__(
+        self, action1_plan: ActionPlan, action2_plan: ActionPlan, start_index: int
+    ):
         self.action1_plan = action1_plan
         self.action2_plan = action2_plan
         self.start_index = start_index
@@ -176,26 +189,19 @@ class VisualBatchUnit(ExecutionUnit):
         llm: LLM,
         model: SupportedModel,
         sequence_number: int,
-        callback,
-        trigger_entry,
-        action_registry,
+        callback: ActionCallback,
+        trigger_entry: TriggerHistoryEntry,
+        action_registry: ActionRegistry,
     ) -> List[ActionData]:
         """Execute visual batch using shared logic"""
         from .action.actions.visual_actions import (
-            execute_visual_actions_batch,
             UpdateAppearanceInput,
             UpdateEnvironmentInput,
         )
 
-        logger.debug(f"Batching visual actions: {self.action1_plan.action} + {self.action2_plan.action}")
-
-        # Determine which is which
-        appearance_plan = self.action1_plan if self.action1_plan.action == ActionType.UPDATE_APPEARANCE else self.action2_plan
-        environment_plan = self.action1_plan if self.action1_plan.action == ActionType.UPDATE_ENVIRONMENT else self.action2_plan
-
-        # Create inputs
-        appearance_input = UpdateAppearanceInput(**appearance_plan.input)
-        environment_input = UpdateEnvironmentInput(**environment_plan.input)
+        logger.debug(
+            f"Batching visual actions: {self.action1_plan.action} + {self.action2_plan.action}"
+        )
 
         # Execute batch
         start_time = time.time()
@@ -210,40 +216,102 @@ class VisualBatchUnit(ExecutionUnit):
                 trigger_entry.entry_id,
             )
 
+        def execute_visual_action(action_plan: ActionPlan, action_index: int):
+            """Execute a single visual action with proper context index"""
+            context.current_action_index = action_index
+
+            if action_plan.action == ActionType.UPDATE_APPEARANCE:
+                action_input = UpdateAppearanceInput(**action_plan.input)
+                return _execute_appearance_update(
+                    action_input,
+                    context,
+                    state,
+                    llm,
+                    model,
+                    batch_progress_callback,
+                    enable_image_generation=False,
+                )
+            else:
+                action_input = UpdateEnvironmentInput(**action_plan.input)
+                return _execute_environment_update(
+                    action_input,
+                    context,
+                    state,
+                    llm,
+                    model,
+                    batch_progress_callback,
+                    enable_image_generation=False,
+                )
+
         try:
-            appearance_result, environment_result = execute_visual_actions_batch(
-                appearance_input, environment_input, context, state, llm, model, batch_progress_callback
+            from .action.actions.visual_actions import (
+                _execute_appearance_update,
+                _execute_environment_update,
+                _build_image_description,
+                _generate_image_if_enabled,
             )
+
+            # Execute actions in original sequence order
+            first_result = execute_visual_action(self.action1_plan, self.start_index)
+            second_result = execute_visual_action(
+                self.action2_plan, self.start_index + 1
+            )
+
+            # Check if any action failed
+            if (first_result.type == "failure") or (second_result.type == "failure"):
+                results = [first_result, second_result]
+            else:
+                # Generate single shared image with final combined state
+                trigger_images = context.trigger.get_images()
+                image_description = _build_image_description(
+                    state.current_appearance,
+                    state.current_environment,
+                    state.name,
+                    llm,
+                    model,
+                    trigger_images,
+                )
+
+                logger.debug(
+                    f"Generated combined image description: {image_description}"
+                )
+
+                shared_image_result = _generate_image_if_enabled(
+                    image_description, True, llm, model, batch_progress_callback
+                )
+
+                # Update results with shared image
+                first_result.content.image_result = shared_image_result
+                first_result.content.image_description = image_description
+
+                second_result.content.image_result = shared_image_result
+                second_result.content.image_description = image_description
+
+                results = [first_result, second_result]
+
             duration_ms = (time.time() - start_time) * 1000
 
             # Create action data for both actions
-            appearance_data = create_action_data(
-                type=ActionType.UPDATE_APPEARANCE,
-                reasoning=appearance_plan.reasoning,
-                input=appearance_input,
-                result=appearance_result,
-                duration_ms=duration_ms,
-            )
-
-            environment_data = create_action_data(
-                type=ActionType.UPDATE_ENVIRONMENT,
-                reasoning=environment_plan.reasoning,
-                input=environment_input,
-                result=environment_result,
-                duration_ms=duration_ms,
-            )
-
-            # Return results in original order
-            if self.action1_plan.action == ActionType.UPDATE_APPEARANCE:
-                results = [appearance_data, environment_data]
-            else:
-                results = [environment_data, appearance_data]
+            action_data_results = []
+            for i, (action_plan, action_result) in enumerate(
+                zip([self.action1_plan, self.action2_plan], results)
+            ):
+                action_data = create_action_data(
+                    type=action_plan.action,
+                    reasoning=action_plan.reasoning,
+                    input=action_plan.input,
+                    result=action_result,
+                    duration_ms=duration_ms,
+                )
+                action_data_results.append(action_data)
 
             # Update context with completed actions
-            context.completed_actions.extend(results)
+            context.completed_actions.extend(action_data_results)
 
             # Notify actions finished
-            for i, (action_plan, action_data) in enumerate(zip([self.action1_plan, self.action2_plan], results)):
+            for i, (action_plan, action_data) in enumerate(
+                zip([self.action1_plan, self.action2_plan], action_data_results)
+            ):
                 callback.on_action_finished(
                     action_plan.action,
                     action_data,
@@ -253,33 +321,29 @@ class VisualBatchUnit(ExecutionUnit):
                 )
 
             logger.debug("Batched visual actions completed successfully")
-            return results
+            return action_data_results
 
         except Exception as e:
             logger.error(f"Failed to execute visual batch: {e}", exc_info=True)
 
             # Create error data for both actions
-            error_data1 = create_action_data(
-                type=self.action1_plan.action,
-                reasoning=self.action1_plan.reasoning,
-                input=None,
-                result=ActionFailureResult(error=str(e)),
-                duration_ms=0.0,
-            )
+            error_results = []
+            for i, action_plan in enumerate([self.action1_plan, self.action2_plan]):
+                error_data = create_action_data(
+                    type=action_plan.action,
+                    reasoning=action_plan.reasoning,
+                    input=None,
+                    result=ActionFailureResult(error=str(e)),
+                    duration_ms=0.0,
+                )
+                error_results.append(error_data)
 
-            error_data2 = create_action_data(
-                type=self.action2_plan.action,
-                reasoning=self.action2_plan.reasoning,
-                input=None,
-                result=ActionFailureResult(error=str(e)),
-                duration_ms=0.0,
-            )
-
-            results = [error_data1, error_data2]
-            context.completed_actions.extend(results)
+            context.completed_actions.extend(error_results)
 
             # Notify actions finished with errors
-            for i, (action_plan, error_data) in enumerate(zip([self.action1_plan, self.action2_plan], results)):
+            for i, (action_plan, error_data) in enumerate(
+                zip([self.action1_plan, self.action2_plan], error_results)
+            ):
                 callback.on_action_finished(
                     action_plan.action,
                     error_data,
@@ -288,7 +352,7 @@ class VisualBatchUnit(ExecutionUnit):
                     trigger_entry.entry_id,
                 )
 
-            return results
+            return error_results
 
 
 def create_execution_units(action_plans: List) -> List[ExecutionUnit]:
@@ -300,8 +364,9 @@ def create_execution_units(action_plans: List) -> List[ExecutionUnit]:
         action_plan = action_plans[i]
 
         # Check if we should batch this action with the next one
-        if (i + 1 < len(action_plans) and
-            _should_batch_visual_actions(action_plan.action, action_plans[i + 1].action)):
+        if i + 1 < len(action_plans) and _should_batch_visual_actions(
+            action_plan.action, action_plans[i + 1].action
+        ):
 
             # Create visual batch unit
             units.append(VisualBatchUnit(action_plan, action_plans[i + 1], i))
@@ -314,9 +379,13 @@ def create_execution_units(action_plans: List) -> List[ExecutionUnit]:
     return units
 
 
-def _should_batch_visual_actions(action1_type: ActionType, action2_type: ActionType) -> bool:
+def _should_batch_visual_actions(
+    action1_type: ActionType, action2_type: ActionType
+) -> bool:
     """Check if two consecutive actions should be batched (different visual actions)"""
     visual_actions = {ActionType.UPDATE_APPEARANCE, ActionType.UPDATE_ENVIRONMENT}
-    return (action1_type in visual_actions and
-            action2_type in visual_actions and
-            action1_type != action2_type)
+    return (
+        action1_type in visual_actions
+        and action2_type in visual_actions
+        and action1_type != action2_type
+    )
