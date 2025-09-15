@@ -21,6 +21,7 @@ export type ActionStatus =
 
 export interface BaseAction {
   context_given: string;
+  reasoning: string;
   status: ActionStatus;
   duration_ms: number;
 }

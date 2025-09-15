@@ -26,6 +26,7 @@ class ActionCallback(Protocol):
         sequence_number: int,
         action_number: int,
         entry_id: str,
+        reasoning: str,
     ) -> None:
         """Called when an action starts executing"""
         pass

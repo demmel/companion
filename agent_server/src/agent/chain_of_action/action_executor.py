@@ -74,6 +74,7 @@ class ActionExecutor:
                 sequence_number,
                 i + 1,
                 trigger_entry.entry_id,
+                action_plan.reasoning,
             )
 
         # Execute each action in sequence

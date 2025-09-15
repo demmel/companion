@@ -381,6 +381,7 @@ class Agent:
                     entry_id=entry_id,
                     action_type="think",
                     context_given="Deriving initial state from character definition",
+                    reasoning="Deriving initial state from character definition",
                     timestamp=datetime.now().isoformat(),
                     sequence_number=1,
                     action_number=1,
@@ -445,6 +446,7 @@ class Agent:
                         entry_id=entry_id,
                         action_type="update_appearance",
                         context_given=self.state.current_appearance,
+                        reasoning="Initial appearance image",
                         timestamp=datetime.now().isoformat(),
                         sequence_number=1,
                         action_number=2,
@@ -647,6 +649,7 @@ class Agent:
                 sequence_number: int,
                 action_number: int,
                 entry_id: str,
+                reasioning: str,
             ) -> None:
                 from datetime import datetime
 
@@ -1017,7 +1020,7 @@ def get_context_info(
         from agent.chain_of_action.trigger import UserInputTrigger
 
         # Create a sample trigger for estimation
-        sample_trigger = UserInputTrigger(content="sample user input")
+        sample_trigger = UserInputTrigger(content="sample user input", user_name="User")
 
         prompt = build_situational_analysis_prompt(
             state=state,

@@ -57,6 +57,7 @@ class BaseActionDTO(BaseModel):
     """Base class for action DTOs"""
 
     context_given: str
+    reasoning: str
     status: ActionStatus
     duration_ms: int
 
@@ -187,6 +188,7 @@ class ActionStartedEvent(BaseModel):
     entry_id: str
     action_type: str
     context_given: str
+    reasoning: str
     sequence_number: int
     action_number: int
     timestamp: str
@@ -315,6 +317,7 @@ def convert_action_to_dto(action: ActionData) -> ActionDTO:
     context_given = create_context_given(action)
     base_data = {
         "context_given": context_given,
+        "reasoning": action.reasoning,
         "status": status,
         "duration_ms": int(action.duration_ms) if action.duration_ms is not None else 0,
     }

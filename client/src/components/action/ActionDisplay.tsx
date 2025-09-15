@@ -9,12 +9,16 @@ import { AddPriorityActionDisplay } from "./AddPriorityActionDisplay";
 import { RemovePriorityActionDisplay } from "./RemovePriorityActionDisplay";
 import { FetchUrlActionDisplay } from "./FetchUrlActionDisplay";
 import { SearchWebActionDisplay } from "./SearchWebActionDisplay";
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 interface ActionDisplayProps {
   action: Action;
 }
 
 export function ActionDisplay({ action }: ActionDisplayProps) {
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
+
   const renderActionContent = () => {
     switch (action.type) {
       case "think":
@@ -44,5 +48,49 @@ export function ActionDisplay({ action }: ActionDisplayProps) {
     }
   };
 
-  return <div className={css({ mb: 2 })}>{renderActionContent()}</div>;
+  return (
+    <div className={css({ mb: 2 })}>
+      {renderActionContent()}
+      <div className={css({ borderTop: "1px solid", borderColor: "gray.700" })}>
+        <button
+          onClick={() => setShowDebugInfo(!showDebugInfo)}
+          className={css({
+            w: "full",
+            px: 3,
+            py: 1,
+            textAlign: "left",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            fontSize: "sm",
+            color: "gray.500",
+            _hover: { bg: "gray.800" },
+          })}
+        >
+          <span>Why this action?</span>
+          <ChevronDown
+            size={12}
+            className={css({
+              transform: showDebugInfo ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.2s ease",
+            })}
+          />
+        </button>
+
+        {showDebugInfo && (
+          <div
+            className={css({
+              px: 3,
+              pb: 2,
+              fontSize: "sm",
+              color: "gray.400",
+              fontStyle: "italic",
+            })}
+          >
+            {action.context_given}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
