@@ -83,7 +83,8 @@ def initialize_agent(load: bool) -> Agent:
         model=SupportedModel.MISTRAL_SMALL_3_2_Q4,
         llm=llm,
         enable_image_generation=True,
-        individual_trigger_compression=True,
+        enable_dag_memory=True,
+        individual_trigger_compression=False,
         auto_save=True,
     )
 
@@ -91,7 +92,10 @@ def initialize_agent(load: bool) -> Agent:
         try:
             agent.load_conversation("baseline")
         except Exception as e:
+            import traceback
+
             logger.error(f"Failed to load conversation: {e}")
+            logger.error(f"Full traceback:\n{traceback.format_exc()}")
 
     return agent
 

@@ -104,6 +104,8 @@ def decide_connections_llm(
         class ConnectionType(str, Enum):
             RELATES_TO = "relates_to"
             EXPLAINS = "explains"
+            FOLLOWS = "follows"
+            UPDATES = "updates"
 
         class ConnectionDecision(BaseModel):
             """Agent's decision about connecting two memory elements."""
@@ -127,6 +129,14 @@ def decide_connections_llm(
                         {
                             "value": ConnectionType.EXPLAINS,
                             "description": "One memory explains, provides reasoning for, or gives context to another",
+                        },
+                        {
+                            "value": ConnectionType.FOLLOWS,
+                            "description": "One memory is a direct chronological sequel or continuation of another",
+                        },
+                        {
+                            "value": ConnectionType.UPDATES,
+                            "description": "One memory contains newer information that supersedes or refines another",
                         },
                     ]
                 },
@@ -168,13 +178,17 @@ def decide_connections_llm(
 
 def add_connections_to_graph(
     graph: MemoryGraph, connections: List[MemoryEdge]
-) -> MemoryGraph:
+) -> tuple[MemoryGraph, List[MemoryEdge]]:
     """
     Add agent-decided connections to the memory graph.
 
     Validates edge constraints before adding.
+
+    Returns:
+        Tuple of (updated_graph, successfully_added_edges)
     """
     added_count = 0
+    successfully_added = []
     for i, connection in enumerate(connections):
         logger.info(
             f"  Processing connection {i+1}: {connection.edge_type} from {connection.source_id[:8]} to {connection.target_id[:8]}"
@@ -189,7 +203,12 @@ def add_connections_to_graph(
             continue
 
         # Validate edge type is agent-controlled
-        agent_controlled_types = {MemoryEdgeType.RELATES_TO, MemoryEdgeType.EXPLAINS}
+        agent_controlled_types = {
+            MemoryEdgeType.RELATES_TO,
+            MemoryEdgeType.EXPLAINS,
+            MemoryEdgeType.FOLLOWS,
+            MemoryEdgeType.UPDATES,
+        }
         if connection.edge_type not in agent_controlled_types:
             logger.warning(
                 f"  Skipping connection {i+1}: edge type {connection.edge_type} not in agent-controlled set"
@@ -205,18 +224,14 @@ def add_connections_to_graph(
             )
             continue
 
-        # Create and add edge
-        edge = MemoryEdge(
-            source_id=connection.source_id,
-            target_id=connection.target_id,
-            edge_type=connection.edge_type,
-        )
-        graph.edges.append(edge)
+        # Use the original edge object
+        graph.edges[connection.id] = connection
+        successfully_added.append(connection)
         added_count += 1
         logger.info(f"  Successfully added connection {i+1}")
 
     logger.info(f"  Added {added_count} out of {len(connections)} connections to graph")
-    return graph
+    return graph, successfully_added
 
 
 def _validate_edge_temporal_constraints(

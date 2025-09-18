@@ -90,12 +90,16 @@ def process_trigger(
             llm=llm,
             model=model,
         )
-        graph = add_connections_to_graph(graph, edges)
+        graph, successfully_added_edges = add_connections_to_graph(graph, edges)
 
-        logger.info(f"  Created {len(edges)} new connections for {trigger.entry_id}")
+        logger.info(
+            f"  Created {len(successfully_added_edges)} new connections for {trigger.entry_id}"
+        )
 
-        context = add_memories_and_connections_to_context(context, memories, edges)
-        context = adjust_context_tokens(context, edges)
+        context = add_memories_and_connections_to_context(
+            context, memories, successfully_added_edges
+        )
+        context = adjust_context_tokens(context, successfully_added_edges)
         context_budget = calculate_context_budget(token_budget, state, action_registry)
 
         logger.info(

@@ -33,7 +33,21 @@ def format_context(context: ContextGraph) -> str:
     if not context.elements:
         return "No memories currently in context."
 
-    lines = ["## Memories"]
+    lines = [
+        "## Memory System",
+        "",
+        "This is your memory graph showing important memories and their relationships.",
+        "You can create new connections between memories using these relationship types:",
+        "",
+        "**Connection Types:**",
+        "- `relates_to`: Two memories are thematically related or share common elements",
+        "- `explains`: One memory provides context, background, or explanation for another",
+        "- `follows`: One memory is a direct chronological sequel or continuation of another",
+        "- `updates`: One memory contains newer information that supersedes or refines another",
+        "",
+        "## Memories",
+    ]
+
     for node in sorted(
         context.elements,
         key=lambda e: e.memory.timestamp,

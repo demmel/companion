@@ -379,7 +379,7 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
             llm=llm,
             model=model,
         )
-        graph = add_connections_to_graph(graph, edges)
+        graph, _ = add_connections_to_graph(graph, edges)
 
     return graph
 
@@ -395,4 +395,5 @@ def create_initial_context_subgraph(graph: MemoryGraph, budget: int) -> ContextG
             ContextElement(memory=m, tokens=int(m.emotional_significance * 100))
             for m in graph.elements.values()
         ],
+        edges=[e for e in graph.edges.values()],
     )

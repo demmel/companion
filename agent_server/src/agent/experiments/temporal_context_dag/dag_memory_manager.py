@@ -31,7 +31,7 @@ class ContextElementData(BaseModel):
 
 class ContextGraphData(BaseModel):
     elements: list[ContextElementData]
-    edges: list[int]
+    edges: list[str]  # Edge IDs instead of indices
 
 
 class DagMemoryData(BaseModel):
@@ -154,10 +154,7 @@ class DagMemoryManager:
                     )
                     for elem in self.context_graph.elements
                 ],
-                edges=[
-                    self.memory_graph.edges.index(edge)
-                    for edge in self.context_graph.edges
-                ],
+                edges=[edge.id for edge in self.context_graph.edges],
             ),
         )
 
@@ -173,6 +170,7 @@ class DagMemoryManager:
         """
 
         memory_graph = data.memory
+
         context_graph = ContextGraph(
             elements=[
                 ContextElement(
@@ -181,7 +179,7 @@ class DagMemoryManager:
                 )
                 for elem in data.context.elements
             ],
-            edges=[memory_graph.edges[edge_idx] for edge_idx in data.context.edges],
+            edges=[memory_graph.edges[edge_id] for edge_id in data.context.edges],
         )
         return cls(memory_graph, context_graph)
 

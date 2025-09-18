@@ -5,6 +5,7 @@ Core Pydantic models for the DAG-based memory system.
 from datetime import datetime
 from typing import Dict, List, Optional
 from enum import Enum
+import uuid
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from pydantic import BaseModel, Field
 
@@ -36,6 +37,7 @@ class MemoryEdgeType(str, Enum):
 class MemoryEdge(BaseModel):
     """Directed edge connecting two memory elements with relationship type."""
 
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     source_id: str
     target_id: str
     edge_type: MemoryEdgeType
@@ -47,7 +49,7 @@ class MemoryGraph(BaseModel):
 
     elements: Dict[str, MemoryElement] = Field(default_factory=dict)
     containers: Dict[str, MemoryContainer] = Field(default_factory=dict)
-    edges: List[MemoryEdge] = Field(default_factory=list)
+    edges: Dict[str, MemoryEdge] = Field(default_factory=dict)
 
 
 class ContextElement(BaseModel):
