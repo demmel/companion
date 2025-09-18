@@ -4,15 +4,13 @@ Main action-based reasoning loop.
 
 import logging
 import uuid
-from typing import List
 
 from agent.chain_of_action.action.action_data import (
     cast_base_action_data_to_action_data,
     create_result_summary,
     WaitActionData,
 )
-from agent.chain_of_action.action.action_types import ActionType
-from agent.chain_of_action.action.base_action_data import BaseActionData
+from agent.experiments.temporal_context_dag.dag_memory_manager import DagMemoryManager
 
 from .action_registry import ActionRegistry
 from .action_planner import ActionPlanner
@@ -46,7 +44,8 @@ class ActionBasedReasoningLoop:
         callback: ActionCallback,
         trigger_history: TriggerHistory,
         individual_trigger_compression: bool = True,
-    ) -> List[BaseActionData]:
+        dag_memory_manager: DagMemoryManager | None = None,
+    ) -> TriggerHistoryEntry:
         """
         Process user input through the action-based reasoning system.
 
@@ -89,15 +88,21 @@ class ActionBasedReasoningLoop:
             model=model,
         )
 
-        relevant_memories = (
-            retrieve_relevant_memories(
-                memory_query=memory_extraction,
-                trigger_history=trigger_history,
-                max_results=5,
+        # Use DAG context if available, otherwise use traditional memory retrieval
+        if dag_memory_manager:
+            dag_context = dag_memory_manager.get_current_context()
+            relevant_memories = []  # Not used when DAG is enabled
+        else:
+            dag_context = None
+            relevant_memories = (
+                retrieve_relevant_memories(
+                    memory_query=memory_extraction,
+                    trigger_history=trigger_history,
+                    max_results=5,
+                )
+                if memory_extraction
+                else []
             )
-            if memory_extraction
-            else []
-        )
 
         # Perform situational analysis once before action planning loop
         from .prompts import build_situational_analysis_prompt
@@ -108,6 +113,7 @@ class ActionBasedReasoningLoop:
             trigger_history=trigger_history,
             relevant_memories=relevant_memories,
             registry=self.registry,
+            dag_context=dag_context,
         )
 
         # Get images from trigger
@@ -226,7 +232,7 @@ class ActionBasedReasoningLoop:
             f"Executed {len(context.completed_actions)} total actions across {sequence_num} sequences"
         )
 
-        return context.completed_actions
+        return trigger_entry
 
 
 def _compress_trigger_entry(

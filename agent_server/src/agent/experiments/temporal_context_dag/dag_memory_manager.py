@@ -128,15 +128,15 @@ class DagMemoryManager:
         """
         return self.memory_graph
 
-    def save_to_file(self, filepath: str) -> None:
+    def to_data(self) -> DagMemoryData:
         """
-        Save the current memory graph to a JSON file.
+        Serialize the current memory and context graphs to a data object.
 
-        Args:
-            filepath: Path to save the memory graph
+        Returns:
+            A DagMemoryData object containing the memory and context graphs
         """
 
-        data = DagMemoryData(
+        return DagMemoryData(
             memory=self.memory_graph,
             context=ContextGraphData(
                 elements=[
@@ -152,10 +152,45 @@ class DagMemoryManager:
                 ],
             ),
         )
+
+    @classmethod
+    def from_data(cls, data: DagMemoryData) -> "DagMemoryManager":
+        """
+        Create a DagMemoryManager from a serialized data object.
+
+        Args:
+            data: A DagMemoryData object containing the memory and context graphs
+        Returns:
+            A DagMemoryManager instance initialized with the provided data
+        """
+
+        memory_graph = data.memory
+        context_graph = ContextGraph(
+            elements=[
+                ContextElement(
+                    memory=memory_graph.elements[elem.memory_id],
+                    tokens=elem.tokens,
+                )
+                for elem in data.context.elements
+            ],
+            edges=[memory_graph.edges[edge_idx] for edge_idx in data.context.edges],
+        )
+        return cls(memory_graph, context_graph)
+
+    def save_to_file(self, filepath: str) -> None:
+        """
+        Save the current memory graph to a JSON file.
+
+        Args:
+            filepath: Path to save the memory graph
+        """
+
+        data = self.to_data()
         with open(filepath, "w") as f:
             f.write(data.model_dump_json(indent=2))
 
-    def load_from_file(self, filepath: str) -> None:
+    @classmethod
+    def load_from_file(cls, filepath: str) -> "DagMemoryManager":
         """
         Load a memory graph from a JSON file.
 
@@ -165,16 +200,4 @@ class DagMemoryManager:
 
         with open(filepath, "r") as f:
             data = DagMemoryData.model_validate_json(f.read())
-        self.memory_graph = data.memory
-        self.context_graph = ContextGraph(
-            elements=[
-                ContextElement(
-                    memory=self.memory_graph.elements[elem.memory_id],
-                    tokens=elem.tokens,
-                )
-                for elem in data.context.elements
-            ],
-            edges=[
-                self.memory_graph.edges[edge_idx] for edge_idx in data.context.edges
-            ],
-        )
+        return cls.from_data(data)

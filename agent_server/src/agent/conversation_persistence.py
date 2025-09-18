@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+from agent.experiments.temporal_context_dag.dag_memory_manager import DagMemoryManager
+
 from .state import State
 from .chain_of_action.trigger_history import (
     TriggerHistory,
@@ -58,15 +60,20 @@ class ConversationPersistence:
         trigger_history: TriggerHistory,
         initial_exchange: Optional[TriggerHistoryEntry],
         save_baseline: bool = True,
+        dag_memory_manager: Optional[DagMemoryManager] = None,
     ) -> None:
         """Save a conversation with its state and optional trigger history"""
 
         self._save_state_and_triggers(
-            conversation_id, state, trigger_history, initial_exchange
+            conversation_id,
+            state,
+            trigger_history,
+            initial_exchange,
+            dag_memory_manager,
         )
         if save_baseline:
             self._save_state_and_triggers(
-                "baseline", state, trigger_history, initial_exchange
+                "baseline", state, trigger_history, initial_exchange, dag_memory_manager
             )
 
     def _save_state_and_triggers(
@@ -75,6 +82,7 @@ class ConversationPersistence:
         state: State,
         trigger_history: TriggerHistory,
         initial_exchange: Optional[TriggerHistoryEntry],
+        dag_memory_manager: Optional[DagMemoryManager] = None,
     ) -> None:
         """Save the state and trigger history for a conversation"""
         state_file = self._state_file_name(prefix)
@@ -90,9 +98,14 @@ class ConversationPersistence:
         with open(trigger_file, "w") as f:
             f.write(trigger_data.model_dump_json(indent=2))
 
+        # Save DAG memory data if present
+        if dag_memory_manager:
+            dag_file = self._dag_file_name(prefix)
+            dag_memory_manager.save_to_file(dag_file)
+
     def load_agent_data(self, prefix: str) -> AgentData:
         """Load agent data (state and trigger history) from conversation files with given prefix"""
-        trigger_history, state, initial_exchange = self.load_conversation(prefix)
+        trigger_history, state, initial_exchange, _ = self.load_conversation(prefix)
         return AgentData(
             trigger_history=trigger_history,
             initial_exchange=initial_exchange,
@@ -102,7 +115,12 @@ class ConversationPersistence:
     def load_conversation(
         self,
         prefix: str,
-    ) -> tuple[TriggerHistory, State | None, TriggerHistoryEntry | None]:
+    ) -> tuple[
+        TriggerHistory,
+        State | None,
+        TriggerHistoryEntry | None,
+        DagMemoryManager | None,
+    ]:
         """Load trigger history and state from conversation files with given prefix"""
 
         trigger_file = self._trigger_file_name(prefix)
@@ -125,7 +143,11 @@ class ConversationPersistence:
             with open(state_file, "r") as f:
                 state = State.model_validate(json.load(f))
 
-        return trigger_history, state, initial_exchange
+        dag = None
+        if os.path.exists(self._dag_file_name(prefix)):
+            dag = DagMemoryManager.load_from_file(self._dag_file_name(prefix))
+
+        return trigger_history, state, initial_exchange, dag
 
     def _trigger_file_name(self, prefix: str) -> str:
         """Get the trigger file name for a conversation"""
@@ -134,3 +156,7 @@ class ConversationPersistence:
     def _state_file_name(self, prefix: str) -> str:
         """Get the state file name for a conversation"""
         return f"{self.conversations_dir}/{prefix}_state.json"
+
+    def _dag_file_name(self, prefix: str) -> str:
+        """Get the DAG memory file name for a conversation"""
+        return f"{self.conversations_dir}/{prefix}_dag.json"

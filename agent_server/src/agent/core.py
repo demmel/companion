@@ -8,6 +8,8 @@ import threading
 import queue
 from typing import List, Optional
 from agent.chain_of_action.action_registry import ActionRegistry
+from agent.chain_of_action.prompts import build_situational_analysis_prompt
+from agent.experiments.temporal_context_dag.models import ContextGraph
 from pydantic import BaseModel
 
 from agent.api_types import (
@@ -91,6 +93,7 @@ class Agent:
         continuous_summarization: bool = False,
         keep_recent: int = 2,
         individual_trigger_compression: bool = True,
+        enable_dag_memory: bool = False,
     ):
         self.llm = llm
         self.model = model
@@ -100,6 +103,7 @@ class Agent:
         self.continuous_summarization = continuous_summarization
         self.keep_recent = keep_recent
         self.individual_trigger_compression = individual_trigger_compression
+        self.enable_dag_memory = enable_dag_memory
 
         # Conversation persistence
         self.auto_save = auto_save
@@ -118,6 +122,9 @@ class Agent:
         # Initialize the agent's state system (None until configured by first message)
         self.state: Optional[State] = None
         self.initial_exchange = None
+
+        # DAG memory system (initialized after first message if enabled)
+        self.dag_memory_manager = None
 
         # Single client queue for WebSocket communication
         self.current_client_queue: Optional[queue.Queue[AgentEvent]] = None
@@ -178,6 +185,7 @@ class Agent:
             self.state,
             self.trigger_history,
             self.initial_exchange,
+            dag_memory_manager=self.dag_memory_manager,
         )
         logger.info(f"Successfully saved conversation {self.conversation_id}")
         return self.conversation_id
@@ -187,8 +195,8 @@ class Agent:
 
         logger.info(f"Loading conversation {conversation_id}")
 
-        trigger_history, state, initial_exchange = self.persistence.load_conversation(
-            conversation_id
+        trigger_history, state, initial_exchange, dag_memory = (
+            self.persistence.load_conversation(conversation_id)
         )
 
         if state is None:
@@ -199,6 +207,7 @@ class Agent:
         self.state = state
         self.initial_exchange = initial_exchange
         self.trigger_history = trigger_history
+        self.dag_memory_manager = dag_memory
 
     def get_conversation_id(self) -> Optional[str]:
         """Get the current conversation ID"""
@@ -394,6 +403,24 @@ class Agent:
             self.state, backstory = derive_initial_state_from_message(
                 trigger.content, self.llm, self.model, trigger.get_images()
             )
+
+            # Initialize DAG memory system if enabled
+            if self.enable_dag_memory:
+                from agent.experiments.temporal_context_dag.dag_memory_manager import (
+                    DagMemoryManager,
+                )
+
+                dag_token_budget = calculate_context_budget(
+                    self.auto_summarize_threshold,
+                    self.state,
+                    self.trigger_history,
+                    self.action_reasoning_loop.registry,
+                )
+                self.dag_memory_manager = DagMemoryManager.create(
+                    initial_state=self.state,
+                    backstory=backstory,
+                    token_budget=dag_token_budget,
+                )
 
             # Create and store the action result
             state_description = "\n".join(
@@ -753,7 +780,7 @@ class Agent:
         assert self.state is not None, "State must be initialized before processing"
 
         # Process with trigger history integration
-        self.action_reasoning_loop.process_trigger(
+        trigger_entry = self.action_reasoning_loop.process_trigger(
             trigger=trigger,
             state=self.state,
             llm=self.llm,
@@ -761,7 +788,24 @@ class Agent:
             callback=callback,
             trigger_history=self.trigger_history,
             individual_trigger_compression=self.individual_trigger_compression,
+            dag_memory_manager=self.dag_memory_manager,
         )
+
+        # Process trigger with DAG memory system if enabled
+        if self.dag_memory_manager:
+            self.dag_memory_manager.process_trigger(
+                trigger=trigger_entry,
+                state=self.state,
+                llm=self.llm,
+                model=self.model,
+                token_budget=calculate_context_budget(
+                    self.auto_summarize_threshold,
+                    self.state,
+                    self.trigger_history,
+                    self.action_reasoning_loop.registry,
+                ),
+                update_state=False,  # Agent manages its own state
+            )
 
     def _auto_summarize_with_events(self, keep_recent: int):
         """Auto-summarize with event emission for streaming clients"""
@@ -1051,3 +1095,27 @@ def get_context_info(
         approaching_limit=estimated_tokens
         > (summarize_at_tokens * 0.75),  # 75% of summarization limit
     )
+
+
+def calculate_context_budget(
+    token_budget: int,
+    state: State,
+    trigger_history: TriggerHistory,
+    action_registry: ActionRegistry,
+) -> int:
+    sa_prompt = build_situational_analysis_prompt(
+        state=state,
+        trigger=UserInputTrigger(content="sample", user_name="User"),
+        trigger_history=trigger_history,
+        relevant_memories=[],
+        registry=action_registry,
+        dag_context=ContextGraph(),
+    )
+    prompt_tokens = int(len(sa_prompt) / 3.4)
+
+    # Reserve some buffer tokens for response
+    buffer_tokens = 4096
+
+    context_budget = token_budget - prompt_tokens - buffer_tokens
+
+    return context_budget

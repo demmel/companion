@@ -2,6 +2,7 @@ from typing import List, Literal, Optional
 from datetime import datetime
 import random
 
+from agent.experiments.temporal_context_dag.models import ContextGraph
 import nltk
 from nltk.corpus import words
 
@@ -242,6 +243,7 @@ def build_situational_analysis_prompt(
     trigger_history: TriggerHistory,
     relevant_memories: List[TriggerHistoryEntry],
     registry: ActionRegistry,
+    dag_context: ContextGraph | None = None,
 ) -> str:
     """Build the situational analysis prompt - first stage of decision making"""
     from .trigger import WakeupTrigger, UserInputTrigger
@@ -261,33 +263,50 @@ def build_situational_analysis_prompt(
         )
     )
 
-    summary = trigger_history.get_recent_summary()
-    if summary:
-        sections.append(
-            format_section(
-                "SUMMARY OF MY EXPERIENCES",
-                summary.summary_text,
-            )
+    # Use DAG context if available, otherwise use traditional context sections
+    if dag_context:
+        # DAG-based context - single comprehensive section
+        from agent.experiments.temporal_context_dag.context_formatting import (
+            format_context,
         )
 
-    # Add relevant memories section
-    if relevant_memories:
-        relevant_memories_text = format_trigger_entries(relevant_memories)
-        sections.append(
-            format_section(
-                "RELEVANT MEMORIES",
-                relevant_memories_text,
+        dag_context_text = format_context(dag_context)
+        if dag_context_text:
+            sections.append(
+                format_section(
+                    "MY MEMORIES AND CONTEXT",
+                    dag_context_text,
+                )
             )
-        )
+    else:
+        # Traditional context sections
+        summary = trigger_history.get_recent_summary()
+        if summary:
+            sections.append(
+                format_section(
+                    "SUMMARY OF MY EXPERIENCES",
+                    summary.summary_text,
+                )
+            )
 
-    trigger_history_text = format_trigger_history(trigger_history)
-    if trigger_history_text:
-        sections.append(
-            format_section(
-                "RECENT EXPERIENCES (LEADING UP TO NOW)",
-                trigger_history_text,
+        # Add relevant memories section
+        if relevant_memories:
+            relevant_memories_text = format_trigger_entries(relevant_memories)
+            sections.append(
+                format_section(
+                    "RELEVANT MEMORIES",
+                    relevant_memories_text,
+                )
             )
-        )
+
+        trigger_history_text = format_trigger_history(trigger_history)
+        if trigger_history_text:
+            sections.append(
+                format_section(
+                    "RECENT EXPERIENCES (LEADING UP TO NOW)",
+                    trigger_history_text,
+                )
+            )
 
     sections.append(
         format_section(
