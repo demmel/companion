@@ -5,7 +5,10 @@ Helper functions for the DAG memory experiment.
 import logging
 from typing import List
 
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.action_registry import ActionRegistry
+from agent.chain_of_action.prompts import build_situational_analysis_prompt
+from agent.chain_of_action.trigger import UserInputTrigger
+from agent.chain_of_action.trigger_history import TriggerHistoryEntry, TriggerHistory
 from agent.experiments.temporal_context_dag.context_formatting import (
     format_edge,
     format_element,
@@ -51,23 +54,28 @@ def adjust_context_tokens(
     return context
 
 
-def calculate_context_budget(token_budget: int, state: State) -> int:
-    """
-    Calculate the context budget based on total budget and state.
+def calculate_context_budget(
+    token_budget: int,
+    state: State,
+    action_registry: ActionRegistry,
+) -> int:
+    sa_prompt = build_situational_analysis_prompt(
+        state=state,
+        trigger=UserInputTrigger(content="sample", user_name="User"),
+        trigger_history=TriggerHistory(),
+        relevant_memories=[],
+        registry=action_registry,
+        dag_context=ContextGraph(),
+    )
+    prompt_tokens = int(len(sa_prompt) / 3.4)
 
-    Args:
-        token_budget: Total token budget available
-        state: Current agent state
+    context_budget = token_budget - prompt_tokens
 
-    Returns:
-        Context token budget
-    """
+    logger.info(
+        f"Context budget calculation: total={token_budget}, prompt={prompt_tokens} => context budget={context_budget}"
+    )
 
-    state_tokens = len(build_agent_state_description(state)) / 3.4
-    context_budget = int(
-        token_budget - state_tokens - 4096
-    )  # Reserve 4096 tokens for response
-    return max(context_budget, 0)
+    return context_budget
 
 
 def prune_context_to_budget(context: ContextGraph, budget: int) -> ContextGraph:
@@ -89,6 +97,7 @@ def prune_context_to_budget(context: ContextGraph, budget: int) -> ContextGraph:
     )
 
     logger.info(f"  LLM tokens used by context before pruning: {llm_tokens_used:.1f}")
+    logger.info(f"  Context budget: {budget}")
 
     while llm_tokens_used > budget and context.elements:
         least_valuable = min(context.elements, key=lambda e: (e.tokens))
@@ -311,7 +320,12 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
         MemoryGraph with backstory memories and their connections
     """
     from .models import MemoryGraph, ContextGraph
-    from .memory_formation import extract_memories_from_interaction, create_memory_container, add_memory_container_to_graph, create_intelligent_connections
+    from .memory_formation import (
+        extract_memories_from_interaction,
+        create_memory_container,
+        add_memory_container_to_graph,
+        create_intelligent_connections,
+    )
     from .connection_system import add_connections_to_graph
     from agent.chain_of_action.trigger_history import TriggerHistoryEntry
     from agent.chain_of_action.trigger import UserInputTrigger
@@ -323,9 +337,7 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
 
     # Create synthetic trigger for backstory
     backstory_trigger_data = UserInputTrigger(
-        content=f"Backstory: {backstory}",
-        user_name="System",
-        image_paths=None
+        content=f"Backstory: {backstory}", user_name="System", image_paths=None
     )
 
     backstory_trigger = TriggerHistoryEntry(
@@ -335,7 +347,7 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
         entry_id="backstory_initial",
         situational_context=None,
         compressed_summary=None,
-        embedding_vector=None
+        embedding_vector=None,
     )
 
     # Extract memories from backstory using existing system
@@ -343,17 +355,20 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
     model = SupportedModel.MISTRAL_SMALL_3_2_Q4
     empty_context = ContextGraph()
 
-    memories = extract_memories_from_interaction(backstory_trigger, state, empty_context, llm, model)
+    memories = extract_memories_from_interaction(
+        backstory_trigger, state, empty_context, llm, model
+    )
 
     if memories:
         # Create container for backstory memories
         container = create_memory_container(
-            trigger=backstory_trigger,
-            element_ids=[m.memory.id for m in memories]
+            trigger=backstory_trigger, element_ids=[m.memory.id for m in memories]
         )
 
         # Add to graph
-        graph = add_memory_container_to_graph(graph, container, [m.memory for m in memories])
+        graph = add_memory_container_to_graph(
+            graph, container, [m.memory for m in memories]
+        )
 
         # Create intelligent connections within backstory memories (intra-interaction edges)
         edges = create_intelligent_connections(

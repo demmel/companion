@@ -277,7 +277,11 @@ class VisualBatchUnit(ExecutionUnit):
                 )
 
                 shared_image_result = _generate_image_if_enabled(
-                    image_description, True, llm, model, batch_progress_callback
+                    image_description,
+                    action_registry.enable_image_generation,
+                    llm,
+                    model,
+                    batch_progress_callback,
                 )
 
                 # Update results with shared image

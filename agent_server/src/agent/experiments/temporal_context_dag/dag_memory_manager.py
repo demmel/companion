@@ -8,6 +8,7 @@ with the main agent system.
 
 import logging
 
+from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.llm import LLM, SupportedModel
 from agent.state import State
@@ -19,7 +20,6 @@ from .experiment_helpers import (
     create_initial_context_subgraph,
     create_initial_graph,
 )
-from .io import save_dag_to_json
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,11 @@ class DagMemoryManager:
 
     @classmethod
     def create(
-        cls, initial_state: State, backstory: str, token_budget: int
+        cls,
+        initial_state: State,
+        backstory: str,
+        token_budget: int,
+        action_registry: ActionRegistry,
     ) -> "DagMemoryManager":
         """
         Initialize the memory system from an initial trigger (character definition).
@@ -73,7 +77,9 @@ class DagMemoryManager:
         memory_graph = create_initial_graph(initial_state, backstory)
 
         # Create initial context subgraph
-        context_budget = calculate_context_budget(token_budget, initial_state)
+        context_budget = calculate_context_budget(
+            token_budget, initial_state, action_registry
+        )
         context_graph = create_initial_context_subgraph(memory_graph, context_budget)
 
         return cls(memory_graph, context_graph)
@@ -85,6 +91,7 @@ class DagMemoryManager:
         llm: LLM,
         model: SupportedModel,
         token_budget: int,
+        action_registry: ActionRegistry,
         update_state: bool = False,
     ) -> None:
         """
@@ -107,6 +114,7 @@ class DagMemoryManager:
             llm=llm,
             model=model,
             token_budget=token_budget,
+            action_registry=action_registry,
             update_state=update_state,
         )
 

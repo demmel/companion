@@ -94,11 +94,18 @@ class Agent:
         keep_recent: int = 2,
         individual_trigger_compression: bool = True,
         enable_dag_memory: bool = False,
+        auto_summarize_threshold: Optional[int] = None,
     ):
         self.llm = llm
         self.model = model
         self.context_window = llm.models[model].context_window
-        self.auto_summarize_threshold = int(self.context_window * 0.6)  # 60% threshold
+
+        # Set summarization threshold
+        if auto_summarize_threshold is not None:
+            self.auto_summarize_threshold = auto_summarize_threshold
+        else:
+            # Default 60% threshold
+            self.auto_summarize_threshold = int(self.context_window * 0.6)
         self.enable_image_generation = enable_image_generation
         self.continuous_summarization = continuous_summarization
         self.keep_recent = keep_recent
@@ -287,11 +294,17 @@ class Agent:
 
     def get_context_info(self) -> ContextInfo:
         """Get information about current context usage based on action planning prompt size"""
+        # Get DAG context if available
+        dag_context = None
+        if self.dag_memory_manager is not None:
+            dag_context = self.dag_memory_manager.get_current_context()
+
         return get_context_info(
             state=self.state,
             trigger_history=self.trigger_history,
             action_registry=self.action_reasoning_loop.registry,
             summarize_at_tokens=self.auto_summarize_threshold,
+            dag_context=dag_context,
         )
 
     def chat_stream(self, trigger: Trigger) -> None:
@@ -319,8 +332,8 @@ class Agent:
                 # Run initial exchange with character definition
                 self._run_initial_exchange_with_streaming(trigger)
             else:
-                # Check if we need auto-summarization before processing (skip if continuous summarization enabled)
-                if not self.continuous_summarization:
+                # Check if we need auto-summarization before processing (skip if continuous summarization enabled or DAG memory)
+                if not self.continuous_summarization and not self.enable_dag_memory:
                     context_info = self.get_context_info()
                     if context_info.estimated_tokens >= context_info.context_limit:
                         # Perform auto-summarization with event emission
@@ -329,9 +342,10 @@ class Agent:
                 # Use action-based reasoning with callback conversion
                 self._run_chain_of_action_with_streaming(trigger)
 
-                # Continuous summarization: summarize after every trigger if enabled
+                # Continuous summarization: summarize after every trigger if enabled (skip for DAG memory)
                 if (
                     self.continuous_summarization
+                    and not self.enable_dag_memory
                     and len(self.trigger_history.entries) > self.keep_recent
                 ):
                     self._auto_summarize_with_events(self.keep_recent)
@@ -410,16 +424,11 @@ class Agent:
                     DagMemoryManager,
                 )
 
-                dag_token_budget = calculate_context_budget(
-                    self.auto_summarize_threshold,
-                    self.state,
-                    self.trigger_history,
-                    self.action_reasoning_loop.registry,
-                )
                 self.dag_memory_manager = DagMemoryManager.create(
                     initial_state=self.state,
                     backstory=backstory,
-                    token_budget=dag_token_budget,
+                    token_budget=self.auto_summarize_threshold,
+                    action_registry=self.action_reasoning_loop.registry,
                 )
 
             # Create and store the action result
@@ -798,12 +807,8 @@ class Agent:
                 state=self.state,
                 llm=self.llm,
                 model=self.model,
-                token_budget=calculate_context_budget(
-                    self.auto_summarize_threshold,
-                    self.state,
-                    self.trigger_history,
-                    self.action_reasoning_loop.registry,
-                ),
+                token_budget=self.auto_summarize_threshold,
+                action_registry=self.action_reasoning_loop.registry,
                 update_state=False,  # Agent manages its own state
             )
 
@@ -1057,6 +1062,7 @@ def get_context_info(
     trigger_history: TriggerHistory,
     action_registry: ActionRegistry,
     summarize_at_tokens: int,
+    dag_context: ContextGraph | None = None,
 ) -> ContextInfo:
     """Get information about current context usage based on action planning prompt size"""
     if state is not None:
@@ -1075,6 +1081,7 @@ def get_context_info(
                 -5:
             ],  # Use last 5 entries for estimation
             registry=action_registry,
+            dag_context=dag_context,
         )
 
         # Calculate total prompt size
@@ -1117,5 +1124,9 @@ def calculate_context_budget(
     buffer_tokens = 4096
 
     context_budget = token_budget - prompt_tokens - buffer_tokens
+
+    logger.info(
+        f"Context budget calculation: total={token_budget}, prompt={prompt_tokens}, buffer={buffer_tokens} => context budget={context_budget}"
+    )
 
     return context_budget

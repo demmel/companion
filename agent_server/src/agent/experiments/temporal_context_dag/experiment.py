@@ -1,5 +1,6 @@
 import logging
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.action_registry import ActionRegistry
+from agent.chain_of_action.trigger_history import TriggerHistoryEntry, TriggerHistory
 from agent.conversation_persistence import AgentData, ConversationPersistence
 from agent.experiments.temporal_context_dag.connection_system import (
     add_connections_to_graph,
@@ -44,6 +45,7 @@ def process_trigger(
     llm: LLM,
     model: SupportedModel,
     token_budget: int,
+    action_registry: ActionRegistry,
     update_state: bool = True,
 ) -> tuple[MemoryGraph, ContextGraph, State]:
     """
@@ -94,7 +96,7 @@ def process_trigger(
 
         context = add_memories_and_connections_to_context(context, memories, edges)
         context = adjust_context_tokens(context, edges)
-        context_budget = calculate_context_budget(token_budget, state)
+        context_budget = calculate_context_budget(token_budget, state, action_registry)
 
         logger.info(
             f"  Context now has {len(context.elements)} elements and {len(context.edges)} edges"
@@ -122,7 +124,8 @@ def build_graph_from_triggers(
     state, backstory = derive_initial_state(data.initial_exchange)
     graph = create_initial_graph(state, backstory)
     triggers = data.trigger_history.get_all_entries()
-    context_budget = calculate_context_budget(token_budget, state)
+    action_registry = ActionRegistry(enable_image_generation=False)
+    context_budget = calculate_context_budget(token_budget, state, action_registry)
     context = create_initial_context_subgraph(graph, context_budget)
 
     for i, trigger in enumerate(triggers):
@@ -130,13 +133,7 @@ def build_graph_from_triggers(
             f"\n=== Processing trigger {i+1}/{len(triggers)}: {trigger.entry_id} ==="
         )
         graph, context, state = process_trigger(
-            graph,
-            context,
-            state,
-            trigger,
-            llm,
-            model,
-            token_budget,
+            graph, context, state, trigger, llm, model, token_budget, action_registry
         )
         save_dag_to_json(graph, "output_dag.json")
 
