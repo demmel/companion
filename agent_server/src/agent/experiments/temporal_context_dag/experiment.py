@@ -61,10 +61,10 @@ def process_trigger(
     Returns:
         Updated memory graph with new memories and connections
     """
-    from .memory_formation import create_intelligent_connections
-
-    # Extract memories from this interaction with full context awareness
-    memories = extract_memories_from_interaction(trigger, state, context, llm, model)
+    # Extract memories and connections from this interaction with full context awareness
+    memories, edges = extract_memories_from_interaction(
+        trigger, state, context, llm, model
+    )
 
     if memories:
         # Create container for this interaction
@@ -77,19 +77,9 @@ def process_trigger(
             graph, container, [m.memory for m in memories]
         )
 
-        logger.info(
-            f"  Added {len(memories)} memories and connections for {trigger.entry_id}"
-        )
+        logger.info(f"  Added {len(memories)} memories for {trigger.entry_id}")
 
-        # Create intelligent connections between new memories and existing context
-        edges = create_intelligent_connections(
-            graph=graph,
-            context=context,
-            state=state,
-            new_container=container,
-            llm=llm,
-            model=model,
-        )
+        # Add the connections extracted during memory formation
         graph, successfully_added_edges = add_connections_to_graph(graph, edges)
 
         logger.info(
@@ -145,7 +135,7 @@ def build_graph_from_triggers(
 
 
 def main():
-    data = load_baseline_data("baseline")
+    data = load_baseline_data("conversation_20250911_225122_909378")
     graph = MemoryGraph()
     llm = create_llm()
     model = SupportedModel.MISTRAL_SMALL_3_2_Q4

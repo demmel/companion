@@ -798,19 +798,8 @@ class Agent:
             trigger_history=self.trigger_history,
             individual_trigger_compression=self.individual_trigger_compression,
             dag_memory_manager=self.dag_memory_manager,
+            token_budget=self.auto_summarize_threshold,
         )
-
-        # Process trigger with DAG memory system if enabled
-        if self.dag_memory_manager:
-            self.dag_memory_manager.process_trigger(
-                trigger=trigger_entry,
-                state=self.state,
-                llm=self.llm,
-                model=self.model,
-                token_budget=self.auto_summarize_threshold,
-                action_registry=self.action_reasoning_loop.registry,
-                update_state=False,  # Agent manages its own state
-            )
 
     def _auto_summarize_with_events(self, keep_recent: int):
         """Auto-summarize with event emission for streaming clients"""

@@ -324,7 +324,6 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
         extract_memories_from_interaction,
         create_memory_container,
         add_memory_container_to_graph,
-        create_intelligent_connections,
     )
     from .connection_system import add_connections_to_graph
     from agent.chain_of_action.trigger_history import TriggerHistoryEntry
@@ -355,7 +354,7 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
     model = SupportedModel.MISTRAL_SMALL_3_2_Q4
     empty_context = ContextGraph()
 
-    memories = extract_memories_from_interaction(
+    memories, edges = extract_memories_from_interaction(
         backstory_trigger, state, empty_context, llm, model
     )
 
@@ -370,15 +369,7 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
             graph, container, [m.memory for m in memories]
         )
 
-        # Create intelligent connections within backstory memories (intra-interaction edges)
-        edges = create_intelligent_connections(
-            graph=graph,
-            context=empty_context,
-            state=state,
-            new_container=container,
-            llm=llm,
-            model=model,
-        )
+        # Add connections extracted during memory formation
         graph, _ = add_connections_to_graph(graph, edges)
 
     return graph

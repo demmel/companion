@@ -45,6 +45,7 @@ class ActionBasedReasoningLoop:
         trigger_history: TriggerHistory,
         individual_trigger_compression: bool = True,
         dag_memory_manager: DagMemoryManager | None = None,
+        token_budget: int | None = None,
     ) -> TriggerHistoryEntry:
         """
         Process user input through the action-based reasoning system.
@@ -217,6 +218,21 @@ class ActionBasedReasoningLoop:
         if individual_trigger_compression:
             _compress_trigger_entry(trigger_entry, state, llm, model)
             _extract_memory_embedding(trigger_entry)
+
+        # Process trigger with DAG memory system if enabled
+        if dag_memory_manager:
+            assert (
+                token_budget is not None
+            ), "Token budget must be provided if using DAG"
+            dag_memory_manager.process_trigger(
+                trigger=trigger_entry,
+                state=state,
+                llm=llm,
+                model=model,
+                token_budget=token_budget,
+                action_registry=self.registry,
+                update_state=False,  # Agent manages its own state
+            )
 
         # Emit completion event after adding to history
         callback.on_trigger_completed(

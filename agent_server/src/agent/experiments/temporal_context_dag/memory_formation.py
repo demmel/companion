@@ -6,6 +6,7 @@ import uuid
 import logging
 from datetime import datetime
 from typing import List
+from enum import Enum
 
 from agent.chain_of_action.prompts import format_section, format_single_trigger_entry
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
@@ -52,17 +53,20 @@ def extract_memories_from_interaction(
     context: ContextGraph,
     llm: LLM,
     model: SupportedModel,
-) -> List[ContextElement]:
+) -> tuple[List[ContextElement], List[MemoryEdge]]:
     """
-    Use agent/LLM to intelligently extract significant memory elements from an interaction.
+    Use agent/LLM to intelligently extract significant memory elements from an interaction
+    along with their connections to existing memories.
 
     Args:
         trigger: The trigger history entry containing trigger and actions
+        state: Current agent state
+        context: Current context graph with existing memories
         llm: LLM instance for memory extraction
         model: Model to use for extraction decisions
 
     Returns:
-        List of memory elements that the agent deemed significant
+        Tuple of (memory_elements, connections) where connections are from existing memories to new memories
     """
     from agent.structured_llm import direct_structured_llm_call
     from pydantic import BaseModel, Field
@@ -70,17 +74,26 @@ def extract_memories_from_interaction(
     # Build context of the interaction for the agent to analyze
     interaction_context = format_single_trigger_entry(trigger)
 
+    # Build context memories information for connection formation
+    context_memories_info = ""
+    if context.elements:
+        context_memories_info = "\n".join(
+            [f"- [{elem.memory.id}] {elem.memory.content}" for elem in context.elements]
+        )
+    else:
+        context_memories_info = "No existing memories in current context."
+
     # Build prompt with existing context if available
-    prompt = f"""I'm {state.name}, {state.role}. I need to analyze this interaction I just had and extract the most significant memories worth preserving.
+    prompt = f"""I'm {state.name}, {state.role}. I need to analyze this interaction I just had and extract the most significant memories worth preserving, along with their connections to my existing memories.
 
     {build_agent_state_description(state)}
 
-{format_section("MY WORKING MEMORY", format_context(context))}
+{format_section("MY EXISTING MEMORIES IN CONTEXT", context_memories_info)}
 
 {format_section("WHAT JUST HAPPENED", interaction_context)}
 
 ## Task:
-I will review this interaction and identify the most significant facts, events, insights, or changes that are worth remembering.
+I will review this interaction and identify the most significant facts, events, insights, or changes that are worth remembering. For each memory, I will also identify which of my existing memories should connect to it.
 
 I will consider:
 - Important information about the user or situation
@@ -88,14 +101,44 @@ I will consider:
 - Key insights or realizations
 - Important emotional or relational moments
 - Facts that might be relevant for future interactions
+- Vivid details, specific dialogue, and emotional nuances that capture the essence of the moment
 - Avoid creating memories for things I already remember (see existing context above)
 
-For each significant memory, provide:
-1. The specific content worth remembering (be concise but complete)
+For each significant memory, I will provide:
+1. Rich, detailed content that captures the specific essence, emotions, and vivid details of what happened (preserve the flavor and personality of the interaction)
 2. Why this is significant (emotional_significance as a score 0.0-1.0)
-3. How many tokens this memory should initially receive (10-100 based on importance)
+3. Which existing memories (if any) should connect TO this new memory, along with:
+   - The reasoning for each connection
+   - The type of relationship (relates_to, explains, follows, or updates)
+   - ONLY use memory IDs from the "MY EXISTING MEMORIES IN CONTEXT" section above
 
-I will only extract memories that are genuinely significant."""
+Connection types:
+- relates_to: General semantic connection between memories that share concepts or themes
+- explains: An existing memory explains, provides reasoning for, or gives context to this new memory
+- follows: An existing memory is a direct chronological predecessor or leads into this new memory
+- updates: This new memory contains information that supersedes, refines, or builds upon an existing memory
+
+I will only extract memories that are genuinely significant and create connections that are meaningful and clear.
+{f"Since there are no existing memories in context, I will NOT create any connections." if not context.elements else ""}"""
+
+    class ConnectionType(str, Enum):
+        RELATES_TO = "relates_to"
+        EXPLAINS = "explains"
+        FOLLOWS = "follows"
+        UPDATES = "updates"
+
+    class ConnectionFromExisting(BaseModel):
+        """Connection from an existing memory to this new memory."""
+
+        reasoning: str = Field(
+            description="My reasoning for why this existing memory should connect to this new memory"
+        )
+        source_memory_id: str = Field(
+            description="ID of the existing memory that should connect to this new memory"
+        )
+        edge_type: ConnectionType = Field(
+            description="Type of connection from the existing memory to this new memory"
+        )
 
     class MemoryExtraction(BaseModel):
         reasoning: str = Field(
@@ -104,6 +147,10 @@ I will only extract memories that are genuinely significant."""
         content: str = Field(description="The content of the memory")
         emotional_significance: float = Field(
             description="Emotional significance of the memory", ge=0.0, le=1.0
+        )
+        connections_from_existing: List[ConnectionFromExisting] = Field(
+            default_factory=list,
+            description="List of existing memories that should connect to this new memory",
         )
 
     class MemoryExtractions(BaseModel):
@@ -120,8 +167,10 @@ I will only extract memories that are genuinely significant."""
             caller="memory_extraction",
         )
 
-        # Convert to MemoryElement objects
+        # Convert to MemoryElement objects and extract connections
         memories = []
+        connections = []
+
         for extraction in response.memories:
             memory = create_context_element(
                 content=extraction.content,
@@ -131,10 +180,19 @@ I will only extract memories that are genuinely significant."""
             )
             memories.append(memory)
 
+            # Extract connections from existing memories to this new memory
+            for connection in extraction.connections_from_existing:
+                edge = MemoryEdge(
+                    source_id=connection.source_memory_id,
+                    target_id=memory.memory.id,
+                    edge_type=MemoryEdgeType(connection.edge_type.value),
+                )
+                connections.append(edge)
+
         logger.info(
-            f"  Extracted {len(memories)} significant memories from interaction {trigger.entry_id}"
+            f"  Extracted {len(memories)} significant memories and {len(connections)} connections from interaction {trigger.entry_id}"
         )
-        return memories
+        return memories, connections
 
     except Exception as e:
         logger.warning(
