@@ -2,6 +2,7 @@
 Conversation persistence system with unique IDs and auto-save functionality
 """
 
+from dataclasses import dataclass
 import json
 import os
 import time
@@ -19,12 +20,21 @@ from pydantic import BaseModel, Field
 from typing import List
 
 
-class AgentData(BaseModel):
+class ConversationData(BaseModel):
     """Serializable agent data for persistence"""
 
     initial_exchange: TriggerHistoryEntry | None = Field(default=None)
     entries: List[TriggerHistoryEntry]
     summaries: List[SummaryRecord]
+
+
+@dataclass
+class AgentData:
+    """Serializable agent data for persistence"""
+
+    trigger_history: TriggerHistory
+    state: State | None
+    initial_exchange: TriggerHistoryEntry | None
 
 
 class ConversationPersistence:
@@ -72,13 +82,22 @@ class ConversationPersistence:
             f.write(state.model_dump_json(indent=2))
 
         trigger_file = self._trigger_file_name(prefix)
-        trigger_data = AgentData(
+        trigger_data = ConversationData(
             initial_exchange=initial_exchange,
             entries=trigger_history.entries,
             summaries=trigger_history.summaries,
         )
         with open(trigger_file, "w") as f:
             f.write(trigger_data.model_dump_json(indent=2))
+
+    def load_agent_data(self, prefix: str) -> AgentData:
+        """Load agent data (state and trigger history) from conversation files with given prefix"""
+        trigger_history, state, initial_exchange = self.load_conversation(prefix)
+        return AgentData(
+            trigger_history=trigger_history,
+            initial_exchange=initial_exchange,
+            state=state,
+        )
 
     def load_conversation(
         self,
@@ -94,7 +113,7 @@ class ConversationPersistence:
         initial_exchange = None
         if os.path.exists(trigger_file):
             with open(trigger_file, "r") as f:
-                trigger_data = AgentData.model_validate(json.load(f))
+                trigger_data = ConversationData.model_validate(json.load(f))
                 # Populate the trigger history
                 initial_exchange = trigger_data.initial_exchange
                 trigger_history.entries = trigger_data.entries
