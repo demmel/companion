@@ -2,6 +2,7 @@
 Helper functions for the DAG memory experiment.
 """
 
+from collections import defaultdict
 import logging
 from typing import List
 
@@ -10,7 +11,6 @@ from agent.chain_of_action.prompts import build_situational_analysis_prompt
 from agent.chain_of_action.trigger import UserInputTrigger
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry, TriggerHistory
 from agent.experiments.temporal_context_dag.context_formatting import (
-    format_edge,
     format_element,
 )
 from agent.state import State, build_agent_state_description
@@ -79,22 +79,21 @@ def calculate_context_budget(
 
 
 def prune_context_to_budget(context: ContextGraph, budget: int) -> ContextGraph:
+    forward_edges_map = defaultdict(list)  # memory_id -> list of outgoing edges
+    backward_edges_map = defaultdict(list)  # memory_id -> list of incoming edges
+
+    for edge in context.edges:
+        forward_edges_map[edge.source_id].append(edge)
+        backward_edges_map[edge.target_id].append(edge)
 
     llm_tokens_used_by_element = {}
     for e in context.elements:
-        element_string = format_element(e)
+        forward_edges = forward_edges_map[e.memory.id]
+        backward_edges = backward_edges_map[e.memory.id]
+        element_string = format_element(e, forward_edges, backward_edges)
         llm_tokens_used_by_element[e.memory.id] = len(element_string) / 3.4
 
-    llm_tokens_used_by_edge = {}
-    for edge in context.edges:
-        edge_string = format_edge(edge)
-        llm_tokens_used_by_edge[(edge.source_id, edge.edge_type, edge.target_id)] = (
-            len(edge_string) / 3.4
-        )
-
-    llm_tokens_used = sum(llm_tokens_used_by_element.values()) + sum(
-        llm_tokens_used_by_edge.values()
-    )
+    llm_tokens_used = sum(llm_tokens_used_by_element.values())
 
     logger.info(f"  LLM tokens used by context before pruning: {llm_tokens_used:.1f}")
     logger.info(f"  Context budget: {budget}")
@@ -105,22 +104,13 @@ def prune_context_to_budget(context: ContextGraph, budget: int) -> ContextGraph:
         llm_tokens_used -= llm_tokens_used_by_element[least_valuable.memory.id]
         del llm_tokens_used_by_element[least_valuable.memory.id]
 
-        connected_edges = [
-            e
-            for e in context.edges
-            if e.source_id == least_valuable.memory.id
-            or e.target_id == least_valuable.memory.id
-        ]
-        for edge in connected_edges:
-            edge_key = (edge.source_id, edge.edge_type, edge.target_id)
-            if edge_key in llm_tokens_used_by_edge:
-                llm_tokens_used -= llm_tokens_used_by_edge.get(edge_key, 0)
-                llm_tokens_used_by_edge.pop(edge_key, None)
-
+    element_ids_remaining = set(e.memory.id for e in context.elements)
     indices_to_keep = set()
     for i, edge in enumerate(context.edges):
-        edge_key = (edge.source_id, edge.edge_type, edge.target_id)
-        if edge_key in llm_tokens_used_by_edge:
+        if (
+            edge.source_id in element_ids_remaining
+            and edge.target_id in element_ids_remaining
+        ):
             indices_to_keep.add(i)
 
     context.edges = [context.edges[i] for i in indices_to_keep]

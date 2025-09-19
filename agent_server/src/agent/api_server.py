@@ -84,6 +84,7 @@ def initialize_agent(load: bool) -> Agent:
         llm=llm,
         enable_image_generation=True,
         enable_dag_memory=True,
+        auto_summarize_threshold=16000,
         individual_trigger_compression=False,
         auto_save=True,
     )

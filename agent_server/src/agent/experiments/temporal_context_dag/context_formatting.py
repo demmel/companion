@@ -10,23 +10,50 @@ EDGE_TYPE_REVERSAL = {
     MemoryEdgeType.EXPLAINS: "explained_by",
     MemoryEdgeType.FOLLOWED_BY: "follows",
     MemoryEdgeType.UPDATED_BY: "updates",
-    MemoryEdgeType.CAUSED: "caused_by"
+    MemoryEdgeType.CAUSED: "caused_by",
 }
 
 
-def format_element(element: ContextElement) -> str:
-    """Format a single context element for display."""
-    return f"""- ID: {element.memory.id} Time: {element.memory.timestamp.isoformat()}
-  - Content: {element.memory.content}
-  - Significance: {element.memory.emotional_significance:.2f}
-"""
+def format_element(
+    element: ContextElement,
+    forward_edges: list[MemoryEdge],
+    backward_edges: list[MemoryEdge],
+) -> str:
+    """
+    Format a single context element (memory) with its edges for display.
 
+    Args:
+        element: The context element to format
+        forward_edges: List of forward edges connected to this memory
+        backward_edges: List of backward edges connected to this memory
 
-def format_edge(edge: MemoryEdge) -> str:
-    """Format a single context edge for display."""
-    return (
-        f"- Connection: {edge.source_id} --[{edge.edge_type.value}]--> {edge.target_id}"
-    )
+    Returns:
+        Formatted string representation of the context element
+    """
+
+    # Format memory header
+    memory_id = element.memory.id[:8]  # Shortened ID for readability
+    timestamp = element.memory.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+    lines = []
+    lines.append(f"{memory_id}: [{timestamp}]")
+    lines.append(f"  Content: {element.memory.content}")
+    lines.append(f"  Evidence: {element.memory.evidence}")
+
+    # Format forward edges
+    for edge in forward_edges:
+        target_id = edge.target_id[:8]
+        lines.append(f"  -[{edge.edge_type.value}]-> {target_id}")
+
+    # Format backward edges (reverse the edge type wording for clarity)
+    for edge in backward_edges:
+        source_id = edge.source_id[:8]
+        reversed_edge_type = EDGE_TYPE_REVERSAL.get(
+            edge.edge_type, edge.edge_type.value
+        )
+        lines.append(f"  <-[{reversed_edge_type}]- {source_id}")
+
+    return "\n".join(lines)
 
 
 def format_context(context: ContextGraph) -> str:
@@ -65,6 +92,7 @@ def format_context(context: ContextGraph) -> str:
 
     # Create edge lookups for O(1) access
     from collections import defaultdict
+
     forward_edges_map = defaultdict(list)  # memory_id -> list of outgoing edges
     backward_edges_map = defaultdict(list)  # memory_id -> list of incoming edges
 
@@ -76,29 +104,13 @@ def format_context(context: ContextGraph) -> str:
     sorted_memories = sorted(context.elements, key=lambda e: e.memory.timestamp)
 
     for element in sorted_memories:
-        # Format memory header
-        memory_id = element.memory.id[:8]  # Shortened ID for readability
-        timestamp = element.memory.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-
-        lines.append(f"{memory_id}: [{timestamp}]")
-        lines.append(f"  Content: {element.memory.content}")
-        lines.append(f"  Evidence: {element.memory.evidence}")
-
         # Get edges for this memory using O(1) lookups
         forward_edges = forward_edges_map[element.memory.id]
         backward_edges = backward_edges_map[element.memory.id]
 
-        # Format forward edges
-        for edge in forward_edges:
-            target_id = edge.target_id[:8]
-            lines.append(f"  -[{edge.edge_type.value}]-> {target_id}")
-
-        # Format backward edges (reverse the edge type wording for clarity)
-        for edge in backward_edges:
-            source_id = edge.source_id[:8]
-            reversed_edge_type = EDGE_TYPE_REVERSAL.get(edge.edge_type, edge.edge_type.value)
-            lines.append(f"  <-[{reversed_edge_type}]- {source_id}")
-
+        # Format and append the memory with its edges
+        memory_str = format_element(element, forward_edges, backward_edges)
+        lines.append(memory_str)
         lines.append("")  # Empty line between memories
 
     return "\n".join(lines)
