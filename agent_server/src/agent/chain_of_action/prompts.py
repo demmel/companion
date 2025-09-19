@@ -387,7 +387,9 @@ I will think through this naturally, but with specific details and concrete obse
 
 **MY SITUATIONAL ANALYSIS:**
 
-{analysis_guidance}"""
+{analysis_guidance}
+
+**MEMORY GROUNDING:** I will base my understanding only on the memories shown in my memory system above. I will not assume or guess about details that aren't explicitly stored. When I need to speculate beyond my actual memories, I will clearly mark it with phrases like 'I imagine...' or 'It seems like...' to distinguish speculation from facts."""
 
 
 def build_action_planning_prompt(
@@ -469,7 +471,9 @@ Examples of when NOT to include wait:
 - I want to fetch a URL, then plan my response based on what I learned from that content
 - I want to think about my priorities, then plan which ones to add or remove based on my reflection
 
-Each action should have specific context about what to focus on - even the wait action should include context about what I'm waiting for or why I'm choosing to wait. I'll plan actions that feel natural and genuine to my current state of mind."""
+Each action should have specific context about what to focus on - even the wait action should include context about what I'm waiting for or why I'm choosing to wait. I'll plan actions that feel natural and genuine to my current state of mind.
+
+**MEMORY GROUNDING:** I will only reference information from my situational analysis, actual memories, and the results of actions I've already executed. I will not assume additional details beyond what I actually know. When I need to speculate beyond my actual knowledge, I will clearly mark it with phrases like 'I imagine...' or 'It seems like...' to distinguish speculation from facts."""
 
 
 def build_memory_extraction_prompt(

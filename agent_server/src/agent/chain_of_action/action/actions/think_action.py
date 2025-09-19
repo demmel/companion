@@ -159,6 +159,8 @@ When something happens, I process it through my own unique perspective, drawing 
 
 {thinking_guidance}
 
+**MEMORY GROUNDING:** I will only reference experiences and events that are documented in my actual memories. I will not imagine or invent details that aren't stored. When I need to speculate beyond my actual memories, I will clearly mark it with phrases like 'I imagine...' or 'It seems like...' to distinguish speculation from facts.
+
 """
 
         try:
