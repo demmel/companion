@@ -102,10 +102,11 @@ def decide_connections_llm(
         from pydantic import BaseModel
 
         class ConnectionType(str, Enum):
-            RELATES_TO = "relates_to"
+            EXPLAINED_BY = "explained_by"
             EXPLAINS = "explains"
-            FOLLOWS = "follows"
-            UPDATES = "updates"
+            FOLLOWED_BY = "followed_by"
+            UPDATED_BY = "updated_by"
+            CAUSED = "caused"
 
         class ConnectionDecision(BaseModel):
             """Agent's decision about connecting two memory elements."""
@@ -123,20 +124,24 @@ def decide_connections_llm(
                 json_schema_extra={
                     "enum": [
                         {
-                            "value": ConnectionType.RELATES_TO,
-                            "description": "General semantic connection between memories that share concepts or themes",
+                            "value": ConnectionType.EXPLAINED_BY,
+                            "description": "Existing memory provides context/explanation for new memory",
                         },
                         {
                             "value": ConnectionType.EXPLAINS,
-                            "description": "One memory explains, provides reasoning for, or gives context to another",
+                            "description": "Existing memory is explained/given context by new memory",
                         },
                         {
-                            "value": ConnectionType.FOLLOWS,
-                            "description": "One memory is a direct chronological sequel or continuation of another",
+                            "value": ConnectionType.FOLLOWED_BY,
+                            "description": "Existing memory is chronologically followed by new memory",
                         },
                         {
-                            "value": ConnectionType.UPDATES,
-                            "description": "One memory contains newer information that supersedes or refines another",
+                            "value": ConnectionType.UPDATED_BY,
+                            "description": "Existing memory is superseded/refined by new memory",
+                        },
+                        {
+                            "value": ConnectionType.CAUSED,
+                            "description": "Existing memory caused/led to new memory",
                         },
                     ]
                 },
@@ -204,10 +209,11 @@ def add_connections_to_graph(
 
         # Validate edge type is agent-controlled
         agent_controlled_types = {
-            MemoryEdgeType.RELATES_TO,
+            MemoryEdgeType.EXPLAINED_BY,
             MemoryEdgeType.EXPLAINS,
-            MemoryEdgeType.FOLLOWS,
-            MemoryEdgeType.UPDATES,
+            MemoryEdgeType.FOLLOWED_BY,
+            MemoryEdgeType.UPDATED_BY,
+            MemoryEdgeType.CAUSED,
         }
         if connection.edge_type not in agent_controlled_types:
             logger.warning(

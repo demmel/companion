@@ -31,6 +31,7 @@ from .context_formatting import format_context
 
 def create_context_element(
     content: str,
+    evidence: str,
     timestamp: datetime,
     emotional_significance: float,
     initial_tokens: int,
@@ -40,6 +41,7 @@ def create_context_element(
         memory=MemoryElement(
             id=str(uuid.uuid4()),
             content=content,
+            evidence=evidence,
             timestamp=timestamp,
             emotional_significance=emotional_significance,
         ),
@@ -104,28 +106,40 @@ I will consider:
 - Vivid details, specific dialogue, and emotional nuances that capture the essence of the moment
 - Avoid creating memories for things I already remember (see existing context above)
 
+I will NOT create memories for:
+- Routine procedural actions like "waiting for a response" or "observing reactions"
+- Low-value operational details that don't add meaningful information
+- Generic statements about planning future actions
+- Repetitive patterns that I've already captured in other memories
+
 For each significant memory, I will provide:
-1. Rich, detailed content that captures the specific essence, emotions, and vivid details of what happened (preserve the flavor and personality of the interaction)
-2. Why this is significant (emotional_significance as a score 0.0-1.0)
-3. Which existing memories (if any) should connect TO this new memory, along with:
+1. A simple identifier (e.g., M1, M2, M3) for referencing within this interaction
+2. Content: A rich, descriptive summary that captures what happened - the key insight, event, or fact being remembered
+3. Evidence: Exact quotes, specific dialogue, concrete facts, or precise details that prove this memory happened - the raw evidence
+4. Why this is significant (emotional_significance as a score 0.0-1.0)
+5. Which existing memories (if any) should connect TO this new memory, along with:
    - The reasoning for each connection
-   - The type of relationship (relates_to, explains, follows, or updates)
+   - The type of relationship (explained_by, explains, followed_by, updated_by, or caused)
    - ONLY use memory IDs from the "MY EXISTING MEMORIES IN CONTEXT" section above
 
-Connection types:
-- relates_to: General semantic connection between memories that share concepts or themes
-- explains: An existing memory explains, provides reasoning for, or gives context to this new memory
-- follows: An existing memory is a direct chronological predecessor or leads into this new memory
-- updates: This new memory contains information that supersedes, refines, or builds upon an existing memory
+I can also create connections between the new memories I'm forming by listing intra_connections that ONLY reference the memory IDs I assigned for this interaction (M1, M2, etc.). These intra_connections should NOT reference any existing memory IDs from the context above.
+
+Connection types (existing memory → new memory):
+- explained_by: Existing memory provides context/explanation for new memory
+- explains: Existing memory is explained/given context by new memory
+- followed_by: Existing memory is chronologically followed by new memory
+- updated_by: Existing memory is superseded/refined by new memory
+- caused: Existing memory caused/led to new memory
 
 I will only extract memories that are genuinely significant and create connections that are meaningful and clear.
 {f"Since there are no existing memories in context, I will NOT create any connections." if not context.elements else ""}"""
 
     class ConnectionType(str, Enum):
-        RELATES_TO = "relates_to"
+        EXPLAINED_BY = "explained_by"
         EXPLAINS = "explains"
-        FOLLOWS = "follows"
-        UPDATES = "updates"
+        FOLLOWED_BY = "followed_by"
+        UPDATED_BY = "updated_by"
+        CAUSED = "caused"
 
     class ConnectionFromExisting(BaseModel):
         """Connection from an existing memory to this new memory."""
@@ -141,10 +155,16 @@ I will only extract memories that are genuinely significant and create connectio
         )
 
     class MemoryExtraction(BaseModel):
+        id: str = Field(
+            description="Identifier for this memory (e.g., 'M1', 'M2', 'M3')"
+        )
         reasoning: str = Field(
             description="My reasoning for why this memory is significant"
         )
-        content: str = Field(description="The content of the memory")
+        content: str = Field(description="A rich, descriptive summary of what happened - the key insight, event, or fact being remembered")
+        evidence: str = Field(
+            description="Exact quotes, specific dialogue, concrete facts, or precise details that prove this memory - the raw evidence"
+        )
         emotional_significance: float = Field(
             description="Emotional significance of the memory", ge=0.0, le=1.0
         )
@@ -153,9 +173,28 @@ I will only extract memories that are genuinely significant and create connectio
             description="List of existing memories that should connect to this new memory",
         )
 
+    class IntraInteractionConnection(BaseModel):
+        """Connection between memories within this same interaction."""
+        reasoning: str = Field(
+            description="My reasoning for why these memories should be connected"
+        )
+        source_memory_id: str = Field(
+            description="ID of the source memory (from the memories being created)"
+        )
+        target_memory_id: str = Field(
+            description="ID of the target memory (from the memories being created)"
+        )
+        edge_type: ConnectionType = Field(
+            description="Type of connection between these memories"
+        )
+
     class MemoryExtractions(BaseModel):
         memories: List[MemoryExtraction] = Field(
             description="List of significant memories extracted"
+        )
+        intra_connections: List[IntraInteractionConnection] = Field(
+            default_factory=list,
+            description="Connections between memories within this same interaction"
         )
 
     try:
@@ -171,14 +210,21 @@ I will only extract memories that are genuinely significant and create connectio
         memories = []
         connections = []
 
+        # Create mapping from agent-assigned IDs to actual memory IDs
+        id_mapping = {}
+
         for extraction in response.memories:
             memory = create_context_element(
                 content=extraction.content,
+                evidence=extraction.evidence,
                 timestamp=trigger.timestamp,
                 emotional_significance=extraction.emotional_significance,
                 initial_tokens=int(extraction.emotional_significance * 100),
             )
             memories.append(memory)
+
+            # Map agent-assigned ID to actual memory ID
+            id_mapping[extraction.id] = memory.memory.id
 
             # Extract connections from existing memories to this new memory
             for connection in extraction.connections_from_existing:
@@ -186,6 +232,16 @@ I will only extract memories that are genuinely significant and create connectio
                     source_id=connection.source_memory_id,
                     target_id=memory.memory.id,
                     edge_type=MemoryEdgeType(connection.edge_type.value),
+                )
+                connections.append(edge)
+
+        # Extract intra-interaction connections between new memories
+        for intra_connection in response.intra_connections:
+            if intra_connection.source_memory_id in id_mapping and intra_connection.target_memory_id in id_mapping:
+                edge = MemoryEdge(
+                    source_id=id_mapping[intra_connection.source_memory_id],
+                    target_id=id_mapping[intra_connection.target_memory_id],
+                    edge_type=MemoryEdgeType(intra_connection.edge_type.value),
                 )
                 connections.append(edge)
 

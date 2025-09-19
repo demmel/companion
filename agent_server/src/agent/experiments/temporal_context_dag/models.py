@@ -15,6 +15,7 @@ class MemoryElement(BaseModel):
 
     id: str
     content: str
+    evidence: str
     timestamp: datetime
     emotional_significance: float = Field(ge=0.0, le=1.0)
     embedding_vector: Optional[List[float]] = None
@@ -28,10 +29,11 @@ class MemoryContainer(BaseModel):
 
 
 class MemoryEdgeType(str, Enum):
-    FOLLOWS = "follows"
-    UPDATES = "updates"
-    RELATES_TO = "relates_to"
+    FOLLOWED_BY = "followed_by"
+    UPDATED_BY = "updated_by"
+    EXPLAINED_BY = "explained_by"
     EXPLAINS = "explains"
+    CAUSED = "caused"
 
 
 class MemoryEdge(BaseModel):
