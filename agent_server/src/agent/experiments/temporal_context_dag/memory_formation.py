@@ -24,6 +24,7 @@ from .models import (
     MemoryGraph,
     MemoryEdgeType,
     MemoryElement,
+    ConfidenceLevel,
 )
 from .connection_system import decide_connections_llm
 from .context_formatting import format_context
@@ -35,6 +36,7 @@ def create_context_element(
     timestamp: datetime,
     emotional_significance: float,
     initial_tokens: int,
+    confidence_level: ConfidenceLevel,
 ) -> ContextElement:
     """Create a new memory element with given content and metadata."""
     return ContextElement(
@@ -44,6 +46,7 @@ def create_context_element(
             evidence=evidence,
             timestamp=timestamp,
             emotional_significance=emotional_significance,
+            confidence_level=confidence_level,
         ),
         tokens=initial_tokens,
     )
@@ -141,6 +144,12 @@ I will only extract memories that are genuinely significant and create connectio
         UPDATED_BY = "updated_by"
         CAUSED = "caused"
 
+    class ConfidenceLevelType(str, Enum):
+        USER_CONFIRMED = "user_confirmed"
+        STRONG_INFERENCE = "strong_inference"
+        REASONABLE_ASSUMPTION = "reasonable_assumption"
+        SPECULATIVE = "speculative"
+
     class ConnectionFromExisting(BaseModel):
         """Connection from an existing memory to this new memory."""
 
@@ -161,12 +170,37 @@ I will only extract memories that are genuinely significant and create connectio
         reasoning: str = Field(
             description="My reasoning for why this memory is significant"
         )
-        content: str = Field(description="A rich, descriptive summary of what happened - the key insight, event, or fact being remembered")
+        content: str = Field(
+            description="A rich, descriptive summary of what happened - the key insight, event, or fact being remembered"
+        )
         evidence: str = Field(
             description="Exact quotes, specific dialogue, concrete facts, or precise details that prove this memory - the raw evidence"
         )
         emotional_significance: float = Field(
             description="Emotional significance of the memory", ge=0.0, le=1.0
+        )
+        confidence_level: ConfidenceLevelType = Field(
+            description="How confident I am in this memory's accuracy",
+            json_schema_extra={
+                "enum": [
+                    {
+                        "value": ConfidenceLevelType.USER_CONFIRMED,
+                        "description": "Direct user statements/confirmations - highest reliability",
+                    },
+                    {
+                        "value": ConfidenceLevelType.STRONG_INFERENCE,
+                        "description": "High-confidence deductions from user input or my own verified actions",
+                    },
+                    {
+                        "value": ConfidenceLevelType.REASONABLE_ASSUMPTION,
+                        "description": "Logical assumptions that could be wrong but seem reasonable",
+                    },
+                    {
+                        "value": ConfidenceLevelType.SPECULATIVE,
+                        "description": "Uncertain inferences, especially about external world - use with caution",
+                    },
+                ]
+            },
         )
         connections_from_existing: List[ConnectionFromExisting] = Field(
             default_factory=list,
@@ -175,6 +209,7 @@ I will only extract memories that are genuinely significant and create connectio
 
     class IntraInteractionConnection(BaseModel):
         """Connection between memories within this same interaction."""
+
         reasoning: str = Field(
             description="My reasoning for why these memories should be connected"
         )
@@ -194,7 +229,7 @@ I will only extract memories that are genuinely significant and create connectio
         )
         intra_connections: List[IntraInteractionConnection] = Field(
             default_factory=list,
-            description="Connections between memories within this same interaction"
+            description="Connections between memories within this same interaction",
         )
 
     try:
@@ -214,12 +249,16 @@ I will only extract memories that are genuinely significant and create connectio
         id_mapping = {}
 
         for extraction in response.memories:
+            # Convert LLM confidence level to ConfidenceLevel enum
+            confidence_level = ConfidenceLevel(extraction.confidence_level.value)
+
             memory = create_context_element(
                 content=extraction.content,
                 evidence=extraction.evidence,
                 timestamp=trigger.timestamp,
                 emotional_significance=extraction.emotional_significance,
                 initial_tokens=int(extraction.emotional_significance * 100),
+                confidence_level=confidence_level,
             )
             memories.append(memory)
 
@@ -237,7 +276,10 @@ I will only extract memories that are genuinely significant and create connectio
 
         # Extract intra-interaction connections between new memories
         for intra_connection in response.intra_connections:
-            if intra_connection.source_memory_id in id_mapping and intra_connection.target_memory_id in id_mapping:
+            if (
+                intra_connection.source_memory_id in id_mapping
+                and intra_connection.target_memory_id in id_mapping
+            ):
                 edge = MemoryEdge(
                     source_id=id_mapping[intra_connection.source_memory_id],
                     target_id=id_mapping[intra_connection.target_memory_id],

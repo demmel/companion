@@ -9,8 +9,10 @@ EDGE_TYPE_REVERSAL = {
     MemoryEdgeType.EXPLAINED_BY: "explains",
     MemoryEdgeType.EXPLAINS: "explained_by",
     MemoryEdgeType.FOLLOWED_BY: "follows",
-    MemoryEdgeType.UPDATED_BY: "updates",
     MemoryEdgeType.CAUSED: "caused_by",
+    MemoryEdgeType.CONTRADICTED_BY: "contradicts",
+    MemoryEdgeType.CLARIFIED_BY: "clarifies",
+    MemoryEdgeType.RETRACTED_BY: "retracts",
 }
 
 
@@ -36,7 +38,9 @@ def format_element(
     timestamp = element.memory.timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
     lines = []
-    lines.append(f"{memory_id}: [{timestamp}]")
+    lines.append(
+        f"{memory_id}: [{timestamp}] (Confidence: {element.memory.confidence_level.value})"
+    )
     lines.append(f"  Content: {element.memory.content}")
     lines.append(f"  Evidence: {element.memory.evidence}")
 
@@ -77,15 +81,27 @@ def format_context(context: ContextGraph) -> str:
         "Memories are ordered chronologically (oldest to newest).",
         "Edges show relationships: -[edge_type]-> points to later memories, <-[edge_type]- points to earlier memories.",
         "",
+        "**Confidence Levels:**",
+        "- `user_confirmed`: Direct user statements/confirmations - highest reliability",
+        "- `strong_inference`: High-confidence deductions from user input",
+        "- `reasonable_assumption`: Logical assumptions that could be wrong",
+        "- `speculative`: Uncertain inferences - use with caution",
+        "- `likely_error`: Probably incorrect but not confirmed",
+        "- `known_false`: Definitively corrected/contradicted - treat as false",
+        "",
         "**Connection Types:**",
         "- `explained_by`: This memory is given context, background, or reasoning by another memory",
         "- `explains`: This memory provides context, background, or reasoning for another memory",
         "- `followed_by`: This memory happens before another memory in chronological sequence",
-        "- `updated_by`: This memory is superseded, corrected, or refined by newer information",
         "- `caused`: This memory directly caused, triggered, or led to another memory",
+        "- `contradicted_by`: This memory is definitively false, contradicted by another memory",
+        "- `clarified_by`: This memory was a misunderstanding, clarified by another memory",
+        "- `retracted_by`: This memory is completely withdrawn/retracted by another memory",
         "- `follows`: This memory happens after another memory in chronological sequence",
-        "- `updates`: This memory supersedes, corrects, or refines older information",
         "- `caused_by`: This memory was directly caused, triggered, or resulted from another memory",
+        "- `contradicts`: This memory definitively contradicts another memory as false",
+        "- `clarifies`: This memory clarifies a misunderstanding in another memory",
+        "- `retracts`: This memory completely withdraws/retracts another memory",
         "",
         "## Memories",
     ]

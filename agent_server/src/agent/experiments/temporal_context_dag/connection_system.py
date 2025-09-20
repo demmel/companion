@@ -23,9 +23,42 @@ from .models import (
     MemoryGraph,
     MemoryEdge,
     MemoryEdgeType,
+    ConfidenceLevel,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def update_confidence_for_correction_edge(graph: MemoryGraph, edge: MemoryEdge) -> None:
+    """
+    Update confidence level of source memory when correction edge is created.
+
+    Args:
+        graph: Memory graph containing the memories
+        edge: Correction edge that was just created
+    """
+    if edge.edge_type in {
+        MemoryEdgeType.CONTRADICTED_BY,
+        MemoryEdgeType.CLARIFIED_BY,
+        MemoryEdgeType.RETRACTED_BY,
+    }:
+        source_memory = graph.elements.get(edge.source_id)
+        if source_memory:
+            if edge.edge_type == MemoryEdgeType.CONTRADICTED_BY:
+                source_memory.confidence_level = ConfidenceLevel.KNOWN_FALSE
+                logger.info(
+                    f"  Updated confidence of memory {edge.source_id[:8]} to KNOWN_FALSE due to contradiction"
+                )
+            elif edge.edge_type == MemoryEdgeType.CLARIFIED_BY:
+                source_memory.confidence_level = ConfidenceLevel.LIKELY_ERROR
+                logger.info(
+                    f"  Updated confidence of memory {edge.source_id[:8]} to LIKELY_ERROR due to clarification"
+                )
+            elif edge.edge_type == MemoryEdgeType.RETRACTED_BY:
+                source_memory.confidence_level = ConfidenceLevel.KNOWN_FALSE
+                logger.info(
+                    f"  Updated confidence of memory {edge.source_id[:8]} to KNOWN_FALSE due to retraction"
+                )
 
 
 def build_connection_prompt(
@@ -105,8 +138,11 @@ def decide_connections_llm(
             EXPLAINED_BY = "explained_by"
             EXPLAINS = "explains"
             FOLLOWED_BY = "followed_by"
-            UPDATED_BY = "updated_by"
             CAUSED = "caused"
+            # New correction edge types
+            CONTRADICTED_BY = "contradicted_by"
+            CLARIFIED_BY = "clarified_by"
+            RETRACTED_BY = "retracted_by"
 
         class ConnectionDecision(BaseModel):
             """Agent's decision about connecting two memory elements."""
@@ -136,12 +172,20 @@ def decide_connections_llm(
                             "description": "Existing memory is chronologically followed by new memory",
                         },
                         {
-                            "value": ConnectionType.UPDATED_BY,
-                            "description": "Existing memory is superseded/refined by new memory",
-                        },
-                        {
                             "value": ConnectionType.CAUSED,
                             "description": "Existing memory caused/led to new memory",
+                        },
+                        {
+                            "value": ConnectionType.CONTRADICTED_BY,
+                            "description": "Existing memory is definitively false, contradicted by new memory",
+                        },
+                        {
+                            "value": ConnectionType.CLARIFIED_BY,
+                            "description": "Existing memory was a misunderstanding, clarified by new memory",
+                        },
+                        {
+                            "value": ConnectionType.RETRACTED_BY,
+                            "description": "Existing memory is completely withdrawn/retracted by new memory",
                         },
                     ]
                 },
@@ -212,8 +256,10 @@ def add_connections_to_graph(
             MemoryEdgeType.EXPLAINED_BY,
             MemoryEdgeType.EXPLAINS,
             MemoryEdgeType.FOLLOWED_BY,
-            MemoryEdgeType.UPDATED_BY,
             MemoryEdgeType.CAUSED,
+            MemoryEdgeType.CONTRADICTED_BY,
+            MemoryEdgeType.CLARIFIED_BY,
+            MemoryEdgeType.RETRACTED_BY,
         }
         if connection.edge_type not in agent_controlled_types:
             logger.warning(
@@ -233,6 +279,10 @@ def add_connections_to_graph(
         # Use the original edge object
         graph.edges[connection.id] = connection
         successfully_added.append(connection)
+
+        # Update confidence levels for correction edges
+        update_confidence_for_correction_edge(graph, connection)
+
         added_count += 1
         logger.info(f"  Successfully added connection {i+1}")
 

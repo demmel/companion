@@ -12,6 +12,7 @@ from .models import (
     MemoryEdge,
     MemoryGraph,
     MemoryEdgeType,
+    ConfidenceLevel,
 )
 
 from .memory_formation import (
@@ -47,6 +48,7 @@ __all__ = [
     "MemoryEdge",
     "MemoryGraph",
     "MemoryEdgeType",
+    "ConfidenceLevel",
     # Memory Formation
     "create_context_element",
     "extract_memories_from_interaction",

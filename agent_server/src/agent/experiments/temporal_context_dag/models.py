@@ -10,6 +10,17 @@ from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from pydantic import BaseModel, Field
 
 
+class ConfidenceLevel(str, Enum):
+    """Confidence levels for memory reliability."""
+
+    USER_CONFIRMED = "user_confirmed"
+    STRONG_INFERENCE = "strong_inference"
+    REASONABLE_ASSUMPTION = "reasonable_assumption"
+    SPECULATIVE = "speculative"
+    LIKELY_ERROR = "likely_error"
+    KNOWN_FALSE = "known_false"
+
+
 class MemoryElement(BaseModel):
     """Individual memory element containing a specific fact, event, or insight."""
 
@@ -18,6 +29,9 @@ class MemoryElement(BaseModel):
     evidence: str
     timestamp: datetime
     emotional_significance: float = Field(ge=0.0, le=1.0)
+    confidence_level: ConfidenceLevel = Field(
+        default=ConfidenceLevel.REASONABLE_ASSUMPTION
+    )
     embedding_vector: Optional[List[float]] = None
 
 
@@ -30,10 +44,13 @@ class MemoryContainer(BaseModel):
 
 class MemoryEdgeType(str, Enum):
     FOLLOWED_BY = "followed_by"
-    UPDATED_BY = "updated_by"
     EXPLAINED_BY = "explained_by"
     EXPLAINS = "explains"
     CAUSED = "caused"
+    # New correction edge types
+    CONTRADICTED_BY = "contradicted_by"
+    CLARIFIED_BY = "clarified_by"
+    RETRACTED_BY = "retracted_by"
 
 
 class MemoryEdge(BaseModel):
