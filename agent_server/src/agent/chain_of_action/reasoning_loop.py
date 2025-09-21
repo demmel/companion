@@ -77,25 +77,24 @@ class ActionBasedReasoningLoop:
         # Notify callback about trigger start
         callback.on_trigger_started(entry_id, trigger)
 
-        # Extract memory queries and retrieve relevant memories
-        from agent.memory.memory_extraction import (
-            extract_memory_queries,
-            retrieve_relevant_memories,
-        )
-
-        memory_extraction = extract_memory_queries(
-            state=state,
-            trigger=trigger,
-            trigger_history=trigger_history,
-            llm=llm,
-            model=model,
-        )
-
         # Use DAG context if available, otherwise use traditional memory retrieval
         if dag_memory_manager:
             dag_context = dag_memory_manager.get_current_context()
             relevant_memories = []  # Not used when DAG is enabled
         else:
+            # Extract memory queries and retrieve relevant memories
+            from agent.memory.memory_extraction import (
+                extract_memory_queries,
+                retrieve_relevant_memories,
+            )
+
+            memory_extraction = extract_memory_queries(
+                state=state,
+                trigger=trigger,
+                trigger_history=trigger_history,
+                llm=llm,
+                model=model,
+            )
             dag_context = None
             relevant_memories = (
                 retrieve_relevant_memories(

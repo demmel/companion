@@ -790,7 +790,7 @@ class Agent:
         assert self.state is not None, "State must be initialized before processing"
 
         # Process with trigger history integration
-        trigger_entry = self.action_reasoning_loop.process_trigger(
+        self.action_reasoning_loop.process_trigger(
             trigger=trigger,
             state=self.state,
             llm=self.llm,
