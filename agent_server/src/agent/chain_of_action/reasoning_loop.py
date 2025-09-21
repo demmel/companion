@@ -10,7 +10,9 @@ from agent.chain_of_action.action.action_data import (
     create_result_summary,
     WaitActionData,
 )
-from agent.experiments.temporal_context_dag.dag_memory_manager import DagMemoryManager
+from agent.experiments.temporal_context_dag import (
+    DagMemoryManager,
+)
 
 from .action_registry import ActionRegistry
 from .action_planner import ActionPlanner
@@ -231,7 +233,7 @@ class ActionBasedReasoningLoop:
                 model=model,
                 token_budget=token_budget,
                 action_registry=self.registry,
-                update_state=False,  # Agent manages its own state
+                # update_state=False,  # Agent manages its own state
             )
 
         # Emit completion event after adding to history

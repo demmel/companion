@@ -184,6 +184,12 @@ class Agent:
         assert (
             self.state is not None
         ), "Cannot save conversation without initialized state"
+        assert (
+            self.initial_exchange is not None
+        ), "Cannot save conversation without initial exchange"
+        assert (
+            self.dag_memory_manager is not None
+        ), "Cannot save conversation without DAG memory manager"
         logger.info(
             f"Saving conversation {self.conversation_id} with {len(self.trigger_history)} entries"
         )
@@ -202,19 +208,14 @@ class Agent:
 
         logger.info(f"Loading conversation {conversation_id}")
 
-        trigger_history, state, initial_exchange, dag_memory = (
-            self.persistence.load_conversation(conversation_id)
-        )
-
-        if state is None:
-            raise ValueError(f"Conversation {conversation_id} has no saved state")
+        agent_data = self.persistence.load_agent_data(conversation_id)
 
         self.reset_conversation()  # Clear existing history and state
 
-        self.state = state
-        self.initial_exchange = initial_exchange
-        self.trigger_history = trigger_history
-        self.dag_memory_manager = dag_memory
+        self.state = agent_data.state
+        self.initial_exchange = agent_data.initial_exchange
+        self.trigger_history = agent_data.trigger_history
+        self.dag_memory_manager = agent_data.dag_memory_manager
 
     def get_conversation_id(self) -> Optional[str]:
         """Get the current conversation ID"""
@@ -420,7 +421,7 @@ class Agent:
 
             # Initialize DAG memory system if enabled
             if self.enable_dag_memory:
-                from agent.experiments.temporal_context_dag.dag_memory_manager import (
+                from agent.experiments.temporal_context_dag import (
                     DagMemoryManager,
                 )
 

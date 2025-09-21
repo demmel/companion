@@ -2,18 +2,12 @@
 Functions for formatting context graphs for display in prompts.
 """
 
-from .models import ContextElement, ContextGraph, MemoryEdge, MemoryEdgeType
-
-# Mapping for reversing edge type wording in backward edges for clarity
-EDGE_TYPE_REVERSAL = {
-    MemoryEdgeType.EXPLAINED_BY: "explains",
-    MemoryEdgeType.EXPLAINS: "explained_by",
-    MemoryEdgeType.FOLLOWED_BY: "follows",
-    MemoryEdgeType.CAUSED: "caused_by",
-    MemoryEdgeType.CONTRADICTED_BY: "contradicts",
-    MemoryEdgeType.CLARIFIED_BY: "clarifies",
-    MemoryEdgeType.RETRACTED_BY: "retracts",
-}
+from agent.experiments.temporal_context_dag.edge_types import (
+    REVERSE_MAPPING,
+    EdgeType,
+    get_context_descrioptions,
+)
+from .models import ContextElement, ContextGraph, MemoryEdge
 
 
 def format_element(
@@ -52,9 +46,8 @@ def format_element(
     # Format backward edges (reverse the edge type wording for clarity)
     for edge in backward_edges:
         source_id = edge.source_id[:8]
-        reversed_edge_type = EDGE_TYPE_REVERSAL.get(
-            edge.edge_type, edge.edge_type.value
-        )
+
+        reversed_edge_type = REVERSE_MAPPING[EdgeType(edge.edge_type.value)]
         lines.append(f"  <-[{reversed_edge_type}]- {source_id}")
 
     return "\n".join(lines)
@@ -89,19 +82,7 @@ def format_context(context: ContextGraph) -> str:
         "- `likely_error`: Probably incorrect but not confirmed",
         "- `known_false`: Definitively corrected/contradicted - treat as false",
         "",
-        "**Connection Types:**",
-        "- `explained_by`: This memory is given context, background, or reasoning by another memory",
-        "- `explains`: This memory provides context, background, or reasoning for another memory",
-        "- `followed_by`: This memory happens before another memory in chronological sequence",
-        "- `caused`: This memory directly caused, triggered, or led to another memory",
-        "- `contradicted_by`: This memory is definitively false, contradicted by another memory",
-        "- `clarified_by`: This memory was a misunderstanding, clarified by another memory",
-        "- `retracted_by`: This memory is completely withdrawn/retracted by another memory",
-        "- `follows`: This memory happens after another memory in chronological sequence",
-        "- `caused_by`: This memory was directly caused, triggered, or resulted from another memory",
-        "- `contradicts`: This memory definitively contradicts another memory as false",
-        "- `clarifies`: This memory clarifies a misunderstanding in another memory",
-        "- `retracts`: This memory completely withdraws/retracts another memory",
+        *get_context_descrioptions(),
         "",
         "## Memories",
     ]

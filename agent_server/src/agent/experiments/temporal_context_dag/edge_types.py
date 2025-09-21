@@ -1,0 +1,163 @@
+"""
+Consolidated edge type definitions with clean hierarchy:
+ReversibleEdgeType ⊃ MemoryEdgeType ⊃ ConnectionType
+"""
+
+from enum import Enum
+
+
+class EdgeType(str, Enum):
+    """All possible edge types including forward and reverse forms."""
+
+    FOLLOWS = "follows"
+    FOLLOWED_BY = "followed_by"
+
+    EXPLAINS = "explains"
+    EXPLAINED_BY = "explained_by"
+
+    CAUSED = "caused"
+    CAUSED_BY = "caused_by"
+
+    CONTRADICTS = "contradicts"
+    CONTRADICTED_BY = "contradicted_by"
+
+    CLARIFIES = "clarifies"
+    CLARIFIED_BY = "clarified_by"
+
+    RETRACTS = "retracts"
+    RETRACTED_BY = "retracted_by"
+
+
+class GraphEdgeType(str, Enum):
+    """Edge types that can exist in memory graph - subset of ReversibleEdgeType."""
+
+    FOLLOWED_BY = EdgeType.FOLLOWED_BY.value
+    EXPLAINED_BY = EdgeType.EXPLAINED_BY.value
+    EXPLAINS = EdgeType.EXPLAINS.value
+    CAUSED = EdgeType.CAUSED.value
+    CONTRADICTED_BY = EdgeType.CONTRADICTED_BY.value
+    CLARIFIED_BY = EdgeType.CLARIFIED_BY.value
+    RETRACTED_BY = EdgeType.RETRACTED_BY.value
+
+
+class AgentControlledEdgeType(str, Enum):
+    """Edge types agents can create - subset of MemoryEdgeType."""
+
+    FOLLOWED_BY = GraphEdgeType.FOLLOWED_BY.value
+    EXPLAINED_BY = GraphEdgeType.EXPLAINED_BY.value
+    EXPLAINS = GraphEdgeType.EXPLAINS.value
+    CAUSED = GraphEdgeType.CAUSED.value
+    CONTRADICTED_BY = GraphEdgeType.CONTRADICTED_BY.value
+    CLARIFIED_BY = GraphEdgeType.CLARIFIED_BY.value
+    RETRACTED_BY = GraphEdgeType.RETRACTED_BY.value
+
+
+def get_prompt_description(edge_type: AgentControlledEdgeType) -> str:
+    """Get prompt description for edge type - statically exhaustive."""
+    match edge_type:
+        case AgentControlledEdgeType.FOLLOWED_BY:
+            return "Existing memory is chronologically followed by new memory"
+        case AgentControlledEdgeType.EXPLAINED_BY:
+            return "Existing memory provides context/explanation for new memory"
+        case AgentControlledEdgeType.EXPLAINS:
+            return "Existing memory is explained/given context by new memory"
+        case AgentControlledEdgeType.CAUSED:
+            return "Existing memory caused/led to new memory"
+        case AgentControlledEdgeType.CONTRADICTED_BY:
+            return "Existing memory is definitively false, contradicted by new memory"
+        case AgentControlledEdgeType.CLARIFIED_BY:
+            return "Existing memory was a misunderstanding, clarified by new memory"
+        case AgentControlledEdgeType.RETRACTED_BY:
+            return "Existing memory is completely withdrawn/retracted by new memory"
+
+
+def get_context_description(edge_type: EdgeType) -> str:
+    """Get context description for edge type - statically exhaustive."""
+    match edge_type:
+        case EdgeType.EXPLAINS:
+            return "This memory provides context, background, or reasoning for another memory"
+        case EdgeType.EXPLAINED_BY:
+            return "This memory is given context, background, or reasoning by another memory"
+        case EdgeType.FOLLOWS:
+            return "This memory happens after another memory in chronological sequence"
+        case EdgeType.FOLLOWED_BY:
+            return "This memory happens before another memory in chronological sequence"
+        case EdgeType.CAUSED:
+            return "This memory directly caused, triggered, or led to another memory"
+        case EdgeType.CAUSED_BY:
+            return "This memory was directly caused, triggered, or resulted from another memory"
+        case EdgeType.CONTRADICTS:
+            return "This memory definitively contradicts another memory as false"
+        case EdgeType.CONTRADICTED_BY:
+            return "This memory is definitively false, contradicted by another memory"
+        case EdgeType.CLARIFIES:
+            return "This memory clarifies a misunderstanding in another memory"
+        case EdgeType.CLARIFIED_BY:
+            return "This memory was a misunderstanding, clarified by another memory"
+        case EdgeType.RETRACTS:
+            return "This memory completely withdraws/retracts another memory"
+        case EdgeType.RETRACTED_BY:
+            return "This memory is completely withdrawn/retracted by another memory"
+
+
+REVERSALS = [
+    (EdgeType.FOLLOWS, EdgeType.FOLLOWED_BY),
+    (EdgeType.EXPLAINS, EdgeType.EXPLAINED_BY),
+    (EdgeType.CAUSED, EdgeType.CAUSED_BY),
+    (EdgeType.CONTRADICTS, EdgeType.CONTRADICTED_BY),
+    (EdgeType.CLARIFIES, EdgeType.CLARIFIED_BY),
+    (EdgeType.RETRACTS, EdgeType.RETRACTED_BY),
+]
+
+REVERSE_MAPPING = {a: b for a, b in REVERSALS}
+REVERSE_MAPPING.update({b: a for a, b in REVERSALS})
+assert set(REVERSE_MAPPING.keys()) == set(
+    EdgeType
+), "Reverse mapping must cover all edge types"
+
+
+def get_prompt_type_list():
+    """Get comma-separated list for prompts."""
+    return ", ".join(e.value for e in AgentControlledEdgeType)
+
+
+def get_memory_formation_descriptions():
+    """Get connection descriptions for prompts."""
+    lines = ["Connection types (existing memory → new memory):"]
+    for t in AgentControlledEdgeType:
+        lines.append(f"- {t.value}: {get_prompt_description(t)}")
+    return "\n".join(lines)
+
+
+def get_context_descrioptions():
+    """Get context documentation lines."""
+    lines = ["**Connection Types:**"]
+    # Forward descriptions
+    for t in EdgeType:
+        lines.append(f"- `{t.value}`: {get_context_description(t)}")
+    return lines
+
+
+def validate_hierarchy():
+    """Validate the enum hierarchy: ReversibleEdgeType ⊃ MemoryEdgeType ⊃ ConnectionType."""
+    reversible_values = {e.value for e in EdgeType}
+    memory_values = {e.value for e in GraphEdgeType}
+    connection_values = {e.value for e in AgentControlledEdgeType}
+
+    # Check MemoryEdgeType ⊆ ReversibleEdgeType
+    invalid_memory = memory_values - reversible_values
+    if invalid_memory:
+        raise ValueError(
+            f"MemoryEdgeType contains values not in ReversibleEdgeType: {invalid_memory}"
+        )
+
+    # Check ConnectionType ⊆ MemoryEdgeType
+    invalid_connection = connection_values - memory_values
+    if invalid_connection:
+        raise ValueError(
+            f"ConnectionType contains values not in MemoryEdgeType: {invalid_connection}"
+        )
+
+
+# Validate hierarchy on import
+validate_hierarchy()

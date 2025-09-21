@@ -11,7 +11,7 @@ from .models import (
     MemoryContainer,
     MemoryEdge,
     MemoryGraph,
-    MemoryEdgeType,
+    GraphEdgeType,
     ConfidenceLevel,
 )
 
@@ -23,21 +23,37 @@ from .memory_formation import (
 )
 
 from .connection_system import (
-    build_connection_prompt,
-    decide_connections_llm,
     add_connections_to_graph,
-    detect_similar_memories,
-)
-
-
-from .io import (
-    save_dag_to_json,
-    load_dag_from_json,
 )
 
 
 from .context_formatting import (
     format_context,
+)
+
+# Action-based components
+from .actions import (
+    MemoryAction,
+    AddMemoryAction,
+    AddEdgeAction,
+    UpdateConfidenceAction,
+    AddToContextAction,
+    AddEdgeToContextAction,
+    RemoveFromContextAction,
+    AddContainerAction,
+    CheckpointAction,
+)
+
+from .action_log import (
+    MemoryActionLog,
+)
+
+# from .dag_memory_manager import (
+#     DagMemoryManager,
+# )
+
+from .action_dag_memory_manager import (
+    DagMemoryManager,
 )
 
 __all__ = [
@@ -47,7 +63,7 @@ __all__ = [
     "MemoryContainer",
     "MemoryEdge",
     "MemoryGraph",
-    "MemoryEdgeType",
+    "GraphEdgeType",
     "ConfidenceLevel",
     # Memory Formation
     "create_context_element",
@@ -55,13 +71,20 @@ __all__ = [
     "create_memory_container",
     "add_memory_container_to_graph",
     # Connection System
-    "build_connection_prompt",
-    "decide_connections_llm",
     "add_connections_to_graph",
-    "detect_similar_memories",
-    # I/O
-    "save_dag_to_json",
-    "load_dag_from_json",
     # Context Formatting
     "format_context",
+    # Memory Managers
+    "DagMemoryManager",
+    # Action-based components
+    "MemoryAction",
+    "AddMemoryAction",
+    "AddEdgeAction",
+    "UpdateConfidenceAction",
+    "AddToContextAction",
+    "AddEdgeToContextAction",
+    "RemoveFromContextAction",
+    "AddContainerAction",
+    "CheckpointAction",
+    "MemoryActionLog",
 ]

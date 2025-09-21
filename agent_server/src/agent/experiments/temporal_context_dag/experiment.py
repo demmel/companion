@@ -5,7 +5,6 @@ from agent.conversation_persistence import AgentData, ConversationPersistence
 from agent.experiments.temporal_context_dag.connection_system import (
     add_connections_to_graph,
 )
-from agent.experiments.temporal_context_dag.io import save_dag_to_json
 from agent.experiments.temporal_context_dag.memory_formation import (
     add_memory_container_to_graph,
     create_memory_container,
@@ -129,7 +128,6 @@ def build_graph_from_triggers(
         graph, context, state = process_trigger(
             graph, context, state, trigger, llm, model, token_budget, action_registry
         )
-        save_dag_to_json(graph, "output_dag.json")
 
     return graph
 

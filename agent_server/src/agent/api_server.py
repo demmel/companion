@@ -73,7 +73,10 @@ class ImageUploadResponse(BaseModel):
 
 # Set up logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(name)-64s | %(levelname)-8s | %(message)s",
+)
 
 
 def initialize_agent(load: bool) -> Agent:
@@ -97,6 +100,7 @@ def initialize_agent(load: bool) -> Agent:
 
             logger.error(f"Failed to load conversation: {e}")
             logger.error(f"Full traceback:\n{traceback.format_exc()}")
+            logger.info("Starting with a fresh agent instead")
 
     return agent
 

@@ -10,6 +10,12 @@ from enum import Enum
 
 from agent.chain_of_action.prompts import format_section, format_single_trigger_entry
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.experiments.temporal_context_dag.edge_types import (
+    AgentControlledEdgeType,
+    GraphEdgeType,
+    get_prompt_type_list,
+    get_memory_formation_descriptions,
+)
 from agent.llm import LLM, SupportedModel
 from agent.state import State, build_agent_state_description
 
@@ -22,12 +28,9 @@ from .models import (
     MemoryContainer,
     MemoryEdge,
     MemoryGraph,
-    MemoryEdgeType,
     MemoryElement,
     ConfidenceLevel,
 )
-from .connection_system import decide_connections_llm
-from .context_formatting import format_context
 
 
 def create_context_element(
@@ -122,27 +125,15 @@ For each significant memory, I will provide:
 4. Why this is significant (emotional_significance as a score 0.0-1.0)
 5. Which existing memories (if any) should connect TO this new memory, along with:
    - The reasoning for each connection
-   - The type of relationship (explained_by, explains, followed_by, updated_by, or caused)
+   - The type of relationship ({get_prompt_type_list()})
    - ONLY use memory IDs from the "MY EXISTING MEMORIES IN CONTEXT" section above
 
 I can also create connections between the new memories I'm forming by listing intra_connections that ONLY reference the memory IDs I assigned for this interaction (M1, M2, etc.). These intra_connections should NOT reference any existing memory IDs from the context above.
 
-Connection types (existing memory → new memory):
-- explained_by: Existing memory provides context/explanation for new memory
-- explains: Existing memory is explained/given context by new memory
-- followed_by: Existing memory is chronologically followed by new memory
-- updated_by: Existing memory is superseded/refined by new memory
-- caused: Existing memory caused/led to new memory
+{get_memory_formation_descriptions()}
 
 I will only extract memories that are genuinely significant and create connections that are meaningful and clear.
 {f"Since there are no existing memories in context, I will NOT create any connections." if not context.elements else ""}"""
-
-    class ConnectionType(str, Enum):
-        EXPLAINED_BY = "explained_by"
-        EXPLAINS = "explains"
-        FOLLOWED_BY = "followed_by"
-        UPDATED_BY = "updated_by"
-        CAUSED = "caused"
 
     class ConfidenceLevelType(str, Enum):
         USER_CONFIRMED = "user_confirmed"
@@ -159,7 +150,7 @@ I will only extract memories that are genuinely significant and create connectio
         source_memory_id: str = Field(
             description="ID of the existing memory that should connect to this new memory"
         )
-        edge_type: ConnectionType = Field(
+        edge_type: AgentControlledEdgeType = Field(
             description="Type of connection from the existing memory to this new memory"
         )
 
@@ -219,7 +210,7 @@ I will only extract memories that are genuinely significant and create connectio
         target_memory_id: str = Field(
             description="ID of the target memory (from the memories being created)"
         )
-        edge_type: ConnectionType = Field(
+        edge_type: AgentControlledEdgeType = Field(
             description="Type of connection between these memories"
         )
 
@@ -270,7 +261,7 @@ I will only extract memories that are genuinely significant and create connectio
                 edge = MemoryEdge(
                     source_id=connection.source_memory_id,
                     target_id=memory.memory.id,
-                    edge_type=MemoryEdgeType(connection.edge_type.value),
+                    edge_type=GraphEdgeType(connection.edge_type.value),
                 )
                 connections.append(edge)
 
@@ -283,7 +274,7 @@ I will only extract memories that are genuinely significant and create connectio
                 edge = MemoryEdge(
                     source_id=id_mapping[intra_connection.source_memory_id],
                     target_id=id_mapping[intra_connection.target_memory_id],
-                    edge_type=MemoryEdgeType(intra_connection.edge_type.value),
+                    edge_type=GraphEdgeType(intra_connection.edge_type.value),
                 )
                 connections.append(edge)
 
@@ -328,52 +319,3 @@ def add_memory_container_to_graph(
     graph.containers[container.trigger.entry_id] = container
 
     return graph
-
-
-def create_intelligent_connections(
-    graph: MemoryGraph,
-    context: ContextGraph,
-    state: State,
-    new_container: MemoryContainer,
-    llm: LLM,
-    model: SupportedModel,
-) -> List[MemoryEdge]:
-    """
-    Create intelligent connections between new memories and existing context.
-
-    Args:
-        graph: Memory graph to update
-        new_container: Container with new memories to connect
-        llm: LLM instance for connection decisions
-        model: Model to use for connection decisions
-        context_budget: Token budget for selecting context memories
-
-    Returns:
-        Updated memory graph with new connections
-    """
-    # Get new memories from the container
-    new_memories = [graph.elements[elem_id] for elem_id in new_container.element_ids]
-    context_memories = context.elements
-
-    if not new_memories or not context_memories:
-        logger.info(
-            f"  Skipping connections: new_memories={len(new_memories)}, context_memories={len(context_memories)}"
-        )
-        return []
-
-    logger.info(
-        f"  Making LLM call with {len(new_memories)} new memories and {len(context_memories)} context memories"
-    )
-
-    # Use LLM to decide connections
-    connections = decide_connections_llm(
-        state=state,
-        new_memories=new_memories,
-        context_memories=[cm.memory for cm in context_memories],
-        llm=llm,
-        model=model,
-    )
-
-    logger.info(f"  LLM returned {len(connections)} connections")
-
-    return connections

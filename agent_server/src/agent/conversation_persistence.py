@@ -10,7 +10,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from agent.experiments.temporal_context_dag.dag_memory_manager import DagMemoryManager
+from agent.timeit import timeit
+from agent.experiments.temporal_context_dag import (
+    DagMemoryManager,
+)
+from agent.experiments.temporal_context_dag.action_log import MemoryActionLog
 
 from .state import State
 from .chain_of_action.trigger_history import (
@@ -25,7 +29,7 @@ from typing import List
 class ConversationData(BaseModel):
     """Serializable agent data for persistence"""
 
-    initial_exchange: TriggerHistoryEntry | None = Field(default=None)
+    initial_exchange: TriggerHistoryEntry
     entries: List[TriggerHistoryEntry]
     summaries: List[SummaryRecord]
 
@@ -35,8 +39,9 @@ class AgentData:
     """Serializable agent data for persistence"""
 
     trigger_history: TriggerHistory
-    state: State | None
-    initial_exchange: TriggerHistoryEntry | None
+    state: State
+    initial_exchange: TriggerHistoryEntry
+    dag_memory_manager: DagMemoryManager
 
 
 class ConversationPersistence:
@@ -58,9 +63,9 @@ class ConversationPersistence:
         conversation_id: str,
         state: State,
         trigger_history: TriggerHistory,
-        initial_exchange: Optional[TriggerHistoryEntry],
+        initial_exchange: TriggerHistoryEntry,
+        dag_memory_manager: DagMemoryManager,
         save_baseline: bool = True,
-        dag_memory_manager: Optional[DagMemoryManager] = None,
     ) -> None:
         """Save a conversation with its state and optional trigger history"""
 
@@ -81,8 +86,8 @@ class ConversationPersistence:
         prefix: str,
         state: State,
         trigger_history: TriggerHistory,
-        initial_exchange: Optional[TriggerHistoryEntry],
-        dag_memory_manager: Optional[DagMemoryManager] = None,
+        initial_exchange: TriggerHistoryEntry,
+        dag_memory_manager: DagMemoryManager,
     ) -> None:
         """Save the state and trigger history for a conversation"""
         state_file = self._state_file_name(prefix)
@@ -101,53 +106,64 @@ class ConversationPersistence:
         # Save DAG memory data if present
         if dag_memory_manager:
             dag_file = self._dag_file_name(prefix)
-            dag_memory_manager.save_to_file(dag_file)
+            with timeit("Saving DAG memory to file"):
+                dag_memory_manager.save_to_file(dag_file)
+            with timeit("Saving DAG memory action log to file"):
+                dag_memory_manager.save_action_log(
+                    self._dag_action_log_file_name(prefix)
+                )
 
     def load_agent_data(self, prefix: str) -> AgentData:
         """Load agent data (state and trigger history) from conversation files with given prefix"""
-        trigger_history, state, initial_exchange, _ = self.load_conversation(prefix)
-        return AgentData(
-            trigger_history=trigger_history,
-            initial_exchange=initial_exchange,
-            state=state,
-        )
-
-    def load_conversation(
-        self,
-        prefix: str,
-    ) -> tuple[
-        TriggerHistory,
-        State | None,
-        TriggerHistoryEntry | None,
-        DagMemoryManager | None,
-    ]:
-        """Load trigger history and state from conversation files with given prefix"""
 
         trigger_file = self._trigger_file_name(prefix)
         state_file = self._state_file_name(prefix)
+        dag_file = self._dag_file_name(prefix)
+        dag_action_log_file = self._dag_action_log_file_name(prefix)
+
+        if not os.path.exists(trigger_file):
+            raise FileNotFoundError(f"Trigger file not found: {trigger_file}")
+
+        if not os.path.exists(state_file):
+            raise FileNotFoundError(f"State file not found: {state_file}")
+
+        if not os.path.exists(dag_file):
+            raise FileNotFoundError(f"DAG memory file not found: {dag_file}")
+
+        if not os.path.exists(dag_action_log_file):
+            raise FileNotFoundError(
+                f"DAG action log file not found: {dag_action_log_file}"
+            )
 
         # Load trigger history
         trigger_history = TriggerHistory()
-        initial_exchange = None
-        if os.path.exists(trigger_file):
-            with open(trigger_file, "r") as f:
-                trigger_data = ConversationData.model_validate(json.load(f))
-                # Populate the trigger history
-                initial_exchange = trigger_data.initial_exchange
-                trigger_history.entries = trigger_data.entries
-                trigger_history.summaries = trigger_data.summaries
+        with open(trigger_file, "r") as f:
+            trigger_data = ConversationData.model_validate(json.load(f))
+            # Populate the trigger history
+            initial_exchange = trigger_data.initial_exchange
+            trigger_history.entries = trigger_data.entries
+            trigger_history.summaries = trigger_data.summaries
 
         # Load state
-        state = None
-        if os.path.exists(state_file):
-            with open(state_file, "r") as f:
-                state = State.model_validate(json.load(f))
+        with open(state_file, "r") as f:
+            state = State.model_validate(json.load(f))
 
-        dag = None
-        if os.path.exists(self._dag_file_name(prefix)):
+        with timeit("Loading DAG memory from file"):
             dag = DagMemoryManager.load_from_file(self._dag_file_name(prefix))
+        with timeit("Loading DAG memory action log from file"):
+            action_log = MemoryActionLog.load_from_file(
+                self._dag_action_log_file_name(prefix)
+            )
+        dag.action_log = action_log
+        with timeit("Replaying DAG memory action log"):
+            _, _ = dag.action_log.replay_from_empty()
 
-        return trigger_history, state, initial_exchange, dag
+        return AgentData(
+            trigger_history=trigger_history,
+            state=state,
+            initial_exchange=initial_exchange,
+            dag_memory_manager=dag,
+        )
 
     def _trigger_file_name(self, prefix: str) -> str:
         """Get the trigger file name for a conversation"""
@@ -160,3 +176,7 @@ class ConversationPersistence:
     def _dag_file_name(self, prefix: str) -> str:
         """Get the DAG memory file name for a conversation"""
         return f"{self.conversations_dir}/{prefix}_dag.json"
+
+    def _dag_action_log_file_name(self, prefix: str) -> str:
+        """Get the DAG memory action log file name for a conversation"""
+        return f"{self.conversations_dir}/{prefix}_dag_actions.json"

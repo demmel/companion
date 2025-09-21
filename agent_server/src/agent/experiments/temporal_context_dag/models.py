@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 from enum import Enum
 import uuid
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.experiments.temporal_context_dag.edge_types import GraphEdgeType
 from pydantic import BaseModel, Field
 
 
@@ -42,24 +43,13 @@ class MemoryContainer(BaseModel):
     element_ids: List[str]  # References to elements in graph
 
 
-class MemoryEdgeType(str, Enum):
-    FOLLOWED_BY = "followed_by"
-    EXPLAINED_BY = "explained_by"
-    EXPLAINS = "explains"
-    CAUSED = "caused"
-    # New correction edge types
-    CONTRADICTED_BY = "contradicted_by"
-    CLARIFIED_BY = "clarified_by"
-    RETRACTED_BY = "retracted_by"
-
-
 class MemoryEdge(BaseModel):
     """Directed edge connecting two memory elements with relationship type."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     source_id: str
     target_id: str
-    edge_type: MemoryEdgeType
+    edge_type: GraphEdgeType
     created_at: datetime = Field(default_factory=datetime.now)
 
 
