@@ -48,11 +48,8 @@ from .action_log import (
     MemoryActionLog,
 )
 
-# from .dag_memory_manager import (
-#     DagMemoryManager,
-# )
 
-from .action_dag_memory_manager import (
+from .dag_memory_manager import (
     DagMemoryManager,
 )
 

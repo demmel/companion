@@ -1,25 +1,30 @@
 """
-DAG Memory Manager - Standalone memory management component for DAG-based context system.
+Action-based DAG Memory Manager that uses the reducer+action pattern for observability.
 
-This manager encapsulates all DAG memory functionality and provides a clean interface
-for memory formation, context management, and persistence without requiring integration
-with the main agent system.
+This manager emits actions instead of directly mutating state, enabling time-travel
+debugging and complete replay of memory graph evolution.
 """
 
 import logging
+from typing import Sequence
 
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.experiments.temporal_context_dag.memory_formation import (
+    extract_memories_as_actions,
+)
 from agent.llm import LLM, SupportedModel
 from agent.state import State
 from pydantic import BaseModel
 
 from .models import ContextElement, ContextGraph, MemoryGraph
-from .experiment_helpers import (
-    calculate_context_budget,
-    create_initial_context_subgraph,
-    create_initial_graph,
+from .actions import MemoryAction, CheckpointAction
+from .action_log import MemoryActionLog
+from .context_management import (
+    prune_context_to_budget_as_actions,
 )
+from .reducer import apply_action
+from .experiment_helpers import calculate_context_budget
 
 logger = logging.getLogger(__name__)
 
@@ -41,23 +46,17 @@ class DagMemoryData(BaseModel):
 
 class DagMemoryManager:
     """
-    Standalone DAG memory management system.
+    Action-based DAG memory management system with full observability.
 
-    Manages memory formation, connections, and context extraction using the DAG-based
-    approach. Can be used independently or integrated into an agent system.
+    Uses reducer+action pattern where all state changes are recorded as actions
+    that can be replayed to reconstruct any historical state.
     """
 
     def __init__(self, memory_graph: MemoryGraph, context_graph: ContextGraph):
-        """
-        Initialize the DAG memory manager.
-
-        Args:
-            llm: LLM instance for memory extraction and connections
-            model: Model to use for memory operations
-            token_budget: Total token budget for context management
-        """
+        """Initialize with existing graph state and empty action log."""
         self.memory_graph = memory_graph
         self.context_graph = context_graph
+        self.action_log = MemoryActionLog()
 
     @classmethod
     def create(
@@ -68,21 +67,83 @@ class DagMemoryManager:
         action_registry: ActionRegistry,
     ) -> "DagMemoryManager":
         """
-        Initialize the memory system from an initial trigger (character definition).
+        Create a new manager with initial state creation recorded as actions.
 
         Args:
-            initial_trigger: The initial character definition trigger
+            initial_state: Initial agent state
+            backstory: Agent backstory for initial memories
+            token_budget: Token budget for context management
+            action_registry: Action registry for budget calculation
         """
-        # Derive initial state and create initial graph
-        memory_graph = create_initial_graph(initial_state, backstory)
+        from .experiment_helpers import (
+            create_initial_graph,
+            create_initial_context_subgraph,
+        )
+        from .actions import AddMemoryAction, AddToContextAction, AddContainerAction
 
-        # Create initial context subgraph
+        # Start with completely empty state
+        manager = cls(MemoryGraph(), ContextGraph(elements=[], edges=[]))
+
+        # Record that we're starting initial creation
+        manager.action_log.add_checkpoint(
+            label="creation_start", description="Starting initial state creation"
+        )
+
+        # Create initial state using existing logic but capture as actions
+        temp_memory_graph = create_initial_graph(initial_state, backstory)
         context_budget = calculate_context_budget(
             token_budget, initial_state, action_registry
         )
-        context_graph = create_initial_context_subgraph(memory_graph, context_budget)
+        temp_context_graph = create_initial_context_subgraph(
+            temp_memory_graph, context_budget
+        )
 
-        return cls(memory_graph, context_graph)
+        # Convert initial memories to actions
+        initial_actions = []
+
+        # Add all initial memories
+        for memory in temp_memory_graph.elements.values():
+            initial_actions.append(AddMemoryAction(memory=memory))
+
+        # Add all initial memories to context
+        for context_element in temp_context_graph.elements:
+            initial_actions.append(AddToContextAction(context_element=context_element))
+
+        # Add all initial containers
+        for container in temp_memory_graph.containers.values():
+            initial_actions.append(
+                AddContainerAction(
+                    container_id=container.trigger.entry_id,
+                    element_ids=container.element_ids,
+                    trigger_timestamp=container.trigger.timestamp,
+                )
+            )
+
+        # Dispatch all initial actions
+        manager.dispatch_actions(initial_actions)
+
+        # Record completion of initial state
+        manager.action_log.add_checkpoint(
+            label="initial_state_complete",
+            description=f"Completed initial state creation with {len(manager.memory_graph.elements)} memories",
+        )
+
+        return manager
+
+    def dispatch_actions(self, actions: Sequence[MemoryAction]) -> None:
+        """
+        Dispatch a list of actions to update the memory graph and context.
+
+        Args:
+            actions: List of actions to apply
+        """
+        for action in actions:
+            self.action_log.add_action(action)
+            apply_action(self.memory_graph, self.context_graph, action)
+
+    def add_checkpoint(self, label: str, description: str) -> CheckpointAction:
+        """Add a checkpoint to the action log."""
+        return self.action_log.add_checkpoint(label, description)
 
     def process_trigger(
         self,
@@ -92,49 +153,113 @@ class DagMemoryManager:
         model: SupportedModel,
         token_budget: int,
         action_registry: ActionRegistry,
-        update_state: bool = False,
     ) -> None:
         """
-        Process a trigger and update the memory graph and context.
+        Process a trigger using action-based approach.
+
+        Generates actions for memory extraction, connection formation, and context management,
+        then dispatches them to update the state.
 
         Args:
             trigger: The trigger history entry to process
-            current_state: Current agent state (used for context, may be mutated)
-            update_state: Whether to update the manager's internal state (for retroactive building)
+            state: Current agent state
+            llm: LLM instance for memory operations
+            model: Model to use for decisions
+            token_budget: Token budget for context management
+            action_registry: Action registry for budget calculation
         """
+        logger.info(f"Processing trigger {trigger.entry_id} with action-based approach")
 
-        # Use the existing process_trigger function from experiment.py
-        from .experiment import process_trigger
-
-        self.memory_graph, self.context_graph, self.state = process_trigger(
-            graph=self.memory_graph,
-            context=self.context_graph,
-            state=state,
-            trigger=trigger,
-            llm=llm,
-            model=model,
-            token_budget=token_budget,
-            action_registry=action_registry,
-            update_state=update_state,
+        # Checkpoint: Start of trigger processing
+        self.add_checkpoint(
+            label=f"trigger_start_{trigger.entry_id}",
+            description=f"Starting processing of trigger {trigger.entry_id}",
         )
 
-    def get_current_context(self) -> ContextGraph:
-        """
-        Get the current context graph (working memory).
+        # Extract memories and connections as actions
+        memory_actions = extract_memories_as_actions(
+            trigger, state, self.context_graph, llm, model
+        )
 
-        Returns:
-            The current context graph containing relevant memories within token budget
-        """
+        if memory_actions:
+            # Dispatch memory and connection actions
+            self.dispatch_actions(memory_actions)
+
+            # Checkpoint: Memories extracted
+            self.add_checkpoint(
+                label=f"memories_extracted_{trigger.entry_id}",
+                description=f"Extracted memories and connections for {trigger.entry_id}",
+            )
+
+            # Calculate context budget and determine pruning
+            context_budget = calculate_context_budget(
+                token_budget, state, action_registry
+            )
+            pruning_actions = prune_context_to_budget_as_actions(
+                self.context_graph, context_budget
+            )
+
+            if pruning_actions:
+                self.dispatch_actions(pruning_actions)
+
+                # Checkpoint: Context pruned
+                self.add_checkpoint(
+                    label=f"context_pruned_{trigger.entry_id}",
+                    description=f"Pruned context to fit budget of {context_budget} tokens",
+                )
+
+            # Checkpoint: Trigger processing complete
+            self.add_checkpoint(
+                label=f"trigger_complete_{trigger.entry_id}",
+                description=f"Completed processing trigger {trigger.entry_id}",
+            )
+
+            logger.info(
+                f"Completed trigger {trigger.entry_id} - "
+                f"Graph: {len(self.memory_graph.elements)} memories, "
+                f"Context: {len(self.context_graph.elements)} elements"
+            )
+        else:
+            logger.info(f"No significant memories extracted from {trigger.entry_id}")
+
+    def get_current_context(self) -> ContextGraph:
+        """Get the current context graph."""
         return self.context_graph
 
     def get_memory_graph(self) -> MemoryGraph:
+        """Get the complete memory graph."""
+        return self.memory_graph
+
+    def get_action_log(self) -> MemoryActionLog:
+        """Get the action log for replay and analysis."""
+        return self.action_log
+
+    def replay_to_checkpoint(self, checkpoint_label: str) -> "DagMemoryManager":
         """
-        Get the complete memory graph.
+        Create a new manager instance by replaying actions up to a checkpoint.
+
+        Args:
+            checkpoint_label: Label of the checkpoint to replay to
 
         Returns:
-            The complete memory graph containing all memories and connections
+            New manager instance with state at the specified checkpoint
         """
-        return self.memory_graph
+        # Replay actions to get graph state at checkpoint
+        memory_graph, context_graph = self.action_log.replay_to_checkpoint(
+            checkpoint_label
+        )
+
+        # Create new manager with replayed state
+        new_manager = DagMemoryManager(memory_graph, context_graph)
+
+        # Copy the action log up to the checkpoint
+        checkpoint_idx = self.action_log.find_checkpoint_index(checkpoint_label)
+        if checkpoint_idx is not None:
+            new_manager.action_log.actions = self.action_log.actions[
+                : checkpoint_idx + 1
+            ]
+
+        return new_manager
 
     def to_data(self) -> DagMemoryData:
         """
@@ -207,3 +332,26 @@ class DagMemoryManager:
         with open(filepath, "r") as f:
             data = DagMemoryData.model_validate_json(f.read())
         return cls.from_data(data)
+
+    def save_action_log(self, filepath: str) -> None:
+        """Save the action log to a file."""
+        self.action_log.save_to_file(filepath)
+
+    @classmethod
+    def load_from_action_log(cls, filepath: str) -> "DagMemoryManager":
+        """
+        Create a manager by replaying an action log from file.
+
+        Args:
+            filepath: Path to the action log file
+
+        Returns:
+            Manager instance with state replayed from the action log
+        """
+        action_log = MemoryActionLog.load_from_file(filepath)
+        memory_graph, context_graph = action_log.replay_from_empty()
+
+        manager = cls(memory_graph, context_graph)
+        manager.action_log = action_log
+
+        return manager

@@ -6,26 +6,11 @@ import logging
 from typing import List
 from collections import defaultdict
 
-from .models import ContextGraph, ContextElement, MemoryEdge
-from .actions import MemoryAction, AddToContextAction, RemoveFromContextAction
+from .models import ContextGraph
+from .actions import RemoveFromContextAction
 from .context_formatting import format_element
 
 logger = logging.getLogger(__name__)
-
-
-def add_memories_to_context_as_actions(
-    memories: List[ContextElement],
-) -> List[AddToContextAction]:
-    """
-    Create actions to add memories to context.
-
-    Args:
-        memories: Memory elements to add to context
-
-    Returns:
-        List of AddToContextAction actions
-    """
-    return [AddToContextAction(context_element=memory) for memory in memories]
 
 
 def prune_context_to_budget_as_actions(
@@ -84,42 +69,22 @@ def prune_context_to_budget_as_actions(
         # Determine which edges to remove (those that reference removed memories)
         memories_to_remove_set = set(memories_to_remove)
         edges_to_remove = [
-            edge.id for edge in context.edges
-            if edge.source_id in memories_to_remove_set or edge.target_id in memories_to_remove_set
+            edge.id
+            for edge in context.edges
+            if edge.source_id in memories_to_remove_set
+            or edge.target_id in memories_to_remove_set
         ]
 
-        logger.info(f"  Determined {len(memories_to_remove)} memories and {len(edges_to_remove)} edges should be removed for budget")
+        logger.info(
+            f"  Determined {len(memories_to_remove)} memories and {len(edges_to_remove)} edges should be removed for budget"
+        )
         return [
             RemoveFromContextAction(
                 memory_ids=memories_to_remove,
                 edge_ids=edges_to_remove,
-                reason=f"Pruned to fit budget of {budget} tokens"
+                reason=f"Pruned to fit budget of {budget} tokens",
             )
         ]
     else:
         logger.info("  No pruning needed - context fits within budget")
         return []
-
-
-def adjust_context_tokens_as_actions(
-    context: ContextGraph, edges: List[MemoryEdge]
-) -> List[MemoryAction]:
-    """
-    Calculate token adjustments but don't apply them directly.
-
-    Note: This function doesn't return actions because token adjustment
-    is a derived calculation, not a concrete operation. In the action-based
-    system, token values would be recalculated during replay rather than
-    stored as actions.
-
-    Args:
-        context: Current context graph
-        edges: Edges that were added
-
-    Returns:
-        Empty list (token adjustments are computed during replay)
-    """
-    # Token adjustments are computational, not stored as actions
-    # They would be recalculated during replay based on the current state
-    logger.debug("Token adjustments will be recalculated during replay")
-    return []
