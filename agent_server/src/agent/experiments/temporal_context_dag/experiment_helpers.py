@@ -2,23 +2,16 @@
 Helper functions for the DAG memory experiment.
 """
 
-from collections import defaultdict
 import logging
-from typing import List
 
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.prompts import build_situational_analysis_prompt
 from agent.chain_of_action.trigger import UserInputTrigger
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry, TriggerHistory
-from agent.experiments.temporal_context_dag.context_formatting import (
-    format_element,
-)
-from agent.state import State, build_agent_state_description
+from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.state import State
 
 from .models import (
     ContextGraph,
-    ContextElement,
-    MemoryEdge,
     MemoryGraph,
 )
 

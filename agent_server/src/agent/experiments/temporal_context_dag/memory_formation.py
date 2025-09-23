@@ -50,6 +50,13 @@ def create_context_element(
     confidence_level: ConfidenceLevel,
 ) -> ContextElement:
     """Create a new memory element with given content and metadata."""
+    from agent.memory.embedding_service import get_embedding_service
+
+    # Generate embedding for the memory
+    embedding_service = get_embedding_service()
+    embedding_text = f"{content}\n{evidence}"
+    embedding_vector = embedding_service.encode(embedding_text)
+
     return ContextElement(
         memory=MemoryElement(
             id=str(uuid.uuid4()),
@@ -58,6 +65,7 @@ def create_context_element(
             timestamp=timestamp,
             emotional_significance=emotional_significance,
             confidence_level=confidence_level,
+            embedding_vector=embedding_vector,
         ),
         tokens=initial_tokens,
     )
@@ -373,7 +381,9 @@ def extract_memories_as_actions(
 
     # Create actions for adding connections to context
     for connection in connections:
-        actions.append(AddEdgeToContextAction(edge=connection))
+        actions.append(
+            AddEdgeToContextAction(edge=connection, should_boost_source_tokens=True)
+        )
 
     # Create action for adding the container
     if memories:

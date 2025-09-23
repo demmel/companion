@@ -6,10 +6,11 @@ mutating them directly for efficiency while maintaining replayability through ac
 """
 
 import logging
-from typing import Union
+from typing import assert_never
 
-from .models import MemoryGraph, ContextGraph, ContextElement, ConfidenceLevel
+from .models import MemoryGraph, ContextGraph, ConfidenceLevel
 from .actions import (
+    ApplyTokenDecayAction,
     MemoryAction,
     AddMemoryAction,
     AddEdgeAction,
@@ -38,24 +39,27 @@ def apply_action(
         context: Context graph to mutate
         action: Action containing concrete changes to apply
     """
-    if isinstance(action, AddMemoryAction):
-        _apply_add_memory(graph, action)
-    elif isinstance(action, AddEdgeAction):
-        _apply_add_connection(graph, action)
-    elif isinstance(action, UpdateConfidenceAction):
-        _apply_update_confidence(graph, action)
-    elif isinstance(action, AddToContextAction):
-        _apply_add_to_context(context, action)
-    elif isinstance(action, AddEdgeToContextAction):
-        _apply_add_edge_to_context(context, action)
-    elif isinstance(action, RemoveFromContextAction):
-        _apply_remove_from_context(context, action)
-    elif isinstance(action, AddContainerAction):
-        _apply_add_container(graph, action)
-    elif isinstance(action, CheckpointAction):
-        _apply_checkpoint(action)
-    else:
-        logger.warning(f"Unknown action type: {type(action)}")
+    match action:
+        case AddMemoryAction():
+            _apply_add_memory(graph, action)
+        case AddEdgeAction():
+            _apply_add_connection(graph, action)
+        case UpdateConfidenceAction():
+            _apply_update_confidence(graph, action)
+        case AddToContextAction():
+            _apply_add_to_context(context, action)
+        case AddEdgeToContextAction():
+            _apply_add_edge_to_context(context, action)
+        case RemoveFromContextAction():
+            _apply_remove_from_context(context, action)
+        case AddContainerAction():
+            _apply_add_container(graph, action)
+        case ApplyTokenDecayAction():
+            _apply_token_decay(context, action)
+        case CheckpointAction():
+            _apply_checkpoint(action)
+        case _:
+            assert_never(action)
 
 
 def _apply_add_memory(graph: MemoryGraph, action: AddMemoryAction) -> None:
@@ -66,7 +70,13 @@ def _apply_add_memory(graph: MemoryGraph, action: AddMemoryAction) -> None:
 
 def _apply_add_connection(graph: MemoryGraph, action: AddEdgeAction) -> None:
     """Add a connection edge to the graph."""
+
+    from .connection_system import update_confidence_for_correction_edge
+
     graph.edges[action.edge.id] = action.edge
+
+    update_confidence_for_correction_edge(graph, action.edge)
+
     logger.debug(
         f"Added edge {action.edge.edge_type.value} from {action.edge.source_id[:8]} to {action.edge.target_id[:8]}"
     )
@@ -89,6 +99,21 @@ def _apply_update_confidence(
 
 def _apply_add_to_context(context: ContextGraph, action: AddToContextAction) -> None:
     """Add a memory element to the working context."""
+    # Check if memory already exists in context
+    memory_id = action.context_element.memory.id
+    for existing_elem in context.elements:
+        if existing_elem.memory.id == memory_id:
+            if action.reinforce_tokens > 0:
+                # Reinforce existing memory with additional tokens
+                existing_elem.tokens += action.reinforce_tokens
+                logger.debug(
+                    f"Reinforced memory {memory_id[:8]} with {action.reinforce_tokens} tokens "
+                    f"(now {existing_elem.tokens} total)"
+                )
+            else:
+                logger.debug(f"Memory {memory_id[:8]} already exists in context, skipping")
+            return
+
     context.elements.append(action.context_element)
     logger.debug(
         f"Added memory {action.context_element.memory.id[:8]} to context ({action.context_element.tokens} tokens)"
@@ -99,7 +124,23 @@ def _apply_add_edge_to_context(
     context: ContextGraph, action: AddEdgeToContextAction
 ) -> None:
     """Add an edge to the working context."""
+    # Check if edge already exists in context
+    edge_id = action.edge.id
+    for existing_edge in context.edges:
+        if existing_edge.id == edge_id:
+            logger.debug(f"Edge {edge_id[:8]} already exists in context, skipping")
+            return
+
     context.edges.append(action.edge)
+    if action.should_boost_source_tokens:
+        # Boost tokens of source memory in context if present
+        for elem in context.elements:
+            if elem.memory.id == action.edge.source_id:
+                elem.tokens += 1  # Simple boost logic; can be adjusted
+                logger.debug(
+                    f"Boosted tokens of memory {elem.memory.id[:8]} to {elem.tokens} due to edge addition"
+                )
+                break
     logger.debug(
         f"Added edge {action.edge.edge_type.value} from {action.edge.source_id[:8]} to {action.edge.target_id[:8]} to context"
     )
@@ -144,6 +185,12 @@ def _apply_add_container(graph: MemoryGraph, action: AddContainerAction) -> None
     logger.debug(
         f"Added container {action.container_id} with {len(action.element_ids)} memories"
     )
+
+
+def _apply_token_decay(context: ContextGraph, action: ApplyTokenDecayAction) -> None:
+    """Apply token decay to specific context memories."""
+    for elem in context.elements:
+        elem.tokens = max(1, elem.tokens - action.decay_amount)
 
 
 def _apply_checkpoint(action: CheckpointAction) -> None:

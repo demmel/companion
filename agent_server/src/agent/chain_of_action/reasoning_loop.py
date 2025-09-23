@@ -79,6 +79,17 @@ class ActionBasedReasoningLoop:
 
         # Use DAG context if available, otherwise use traditional memory retrieval
         if dag_memory_manager:
+            # PREPROCESS: Retrieve relevant memories BEFORE reasoning (but only for existing DAG, not during initial setup)
+            if token_budget is not None:  # Only preprocess if we have a token budget (i.e., not during initial exchange)
+                dag_memory_manager.preprocess_trigger(
+                    trigger=trigger,
+                    state=state,
+                    llm=llm,
+                    model=model,
+                    token_budget=token_budget,
+                    action_registry=self.registry,
+                )
+
             dag_context = dag_memory_manager.get_current_context()
             relevant_memories = []  # Not used when DAG is enabled
         else:
@@ -220,12 +231,12 @@ class ActionBasedReasoningLoop:
             _compress_trigger_entry(trigger_entry, state, llm, model)
             _extract_memory_embedding(trigger_entry)
 
-        # Process trigger with DAG memory system if enabled
+        # POSTPROCESS: Extract memories from completed reasoning if DAG enabled
         if dag_memory_manager:
             assert (
                 token_budget is not None
             ), "Token budget must be provided if using DAG"
-            dag_memory_manager.process_trigger(
+            dag_memory_manager.postprocess_trigger(
                 trigger=trigger_entry,
                 state=state,
                 llm=llm,

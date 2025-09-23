@@ -9,6 +9,7 @@ import logging
 from typing import Sequence
 
 from agent.chain_of_action.action_registry import ActionRegistry
+from agent.chain_of_action.trigger import Trigger
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.experiments.temporal_context_dag.memory_formation import (
     extract_memories_as_actions,
@@ -18,7 +19,7 @@ from agent.state import State
 from pydantic import BaseModel
 
 from .models import ContextElement, ContextGraph, MemoryGraph
-from .actions import MemoryAction, CheckpointAction
+from .actions import ApplyTokenDecayAction, MemoryAction, CheckpointAction
 from .action_log import MemoryActionLog
 from .context_management import (
     prune_context_to_budget_as_actions,
@@ -145,7 +146,91 @@ class DagMemoryManager:
         """Add a checkpoint to the action log."""
         return self.action_log.add_checkpoint(label, description)
 
-    def process_trigger(
+    def preprocess_trigger(
+        self,
+        trigger: Trigger,
+        state: State,
+        llm: LLM,
+        model: SupportedModel,
+        token_budget: int,
+        action_registry: ActionRegistry,
+    ) -> None:
+        """
+        Preprocess trigger by retrieving relevant memories and pruning context.
+
+        This is called BEFORE the reasoning loop to ensure the agent has access
+        to relevant retrieved memories during its reasoning process.
+
+        Args:
+            trigger: The incoming trigger (not yet processed)
+            state: Current agent state
+            llm: LLM instance for memory operations
+            model: Model to use for decisions
+            token_budget: Token budget for context management
+            action_registry: Action registry for budget calculation
+        """
+        logger.info(f"Preprocessing trigger for memory retrieval")
+
+        # Checkpoint: Start of preprocessing
+        self.add_checkpoint(
+            label=f"preprocess_start",
+            description=f"Starting preprocessing for incoming trigger",
+        )
+
+        # STEP 1: Apply token decay to existing context memories
+        self._apply_token_decay()
+
+        # STEP 2: Memory retrieval based on incoming trigger
+        from .retrieval_integration import (
+            retrieve_relevant_memories_as_actions,
+        )
+
+        # Create a temporary context that includes the incoming trigger for query extraction
+        from .memory_retrieval import extract_memory_queries
+
+        query_result = extract_memory_queries(
+            context=self.context_graph, state=state, llm=llm, model=model, max_queries=6
+        )
+
+        if query_result.queries:
+            retrieval_actions = retrieve_relevant_memories_as_actions(
+                memory_graph=self.memory_graph,
+                context_graph=self.context_graph,
+                state=state,
+                llm=llm,
+                model=model,
+            )
+
+            if retrieval_actions:
+                self.dispatch_actions(retrieval_actions)
+
+                # Checkpoint: Memories retrieved
+                self.add_checkpoint(
+                    label=f"memories_retrieved_preprocess",
+                    description=f"Retrieved {len(retrieval_actions)} relevant memories during preprocessing",
+                )
+
+        # STEP 3: Prune context to budget BEFORE reasoning
+        context_budget = calculate_context_budget(token_budget, state, action_registry)
+        pruning_actions = prune_context_to_budget_as_actions(
+            self.context_graph, context_budget
+        )
+
+        if pruning_actions:
+            self.dispatch_actions(pruning_actions)
+
+            # Checkpoint: Context pruned
+            self.add_checkpoint(
+                label=f"context_pruned_preprocess",
+                description=f"Pruned context to fit budget of {context_budget} tokens",
+            )
+
+        logger.info(
+            f"Preprocessing complete - Context: {len(self.context_graph.elements)} elements, "
+            f"{len(self.context_graph.edges)} edges"
+        )
+
+    def postprocess_trigger(
         self,
         trigger: TriggerHistoryEntry,
         state: State,
@@ -155,13 +240,13 @@ class DagMemoryManager:
         action_registry: ActionRegistry,
     ) -> None:
         """
-        Process a trigger using action-based approach.
+        Postprocess trigger by extracting memories from the completed reasoning.
 
-        Generates actions for memory extraction, connection formation, and context management,
-        then dispatches them to update the state.
+        This is called AFTER the reasoning loop completes to extract and store
+        new memories from the agent's reasoning and actions.
 
         Args:
-            trigger: The trigger history entry to process
+            trigger: The completed trigger history entry
             state: Current agent state
             llm: LLM instance for memory operations
             model: Model to use for decisions
@@ -190,23 +275,6 @@ class DagMemoryManager:
                 label=f"memories_extracted_{trigger.entry_id}",
                 description=f"Extracted memories and connections for {trigger.entry_id}",
             )
-
-            # Calculate context budget and determine pruning
-            context_budget = calculate_context_budget(
-                token_budget, state, action_registry
-            )
-            pruning_actions = prune_context_to_budget_as_actions(
-                self.context_graph, context_budget
-            )
-
-            if pruning_actions:
-                self.dispatch_actions(pruning_actions)
-
-                # Checkpoint: Context pruned
-                self.add_checkpoint(
-                    label=f"context_pruned_{trigger.entry_id}",
-                    description=f"Pruned context to fit budget of {context_budget} tokens",
-                )
 
             # Checkpoint: Trigger processing complete
             self.add_checkpoint(
@@ -355,3 +423,25 @@ class DagMemoryManager:
         manager.action_log = action_log
 
         return manager
+
+    def _apply_token_decay(self) -> None:
+        """
+        Apply token decay to all existing context memories.
+
+        Each turn, memories naturally lose some token value to simulate aging.
+        This makes memories more likely to be pruned if they're not being
+        reinforced by retrieval or relevance.
+
+        Args:
+            decay_amount: Number of tokens to subtract from each memory (default: 2)
+        """
+        if not self.context_graph.elements:
+            return
+
+        decay_amount = 1
+
+        logger.debug(
+            f"Applying token decay of {decay_amount} to {len(self.context_graph.elements)} context memories"
+        )
+
+        self.dispatch_actions([ApplyTokenDecayAction(decay_amount=decay_amount)])

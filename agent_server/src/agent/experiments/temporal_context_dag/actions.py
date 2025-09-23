@@ -50,6 +50,7 @@ class AddToContextAction(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = Field(default_factory=datetime.now)
     context_element: ContextElement
+    reinforce_tokens: int = 0  # Tokens to award if memory already exists in context
 
 
 class AddEdgeToContextAction(BaseModel):
@@ -59,6 +60,7 @@ class AddEdgeToContextAction(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = Field(default_factory=datetime.now)
     edge: MemoryEdge
+    should_boost_source_tokens: bool
 
 
 class RemoveFromContextAction(BaseModel):
@@ -83,6 +85,15 @@ class AddContainerAction(BaseModel):
     trigger_timestamp: datetime
 
 
+class ApplyTokenDecayAction(BaseModel):
+    """Action to apply token decay to specific context memories."""
+
+    action_type: Literal["apply_token_decay"] = "apply_token_decay"
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: datetime = Field(default_factory=datetime.now)
+    decay_amount: int = 1  # Amount to subtract from each memory's tokens
+
+
 class CheckpointAction(BaseModel):
     """Action to mark a checkpoint for visualization and replay boundaries."""
 
@@ -102,5 +113,6 @@ MemoryAction = Union[
     AddEdgeToContextAction,
     RemoveFromContextAction,
     AddContainerAction,
+    ApplyTokenDecayAction,
     CheckpointAction,
 ]

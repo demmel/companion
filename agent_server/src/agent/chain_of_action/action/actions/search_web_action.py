@@ -60,13 +60,10 @@ class SearchWebOutput(ActionOutput):
         results_summary = (
             f"Found {self.total_results_found} results for '{self.query_used}':\n"
         )
-        for i, result in enumerate(self.search_results[:5], 1):
+        for i, result in enumerate(self.search_results, 1):
             results_summary += (
                 f"{i}. {result.title} ({result.url})\n   {result.snippet}\n"
             )
-
-        if len(self.search_results) > 5:
-            results_summary += f"... and {len(self.search_results) - 5} more results"
 
         return results_summary
 
