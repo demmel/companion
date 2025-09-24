@@ -8,6 +8,7 @@ from enum import Enum
 import uuid
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.experiments.temporal_context_dag.edge_types import GraphEdgeType
+from agent.experiments.temporal_context_dag.memory_types import MemoryType
 from pydantic import BaseModel, Field
 
 
@@ -30,9 +31,8 @@ class MemoryElement(BaseModel):
     evidence: str
     timestamp: datetime
     emotional_significance: float = Field(ge=0.0, le=1.0)
-    confidence_level: ConfidenceLevel = Field(
-        default=ConfidenceLevel.REASONABLE_ASSUMPTION
-    )
+    confidence_level: ConfidenceLevel
+    memory_type: MemoryType
     embedding_vector: Optional[List[float]] = None
 
 

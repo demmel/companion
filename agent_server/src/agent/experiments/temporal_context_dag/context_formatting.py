@@ -5,7 +5,7 @@ Functions for formatting context graphs for display in prompts.
 from agent.experiments.temporal_context_dag.edge_types import (
     REVERSE_MAPPING,
     EdgeType,
-    get_context_descrioptions,
+    get_edge_type_context_descrioptions,
 )
 from .models import ContextElement, ContextGraph, MemoryEdge
 
@@ -33,7 +33,7 @@ def format_element(
 
     lines = []
     lines.append(
-        f"{memory_id}: [{timestamp}] (Confidence: {element.memory.confidence_level.value})"
+        f"{memory_id}: [{timestamp}] (Type: {element.memory.memory_type.value}) (Confidence: {element.memory.confidence_level.value})"
     )
     lines.append(f"  Content: {element.memory.content}")
     lines.append(f"  Evidence: {element.memory.evidence}")
@@ -82,7 +82,7 @@ def format_context(context: ContextGraph) -> str:
         "- `likely_error`: Probably incorrect but not confirmed",
         "- `known_false`: Definitively corrected/contradicted - treat as false",
         "",
-        *get_context_descrioptions(),
+        *get_edge_type_context_descrioptions(),
         "",
         "## Memories",
     ]

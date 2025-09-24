@@ -8,7 +8,7 @@ mutating them directly for efficiency while maintaining replayability through ac
 import logging
 from typing import assert_never
 
-from .models import MemoryGraph, ContextGraph, ConfidenceLevel
+from .models import ContextElement, MemoryGraph, ContextGraph, ConfidenceLevel
 from .actions import (
     ApplyTokenDecayAction,
     MemoryAction,
@@ -47,9 +47,9 @@ def apply_action(
         case UpdateConfidenceAction():
             _apply_update_confidence(graph, action)
         case AddToContextAction():
-            _apply_add_to_context(context, action)
+            _apply_add_to_context(graph, context, action)
         case AddEdgeToContextAction():
-            _apply_add_edge_to_context(context, action)
+            _apply_add_edge_to_context(graph, context, action)
         case RemoveFromContextAction():
             _apply_remove_from_context(context, action)
         case AddContainerAction():
@@ -97,52 +97,62 @@ def _apply_update_confidence(
         logger.warning(f"Memory {action.memory_id} not found for confidence update")
 
 
-def _apply_add_to_context(context: ContextGraph, action: AddToContextAction) -> None:
+def _apply_add_to_context(
+    graph: MemoryGraph, context: ContextGraph, action: AddToContextAction
+) -> None:
     """Add a memory element to the working context."""
     # Check if memory already exists in context
-    memory_id = action.context_element.memory.id
+    memory_id = action.memory_id
     for existing_elem in context.elements:
         if existing_elem.memory.id == memory_id:
             if action.reinforce_tokens > 0:
                 # Reinforce existing memory with additional tokens
                 existing_elem.tokens += action.reinforce_tokens
+                existing_elem.tokens = min(
+                    existing_elem.tokens, 100
+                )  # Cap at 100 tokens
                 logger.debug(
                     f"Reinforced memory {memory_id[:8]} with {action.reinforce_tokens} tokens "
                     f"(now {existing_elem.tokens} total)"
                 )
             else:
-                logger.debug(f"Memory {memory_id[:8]} already exists in context, skipping")
+                logger.debug(
+                    f"Memory {memory_id[:8]} already exists in context, skipping"
+                )
             return
 
-    context.elements.append(action.context_element)
+    context.elements.append(
+        ContextElement(memory=graph.elements[memory_id], tokens=action.initial_tokens)
+    )
     logger.debug(
-        f"Added memory {action.context_element.memory.id[:8]} to context ({action.context_element.tokens} tokens)"
+        f"Added memory {context.elements[-1].memory.id[:8]} to context ({context.elements[-1].tokens} tokens)"
     )
 
 
 def _apply_add_edge_to_context(
-    context: ContextGraph, action: AddEdgeToContextAction
+    graph: MemoryGraph, context: ContextGraph, action: AddEdgeToContextAction
 ) -> None:
     """Add an edge to the working context."""
     # Check if edge already exists in context
-    edge_id = action.edge.id
+    edge_id = action.edge_id
     for existing_edge in context.edges:
         if existing_edge.id == edge_id:
             logger.debug(f"Edge {edge_id[:8]} already exists in context, skipping")
             return
+    edge = graph.edges[edge_id]
 
-    context.edges.append(action.edge)
+    context.edges.append(edge)
     if action.should_boost_source_tokens:
         # Boost tokens of source memory in context if present
         for elem in context.elements:
-            if elem.memory.id == action.edge.source_id:
+            if elem.memory.id == edge.source_id:
                 elem.tokens += 1  # Simple boost logic; can be adjusted
                 logger.debug(
                     f"Boosted tokens of memory {elem.memory.id[:8]} to {elem.tokens} due to edge addition"
                 )
                 break
     logger.debug(
-        f"Added edge {action.edge.edge_type.value} from {action.edge.source_id[:8]} to {action.edge.target_id[:8]} to context"
+        f"Added edge {edge.edge_type.value} from {edge.source_id[:8]} to {edge.target_id[:8]} to context"
     )
 
 

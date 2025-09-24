@@ -108,7 +108,12 @@ class DagMemoryManager:
 
         # Add all initial memories to context
         for context_element in temp_context_graph.elements:
-            initial_actions.append(AddToContextAction(context_element=context_element))
+            initial_actions.append(
+                AddToContextAction(
+                    memory_id=context_element.memory.id,
+                    initial_tokens=context_element.tokens,
+                )
+            )
 
         # Add all initial containers
         for container in temp_memory_graph.containers.values():
@@ -185,30 +190,23 @@ class DagMemoryManager:
             retrieve_relevant_memories_as_actions,
         )
 
-        # Create a temporary context that includes the incoming trigger for query extraction
-        from .memory_retrieval import extract_memory_queries
-
-        query_result = extract_memory_queries(
-            context=self.context_graph, state=state, llm=llm, model=model, max_queries=6
+        retrieval_actions = retrieve_relevant_memories_as_actions(
+            memory_graph=self.memory_graph,
+            context_graph=self.context_graph,
+            state=state,
+            trigger=trigger,
+            llm=llm,
+            model=model,
         )
 
-        if query_result.queries:
-            retrieval_actions = retrieve_relevant_memories_as_actions(
-                memory_graph=self.memory_graph,
-                context_graph=self.context_graph,
-                state=state,
-                llm=llm,
-                model=model,
+        if retrieval_actions:
+            self.dispatch_actions(retrieval_actions)
+
+            # Checkpoint: Memories retrieved
+            self.add_checkpoint(
+                label=f"memories_retrieved_preprocess",
+                description=f"Retrieved {len(retrieval_actions)} relevant memories during preprocessing",
             )
-
-            if retrieval_actions:
-                self.dispatch_actions(retrieval_actions)
-
-                # Checkpoint: Memories retrieved
-                self.add_checkpoint(
-                    label=f"memories_retrieved_preprocess",
-                    description=f"Retrieved {len(retrieval_actions)} relevant memories during preprocessing",
-                )
 
         # STEP 3: Prune context to budget BEFORE reasoning
         context_budget = calculate_context_budget(token_budget, state, action_registry)

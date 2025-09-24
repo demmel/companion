@@ -49,8 +49,9 @@ class AddToContextAction(BaseModel):
     action_type: Literal["add_to_context"] = "add_to_context"
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = Field(default_factory=datetime.now)
-    context_element: ContextElement
-    reinforce_tokens: int = 0  # Tokens to award if memory already exists in context
+    memory_id: str
+    initial_tokens: int
+    reinforce_tokens: int = 0
 
 
 class AddEdgeToContextAction(BaseModel):
@@ -59,7 +60,7 @@ class AddEdgeToContextAction(BaseModel):
     action_type: Literal["add_edge_to_context"] = "add_edge_to_context"
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = Field(default_factory=datetime.now)
-    edge: MemoryEdge
+    edge_id: str
     should_boost_source_tokens: bool
 
 

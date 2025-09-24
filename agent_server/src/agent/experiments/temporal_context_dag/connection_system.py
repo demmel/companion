@@ -28,28 +28,18 @@ def update_confidence_for_correction_edge(graph: MemoryGraph, edge: MemoryEdge) 
         graph: Memory graph containing the memories
         edge: Correction edge that was just created
     """
-    if edge.edge_type in {
-        GraphEdgeType.CONTRADICTED_BY,
-        GraphEdgeType.CLARIFIED_BY,
-        GraphEdgeType.RETRACTED_BY,
-    }:
-        source_memory = graph.elements.get(edge.source_id)
-        if source_memory:
-            if edge.edge_type == GraphEdgeType.CONTRADICTED_BY:
-                source_memory.confidence_level = ConfidenceLevel.KNOWN_FALSE
-                logger.info(
-                    f"  Updated confidence of memory {edge.source_id[:8]} to KNOWN_FALSE due to contradiction"
-                )
-            elif edge.edge_type == GraphEdgeType.CLARIFIED_BY:
-                source_memory.confidence_level = ConfidenceLevel.LIKELY_ERROR
-                logger.info(
-                    f"  Updated confidence of memory {edge.source_id[:8]} to LIKELY_ERROR due to clarification"
-                )
-            elif edge.edge_type == GraphEdgeType.RETRACTED_BY:
-                source_memory.confidence_level = ConfidenceLevel.KNOWN_FALSE
-                logger.info(
-                    f"  Updated confidence of memory {edge.source_id[:8]} to KNOWN_FALSE due to retraction"
-                )
+    source_memory = graph.elements.get(edge.source_id)
+    if source_memory:
+        if edge.edge_type == GraphEdgeType.CONTRADICTED_BY:
+            source_memory.confidence_level = ConfidenceLevel.LIKELY_ERROR
+            logger.info(
+                f"  Updated confidence of memory {edge.source_id[:8]} to LIKELY_ERROR due to contradiction"
+            )
+        elif edge.edge_type == GraphEdgeType.RETRACTED_BY:
+            source_memory.confidence_level = ConfidenceLevel.KNOWN_FALSE
+            logger.info(
+                f"  Updated confidence of memory {edge.source_id[:8]} to KNOWN_FALSE due to retraction"
+            )
 
 
 def add_connections_to_graph(

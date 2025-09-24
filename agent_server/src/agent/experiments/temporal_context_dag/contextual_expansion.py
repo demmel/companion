@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from .models import MemoryGraph, ContextGraph, MemoryElement, MemoryEdge
 from .edge_types import EdgeType, GraphEdgeType, REVERSE_MAPPING
 from .similarity_scoring import MemoryRetrievalCandidate
+from .minimal_spanning import MinimalSpanningConnector
 
 logger = logging.getLogger(__name__)
 
@@ -54,44 +55,92 @@ class ContextualExpander:
         self,
         candidates: List[MemoryRetrievalCandidate],
         max_expansion_depth: int = 2,
-        max_cluster_size: int = 8
+        max_cluster_size: int = 8,
+        token_budget: int = 2000,
     ) -> List[MemoryCluster]:
         """
-        Expand retrieved memory candidates with their essential context.
+        Expand retrieved memory candidates with their essential context using minimal spanning.
 
         Args:
             candidates: List of memory candidates from similarity scoring
-            max_expansion_depth: Maximum depth to traverse for context
+            max_expansion_depth: (Unused - kept for compatibility)
             max_cluster_size: Maximum total memories per cluster
+            token_budget: Token budget for spanning graph connections
 
         Returns:
-            List of memory clusters with context dependencies
+            List of memory clusters with optimal context connections
         """
+        if not candidates:
+            return []
+
+        # Get current context node IDs
+        context_nodes = {elem.memory.id for elem in self.context_graph.elements}
+
+        # Create minimal spanning connector
+        connector = MinimalSpanningConnector(
+            self.memory_graph.elements, self.memory_graph.edges
+        )
+
+        # Extract target memories from candidates with weights
+        target_memories = [c.memory.id for c in candidates]
+        memory_weights = {c.memory.id: c.combined_score for c in candidates}
+
+        # Find minimal spanning connection
+        spanning_result = connector.find_minimal_spanning_connection(
+            target_memories=target_memories,
+            context_nodes=context_nodes,
+            token_budget=token_budget,
+            memory_weights=memory_weights,
+        )
+
+        # Convert to clusters
         clusters = []
-
         for candidate in candidates:
-            cluster = self._build_memory_cluster(
-                candidate,
-                max_expansion_depth,
-                max_cluster_size
-            )
-            if cluster:
-                clusters.append(cluster)
+            if candidate.memory.id in spanning_result.connected_memories:
+                # Find the path for this memory
+                memory_path = None
+                for path in spanning_result.paths:
+                    if path.target_memory_id == candidate.memory.id:
+                        memory_path = path
+                        break
 
-        # Remove overlapping clusters, keeping higher scoring ones
-        clusters = self._deduplicate_clusters(clusters)
+                if memory_path:
+                    # Build cluster from the path
+                    primary_memory = candidate.memory
+                    supporting_memories = []
+                    connecting_edges = []
+
+                    # Add all nodes in path except the primary
+                    for node_id in memory_path.path_nodes:
+                        if node_id != candidate.memory.id:
+                            memory = self.memory_graph.elements.get(node_id)
+                            if memory:
+                                supporting_memories.append(memory)
+
+                    # Add all edges in path
+                    for edge_id in memory_path.path_edges:
+                        edge = self.memory_graph.edges.get(edge_id)
+                        if edge:
+                            connecting_edges.append(edge)
+
+                    cluster = MemoryCluster(
+                        primary_memory=primary_memory,
+                        supporting_memories=supporting_memories,
+                        connecting_edges=connecting_edges,
+                        cluster_size=len(memory_path.path_nodes),
+                        relevance_score=candidate.combined_score,
+                    )
+                    clusters.append(cluster)
 
         logger.info(
-            f"Expanded {len(candidates)} candidates into {len(clusters)} memory clusters"
+            f"Connected {len(spanning_result.connected_memories)}/{len(candidates)} candidates "
+            f"using minimal spanning with {spanning_result.total_cost:.2f} total cost"
         )
 
         return clusters
 
     def _build_memory_cluster(
-        self,
-        candidate: MemoryRetrievalCandidate,
-        max_depth: int,
-        max_size: int
+        self, candidate: MemoryRetrievalCandidate, max_depth: int, max_size: int
     ) -> MemoryCluster:
         """Build a memory cluster starting from a candidate memory."""
 
@@ -129,10 +178,12 @@ class ContextualExpander:
             supporting_memories=supporting_memories,
             connecting_edges=connecting_edges,
             cluster_size=len(visited_memories),
-            relevance_score=candidate.combined_score
+            relevance_score=candidate.combined_score,
         )
 
-    def _get_contextual_dependencies(self, memory_id: str) -> List[Tuple[str, MemoryEdge]]:
+    def _get_contextual_dependencies(
+        self, memory_id: str
+    ) -> List[Tuple[str, MemoryEdge]]:
         """
         Get memories that provide essential context for the given memory.
 
@@ -150,7 +201,7 @@ class ContextualExpander:
             GraphEdgeType.CLARIFIED_BY,
             GraphEdgeType.RETRACTED_BY,
             GraphEdgeType.CONTRADICTED_BY,
-            GraphEdgeType.FOLLOWED_BY  # Chronological predecessor
+            GraphEdgeType.FOLLOWED_BY,  # Chronological predecessor
         }
 
         for edge in self.incoming_edges[memory_id]:
@@ -160,7 +211,7 @@ class ContextualExpander:
         # Consequences and clarifications (outgoing)
         context_requiring_types = {
             GraphEdgeType.EXPLAINS,
-            GraphEdgeType.CAUSED  # This memory caused something else
+            GraphEdgeType.CAUSED,  # This memory caused something else
         }
 
         for edge in self.outgoing_edges[memory_id]:
@@ -169,7 +220,9 @@ class ContextualExpander:
 
         return dependencies
 
-    def _deduplicate_clusters(self, clusters: List[MemoryCluster]) -> List[MemoryCluster]:
+    def _deduplicate_clusters(
+        self, clusters: List[MemoryCluster]
+    ) -> List[MemoryCluster]:
         """
         Remove overlapping clusters, keeping higher scoring ones.
 
@@ -206,9 +259,7 @@ class ContextualExpander:
         return deduplicated
 
     def find_bridges_to_context(
-        self,
-        clusters: List[MemoryCluster],
-        max_bridge_distance: int = 3
+        self, clusters: List[MemoryCluster], max_bridge_distance: int = 3
     ) -> List[Tuple[MemoryCluster, List[MemoryElement], List[MemoryEdge]]]:
         """
         Find bridge memories that connect retrieved clusters to current context.
@@ -235,10 +286,7 @@ class ContextualExpander:
         return bridged_clusters
 
     def _find_shortest_bridge_path(
-        self,
-        cluster: MemoryCluster,
-        context_memory_ids: Set[str],
-        max_distance: int
+        self, cluster: MemoryCluster, context_memory_ids: Set[str], max_distance: int
     ) -> Tuple[List[MemoryElement], List[MemoryEdge]]:
         """Find shortest path from cluster to any memory in current context."""
 
@@ -258,7 +306,9 @@ class ContextualExpander:
 
             # Check all connected memories
             for edge in self.outgoing_edges[memory_id] + self.incoming_edges[memory_id]:
-                next_memory_id = edge.target_id if edge.source_id == memory_id else edge.source_id
+                next_memory_id = (
+                    edge.target_id if edge.source_id == memory_id else edge.source_id
+                )
 
                 if next_memory_id in context_memory_ids:
                     # Found a bridge to context!
@@ -268,9 +318,11 @@ class ContextualExpander:
                     # Collect bridge memories (excluding cluster and context memories)
                     for bridge_edge in bridge_edges:
                         for mem_id in [bridge_edge.source_id, bridge_edge.target_id]:
-                            if (mem_id not in cluster_memory_ids and
-                                mem_id not in context_memory_ids and
-                                mem_id in self.memory_graph.elements):
+                            if (
+                                mem_id not in cluster_memory_ids
+                                and mem_id not in context_memory_ids
+                                and mem_id in self.memory_graph.elements
+                            ):
                                 memory = self.memory_graph.elements[mem_id]
                                 if memory not in bridge_memories:
                                     bridge_memories.append(memory)

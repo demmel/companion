@@ -9,10 +9,12 @@ import logging
 from typing import List
 from enum import Enum
 
+from agent.chain_of_action.trigger import Trigger, format_trigger_for_prompt
 from agent.llm import LLM, SupportedModel
 from agent.state import State, build_agent_state_description
 from agent.structured_llm import direct_structured_llm_call
 from pydantic import BaseModel, Field
+from agent.chain_of_action.prompts import format_section
 
 from .models import ContextGraph
 
@@ -38,9 +40,7 @@ class MemoryQuery(BaseModel):
     query_text: str = Field(description="The actual search query text")
     reasoning: str = Field(description="Why this query is relevant for current context")
     importance: float = Field(
-        description="Importance weight for this query (0.0-1.0)",
-        ge=0.0,
-        le=1.0
+        description="Importance weight for this query (0.0-1.0)", ge=0.0, le=1.0
     )
 
 
@@ -60,7 +60,8 @@ def extract_memory_queries(
     state: State,
     llm: LLM,
     model: SupportedModel,
-    max_queries: int = 8
+    max_queries: int,
+    trigger: Trigger,
 ) -> QueryExtractionResult:
     """
     Extract diverse memory retrieval queries from current context.
@@ -82,12 +83,13 @@ def extract_memory_queries(
     context_description = _build_context_description(context)
 
     # Build prompt for query extraction
-    prompt = f"""I'm {state.name}, {state.role}. I need to search my long-term memory for relevant information based on my current context.
+    prompt = f"""I'm {state.name}, {state.role}. I need to search my long-term memory for relevant information based on what just happened and my current context.
 
 {build_agent_state_description(state)}
 
-## My Current Active Context:
-{context_description}
+{format_section("MY MEMORIES AND CONTEXT", context_description)}
+
+{format_section("CURRENT SITUATION (WHAT I'M RESPONDING TO RIGHT NOW)", format_trigger_for_prompt(trigger))}
 
 ## Task:
 Based on this context, I need to generate diverse memory retrieval queries that will help me find relevant information from my past experiences. I should consider different types of information that might be useful:
@@ -125,7 +127,9 @@ Generate up to {max_queries} high-quality queries, each with a clear reasoning f
 
         # Log each query for debugging
         for i, query in enumerate(response.queries, 1):
-            logger.info(f"Query {i}: [{query.query_type}] {query.query_text} (importance: {query.importance:.2f})")
+            logger.info(
+                f"Query {i}: [{query.query_type}] {query.query_text} (importance: {query.importance:.2f})"
+            )
             logger.debug(f"Query {i} reasoning: {query.reasoning}")
 
         return response
@@ -139,36 +143,19 @@ Generate up to {max_queries} high-quality queries, each with a clear reasoning f
                     query_type=QueryType.FACTUAL,
                     query_text="relevant facts and information",
                     reasoning="Fallback general query for relevant information",
-                    importance=0.7
+                    importance=0.7,
                 )
             ],
-            context_summary="Fallback context summary due to extraction failure"
+            context_summary="Fallback context summary due to extraction failure",
         )
 
 
 def _build_context_description(context: ContextGraph) -> str:
     """Build a description of the current context for query extraction."""
+    from .context_formatting import format_context
 
     if not context.elements:
         return "No memories currently in active context."
 
-    lines = []
-    lines.append(f"I have {len(context.elements)} memories currently active:")
-
-    # Show top few memories by token score
-    top_memories = sorted(context.elements, key=lambda e: e.tokens, reverse=True)[:5]
-
-    for i, element in enumerate(top_memories, 1):
-        content_preview = element.memory.content[:100]
-        if len(element.memory.content) > 100:
-            content_preview += "..."
-        lines.append(f"{i}. {content_preview} (significance: {element.tokens})")
-
-    if len(context.elements) > 5:
-        lines.append(f"... and {len(context.elements) - 5} other memories")
-
-    # Add edge information if available
-    if context.edges:
-        lines.append(f"\nThese memories are connected by {len(context.edges)} relationships.")
-
-    return "\n".join(lines)
+    # Use the proper context formatting system
+    return format_context(context)

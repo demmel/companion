@@ -5,13 +5,17 @@ Calculates similarity scores across multiple queries and combines them
 to rank memories for retrieval.
 """
 
+from collections import defaultdict
 import logging
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 
 from agent.memory.embedding_service import get_embedding_service, EmbeddingService
-
-from .models import MemoryElement, MemoryGraph
+from agent.experiments.temporal_context_dag.memory_types import (
+    MemoryType,
+)
+from agent.experiments.temporal_context_dag.edge_types import GraphEdgeType
+from .models import MemoryElement, MemoryGraph, MemoryEdge
 from .memory_retrieval import MemoryQuery, QueryType
 
 logger = logging.getLogger(__name__)
@@ -57,7 +61,8 @@ class SimilarityScorer:
         self,
         memories: List[MemoryElement],
         queries: List[MemoryQuery],
-        combination_strategy: str = "weighted_max"
+        edges: Dict[str, MemoryEdge],
+        combination_strategy: str = "weighted_max",
     ) -> List[MemoryRetrievalCandidate]:
         """
         Score all memories against all queries and combine results.
@@ -73,6 +78,10 @@ class SimilarityScorer:
         """
         if not memories or not queries:
             return []
+
+        all_outgoing_edges = defaultdict(list[MemoryEdge])
+        for edge in edges.values():
+            all_outgoing_edges[edge.source_id].append(edge)
 
         # Generate embeddings for all queries
         query_texts = [q.query_text for q in queries]
@@ -102,63 +111,92 @@ class SimilarityScorer:
                 # Weight by query importance
                 weighted_score = raw_similarity * query.importance
 
-                query_scores.append(SimilarityScore(
-                    memory_id=memory.id,
-                    query_text=query.query_text,
-                    query_type=query.query_type,
-                    query_importance=query.importance,
-                    raw_similarity=raw_similarity,
-                    weighted_score=weighted_score
-                ))
+                query_scores.append(
+                    SimilarityScore(
+                        memory_id=memory.id,
+                        query_text=query.query_text,
+                        query_type=query.query_type,
+                        query_importance=query.importance,
+                        raw_similarity=raw_similarity,
+                        weighted_score=weighted_score,
+                    )
+                )
 
             # Combine scores using specified strategy
             combined_score = self._combine_scores(query_scores, combination_strategy)
 
             # Apply recency weighting - more recent memories get higher scores
-            recency_weight = self._calculate_recency_weight(memory, newest_time, oldest_time)
+            recency_weight = self._calculate_recency_weight(
+                memory, newest_time, oldest_time
+            )
             combined_score *= recency_weight
 
-            max_score = max(score.weighted_score for score in query_scores)
-            mean_score = sum(score.weighted_score for score in query_scores) / len(query_scores)
+            # Apply memory type weighting (including supersession)
 
-            candidates.append(MemoryRetrievalCandidate(
-                memory=memory,
-                query_scores=query_scores,
-                combined_score=combined_score,
-                max_score=max_score,
-                mean_score=mean_score
-            ))
+            outgoing_edges = all_outgoing_edges.get(memory.id, [])
+            should_penalize = any(
+                edge.edge_type
+                in [
+                    GraphEdgeType.SUPERSEDED_BY,
+                    GraphEdgeType.RETRACTED_BY,
+                    GraphEdgeType.CONTRADICTED_BY,
+                ]
+                for edge in outgoing_edges
+            )
+            memory_type_weight = get_memory_type_weight(
+                memory.memory_type, should_penalize
+            )
+            combined_score *= memory_type_weight
+
+            max_score = max(score.weighted_score for score in query_scores)
+            mean_score = sum(score.weighted_score for score in query_scores) / len(
+                query_scores
+            )
+
+            candidates.append(
+                MemoryRetrievalCandidate(
+                    memory=memory,
+                    query_scores=query_scores,
+                    combined_score=combined_score,
+                    max_score=max_score,
+                    mean_score=mean_score,
+                )
+            )
 
         # Sort by combined score (highest first)
         candidates.sort(key=lambda c: c.combined_score, reverse=True)
 
         logger.info(
             f"Scored {len(candidates)} memories against {len(queries)} queries. "
-            f"Top score: {candidates[0].combined_score:.3f}" if candidates else "No candidates scored"
+            f"Top score: {candidates[0].combined_score:.3f}"
+            if candidates
+            else "No candidates scored"
         )
 
         # Log top candidates for debugging
         if candidates:
             logger.info("Top scoring memory candidates:")
             for i, candidate in enumerate(candidates[:3], 1):
-                preview = candidate.memory.content[:60] + "..." if len(candidate.memory.content) > 60 else candidate.memory.content
+                preview = (
+                    candidate.memory.content[:60] + "..."
+                    if len(candidate.memory.content) > 60
+                    else candidate.memory.content
+                )
                 logger.info(f"  {i}. Score: {candidate.combined_score:.3f} | {preview}")
 
                 # Log individual query scores for top candidate
                 if i == 1:
                     logger.debug(f"Top candidate query scores:")
                     for score in candidate.query_scores:
-                        logger.debug(f"    {score.query_type}: {score.weighted_score:.3f} ({score.query_text[:40]}...)")
+                        logger.debug(
+                            f"    {score.query_type}: {score.weighted_score:.3f} ({score.query_text[:40]}...)"
+                        )
         else:
             logger.warning("No memory candidates found!")
 
         return candidates
 
-    def _combine_scores(
-        self,
-        scores: List[SimilarityScore],
-        strategy: str
-    ) -> float:
+    def _combine_scores(self, scores: List[SimilarityScore], strategy: str) -> float:
         """
         Combine multiple query scores into a single score.
 
@@ -181,7 +219,9 @@ class SimilarityScorer:
             total_weight = sum(score.query_importance for score in scores)
             if total_weight == 0:
                 return 0.0
-            weighted_sum = sum(score.raw_similarity * score.query_importance for score in scores)
+            weighted_sum = sum(
+                score.raw_similarity * score.query_importance for score in scores
+            )
             return weighted_sum / total_weight
 
         elif strategy == "max":
@@ -193,10 +233,14 @@ class SimilarityScorer:
             return sum(score.raw_similarity for score in scores) / len(scores)
 
         else:
-            logger.warning(f"Unknown combination strategy: {strategy}, using weighted_max")
+            logger.warning(
+                f"Unknown combination strategy: {strategy}, using weighted_max"
+            )
             return max(score.weighted_score for score in scores)
 
-    def _calculate_recency_weight(self, memory: MemoryElement, newest_time, oldest_time) -> float:
+    def _calculate_recency_weight(
+        self, memory: MemoryElement, newest_time, oldest_time
+    ) -> float:
         """
         Calculate recency weight for a memory relative to the memory set being scored.
 
@@ -236,7 +280,7 @@ def retrieve_top_candidates(
     queries: List[MemoryQuery],
     top_k: int = 10,
     min_similarity_threshold: float = 0.3,
-    combination_strategy: str = "weighted_max"
+    combination_strategy: str = "weighted_max",
 ) -> List[MemoryRetrievalCandidate]:
     """
     Retrieve top memory candidates based on multi-query similarity scoring.
@@ -260,13 +304,13 @@ def retrieve_top_candidates(
     candidates = scorer.score_memories_against_queries(
         memories=all_memories,
         queries=queries,
-        combination_strategy=combination_strategy
+        edges=memory_graph.edges,
+        combination_strategy=combination_strategy,
     )
 
     # Filter by threshold and limit to top_k
     filtered_candidates = [
-        c for c in candidates
-        if c.combined_score >= min_similarity_threshold
+        c for c in candidates if c.combined_score >= min_similarity_threshold
     ][:top_k]
 
     logger.info(
@@ -297,3 +341,28 @@ def ensure_memory_has_embedding(memory: MemoryElement) -> MemoryElement:
         logger.debug(f"Generated embedding for memory {memory.id}")
 
     return memory
+
+
+def get_memory_type_weight(memory_type: MemoryType, is_penalized: bool) -> float:
+    """Get retrieval priority weight for memory type."""
+    match memory_type:
+        case MemoryType.COMMITMENT:
+            base_weight = 10.0
+        case MemoryType.IDENTITY:
+            base_weight = 3.0
+        case MemoryType.EMOTIONAL:
+            base_weight = 2.0
+        case MemoryType.PREFERENCE:
+            base_weight = 2.0
+        case MemoryType.FACTUAL:
+            base_weight = 1.0
+        case MemoryType.PROCEDURAL:
+            base_weight = 1.5
+        case _:
+            assert_never(_)
+
+    # Dramatically reduce weight for superseded memories
+    if is_penalized:
+        return base_weight * 0.1  # 90% reduction in priority
+
+    return base_weight

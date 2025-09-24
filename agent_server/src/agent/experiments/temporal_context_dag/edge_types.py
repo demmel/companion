@@ -27,6 +27,9 @@ class EdgeType(str, Enum):
     RETRACTS = "retracts"
     RETRACTED_BY = "retracted_by"
 
+    SUPERSEDES = "supersedes"
+    SUPERSEDED_BY = "superseded_by"
+
 
 class GraphEdgeType(str, Enum):
     """Edge types that can exist in memory graph - subset of ReversibleEdgeType."""
@@ -38,6 +41,7 @@ class GraphEdgeType(str, Enum):
     CONTRADICTED_BY = EdgeType.CONTRADICTED_BY.value
     CLARIFIED_BY = EdgeType.CLARIFIED_BY.value
     RETRACTED_BY = EdgeType.RETRACTED_BY.value
+    SUPERSEDED_BY = EdgeType.SUPERSEDED_BY.value
 
 
 class AgentControlledEdgeType(str, Enum):
@@ -50,6 +54,7 @@ class AgentControlledEdgeType(str, Enum):
     CONTRADICTED_BY = GraphEdgeType.CONTRADICTED_BY.value
     CLARIFIED_BY = GraphEdgeType.CLARIFIED_BY.value
     RETRACTED_BY = GraphEdgeType.RETRACTED_BY.value
+    SUPERSEDED_BY = GraphEdgeType.SUPERSEDED_BY.value
 
 
 def get_prompt_description(edge_type: AgentControlledEdgeType) -> str:
@@ -69,6 +74,8 @@ def get_prompt_description(edge_type: AgentControlledEdgeType) -> str:
             return "Existing memory was a misunderstanding, clarified by new memory"
         case AgentControlledEdgeType.RETRACTED_BY:
             return "Existing memory is completely withdrawn/retracted by new memory"
+        case AgentControlledEdgeType.SUPERSEDED_BY:
+            return "Existing memory is superseded/overridden by new memory"
 
 
 def get_context_description(edge_type: EdgeType) -> str:
@@ -98,6 +105,10 @@ def get_context_description(edge_type: EdgeType) -> str:
             return "This memory completely withdraws/retracts another memory"
         case EdgeType.RETRACTED_BY:
             return "This memory is completely withdrawn/retracted by another memory"
+        case EdgeType.SUPERSEDES:
+            return "This memory supersedes/overrides another memory"
+        case EdgeType.SUPERSEDED_BY:
+            return "This memory is superseded/overridden by another memory"
 
 
 REVERSALS = [
@@ -107,6 +118,7 @@ REVERSALS = [
     (EdgeType.CONTRADICTS, EdgeType.CONTRADICTED_BY),
     (EdgeType.CLARIFIES, EdgeType.CLARIFIED_BY),
     (EdgeType.RETRACTS, EdgeType.RETRACTED_BY),
+    (EdgeType.SUPERSEDES, EdgeType.SUPERSEDED_BY),
 ]
 
 REVERSE_MAPPING = {a: b for a, b in REVERSALS}
@@ -116,12 +128,12 @@ assert set(REVERSE_MAPPING.keys()) == set(
 ), "Reverse mapping must cover all edge types"
 
 
-def get_prompt_type_list():
+def get_prompt_edge_type_list():
     """Get comma-separated list for prompts."""
     return ", ".join(e.value for e in AgentControlledEdgeType)
 
 
-def get_memory_formation_descriptions():
+def get_edge_type_memory_formation_descriptions():
     """Get connection descriptions for prompts."""
     lines = ["Connection types (existing memory → new memory):"]
     for t in AgentControlledEdgeType:
@@ -129,7 +141,7 @@ def get_memory_formation_descriptions():
     return "\n".join(lines)
 
 
-def get_context_descrioptions():
+def get_edge_type_context_descrioptions():
     """Get context documentation lines."""
     lines = ["**Connection Types:**"]
     # Forward descriptions

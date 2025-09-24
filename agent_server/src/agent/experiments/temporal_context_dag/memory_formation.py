@@ -21,8 +21,14 @@ from agent.experiments.temporal_context_dag.actions import (
 from agent.experiments.temporal_context_dag.edge_types import (
     AgentControlledEdgeType,
     GraphEdgeType,
-    get_prompt_type_list,
-    get_memory_formation_descriptions,
+    get_prompt_edge_type_list,
+    get_edge_type_memory_formation_descriptions,
+)
+from agent.experiments.temporal_context_dag.memory_types import (
+    AgentControlledMemoryType,
+    MemoryType,
+    get_prompt_memory_type_list,
+    get_memory_type_classification_descriptions,
 )
 from agent.llm import LLM, SupportedModel
 from agent.state import State, build_agent_state_description
@@ -39,6 +45,7 @@ from .models import (
     MemoryElement,
     ConfidenceLevel,
 )
+from .token_allocation import get_memory_tokens
 
 
 def create_context_element(
@@ -48,6 +55,7 @@ def create_context_element(
     emotional_significance: float,
     initial_tokens: int,
     confidence_level: ConfidenceLevel,
+    memory_type: MemoryType,
 ) -> ContextElement:
     """Create a new memory element with given content and metadata."""
     from agent.memory.embedding_service import get_embedding_service
@@ -65,6 +73,7 @@ def create_context_element(
             timestamp=timestamp,
             emotional_significance=emotional_significance,
             confidence_level=confidence_level,
+            memory_type=memory_type,
             embedding_vector=embedding_vector,
         ),
         tokens=initial_tokens,
@@ -139,14 +148,18 @@ For each significant memory, I will provide:
 2. Content: A rich, descriptive summary that captures what happened - the key insight, event, or fact being remembered
 3. Evidence: Exact quotes, specific dialogue, concrete facts, or precise details that prove this memory happened - the raw evidence
 4. Why this is significant (emotional_significance as a score 0.0-1.0)
-5. Which existing memories (if any) should connect TO this new memory, along with:
+5. Memory type classification ({get_prompt_memory_type_list()}) - what kind of memory this represents
+6. Which existing memories (if any) should connect TO this new memory, along with:
    - The reasoning for each connection
-   - The type of relationship ({get_prompt_type_list()})
+   - The type of relationship ({get_prompt_edge_type_list()})
    - ONLY use memory IDs from the "MY EXISTING MEMORIES IN CONTEXT" section above
 
 I can also create connections between the new memories I'm forming by listing intra_connections that ONLY reference the memory IDs I assigned for this interaction (M1, M2, etc.). These intra_connections should NOT reference any existing memory IDs from the context above.
 
-{get_memory_formation_descriptions()}
+{get_edge_type_memory_formation_descriptions()}
+
+## Memory Type Classifications:
+{get_memory_type_classification_descriptions()}
 
 I will only extract memories that are genuinely significant and create connections that are meaningful and clear.
 {f"Since there are no existing memories in context, I will NOT create any connections." if not context.elements else ""}"""
@@ -209,6 +222,10 @@ I will only extract memories that are genuinely significant and create connectio
                 ]
             },
         )
+        memory_type: AgentControlledMemoryType = Field(
+            description="Type of memory this represents",
+            default=AgentControlledMemoryType.FACTUAL,
+        )
         connections_from_existing: List[ConnectionFromExisting] = Field(
             default_factory=list,
             description="List of existing memories that should connect to this new memory",
@@ -259,23 +276,34 @@ I will only extract memories that are genuinely significant and create connectio
             # Convert LLM confidence level to ConfidenceLevel enum
             confidence_level = ConfidenceLevel(extraction.confidence_level.value)
 
+            # Convert LLM memory type to MemoryType enum
+            memory_type = MemoryType(extraction.memory_type.value)
+
             memory = create_context_element(
                 content=extraction.content,
                 evidence=extraction.evidence,
                 timestamp=trigger.timestamp,
                 emotional_significance=extraction.emotional_significance,
-                initial_tokens=int(extraction.emotional_significance * 100),
+                initial_tokens=get_memory_tokens(
+                    extraction.emotional_significance, memory_type
+                ),
                 confidence_level=confidence_level,
+                memory_type=memory_type,
             )
             memories.append(memory)
 
             # Map agent-assigned ID to actual memory ID
             id_mapping[extraction.id] = memory.memory.id
 
+        for extraction in response.memories:
             # Extract connections from existing memories to this new memory
             for connection in extraction.connections_from_existing:
+                source_id = connection.source_memory_id
+                # Just in case the LLM used connections from existing for new memories
+                if source_id in id_mapping:
+                    source_id = id_mapping[source_id]
                 edge = MemoryEdge(
-                    source_id=connection.source_memory_id,
+                    source_id=source_id,
                     target_id=memory.memory.id,
                     edge_type=GraphEdgeType(connection.edge_type.value),
                 )
@@ -284,24 +312,28 @@ I will only extract memories that are genuinely significant and create connectio
         # Extract intra-interaction connections between new memories
         for intra_connection in response.intra_connections:
             if (
-                intra_connection.source_memory_id in id_mapping
-                and intra_connection.target_memory_id in id_mapping
+                not intra_connection.source_memory_id in id_mapping
+                or not intra_connection.target_memory_id in id_mapping
             ):
-                edge = MemoryEdge(
-                    source_id=id_mapping[intra_connection.source_memory_id],
-                    target_id=id_mapping[intra_connection.target_memory_id],
-                    edge_type=GraphEdgeType(intra_connection.edge_type.value),
+                logger.warning(
+                    f"Skipping invalid intra-connection with unknown memory IDs: {intra_connection}"
                 )
-                connections.append(edge)
+                continue
+            edge = MemoryEdge(
+                source_id=id_mapping[intra_connection.source_memory_id],
+                target_id=id_mapping[intra_connection.target_memory_id],
+                edge_type=GraphEdgeType(intra_connection.edge_type.value),
+            )
+            connections.append(edge)
 
         logger.info(
-            f"  Extracted {len(memories)} significant memories and {len(connections)} connections from interaction {trigger.entry_id}"
+            f"Extracted {len(memories)} significant memories and {len(connections)} connections from interaction {trigger.entry_id}"
         )
         return memories, connections
 
     except Exception as e:
         logger.warning(
-            f"  Memory extraction failed for interaction {trigger.entry_id}: {e}"
+            f"Memory extraction failed for interaction {trigger.entry_id}: {e}"
         )
         raise e
 
@@ -373,7 +405,9 @@ def extract_memories_as_actions(
 
     # Create actions for adding memories to context
     for memory in memories:
-        actions.append(AddToContextAction(context_element=memory))
+        actions.append(
+            AddToContextAction(memory_id=memory.memory.id, initial_tokens=memory.tokens)
+        )
 
     # Create actions for adding connections to graph
     for connection in connections:
@@ -382,7 +416,9 @@ def extract_memories_as_actions(
     # Create actions for adding connections to context
     for connection in connections:
         actions.append(
-            AddEdgeToContextAction(edge=connection, should_boost_source_tokens=True)
+            AddEdgeToContextAction(
+                edge_id=connection.id, should_boost_source_tokens=True
+            )
         )
 
     # Create action for adding the container
