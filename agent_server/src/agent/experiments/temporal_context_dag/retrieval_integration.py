@@ -102,20 +102,51 @@ def retrieve_relevant_memories_as_actions(
         logger.debug("Connecting memories with minimal spanning tree")
         from .minimal_spanning import MinimalSpanningConnector
 
-        # Get current context node IDs
-        context_nodes = {elem.memory.id for elem in context_graph.elements}
+        # Get the most recent batch of memories from the most recent formation session
+        if context_graph.elements and memory_graph.containers:
+            # Find the most recent container (formation session) by trigger timestamp
+            most_recent_container = max(
+                memory_graph.containers.values(),
+                key=lambda container: container.trigger.timestamp,
+            )
+
+            # Get all memories from that most recent formation session
+            recent_memory_nodes = set(most_recent_container.element_ids)
+
+            # Filter to only those that are actually in context
+            recent_memory_nodes = {
+                memory_id
+                for memory_id in recent_memory_nodes
+                if any(elem.memory.id == memory_id for elem in context_graph.elements)
+            }
+
+            logger.debug(
+                f"Using {len(recent_memory_nodes)} memories from most recent formation "
+                f"session (trigger {most_recent_container.trigger.entry_id}) as Steiner tree roots"
+            )
+        elif context_graph.elements:
+            # Fallback: if no containers, use all context memories
+            recent_memory_nodes = {elem.memory.id for elem in context_graph.elements}
+            logger.debug(
+                f"No containers found, using all {len(recent_memory_nodes)} context memories as Steiner tree roots"
+            )
+        else:
+            recent_memory_nodes = set()
+            logger.warning("No context elements available for Steiner tree roots")
 
         # Create minimal spanning connector
         connector = MinimalSpanningConnector(memory_graph.elements, memory_graph.edges)
 
         # Extract target memories from candidates with weights
         target_memories = [c.memory.id for c in candidates]
-        memory_weights = {c.memory.id: c.combined_score for c in candidates}
+        memory_weights: dict[str, float] = {
+            c.memory.id: c.combined_score for c in candidates
+        }
 
-        # Find minimal spanning connection
+        # Find minimal spanning connection to recent memories
         spanning_result = connector.find_minimal_spanning_connection(
             target_memories=target_memories,
-            context_nodes=context_nodes,
+            context_nodes=recent_memory_nodes,
             token_budget=2000,
             memory_weights=memory_weights,
         )
@@ -125,41 +156,82 @@ def retrieve_relevant_memories_as_actions(
             f"using minimal spanning with {spanning_result.total_cost:.2f} total cost"
         )
 
-        # Step 4: Generate actions from spanning result
-        logger.debug("Generating retrieval actions")
+        # Step 4: Generate actions from spanning result with dynamic token allocation
+        logger.debug("Generating retrieval actions with dynamic token allocation")
         actions = []
 
-        # Add all required intermediate nodes
-        for node_id in spanning_result.required_nodes:
-            if node_id in memory_graph.elements:
-                memory = memory_graph.elements[node_id]
-                actions.append(
-                    AddToContextAction(
-                        memory_id=node_id,
-                        initial_tokens=get_memory_tokens(
-                            memory.emotional_significance, memory.memory_type
-                        ),
-                        reinforce_tokens=get_reinforce_tokens(
-                            memory.memory_type, memory.emotional_significance
-                        ),
-                    )
-                )
+        # Calculate min tokens among context elements NOT in Steiner tree
+        all_steiner_nodes = (
+            spanning_result.required_nodes | spanning_result.connected_memories
+        )
+        non_steiner_context_elements = [
+            elem
+            for elem in context_graph.elements
+            if elem.memory.id not in all_steiner_nodes
+        ]
 
-        # Add connected target memories
-        for memory_id in spanning_result.connected_memories:
-            if memory_id in memory_graph.elements:
-                memory = memory_graph.elements[memory_id]
-                actions.append(
-                    AddToContextAction(
-                        memory_id=memory_id,
-                        initial_tokens=get_memory_tokens(
-                            memory.emotional_significance, memory.memory_type
-                        ),
-                        reinforce_tokens=get_reinforce_tokens(
-                            memory.memory_type, memory.emotional_significance
-                        ),
+        if non_steiner_context_elements:
+            min_non_steiner_tokens = min(
+                elem.tokens for elem in non_steiner_context_elements
+            )
+            safe_token_count = min_non_steiner_tokens + 1
+
+            logger.debug(
+                f"Setting Steiner tree nodes to {safe_token_count} tokens for pruning safety"
+            )
+
+            # Get currently in-context Steiner nodes
+            in_context_steiner_ids = {
+                elem.memory.id
+                for elem in context_graph.elements
+                if elem.memory.id in all_steiner_nodes
+            }
+
+            # Add required intermediate nodes that are NOT already in context
+            for node_id in spanning_result.required_nodes:
+                if (
+                    node_id in memory_graph.elements
+                    and node_id not in in_context_steiner_ids
+                ):
+                    actions.append(
+                        AddToContextAction(
+                            memory_id=node_id,
+                            initial_tokens=safe_token_count,
+                            reinforce_tokens=0,
+                        )
                     )
-                )
+
+            # Add target memories that are NOT already in context
+            for memory_id in spanning_result.connected_memories:
+                if (
+                    memory_id in memory_graph.elements
+                    and memory_id not in in_context_steiner_ids
+                ):
+                    actions.append(
+                        AddToContextAction(
+                            memory_id=memory_id,
+                            initial_tokens=safe_token_count,
+                            reinforce_tokens=0,
+                        )
+                    )
+
+            # Reinforce Steiner tree nodes that are already in context
+            for elem in context_graph.elements:
+                if elem.memory.id in all_steiner_nodes:
+                    needed_tokens = max(0, safe_token_count - elem.tokens)
+                    if needed_tokens > 0:
+                        actions.append(
+                            AddToContextAction(
+                                memory_id=elem.memory.id,
+                                initial_tokens=0,  # Already in context
+                                reinforce_tokens=needed_tokens,
+                            )
+                        )
+        else:
+            # All context elements are in the Steiner tree - no need to adjust tokens
+            logger.debug(
+                "All context elements are in Steiner tree, no token adjustments needed"
+            )
 
         # Add all required edges
         for edge_id in spanning_result.required_edges:

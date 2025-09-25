@@ -45,7 +45,7 @@ from .models import (
     MemoryElement,
     ConfidenceLevel,
 )
-from .token_allocation import get_memory_tokens
+from .token_allocation import get_creation_tokens
 
 
 def create_context_element(
@@ -272,6 +272,9 @@ I will only extract memories that are genuinely significant and create connectio
         # Create mapping from agent-assigned IDs to actual memory IDs
         id_mapping = {}
 
+        # Track edge signatures to prevent duplicates: (source_id, edge_type, target_id)
+        edge_signatures = set()
+
         for extraction in response.memories:
             # Convert LLM confidence level to ConfidenceLevel enum
             confidence_level = ConfidenceLevel(extraction.confidence_level.value)
@@ -284,9 +287,7 @@ I will only extract memories that are genuinely significant and create connectio
                 evidence=extraction.evidence,
                 timestamp=trigger.timestamp,
                 emotional_significance=extraction.emotional_significance,
-                initial_tokens=get_memory_tokens(
-                    extraction.emotional_significance, memory_type
-                ),
+                initial_tokens=get_creation_tokens(),
                 confidence_level=confidence_level,
                 memory_type=memory_type,
             )
@@ -302,12 +303,23 @@ I will only extract memories that are genuinely significant and create connectio
                 # Just in case the LLM used connections from existing for new memories
                 if source_id in id_mapping:
                     source_id = id_mapping[source_id]
-                edge = MemoryEdge(
-                    source_id=source_id,
-                    target_id=memory.memory.id,
-                    edge_type=GraphEdgeType(connection.edge_type.value),
-                )
-                connections.append(edge)
+
+                # Check for duplicate edge
+                edge_type = GraphEdgeType(connection.edge_type.value)
+                edge_signature = (source_id, edge_type, memory.memory.id)
+
+                if edge_signature not in edge_signatures:
+                    edge = MemoryEdge(
+                        source_id=source_id,
+                        target_id=memory.memory.id,
+                        edge_type=edge_type,
+                    )
+                    connections.append(edge)
+                    edge_signatures.add(edge_signature)
+                else:
+                    logger.debug(
+                        f"Skipping duplicate edge: {source_id[:8]} --{edge_type.value}--> {memory.memory.id[:8]}"
+                    )
 
         # Extract intra-interaction connections between new memories
         for intra_connection in response.intra_connections:
@@ -319,12 +331,25 @@ I will only extract memories that are genuinely significant and create connectio
                     f"Skipping invalid intra-connection with unknown memory IDs: {intra_connection}"
                 )
                 continue
-            edge = MemoryEdge(
-                source_id=id_mapping[intra_connection.source_memory_id],
-                target_id=id_mapping[intra_connection.target_memory_id],
-                edge_type=GraphEdgeType(intra_connection.edge_type.value),
-            )
-            connections.append(edge)
+
+            # Check for duplicate intra-connection edge
+            source_id = id_mapping[intra_connection.source_memory_id]
+            target_id = id_mapping[intra_connection.target_memory_id]
+            edge_type = GraphEdgeType(intra_connection.edge_type.value)
+            edge_signature = (source_id, edge_type, target_id)
+
+            if edge_signature not in edge_signatures:
+                edge = MemoryEdge(
+                    source_id=source_id,
+                    target_id=target_id,
+                    edge_type=edge_type,
+                )
+                connections.append(edge)
+                edge_signatures.add(edge_signature)
+            else:
+                logger.debug(
+                    f"Skipping duplicate intra-connection edge: {source_id[:8]} --{edge_type.value}--> {target_id[:8]}"
+                )
 
         logger.info(
             f"Extracted {len(memories)} significant memories and {len(connections)} connections from interaction {trigger.entry_id}"

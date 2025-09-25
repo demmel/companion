@@ -6,6 +6,7 @@ debugging and complete replay of memory graph evolution.
 """
 
 import logging
+from agent.timeit import timeit
 from typing import Sequence
 
 from agent.chain_of_action.action_registry import ActionRegistry
@@ -190,14 +191,15 @@ class DagMemoryManager:
             retrieve_relevant_memories_as_actions,
         )
 
-        retrieval_actions = retrieve_relevant_memories_as_actions(
-            memory_graph=self.memory_graph,
-            context_graph=self.context_graph,
-            state=state,
-            trigger=trigger,
-            llm=llm,
-            model=model,
-        )
+        with timeit("Memory Retrieval"):
+            retrieval_actions = retrieve_relevant_memories_as_actions(
+                memory_graph=self.memory_graph,
+                context_graph=self.context_graph,
+                state=state,
+                trigger=trigger,
+                llm=llm,
+                model=model,
+            )
 
         if retrieval_actions:
             self.dispatch_actions(retrieval_actions)
@@ -209,10 +211,13 @@ class DagMemoryManager:
             )
 
         # STEP 3: Prune context to budget BEFORE reasoning
-        context_budget = calculate_context_budget(token_budget, state, action_registry)
-        pruning_actions = prune_context_to_budget_as_actions(
-            self.context_graph, context_budget
-        )
+        with timeit("Context Pruning"):
+            context_budget = calculate_context_budget(
+                token_budget, state, action_registry
+            )
+            pruning_actions = prune_context_to_budget_as_actions(
+                self.context_graph, context_budget
+            )
 
         if pruning_actions:
             self.dispatch_actions(pruning_actions)
@@ -260,9 +265,10 @@ class DagMemoryManager:
         )
 
         # Extract memories and connections as actions
-        memory_actions = extract_memories_as_actions(
-            trigger, state, self.context_graph, llm, model
-        )
+        with timeit("Memory Extraction"):
+            memory_actions = extract_memories_as_actions(
+                trigger, state, self.context_graph, llm, model
+            )
 
         if memory_actions:
             # Dispatch memory and connection actions

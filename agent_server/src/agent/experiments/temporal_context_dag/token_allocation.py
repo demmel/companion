@@ -21,6 +21,11 @@ def get_memory_tokens(emotional_significance: float, memory_type: MemoryType) ->
     return int(base * multiplier)
 
 
+def get_creation_tokens() -> int:
+    """Token allocation for newly created memories - always 102 tokens regardless of significance."""
+    return 102
+
+
 def get_reinforce_tokens(memory_type: MemoryType, emotional_significance: float) -> int:
     """Token allocation for reinforcing existing memories when they get new connections."""
     return get_memory_tokens(emotional_significance, memory_type) // 10

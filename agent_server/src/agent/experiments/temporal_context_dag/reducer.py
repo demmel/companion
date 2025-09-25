@@ -73,6 +73,25 @@ def _apply_add_connection(graph: MemoryGraph, action: AddEdgeAction) -> None:
 
     from .connection_system import update_confidence_for_correction_edge
 
+    # Check for duplicate edge signature (source_id, edge_type, target_id)
+    edge_signature = (
+        action.edge.source_id,
+        action.edge.edge_type,
+        action.edge.target_id,
+    )
+
+    # Check if this exact signature already exists in the graph
+    for existing_edge in graph.edges.values():
+        if (
+            existing_edge.source_id,
+            existing_edge.edge_type,
+            existing_edge.target_id,
+        ) == edge_signature:
+            logger.debug(
+                f"Skipping duplicate edge: {action.edge.source_id[:8]} --{action.edge.edge_type.value}--> {action.edge.target_id[:8]} (already exists as {existing_edge.id[:8]})"
+            )
+            return
+
     graph.edges[action.edge.id] = action.edge
 
     update_confidence_for_correction_edge(graph, action.edge)
@@ -105,15 +124,20 @@ def _apply_add_to_context(
     memory_id = action.memory_id
     for existing_elem in context.elements:
         if existing_elem.memory.id == memory_id:
-            if action.reinforce_tokens > 0:
-                # Reinforce existing memory with additional tokens
+            if action.reinforce_tokens > 0 and existing_elem.tokens <= 100:
+                # Only reinforce memories that are at or below 100 tokens
+                # For memories already over 100, skip reinforcement entirely
                 existing_elem.tokens += action.reinforce_tokens
                 existing_elem.tokens = min(
                     existing_elem.tokens, 100
-                )  # Cap at 100 tokens
+                )  # Cap at 100 tokens only for memories that were <= 100
                 logger.debug(
                     f"Reinforced memory {memory_id[:8]} with {action.reinforce_tokens} tokens "
                     f"(now {existing_elem.tokens} total)"
+                )
+            elif existing_elem.tokens > 100:
+                logger.debug(
+                    f"Memory {memory_id[:8]} has {existing_elem.tokens} tokens (>100), skipping reinforcement"
                 )
             else:
                 logger.debug(
