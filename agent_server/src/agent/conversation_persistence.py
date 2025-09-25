@@ -142,6 +142,11 @@ class ConversationPersistence:
             # Populate the trigger history
             initial_exchange = trigger_data.initial_exchange
             trigger_history.entries = trigger_data.entries
+            if (
+                trigger_history.entries
+                and trigger_history.entries[0].entry_id != initial_exchange.entry_id
+            ):
+                trigger_history.entries.insert(0, initial_exchange)
             trigger_history.summaries = trigger_data.summaries
 
         # Load state
@@ -149,14 +154,16 @@ class ConversationPersistence:
             state = State.model_validate(json.load(f))
 
         with timeit("Loading DAG memory from file"):
-            dag = DagMemoryManager.load_from_file(self._dag_file_name(prefix))
+            dag = DagMemoryManager.load_from_file(
+                self._dag_file_name(prefix), trigger_history
+            )
         with timeit("Loading DAG memory action log from file"):
             action_log = MemoryActionLog.load_from_file(
                 self._dag_action_log_file_name(prefix)
             )
         dag.action_log = action_log
         with timeit("Replaying DAG memory action log"):
-            _, _ = dag.action_log.replay_from_empty()
+            _, _ = dag.action_log.replay_from_empty(trigger_history)
 
         return AgentData(
             trigger_history=trigger_history,

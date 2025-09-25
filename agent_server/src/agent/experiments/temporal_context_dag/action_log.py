@@ -11,6 +11,7 @@ from typing import List, Tuple, Optional
 
 from pydantic import BaseModel
 
+from agent.chain_of_action.trigger_history import TriggerHistory
 from .models import MemoryGraph, ContextGraph
 from .actions import MemoryAction, CheckpointAction
 from .reducer import apply_action
@@ -78,28 +79,32 @@ class MemoryActionLog(BaseModel):
 
         return self.actions[checkpoint_idx + 1 :]
 
-    def replay_from_empty(self) -> Tuple[MemoryGraph, ContextGraph]:
+    def replay_from_empty(
+        self, trigger_history: TriggerHistory
+    ) -> Tuple[MemoryGraph, ContextGraph]:
         """Replay all actions from empty state to reconstruct current state."""
-        return self.replay_actions(self.actions)
+        return self.replay_actions(trigger_history, self.actions)
 
-    def replay_to_checkpoint(self, label: str) -> Tuple[MemoryGraph, ContextGraph]:
+    def replay_to_checkpoint(
+        self, trigger_history: TriggerHistory, label: str
+    ) -> Tuple[MemoryGraph, ContextGraph]:
         """Replay actions up to and including a specific checkpoint."""
         checkpoint_idx = self.find_checkpoint_index(label)
         if checkpoint_idx is None:
             raise ValueError(f"Checkpoint '{label}' not found")
 
         actions_to_replay = self.actions[: checkpoint_idx + 1]
-        return self.replay_actions(actions_to_replay)
+        return self.replay_actions(trigger_history, actions_to_replay)
 
     def replay_actions(
-        self, actions: List[MemoryAction]
+        self, trigger_history: TriggerHistory, actions: List[MemoryAction]
     ) -> Tuple[MemoryGraph, ContextGraph]:
         """Replay a specific list of actions from empty state."""
         graph = MemoryGraph()
         context = ContextGraph(elements=[], edges=[])
 
         for action in actions:
-            apply_action(graph, context, action)
+            apply_action(trigger_history, graph, context, action)
 
         logger.info(
             f"Replayed {len(actions)} actions - Graph: {len(graph.elements)} memories, "

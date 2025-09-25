@@ -18,7 +18,6 @@ from .models import (
 from .memory_formation import (
     create_context_element,
     extract_memories_from_interaction,
-    create_memory_container,
     add_memory_container_to_graph,
 )
 
@@ -65,7 +64,6 @@ __all__ = [
     # Memory Formation
     "create_context_element",
     "extract_memories_from_interaction",
-    "create_memory_container",
     "add_memory_container_to_graph",
     # Connection System
     "add_connections_to_graph",

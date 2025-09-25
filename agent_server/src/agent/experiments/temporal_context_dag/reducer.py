@@ -8,7 +8,14 @@ mutating them directly for efficiency while maintaining replayability through ac
 import logging
 from typing import assert_never
 
-from .models import ContextElement, MemoryGraph, ContextGraph, ConfidenceLevel
+from agent.chain_of_action.trigger_history import TriggerHistory
+from .models import (
+    ContextElement,
+    MemoryContainer,
+    MemoryGraph,
+    ContextGraph,
+    ConfidenceLevel,
+)
 from .actions import (
     ApplyTokenDecayAction,
     MemoryAction,
@@ -26,7 +33,10 @@ logger = logging.getLogger(__name__)
 
 
 def apply_action(
-    graph: MemoryGraph, context: ContextGraph, action: MemoryAction
+    trigger_history: TriggerHistory,
+    graph: MemoryGraph,
+    context: ContextGraph,
+    action: MemoryAction,
 ) -> None:
     """
     Apply a memory action to the graph and context state.
@@ -41,22 +51,51 @@ def apply_action(
     """
     match action:
         case AddMemoryAction():
+            logger.debug(f"Applying AddMemoryAction for memory {action.memory.id[:8]}")
             _apply_add_memory(graph, action)
         case AddEdgeAction():
+            logger.debug(
+                f"Applying AddEdgeAction for edge {action.edge.id[:8]} "
+                f"({action.edge.source_id[:8]} --{action.edge.edge_type.value}--> {action.edge.target_id[:8]})"
+            )
             _apply_add_connection(graph, action)
         case UpdateConfidenceAction():
+            logger.debug(
+                f"Applying UpdateConfidenceAction for memory {action.memory_id[:8]} "
+                f"to {action.new_confidence} ({action.reason})"
+            )
             _apply_update_confidence(graph, action)
         case AddToContextAction():
+            logger.debug(
+                f"Applying AddToContextAction for memory {action.memory_id[:8]} "
+                f"({action.initial_tokens} initial tokens, {action.reinforce_tokens} reinforce tokens)"
+            )
             _apply_add_to_context(graph, context, action)
         case AddEdgeToContextAction():
+            logger.debug(
+                f"Applying AddEdgeToContextAction for edge {action.edge_id[:8]} "
+                f"(boost source tokens: {action.should_boost_source_tokens})"
+            )
             _apply_add_edge_to_context(graph, context, action)
         case RemoveFromContextAction():
+            logger.debug(
+                f"Applying RemoveFromContextAction removing "
+                f"{len(action.memory_ids)} memories and {len(action.edge_ids)} edges ({action.reason})"
+            )
             _apply_remove_from_context(context, action)
         case AddContainerAction():
-            _apply_add_container(graph, action)
+            logger.debug(
+                f"Applying AddContainerAction for container {action.container_id} "
+                f"with {len(action.element_ids)} memories"
+            )
+            _apply_add_container(trigger_history, graph, action)
         case ApplyTokenDecayAction():
+            logger.debug(
+                f"Applying ApplyTokenDecayAction with decay amount {action.decay_amount}"
+            )
             _apply_token_decay(context, action)
         case CheckpointAction():
+            logger.debug(f"Applying CheckpointAction '{action.label}'")
             _apply_checkpoint(action)
         case _:
             assert_never(action)
@@ -197,23 +236,14 @@ def _apply_remove_from_context(
     )
 
 
-def _apply_add_container(graph: MemoryGraph, action: AddContainerAction) -> None:
+def _apply_add_container(
+    trigger_history: TriggerHistory, graph: MemoryGraph, action: AddContainerAction
+) -> None:
     """Add a memory container to the graph."""
-    from .memory_formation import create_memory_container
-    from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-    from agent.chain_of_action.trigger import UserInputTrigger
 
-    # Create a mock trigger for the container
-    # In real usage, this would come from the original trigger
-    mock_trigger = TriggerHistoryEntry(
-        trigger=UserInputTrigger(content="", user_name=""),
-        actions_taken=[],
-        timestamp=action.trigger_timestamp,
-        entry_id=action.container_id,
-    )
-
-    container = create_memory_container(
-        trigger=mock_trigger, element_ids=action.element_ids
+    container = MemoryContainer(
+        trigger=trigger_history.get_entry_by_id(action.container_id),
+        element_ids=action.element_ids,
     )
     graph.containers[action.container_id] = container
     logger.debug(

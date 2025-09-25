@@ -386,6 +386,7 @@ class Agent:
             situational_context="",  # No situational context for initial exchange
             actions_taken=[],
         )
+        self.trigger_history.entries.append(self.initial_exchange)
 
         # Capture entry_id for use in nested callbacks
         entry_id = self.initial_exchange.entry_id
@@ -430,6 +431,7 @@ class Agent:
                     backstory=backstory,
                     token_budget=self.auto_summarize_threshold,
                     action_registry=self.action_reasoning_loop.registry,
+                    trigger_history=self.trigger_history,
                 )
 
             # Create and store the action result

@@ -9,6 +9,7 @@ import logging
 from agent.timeit import timeit
 from typing import Sequence
 
+from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.trigger import Trigger
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
@@ -54,10 +55,16 @@ class DagMemoryManager:
     that can be replayed to reconstruct any historical state.
     """
 
-    def __init__(self, memory_graph: MemoryGraph, context_graph: ContextGraph):
+    def __init__(
+        self,
+        memory_graph: MemoryGraph,
+        context_graph: ContextGraph,
+        trigger_history: TriggerHistory,
+    ):
         """Initialize with existing graph state and empty action log."""
         self.memory_graph = memory_graph
         self.context_graph = context_graph
+        self.trigger_history = trigger_history
         self.action_log = MemoryActionLog()
 
     @classmethod
@@ -67,6 +74,7 @@ class DagMemoryManager:
         backstory: str,
         token_budget: int,
         action_registry: ActionRegistry,
+        trigger_history: TriggerHistory,
     ) -> "DagMemoryManager":
         """
         Create a new manager with initial state creation recorded as actions.
@@ -84,7 +92,9 @@ class DagMemoryManager:
         from .actions import AddMemoryAction, AddToContextAction, AddContainerAction
 
         # Start with completely empty state
-        manager = cls(MemoryGraph(), ContextGraph(elements=[], edges=[]))
+        manager = cls(
+            MemoryGraph(), ContextGraph(elements=[], edges=[]), trigger_history
+        )
 
         # Record that we're starting initial creation
         manager.action_log.add_checkpoint(
@@ -92,7 +102,9 @@ class DagMemoryManager:
         )
 
         # Create initial state using existing logic but capture as actions
-        temp_memory_graph = create_initial_graph(initial_state, backstory)
+        temp_memory_graph = create_initial_graph(
+            initial_state, backstory, trigger_history.entries[0]
+        )
         context_budget = calculate_context_budget(
             token_budget, initial_state, action_registry
         )
@@ -146,7 +158,9 @@ class DagMemoryManager:
         """
         for action in actions:
             self.action_log.add_action(action)
-            apply_action(self.memory_graph, self.context_graph, action)
+            apply_action(
+                self.trigger_history, self.memory_graph, self.context_graph, action
+            )
 
     def add_checkpoint(self, label: str, description: str) -> CheckpointAction:
         """Add a checkpoint to the action log."""
@@ -318,11 +332,13 @@ class DagMemoryManager:
         """
         # Replay actions to get graph state at checkpoint
         memory_graph, context_graph = self.action_log.replay_to_checkpoint(
-            checkpoint_label
+            self.trigger_history, checkpoint_label
         )
 
         # Create new manager with replayed state
-        new_manager = DagMemoryManager(memory_graph, context_graph)
+        new_manager = DagMemoryManager(
+            memory_graph, context_graph, self.trigger_history
+        )
 
         # Copy the action log up to the checkpoint
         checkpoint_idx = self.action_log.find_checkpoint_index(checkpoint_label)
@@ -356,7 +372,9 @@ class DagMemoryManager:
         )
 
     @classmethod
-    def from_data(cls, data: DagMemoryData) -> "DagMemoryManager":
+    def from_data(
+        cls, data: DagMemoryData, trigger_history: TriggerHistory
+    ) -> "DagMemoryManager":
         """
         Create a DagMemoryManager from a serialized data object.
 
@@ -378,7 +396,7 @@ class DagMemoryManager:
             ],
             edges=[memory_graph.edges[edge_id] for edge_id in data.context.edges],
         )
-        return cls(memory_graph, context_graph)
+        return cls(memory_graph, context_graph, trigger_history)
 
     def save_to_file(self, filepath: str) -> None:
         """
@@ -393,7 +411,9 @@ class DagMemoryManager:
             f.write(data.model_dump_json(indent=2))
 
     @classmethod
-    def load_from_file(cls, filepath: str) -> "DagMemoryManager":
+    def load_from_file(
+        cls, filepath: str, trigger_history: TriggerHistory
+    ) -> "DagMemoryManager":
         """
         Load a memory graph from a JSON file.
 
@@ -403,14 +423,16 @@ class DagMemoryManager:
 
         with open(filepath, "r") as f:
             data = DagMemoryData.model_validate_json(f.read())
-        return cls.from_data(data)
+        return cls.from_data(data, trigger_history)
 
     def save_action_log(self, filepath: str) -> None:
         """Save the action log to a file."""
         self.action_log.save_to_file(filepath)
 
     @classmethod
-    def load_from_action_log(cls, filepath: str) -> "DagMemoryManager":
+    def load_from_action_log(
+        cls, filepath: str, trigger_history: TriggerHistory
+    ) -> "DagMemoryManager":
         """
         Create a manager by replaying an action log from file.
 
@@ -421,9 +443,9 @@ class DagMemoryManager:
             Manager instance with state replayed from the action log
         """
         action_log = MemoryActionLog.load_from_file(filepath)
-        memory_graph, context_graph = action_log.replay_from_empty()
+        memory_graph, context_graph = action_log.replay_from_empty(trigger_history)
 
-        manager = cls(memory_graph, context_graph)
+        manager = cls(memory_graph, context_graph, trigger_history)
         manager.action_log = action_log
 
         return manager

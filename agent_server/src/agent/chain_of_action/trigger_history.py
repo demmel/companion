@@ -120,5 +120,12 @@ class TriggerHistory:
         """Get the most recent summary text, if any"""
         return self.summaries[-1].summary_text if self.summaries else None
 
+    def get_entry_by_id(self, entry_id: str) -> TriggerHistoryEntry:
+        """Get a trigger by its entry ID"""
+        for entry in self.entries:
+            if entry.entry_id == entry_id:
+                return entry
+        raise ValueError(f"TriggerHistoryEntry with ID {entry_id} not found")
+
     def __len__(self) -> int:
         return len(self.entries)

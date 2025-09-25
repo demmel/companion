@@ -7,11 +7,12 @@ import logging
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.prompts import build_situational_analysis_prompt
 from agent.chain_of_action.trigger import UserInputTrigger
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State
 
 from .models import (
     ContextGraph,
+    MemoryContainer,
     MemoryGraph,
 )
 
@@ -42,7 +43,9 @@ def calculate_context_budget(
     return context_budget
 
 
-def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
+def create_initial_graph(
+    state: State, backstory: str, initial_exchange: TriggerHistoryEntry
+) -> MemoryGraph:
     """
     Create initial memory graph with memories extracted from backstory.
 
@@ -56,7 +59,6 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
     from .models import MemoryGraph, ContextGraph
     from .memory_formation import (
         extract_memories_from_interaction,
-        create_memory_container,
         add_memory_container_to_graph,
     )
     from .connection_system import add_connections_to_graph
@@ -68,34 +70,19 @@ def create_initial_graph(state: State, backstory: str) -> MemoryGraph:
 
     graph = MemoryGraph()
 
-    # Create synthetic trigger for backstory
-    backstory_trigger_data = UserInputTrigger(
-        content=f"Backstory: {backstory}", user_name="System", image_paths=None
-    )
-
-    backstory_trigger = TriggerHistoryEntry(
-        trigger=backstory_trigger_data,
-        actions_taken=[],
-        timestamp=datetime.fromtimestamp(0),  # Use epoch for backstory
-        entry_id="backstory_initial",
-        situational_context=None,
-        compressed_summary=None,
-        embedding_vector=None,
-    )
-
     # Extract memories from backstory using existing system
     llm = create_llm()
     model = SupportedModel.MISTRAL_SMALL_3_2_Q4
     empty_context = ContextGraph()
 
     memories, edges = extract_memories_from_interaction(
-        backstory_trigger, state, empty_context, llm, model
+        initial_exchange, state, empty_context, llm, model
     )
 
     if memories:
         # Create container for backstory memories
-        container = create_memory_container(
-            trigger=backstory_trigger, element_ids=[m.memory.id for m in memories]
+        container = MemoryContainer(
+            trigger=initial_exchange, element_ids=[m.memory.id for m in memories]
         )
 
         # Add to graph

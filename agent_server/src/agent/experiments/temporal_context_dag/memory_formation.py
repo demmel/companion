@@ -363,17 +363,6 @@ I will only extract memories that are genuinely significant and create connectio
         raise e
 
 
-def create_memory_container(
-    trigger: TriggerHistoryEntry,
-    element_ids: List[str],
-) -> MemoryContainer:
-    """Create a memory container grouping elements from an interaction."""
-    return MemoryContainer(
-        trigger=trigger,
-        element_ids=element_ids,
-    )
-
-
 def add_memory_container_to_graph(
     graph: MemoryGraph, container: MemoryContainer, memories: List[MemoryElement]
 ) -> MemoryGraph:
