@@ -6,14 +6,13 @@ visualization, tracking changes between each action.
 """
 
 import logging
-from typing import List, Dict, Set, Optional, Tuple
+from typing import List, Set, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 
-from agent.conversation_persistence import ConversationPersistence
-from anyio import Path
-
-from ..models import MemoryGraph, ContextGraph, MemoryElement, MemoryEdge
+from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.chain_of_action.trigger import WakeupTrigger
+from ..models import MemoryGraph, ContextGraph
 from ..actions import MemoryAction, CheckpointAction
 from ..action_log import MemoryActionLog
 from ..reducer import apply_action
@@ -64,12 +63,21 @@ class StepwiseGraphReconstructor:
 
     def load(self, file_path: str) -> None:
         """Load action log from JSON file."""
-        dir_path = str(Path(file_path).parent)
-        file_prefix = Path(file_path).name
-        persistence = ConversationPersistence(dir_path)
-        agent_data = persistence.load_agent_data(file_prefix)
-        self.trigger_history = agent_data.trigger_history
-        self.action_log = agent_data.dag_memory_manager.action_log
+        action_log = MemoryActionLog.load_from_file(file_path)
+        trigger_history = TriggerHistory()
+        add_container_actions = [
+            action.container_id
+            for action in action_log.actions
+            if action.action_type == "add_container"
+        ]
+        for container in add_container_actions:
+            trigger_history.entries.append(
+                TriggerHistoryEntry(
+                    entry_id=container, actions_taken=[], trigger=WakeupTrigger()
+                )
+            )
+        self.action_log = action_log
+        self.trigger_history = trigger_history
         self._process_all_steps()
         logger.info(f"Loaded {len(self.graph_states)} graph states from {file_path}")
 
