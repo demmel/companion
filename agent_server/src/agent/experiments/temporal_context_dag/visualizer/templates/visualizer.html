@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAG Memory Evolution Visualizer</title>
+    <link rel="stylesheet" href="/static/css/visualizer.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>DAG Memory Evolution Visualizer</h1>
+            <div class="file-loader">
+                <label for="file-input">Action Log File:</label>
+                <input type="file" id="file-input" accept=".json" />
+                <span id="load-status">No file loaded</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Controls Panel -->
+            <section class="controls-panel">
+                <div class="navigation-controls">
+                    <button id="first-step" disabled>⏮️ First</button>
+                    <button id="prev-step" disabled>⬅️ Previous</button>
+                    <button id="play-pause" disabled>▶️ Play</button>
+                    <button id="next-step" disabled>➡️ Next</button>
+                    <button id="last-step" disabled>⏭️ Last</button>
+                    <button id="fit-screen" disabled>🔍 Fit</button>
+                </div>
+
+                <div class="step-info">
+                    <div class="step-counter">
+                        <span id="current-step">0</span> / <span id="total-steps">0</span>
+                    </div>
+                    <input type="range" id="step-slider" min="0" max="0" value="0" disabled />
+                </div>
+
+                <div class="speed-control">
+                    <label for="speed-slider">Speed:</label>
+                    <input type="range" id="speed-slider" min="100" max="2000" value="1000" />
+                    <span id="speed-display">1.0s</span>
+                </div>
+
+                <div class="checkpoint-controls">
+                    <label for="checkpoint-select">Jump to Checkpoint:</label>
+                    <select id="checkpoint-select" disabled>
+                        <option value="">Select checkpoint...</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Graph Visualization -->
+            <section class="graph-container">
+                <div id="graph-svg-container">
+                    <svg id="graph-svg"></svg>
+                </div>
+
+                <div class="graph-overlay">
+                    <div id="loading-indicator" class="hidden">Loading...</div>
+                    <div id="error-display" class="error hidden"></div>
+                </div>
+            </section>
+
+            <!-- Information Panels -->
+            <aside class="info-panels">
+                <!-- Current Action Info -->
+                <div class="info-panel">
+                    <h3>Current Action</h3>
+                    <div id="action-info">
+                        <div class="info-row">
+                            <span class="label">Type:</span>
+                            <span id="action-type">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Description:</span>
+                            <span id="action-description">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Timestamp:</span>
+                            <span id="action-timestamp">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Graph Statistics -->
+                <div class="info-panel">
+                    <h3>Graph Statistics</h3>
+                    <div id="graph-stats">
+                        <div class="info-row">
+                            <span class="label">Total Memories:</span>
+                            <span id="total-memories">0</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">In Context:</span>
+                            <span id="context-memories">0</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Total Edges:</span>
+                            <span id="total-edges">0</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Context Edges:</span>
+                            <span id="context-edges">0</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Total Tokens:</span>
+                            <span id="total-tokens">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selected Node Details -->
+                <div class="info-panel">
+                    <h3>Selected Memory</h3>
+                    <div id="selected-node-info" class="no-selection">
+                        <p>Click a memory node to view details</p>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="info-panel">
+                    <h3>Legend</h3>
+                    <div id="legend-container">
+                        <!-- Legend will be populated dynamically -->
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/force_renderer.js"></script>
+    <script src="/static/js/controls.js"></script>
+</body>
+</html>

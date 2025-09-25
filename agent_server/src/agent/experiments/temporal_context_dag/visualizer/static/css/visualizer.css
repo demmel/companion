@@ -1,0 +1,466 @@
+/* DAG Memory Evolution Visualizer Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Header Styles */
+.header {
+    background-color: #2c3e50;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    font-weight: 300;
+}
+
+.file-loader {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.file-loader label {
+    font-weight: 500;
+}
+
+.file-loader input[type="file"] {
+    padding: 0.5rem;
+    border: 1px solid #34495e;
+    border-radius: 4px;
+    background-color: white;
+    color: #333;
+}
+
+#load-status {
+    font-size: 0.9rem;
+    color: #bdc3c7;
+}
+
+/* Main Content Layout */
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+        "controls controls"
+        "graph info";
+    gap: 1rem;
+    padding: 1rem;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Controls Panel */
+.controls-panel {
+    grid-area: controls;
+    background-color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.navigation-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.navigation-controls button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #bdc3c7;
+    background-color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.navigation-controls button:hover:not(:disabled) {
+    background-color: #3498db;
+    color: white;
+    border-color: #3498db;
+}
+
+.navigation-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.step-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 200px;
+}
+
+.step-counter {
+    font-weight: 500;
+    text-align: center;
+}
+
+#step-slider {
+    width: 100%;
+}
+
+.speed-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#speed-slider {
+    width: 100px;
+}
+
+#speed-display {
+    font-size: 0.9rem;
+    min-width: 40px;
+}
+
+.checkpoint-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#checkpoint-select {
+    padding: 0.5rem;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    min-width: 200px;
+}
+
+/* Graph Container */
+.graph-container {
+    grid-area: graph;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+#graph-svg-container {
+    width: 100%;
+    height: 100%;
+}
+
+#graph-svg {
+    width: 100%;
+    height: 100%;
+    background-color: #fafafa;
+}
+
+.graph-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#loading-indicator {
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 2rem;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    pointer-events: none;
+}
+
+.error {
+    background-color: #e74c3c;
+    color: white;
+    padding: 1rem;
+    border-radius: 4px;
+    max-width: 80%;
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Information Panels */
+.info-panels {
+    grid-area: info;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+}
+
+.info-panel {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 1rem;
+}
+
+.info-panel h3 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    color: #2c3e50;
+    border-bottom: 2px solid #ecf0f1;
+    padding-bottom: 0.5rem;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-row .label {
+    font-weight: 500;
+    color: #7f8c8d;
+}
+
+.no-selection {
+    color: #95a5a6;
+    font-style: italic;
+}
+
+/* Node and Edge Styles for SVG */
+
+/* Memory Type Colors */
+.node-commitment { fill: #FF4444; }
+.node-identity { fill: #8844FF; }
+.node-emotional { fill: #FF88CC; }
+.node-preference { fill: #FF8844; }
+.node-factual { fill: #4488FF; }
+.node-procedural { fill: #44FF88; }
+
+/* Context Status Outlines */
+.node-in-context {
+    stroke-width: 3px;
+    stroke: #333;
+}
+
+.node-out-of-context {
+    stroke-width: 1px;
+    stroke: #666;
+    stroke-dasharray: 5,5;
+}
+
+/* Confidence Level Patterns */
+.confidence-solid { opacity: 1.0; }
+.confidence-diagonal-stripes { fill: url(#diagonal-stripes); }
+.confidence-dots { fill: url(#dots); }
+.confidence-transparent { opacity: 0.6; }
+.confidence-error-outline { stroke: #FF0000; stroke-width: 2px; }
+.confidence-false-overlay::after {
+    content: "✗";
+    fill: #FF0000;
+    font-size: 16px;
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+/* Edge Styles */
+.edge-temporal { stroke: #666666; stroke-width: 2px; }
+.edge-causal { stroke: #4488FF; stroke-width: 2px; }
+.edge-explanatory { stroke: #44AA44; stroke-width: 2px; }
+.edge-correction {
+    stroke: #FF4444;
+    stroke-width: 2px;
+    stroke-dasharray: 8,4;
+}
+.edge-clarification {
+    stroke: #FF8844;
+    stroke-width: 2px;
+    stroke-dasharray: 3,3;
+}
+
+.edge-in-context {
+    stroke-width: 3px;
+}
+
+/* Node interaction styles */
+.node {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.node:hover {
+    stroke-width: 4px !important;
+    stroke: #2c3e50 !important;
+}
+
+.node.selected {
+    stroke: #e74c3c !important;
+    stroke-width: 4px !important;
+}
+
+.node.highlighted {
+    stroke: #f39c12 !important;
+    stroke-width: 3px !important;
+    filter: drop-shadow(0 0 6px rgba(243, 156, 18, 0.6));
+}
+
+/* Edge interaction styles */
+.edge {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.edge:hover {
+    stroke-width: 4px !important;
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.3));
+}
+
+.edge.highlighted {
+    stroke-width: 4px !important;
+    filter: drop-shadow(0 0 4px rgba(243, 156, 18, 0.6));
+}
+
+/* Node labels */
+.node-label {
+    font-size: 10px;
+    font-family: 'Segoe UI', sans-serif;
+    text-anchor: middle;
+    dominant-baseline: central;
+    fill: #2c3e50;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+/* Legend Styles */
+.legend-section {
+    margin-bottom: 1rem;
+}
+
+.legend-section h4 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+}
+
+.legend-line {
+    width: 20px;
+    height: 2px;
+    border-radius: 1px;
+}
+
+.legend-line.dashed {
+    background-image: repeating-linear-gradient(
+        90deg,
+        currentColor 0px,
+        currentColor 4px,
+        transparent 4px,
+        transparent 8px
+    );
+}
+
+.legend-line.dotted {
+    background-image: repeating-linear-gradient(
+        90deg,
+        currentColor 0px,
+        currentColor 2px,
+        transparent 2px,
+        transparent 4px
+    );
+}
+
+.legend-outline {
+    width: 16px;
+    height: 16px;
+    background-color: #ecf0f1;
+    border-radius: 3px;
+}
+
+.legend-outline.thick-solid {
+    border: 3px solid #333;
+}
+
+.legend-outline.thin-dashed {
+    border: 1px dashed #666;
+}
+
+.legend-item span {
+    font-size: 0.8rem;
+    color: #555;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .main-content {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "controls"
+            "graph"
+            "info";
+    }
+
+    .info-panels {
+        max-height: 400px;
+    }
+}
+
+@media (max-width: 768px) {
+    .controls-panel {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .navigation-controls {
+        justify-content: center;
+    }
+
+    .header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .file-loader {
+        justify-content: center;
+    }
+}
