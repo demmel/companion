@@ -10,6 +10,9 @@ from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 
+from agent.conversation_persistence import ConversationPersistence
+from anyio import Path
+
 from ..models import MemoryGraph, ContextGraph, MemoryElement, MemoryEdge
 from ..actions import MemoryAction, CheckpointAction
 from ..action_log import MemoryActionLog
@@ -29,13 +32,13 @@ class GraphState:
     timestamp: datetime
 
     # Delta information for highlighting changes
-    added_memories: Set[str] = None
-    removed_memories: Set[str] = None
-    modified_memories: Set[str] = None
-    added_edges: Set[str] = None
-    removed_edges: Set[str] = None
-    added_to_context: Set[str] = None
-    removed_from_context: Set[str] = None
+    added_memories: Set[str]
+    removed_memories: Set[str]
+    modified_memories: Set[str]
+    added_edges: Set[str]
+    removed_edges: Set[str]
+    added_to_context: Set[str]
+    removed_from_context: Set[str]
 
 
 @dataclass
@@ -59,11 +62,16 @@ class StepwiseGraphReconstructor:
         self.graph_states: List[GraphState] = []
         self.current_step: int = -1
 
-    def load_action_log(self, filepath: str) -> None:
+    def load(self, file_path: str) -> None:
         """Load action log from JSON file."""
-        self.action_log = MemoryActionLog.load_from_file(filepath)
+        dir_path = str(Path(file_path).parent)
+        file_prefix = Path(file_path).name
+        persistence = ConversationPersistence(dir_path)
+        agent_data = persistence.load_agent_data(file_prefix)
+        self.trigger_history = agent_data.trigger_history
+        self.action_log = agent_data.dag_memory_manager.action_log
         self._process_all_steps()
-        logger.info(f"Loaded {len(self.graph_states)} graph states from {filepath}")
+        logger.info(f"Loaded {len(self.graph_states)} graph states from {file_path}")
 
     def _process_all_steps(self) -> None:
         """Process all actions to generate step-by-step graph states."""
@@ -82,7 +90,7 @@ class StepwiseGraphReconstructor:
             prev_context_ids = {elem.memory.id for elem in context_graph.elements}
 
             # Apply the action
-            apply_action(memory_graph, context_graph, action)
+            apply_action(self.trigger_history, memory_graph, context_graph, action)
 
             # Calculate deltas
             current_memory_ids = set(memory_graph.elements.keys())
@@ -110,11 +118,11 @@ class StepwiseGraphReconstructor:
                 memory_graph=MemoryGraph(
                     elements=dict(memory_graph.elements),
                     containers=dict(memory_graph.containers),
-                    edges=dict(memory_graph.edges)
+                    edges=dict(memory_graph.edges),
                 ),
                 context_graph=ContextGraph(
                     elements=list(context_graph.elements),
-                    edges=list(context_graph.edges)
+                    edges=list(context_graph.edges),
                 ),
                 timestamp=action.timestamp,
                 added_memories=added_memories,
@@ -123,7 +131,7 @@ class StepwiseGraphReconstructor:
                 added_edges=added_edges,
                 removed_edges=removed_edges,
                 added_to_context=added_to_context,
-                removed_from_context=removed_from_context
+                removed_from_context=removed_from_context,
             )
 
             self.graph_states.append(state)
@@ -174,8 +182,10 @@ class StepwiseGraphReconstructor:
     def jump_to_checkpoint(self, checkpoint_label: str) -> Optional[GraphState]:
         """Jump to a specific checkpoint by label."""
         for i, state in enumerate(self.graph_states):
-            if (isinstance(state.action, CheckpointAction) and
-                state.action.label == checkpoint_label):
+            if (
+                isinstance(state.action, CheckpointAction)
+                and state.action.label == checkpoint_label
+            ):
                 self.current_step = i
                 return state
         return None
@@ -199,7 +209,7 @@ class StepwiseGraphReconstructor:
                 timestamp=action.timestamp,
                 description=description,
                 is_checkpoint=is_checkpoint,
-                checkpoint_label=checkpoint_label
+                checkpoint_label=checkpoint_label,
             )
         return None
 
@@ -207,7 +217,11 @@ class StepwiseGraphReconstructor:
         """Generate human-readable description of an action."""
         match action.action_type:
             case "add_memory":
-                preview = action.memory.content[:50] + "..." if len(action.memory.content) > 50 else action.memory.content
+                preview = (
+                    action.memory.content[:50] + "..."
+                    if len(action.memory.content) > 50
+                    else action.memory.content
+                )
                 return f"Added memory: {preview}"
             case "add_connection":
                 return f"Added {action.edge.edge_type} connection"

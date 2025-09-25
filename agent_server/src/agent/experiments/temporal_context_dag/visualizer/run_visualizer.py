@@ -18,10 +18,14 @@ from agent.experiments.temporal_context_dag.visualizer.web_app import run_visual
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Run DAG Memory Evolution Visualizer')
-    parser.add_argument('--host', default='localhost', help='Host to bind to (default: localhost)')
-    parser.add_argument('--port', type=int, default=5000, help='Port to bind to (default: 5000)')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser = argparse.ArgumentParser(description="Run DAG Memory Evolution Visualizer")
+    parser.add_argument(
+        "--host", default="localhost", help="Host to bind to (default: localhost)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=5000, help="Port to bind to (default: 5000)"
+    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
     args = parser.parse_args()
 
@@ -43,5 +47,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

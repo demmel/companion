@@ -16,15 +16,22 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
 from agent.experiments.temporal_context_dag.models import MemoryGraph, ContextGraph
 from agent.experiments.temporal_context_dag.actions import (
-    CheckpointAction, AddMemoryAction, AddToContextAction, AddEdgeAction
+    CheckpointAction,
+    AddMemoryAction,
+    AddToContextAction,
+    AddEdgeAction,
 )
 from agent.experiments.temporal_context_dag.models import MemoryElement, MemoryEdge
 from agent.experiments.temporal_context_dag.memory_types import MemoryType
 from agent.experiments.temporal_context_dag.edge_types import GraphEdgeType
 from agent.experiments.temporal_context_dag.models import ConfidenceLevel
 from agent.experiments.temporal_context_dag.action_log import MemoryActionLog
-from agent.experiments.temporal_context_dag.visualizer.action_processor import StepwiseGraphReconstructor
-from agent.experiments.temporal_context_dag.visualizer.graph_extractor import GraphExtractor
+from agent.experiments.temporal_context_dag.visualizer.action_processor import (
+    StepwiseGraphReconstructor,
+)
+from agent.experiments.temporal_context_dag.visualizer.graph_extractor import (
+    GraphExtractor,
+)
 
 
 def create_test_action_log():
@@ -43,7 +50,7 @@ def create_test_action_log():
         emotional_significance=0.7,
         confidence_level=ConfidenceLevel.USER_CONFIRMED,
         memory_type=MemoryType.IDENTITY,
-        embedding_vector=[0.1] * 768  # Dummy embedding
+        embedding_vector=[0.1] * 768,  # Dummy embedding
     )
 
     memory2 = MemoryElement(
@@ -54,7 +61,7 @@ def create_test_action_log():
         emotional_significance=0.3,
         confidence_level=ConfidenceLevel.STRONG_INFERENCE,
         memory_type=MemoryType.FACTUAL,
-        embedding_vector=[0.2] * 768
+        embedding_vector=[0.2] * 768,
     )
 
     memory3 = MemoryElement(
@@ -65,7 +72,7 @@ def create_test_action_log():
         emotional_significance=0.9,
         confidence_level=ConfidenceLevel.USER_CONFIRMED,
         memory_type=MemoryType.COMMITMENT,
-        embedding_vector=[0.3] * 768
+        embedding_vector=[0.3] * 768,
     )
 
     # Add memory actions
@@ -82,9 +89,7 @@ def create_test_action_log():
 
     # Add a connection
     edge = MemoryEdge(
-        source_id="mem1",
-        target_id="mem3",
-        edge_type=GraphEdgeType.EXPLAINS
+        source_id="mem1", target_id="mem3", edge_type=GraphEdgeType.EXPLAINS
     )
     action_log.add_action(AddEdgeAction(edge=edge))
 
@@ -101,14 +106,14 @@ def test_action_processor():
     action_log = create_test_action_log()
 
     # Save to temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write(action_log.model_dump_json(indent=2))
         temp_path = f.name
 
     try:
         # Test processor
         processor = StepwiseGraphReconstructor()
-        processor.load_action_log(temp_path)
+        processor.load(temp_path)
 
         step_count = processor.get_step_count()
         print(f"  Loaded {step_count} steps")
@@ -117,7 +122,9 @@ def test_action_processor():
         for i in range(min(3, step_count)):
             state = processor.set_step(i)
             if state:
-                print(f"  Step {i}: {state.action.action_type} - {len(state.memory_graph.elements)} memories")
+                print(
+                    f"  Step {i}: {state.action.action_type} - {len(state.memory_graph.elements)} memories"
+                )
 
         # Test checkpoints
         checkpoints = processor.get_checkpoints()
@@ -140,14 +147,14 @@ def test_graph_extractor():
     action_log = create_test_action_log()
 
     # Save to temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write(action_log.model_dump_json(indent=2))
         temp_path = f.name
 
     try:
         # Test processor and extractor together
         processor = StepwiseGraphReconstructor()
-        processor.load_action_log(temp_path)
+        processor.load(temp_path)
         extractor = GraphExtractor()
 
         # Test extraction on a few steps
@@ -155,7 +162,9 @@ def test_graph_extractor():
             state = processor.set_step(i)
             if state:
                 viz_data = extractor.extract_visualization_data(state)
-                print(f"  Step {i}: {len(viz_data.nodes)} nodes, {len(viz_data.edges)} edges")
+                print(
+                    f"  Step {i}: {len(viz_data.nodes)} nodes, {len(viz_data.edges)} edges"
+                )
                 print(f"    Action: {viz_data.action_description}")
 
         # Test legend
@@ -181,14 +190,17 @@ def main():
 
         print("\n✅ All tests passed!")
         print("\nTo run the web interface:")
-        print("  uv run python src/agent/experiments/temporal_context_dag/visualizer/run_visualizer.py")
+        print(
+            "  uv run python src/agent/experiments/temporal_context_dag/visualizer/run_visualizer.py"
+        )
 
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

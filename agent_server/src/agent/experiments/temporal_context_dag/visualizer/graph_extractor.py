@@ -89,12 +89,12 @@ class GraphExtractor:
 
     # Color scheme for memory types
     MEMORY_TYPE_COLORS = {
-        MemoryType.COMMITMENT.value: "#FF4444",      # Red
-        MemoryType.IDENTITY.value: "#8844FF",        # Purple
-        MemoryType.EMOTIONAL.value: "#FF88CC",       # Pink
-        MemoryType.PREFERENCE.value: "#FF8844",      # Orange
-        MemoryType.FACTUAL.value: "#4488FF",         # Blue
-        MemoryType.PROCEDURAL.value: "#44FF88",      # Green
+        MemoryType.COMMITMENT.value: "#FF4444",  # Red
+        MemoryType.IDENTITY.value: "#8844FF",  # Purple
+        MemoryType.EMOTIONAL.value: "#FF88CC",  # Pink
+        MemoryType.PREFERENCE.value: "#FF8844",  # Orange
+        MemoryType.FACTUAL.value: "#4488FF",  # Blue
+        MemoryType.PROCEDURAL.value: "#44FF88",  # Green
     }
 
     # Edge type styling
@@ -129,7 +129,7 @@ class GraphExtractor:
                 in_context=memory_id in context_memory_ids,
                 tokens=context_tokens.get(memory_id),
                 is_new=memory_id in (state.added_memories or set()),
-                is_modified=memory_id in (state.modified_memories or set())
+                is_modified=memory_id in (state.modified_memories or set()),
             )
             nodes.append(node_data)
 
@@ -139,7 +139,7 @@ class GraphExtractor:
             edge_data = self._extract_edge_data(
                 edge,
                 in_context=edge_id in context_edge_ids,
-                is_new=edge_id in (state.added_edges or set())
+                is_new=edge_id in (state.added_edges or set()),
             )
             edges.append(edge_data)
 
@@ -157,7 +157,7 @@ class GraphExtractor:
             context_memories=len(state.context_graph.elements),
             total_edges=len(state.memory_graph.edges),
             context_edges=len(state.context_graph.edges),
-            total_tokens=total_tokens
+            total_tokens=total_tokens,
         )
 
     def _extract_node_data(
@@ -166,7 +166,7 @@ class GraphExtractor:
         in_context: bool,
         tokens: Optional[int] = None,
         is_new: bool = False,
-        is_modified: bool = False
+        is_modified: bool = False,
     ) -> NodeData:
         """Extract visualization data for a single memory node."""
 
@@ -195,21 +195,17 @@ class GraphExtractor:
             outline_style=outline_style,
             pattern=pattern,
             is_new=is_new,
-            is_modified=is_modified
+            is_modified=is_modified,
         )
 
     def _extract_edge_data(
-        self,
-        edge: MemoryEdge,
-        in_context: bool = False,
-        is_new: bool = False
+        self, edge: MemoryEdge, in_context: bool = False, is_new: bool = False
     ) -> EdgeData:
         """Extract visualization data for a single memory edge."""
 
         # Get styling
         style_info = self.EDGE_TYPE_STYLES.get(
-            edge.edge_type.value,
-            {"color": "#999999", "style": "solid"}
+            edge.edge_type.value, {"color": "#999999", "style": "solid"}
         )
 
         # Adjust width for context edges
@@ -225,7 +221,7 @@ class GraphExtractor:
             color=style_info["color"],
             line_style=style_info["style"],
             width=width,
-            is_new=is_new
+            is_new=is_new,
         )
 
     def _get_confidence_pattern(self, confidence_level: str) -> str:
@@ -250,7 +246,11 @@ class GraphExtractor:
         """Generate human-readable description of an action."""
         match action.action_type:
             case "add_memory":
-                preview = action.memory.content[:30] + "..." if len(action.memory.content) > 30 else action.memory.content
+                preview = (
+                    action.memory.content[:30] + "..."
+                    if len(action.memory.content) > 30
+                    else action.memory.content
+                )
                 return f"Added {action.memory.memory_type.value} memory: {preview}"
             case "add_connection":
                 return f"Added {action.edge.edge_type.value} connection"
@@ -275,12 +275,30 @@ class GraphExtractor:
         """Get legend data for the visualization."""
         return {
             "memory_types": [
-                {"name": "Commitment", "color": self.MEMORY_TYPE_COLORS[MemoryType.COMMITMENT.value]},
-                {"name": "Identity", "color": self.MEMORY_TYPE_COLORS[MemoryType.IDENTITY.value]},
-                {"name": "Emotional", "color": self.MEMORY_TYPE_COLORS[MemoryType.EMOTIONAL.value]},
-                {"name": "Preference", "color": self.MEMORY_TYPE_COLORS[MemoryType.PREFERENCE.value]},
-                {"name": "Factual", "color": self.MEMORY_TYPE_COLORS[MemoryType.FACTUAL.value]},
-                {"name": "Procedural", "color": self.MEMORY_TYPE_COLORS[MemoryType.PROCEDURAL.value]},
+                {
+                    "name": "Commitment",
+                    "color": self.MEMORY_TYPE_COLORS[MemoryType.COMMITMENT.value],
+                },
+                {
+                    "name": "Identity",
+                    "color": self.MEMORY_TYPE_COLORS[MemoryType.IDENTITY.value],
+                },
+                {
+                    "name": "Emotional",
+                    "color": self.MEMORY_TYPE_COLORS[MemoryType.EMOTIONAL.value],
+                },
+                {
+                    "name": "Preference",
+                    "color": self.MEMORY_TYPE_COLORS[MemoryType.PREFERENCE.value],
+                },
+                {
+                    "name": "Factual",
+                    "color": self.MEMORY_TYPE_COLORS[MemoryType.FACTUAL.value],
+                },
+                {
+                    "name": "Procedural",
+                    "color": self.MEMORY_TYPE_COLORS[MemoryType.PROCEDURAL.value],
+                },
             ],
             "edge_types": [
                 {"name": "Temporal", "color": "#666666", "style": "solid"},
@@ -300,5 +318,5 @@ class GraphExtractor:
                 {"name": "Speculative", "pattern": "transparent"},
                 {"name": "Likely Error", "pattern": "error-outline"},
                 {"name": "Known False", "pattern": "false-overlay"},
-            ]
+            ],
         }
