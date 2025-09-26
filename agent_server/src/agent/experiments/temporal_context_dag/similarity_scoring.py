@@ -278,9 +278,9 @@ class SimilarityScorer:
 def retrieve_top_candidates(
     memory_graph: MemoryGraph,
     queries: List[MemoryQuery],
-    top_k: int = 10,
-    min_similarity_threshold: float = 0.3,
-    combination_strategy: str = "weighted_max",
+    top_k: int,
+    min_similarity_threshold: float,
+    combination_strategy: str,
 ) -> List[MemoryRetrievalCandidate]:
     """
     Retrieve top memory candidates based on multi-query similarity scoring.

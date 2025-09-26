@@ -213,6 +213,9 @@ class DagMemoryManager:
                 trigger=trigger,
                 llm=llm,
                 model=model,
+                max_retrieved_memories=5,
+                max_queries=6,
+                min_similarity_threshold=0.4,
             )
 
         if retrieval_actions:

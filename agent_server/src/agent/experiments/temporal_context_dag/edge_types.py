@@ -30,6 +30,9 @@ class EdgeType(str, Enum):
     SUPERSEDES = "supersedes"
     SUPERSEDED_BY = "superseded_by"
 
+    CORRECTS = "corrects"
+    CORRECTED_BY = "corrected_by"
+
 
 class GraphEdgeType(str, Enum):
     """Edge types that can exist in memory graph - subset of ReversibleEdgeType."""
@@ -42,6 +45,7 @@ class GraphEdgeType(str, Enum):
     CLARIFIED_BY = EdgeType.CLARIFIED_BY.value
     RETRACTED_BY = EdgeType.RETRACTED_BY.value
     SUPERSEDED_BY = EdgeType.SUPERSEDED_BY.value
+    CORRECTED_BY = EdgeType.CORRECTED_BY.value
 
 
 class AgentControlledEdgeType(str, Enum):
@@ -55,6 +59,7 @@ class AgentControlledEdgeType(str, Enum):
     CLARIFIED_BY = GraphEdgeType.CLARIFIED_BY.value
     RETRACTED_BY = GraphEdgeType.RETRACTED_BY.value
     SUPERSEDED_BY = GraphEdgeType.SUPERSEDED_BY.value
+    CORRECTED_BY = GraphEdgeType.CORRECTED_BY.value
 
 
 def get_prompt_description(edge_type: AgentControlledEdgeType) -> str:
@@ -76,6 +81,8 @@ def get_prompt_description(edge_type: AgentControlledEdgeType) -> str:
             return "Existing memory is completely withdrawn/retracted by new memory"
         case AgentControlledEdgeType.SUPERSEDED_BY:
             return "Existing memory is superseded/overridden by new memory"
+        case AgentControlledEdgeType.CORRECTED_BY:
+            return "Existing memory is corrected/updated by new memory"
 
 
 def get_context_description(edge_type: EdgeType) -> str:
@@ -109,6 +116,10 @@ def get_context_description(edge_type: EdgeType) -> str:
             return "This memory supersedes/overrides another memory"
         case EdgeType.SUPERSEDED_BY:
             return "This memory is superseded/overridden by another memory"
+        case EdgeType.CORRECTS:
+            return "This memory corrects/updates another memory"
+        case EdgeType.CORRECTED_BY:
+            return "This memory is corrected/updated by another memory"
 
 
 REVERSALS = [
@@ -119,6 +130,7 @@ REVERSALS = [
     (EdgeType.CLARIFIES, EdgeType.CLARIFIED_BY),
     (EdgeType.RETRACTS, EdgeType.RETRACTED_BY),
     (EdgeType.SUPERSEDES, EdgeType.SUPERSEDED_BY),
+    (EdgeType.CORRECTS, EdgeType.CORRECTED_BY),
 ]
 
 REVERSE_MAPPING = {a: b for a, b in REVERSALS}

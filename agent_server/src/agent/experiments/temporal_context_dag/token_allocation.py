@@ -22,8 +22,8 @@ def get_memory_tokens(emotional_significance: float, memory_type: MemoryType) ->
 
 
 def get_creation_tokens() -> int:
-    """Token allocation for newly created memories - always 102 tokens regardless of significance."""
-    return 102
+    """Token allocation for newly created memories - always 105 tokens for 5-turn immunity."""
+    return 105
 
 
 def get_reinforce_tokens(memory_type: MemoryType, emotional_significance: float) -> int:

@@ -107,21 +107,20 @@ def extract_memories_from_interaction(
     # Build context of the interaction for the agent to analyze
     interaction_context = format_single_trigger_entry(trigger)
 
-    # Build context memories information for connection formation
-    context_memories_info = ""
-    if context.elements:
-        context_memories_info = "\n".join(
-            [f"- [{elem.memory.id}] {elem.memory.content}" for elem in context.elements]
-        )
-    else:
-        context_memories_info = "No existing memories in current context."
+    from agent.experiments.temporal_context_dag.context_formatting import format_context
+
+    dag_context_text = (
+        format_context(context)
+        if context.elements
+        else "No existing memories in current context."
+    )
 
     # Build prompt with existing context if available
     prompt = f"""I'm {state.name}, {state.role}. I need to analyze this interaction I just had and extract the most significant memories worth preserving, along with their connections to my existing memories.
 
     {build_agent_state_description(state)}
 
-{format_section("MY EXISTING MEMORIES IN CONTEXT", context_memories_info)}
+{format_section("MY EXISTING MEMORIES IN CONTEXT", dag_context_text)}
 
 {format_section("WHAT JUST HAPPENED", interaction_context)}
 
@@ -296,6 +295,9 @@ I will only extract memories that are genuinely significant and create connectio
             # Map agent-assigned ID to actual memory ID
             id_mapping[extraction.id] = memory.memory.id
 
+        # Create set of valid existing memory IDs for validation
+        valid_existing_ids = {elem.memory.id for elem in context.elements}
+
         for extraction in response.memories:
             # Extract connections from existing memories to this new memory
             for connection in extraction.connections_from_existing:
@@ -303,6 +305,28 @@ I will only extract memories that are genuinely significant and create connectio
                 # Just in case the LLM used connections from existing for new memories
                 if source_id in id_mapping:
                     source_id = id_mapping[source_id]
+
+                # Try to resolve source_id if not found directly
+                if source_id not in valid_existing_ids:
+                    # Try to find by prefix match
+                    matching_ids = [mid for mid in valid_existing_ids if mid.startswith(source_id)]
+                    if len(matching_ids) == 1:
+                        logger.info(
+                            f"Resolved truncated memory ID '{source_id}' to full ID '{matching_ids[0]}'"
+                        )
+                        source_id = matching_ids[0]
+                    elif len(matching_ids) > 1:
+                        logger.warning(
+                            f"Ambiguous memory ID prefix '{source_id}' matches {len(matching_ids)} memories. "
+                            f"Cannot resolve connection."
+                        )
+                        continue
+                    else:
+                        logger.warning(
+                            f"Invalid memory ID '{source_id}' not found in context. "
+                            f"LLM may have hallucinated the memory ID."
+                        )
+                        continue
 
                 # Check for duplicate edge
                 edge_type = GraphEdgeType(connection.edge_type.value)
@@ -323,12 +347,15 @@ I will only extract memories that are genuinely significant and create connectio
 
         # Extract intra-interaction connections between new memories
         for intra_connection in response.intra_connections:
+            # Validate that both memory IDs are in the newly created memories
             if (
                 not intra_connection.source_memory_id in id_mapping
                 or not intra_connection.target_memory_id in id_mapping
             ):
                 logger.warning(
-                    f"Skipping invalid intra-connection with unknown memory IDs: {intra_connection}"
+                    f"Skipping invalid intra-connection: source='{intra_connection.source_memory_id}' "
+                    f"or target='{intra_connection.target_memory_id}' not found in newly created memories. "
+                    f"LLM may have used invalid memory references."
                 )
                 continue
 
