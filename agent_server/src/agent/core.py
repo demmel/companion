@@ -90,7 +90,6 @@ class Agent:
         llm: LLM,
         auto_save: bool = True,
         enable_image_generation: bool = True,
-        continuous_summarization: bool = False,
         keep_recent: int = 2,
         individual_trigger_compression: bool = True,
         enable_dag_memory: bool = False,
@@ -107,7 +106,6 @@ class Agent:
             # Default 60% threshold
             self.auto_summarize_threshold = int(self.context_window * 0.6)
         self.enable_image_generation = enable_image_generation
-        self.continuous_summarization = continuous_summarization
         self.keep_recent = keep_recent
         self.individual_trigger_compression = individual_trigger_compression
         self.enable_dag_memory = enable_dag_memory
@@ -334,7 +332,7 @@ class Agent:
                 self._run_initial_exchange_with_streaming(trigger)
             else:
                 # Check if we need auto-summarization before processing (skip if continuous summarization enabled or DAG memory)
-                if not self.continuous_summarization and not self.enable_dag_memory:
+                if not self.enable_dag_memory:
                     context_info = self.get_context_info()
                     if context_info.estimated_tokens >= context_info.context_limit:
                         # Perform auto-summarization with event emission
@@ -342,14 +340,6 @@ class Agent:
 
                 # Use action-based reasoning with callback conversion
                 self._run_chain_of_action_with_streaming(trigger)
-
-                # Continuous summarization: summarize after every trigger if enabled (skip for DAG memory)
-                if (
-                    self.continuous_summarization
-                    and not self.enable_dag_memory
-                    and len(self.trigger_history.entries) > self.keep_recent
-                ):
-                    self._auto_summarize_with_events(self.keep_recent)
 
             # Auto-save conversation after each turn
             logger.info(f"Checking auto-save: auto_save={self.auto_save}")
