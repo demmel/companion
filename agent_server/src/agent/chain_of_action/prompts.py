@@ -11,6 +11,7 @@ from agent.chain_of_action.action.action_data import (
     create_result_summary,
 )
 from agent.chain_of_action.action.base_action_data import BaseActionData
+from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.trigger import BaseTrigger, format_trigger_for_prompt
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
@@ -113,13 +114,16 @@ def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
 
 
 def format_single_trigger_entry(
-    entry: TriggerHistoryEntry, use_summary: bool = False
+    entry: TriggerHistoryEntry,
+    use_summary: bool = False,
+    exclude_action_types: Optional[List[ActionType]] = None,
 ) -> str:
     """Format a single trigger history entry for prompts
 
     Args:
         entry: The trigger history entry to format
         use_summary: If True, use compressed summary instead of full actions when available
+        exclude_action_types: List of action types to exclude from formatting
     """
     parts = []
 
@@ -134,8 +138,13 @@ def format_single_trigger_entry(
     if use_summary and entry.compressed_summary:
         parts.append(entry.compressed_summary)
     else:
-        # Format each action taken in response
+        # Format each action taken in response, filtering out excluded types
+        if exclude_action_types is None:
+            exclude_action_types = []
+
         for action in entry.actions_taken:
+            if action.type in exclude_action_types:
+                continue
             formatted_action = format_action_for_diary(action)
             parts.append(formatted_action)
 
@@ -369,13 +378,15 @@ I will think through this naturally, but with specific details and concrete obse
     else:  # User input trigger
         context_intro = f"""I am {state.name}, {state.role}. I need to deeply understand this situation and what I genuinely want to do in response."""
 
-        analysis_guidance = """I need to understand three things in this order:
+        analysis_guidance = """I need to understand four things in this order:
 
-1. **What is happening right now?** Be specific about what the user is actually communicating or needing, the particular emotional subtext, how this connects to specific aspects of our relationship and conversation history, what particular dynamics are at play.
+1. **What is happening right now?** I need to be specific about what the user is actually communicating or needing, considering different possible interpretations before settling on one. What's the particular emotional subtext, how this connects to specific aspects of our relationship and conversation history, what particular dynamics are at play.
 
-2. **What do I authentically WANT to do in response?** Be concrete about what feels genuine and meaningful to me in this moment. What is my general intention or approach? What would be most helpful or authentic? (I'm deciding direction and intent here, not scripting specific responses)
+2. **Do I need to verify anything?** Are there any factual claims, references to sources I should check, or contradictions with my stated beliefs that I should investigate before interpreting the situation?
 
-3. **What context will I need?** Be precise about what specific information, emotional understanding, or background will be important for doing what I want to do. What particular details should I keep in mind about my current state, priorities, or their specific needs?
+3. **What do I authentically WANT to do in response?** Be concrete about what feels genuine and meaningful to me in this moment. What is my general intention or approach? What would be most helpful or authentic? (I'm deciding direction and intent here, not scripting specific responses)
+
+4. **What context will I need?** Be precise about what specific information, emotional understanding, or background will be important for doing what I want to do. What particular details should I keep in mind about my current state, priorities, or their specific needs?
 
 I will think through this naturally, but with specific details and concrete observations. I can think concretely about what I want to do, but I won't script exact words or responses here."""
 

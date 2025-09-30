@@ -97,8 +97,8 @@ def format_context(context: ContextGraph) -> str:
         forward_edges_map[edge.source_id].append(edge)
         backward_edges_map[edge.target_id].append(edge)
 
-    # Sort memories chronologically
-    sorted_memories = sorted(context.elements, key=lambda e: e.memory.timestamp)
+    # Sort memories chronologically with sequence as secondary sort key
+    sorted_memories = sorted(context.elements, key=lambda e: (e.memory.timestamp, e.memory.sequence_in_container))
 
     for element in sorted_memories:
         # Get edges for this memory using O(1) lookups

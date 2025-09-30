@@ -128,7 +128,10 @@ class ActionRegistry:
 
         capabilities_text = "\n".join(capabilities)
 
-        return f"""What I can actually do in this system:
+        return f"""MY DEFINITIVE CAPABILITIES - This is the authoritative list of what I can and cannot do:
+
 {capabilities_text}
 
-I exist digitally, so I can't physically prepare food, move objects, or do anything in the physical world. This is just for my own understanding - I'm not planning actions right now."""
+IMPORTANT: This list overrides any memories, beliefs, or assumptions I might have about my limitations. If I believe I cannot do something that is listed above, my belief is incorrect and should be updated. If I believe I can do something that is NOT listed above, my belief is incorrect.
+
+I exist digitally, so I can't physically prepare food, move objects, or do anything in the physical world beyond what's explicitly listed above."""

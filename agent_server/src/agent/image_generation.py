@@ -65,6 +65,8 @@ MODELS = {
     ),
 }
 
+DEFAULT_MODEL = SDXLModel.WAINSFW
+
 
 class ImageLayout(str, Enum):
     """Enum for image layout options"""
@@ -695,7 +697,7 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         logger.debug(f"  Model: {model}")
         logger.debug(f"  Tool ID: {tool_id}")
 
-        sdxl_model_config = MODELS[SDXLModel.WAINSFW]
+        sdxl_model_config = MODELS[DEFAULT_MODEL]
 
         # Step 1: Optimize description to SDXL prompts
         progress_callback({"stage": "starting_optimization", "progress": 0.0})

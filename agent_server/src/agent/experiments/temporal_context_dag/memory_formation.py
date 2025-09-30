@@ -56,6 +56,7 @@ def create_context_element(
     initial_tokens: int,
     confidence_level: ConfidenceLevel,
     memory_type: MemoryType,
+    sequence_in_container: int,
 ) -> ContextElement:
     """Create a new memory element with given content and metadata."""
     from agent.memory.embedding_service import get_embedding_service
@@ -74,6 +75,7 @@ def create_context_element(
             emotional_significance=emotional_significance,
             confidence_level=confidence_level,
             memory_type=memory_type,
+            sequence_in_container=sequence_in_container,
             embedding_vector=embedding_vector,
         ),
         tokens=initial_tokens,
@@ -105,7 +107,9 @@ def extract_memories_from_interaction(
     from pydantic import BaseModel, Field
 
     # Build context of the interaction for the agent to analyze
-    interaction_context = format_single_trigger_entry(trigger)
+    # Exclude wait actions as they are not meaningful for memory formation
+    from agent.chain_of_action.action.action_types import ActionType
+    interaction_context = format_single_trigger_entry(trigger, exclude_action_types=[ActionType.WAIT])
 
     from agent.experiments.temporal_context_dag.context_formatting import format_context
 
@@ -126,6 +130,8 @@ def extract_memories_from_interaction(
 
 ## Task:
 I will review this interaction and identify the most significant facts, events, insights, or changes that are worth remembering. For each memory, I will also identify which of my existing memories should connect to it.
+
+**IMPORTANT: When creating multiple memories from this interaction, I will list them in the chronological order that the events occurred within the interaction.**
 
 I will consider:
 - Important information about the user or situation
@@ -274,7 +280,7 @@ I will only extract memories that are genuinely significant and create connectio
         # Track edge signatures to prevent duplicates: (source_id, edge_type, target_id)
         edge_signatures = set()
 
-        for extraction in response.memories:
+        for sequence_index, extraction in enumerate(response.memories):
             # Convert LLM confidence level to ConfidenceLevel enum
             confidence_level = ConfidenceLevel(extraction.confidence_level.value)
 
@@ -289,6 +295,7 @@ I will only extract memories that are genuinely significant and create connectio
                 initial_tokens=get_creation_tokens(),
                 confidence_level=confidence_level,
                 memory_type=memory_type,
+                sequence_in_container=sequence_index,
             )
             memories.append(memory)
 
