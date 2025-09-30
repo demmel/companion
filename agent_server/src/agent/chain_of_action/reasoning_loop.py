@@ -10,7 +10,7 @@ from agent.chain_of_action.action.action_data import (
     create_result_summary,
     WaitActionData,
 )
-from agent.memory_dag import (
+from agent.memory import (
     DagMemoryManager,
 )
 
@@ -46,8 +46,8 @@ class ActionBasedReasoningLoop:
         callback: ActionCallback,
         trigger_history: TriggerHistory,
         token_budget: int,
+        dag_memory_manager: DagMemoryManager,
         individual_trigger_compression: bool = True,
-        dag_memory_manager: DagMemoryManager | None = None,
     ) -> TriggerHistoryEntry:
         """
         Process user input through the action-based reasoning system.
@@ -77,44 +77,17 @@ class ActionBasedReasoningLoop:
         # Notify callback about trigger start
         callback.on_trigger_started(entry_id, trigger)
 
-        # Use DAG context if available, otherwise use traditional memory retrieval
-        if dag_memory_manager:
-            # PREPROCESS: Retrieve relevant memories BEFORE reasoning (but only for existing DAG, not during initial setup)
-            dag_memory_manager.preprocess_trigger(
-                trigger=trigger,
-                state=state,
-                llm=llm,
-                model=model,
-                token_budget=token_budget,
-                action_registry=self.registry,
-            )
+        # PREPROCESS: Retrieve relevant memories BEFORE reasoning (but only for existing DAG, not during initial setup)
+        dag_memory_manager.preprocess_trigger(
+            trigger=trigger,
+            state=state,
+            llm=llm,
+            model=model,
+            token_budget=token_budget,
+            action_registry=self.registry,
+        )
 
-            dag_context = dag_memory_manager.get_current_context()
-            relevant_memories = []  # Not used when DAG is enabled
-        else:
-            # Extract memory queries and retrieve relevant memories
-            from agent.memory.memory_extraction import (
-                extract_memory_queries,
-                retrieve_relevant_memories,
-            )
-
-            memory_extraction = extract_memory_queries(
-                state=state,
-                trigger=trigger,
-                trigger_history=trigger_history,
-                llm=llm,
-                model=model,
-            )
-            dag_context = None
-            relevant_memories = (
-                retrieve_relevant_memories(
-                    memory_query=memory_extraction,
-                    trigger_history=trigger_history,
-                    max_results=5,
-                )
-                if memory_extraction
-                else []
-            )
+        dag_context = dag_memory_manager.get_current_context()
 
         # Perform situational analysis once before action planning loop
         from .prompts import build_situational_analysis_prompt
@@ -123,7 +96,6 @@ class ActionBasedReasoningLoop:
             state=state,
             trigger=trigger,
             trigger_history=trigger_history,
-            relevant_memories=relevant_memories,
             registry=self.registry,
             dag_context=dag_context,
         )
@@ -172,7 +144,6 @@ class ActionBasedReasoningLoop:
                 trigger_history=trigger_history,
                 llm=llm,
                 model=model,
-                relevant_memories=relevant_memories,
                 situational_analysis=situational_analysis,
             )
 
@@ -393,7 +364,7 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
 def _extract_memory_embedding(trigger_entry):
     """Extract embedding vector from a trigger entry for memory similarity"""
     from agent.chain_of_action.prompts import format_single_trigger_entry
-    from agent.memory.embedding_service import get_embedding_service
+    from agent.embedding_service import get_embedding_service
 
     try:
         # Format the full trigger entry for embedding

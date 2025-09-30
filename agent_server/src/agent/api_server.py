@@ -86,7 +86,6 @@ def initialize_agent(load: bool) -> Agent:
         model=SupportedModel.MISTRAL_SMALL_3_2_Q4,
         llm=llm,
         enable_image_generation=True,
-        enable_dag_memory=True,
         auto_summarize_threshold=16000,
         individual_trigger_compression=False,
         auto_save=True,
@@ -158,16 +157,11 @@ async def get_trigger_history():
         )
         entry_dtos.insert(0, initial_exchange_dto)  # Insert at beginning
 
-    summary_dtos = [
-        convert_summary_to_dto(summary)
-        for summary in trigger_history.get_all_summaries()
-    ]
-
     recent_entries = trigger_history.get_recent_entries()
 
     return TriggerHistoryResponse(
         entries=entry_dtos,
-        summaries=summary_dtos,
+        summaries=[],
         total_entries=len(trigger_history),
         recent_entries_count=len(recent_entries),
     )
@@ -188,39 +182,15 @@ async def get_timeline(
 
     # Get all the data we need
     entries = trigger_history.get_all_entries()
-    summaries = trigger_history.get_all_summaries()
-
-    # Create a map of insert positions to summaries for efficient lookup
-    summary_map = {summary.insert_at_index: summary for summary in summaries}
 
     # Current position in the timeline (0-based to match insert_at_index)
     current_position = 0
 
-    # Add initial exchange if it exists (position 0)
-    if agent.initial_exchange is not None:
-        initial_dto = convert_trigger_history_entry_to_dto(agent.initial_exchange)
-        timeline_entries.append(TimelineEntryTrigger(entry=initial_dto))
-        current_position += 1
-
     # Process trigger entries and insert summaries at correct positions
     for entry in entries:
-        # Check if there's a summary that should be inserted at this position
-        if current_position in summary_map:
-            summary = summary_map[current_position]
-            summary_dto = convert_summary_to_dto(summary)
-            timeline_entries.append(TimelineEntrySummary(summary=summary_dto))
-            current_position += 1
-
         # Add the trigger entry
         entry_dto = convert_trigger_history_entry_to_dto(entry)
         timeline_entries.append(TimelineEntryTrigger(entry=entry_dto))
-        current_position += 1
-
-    # Check for any remaining summaries that should be at the end
-    while current_position in summary_map:
-        summary = summary_map[current_position]
-        summary_dto = convert_summary_to_dto(summary)
-        timeline_entries.append(TimelineEntrySummary(summary=summary_dto))
         current_position += 1
 
     total_items = len(timeline_entries)

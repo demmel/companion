@@ -14,7 +14,7 @@ from pathlib import Path
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
-from agent.memory_dag.visualizer.web_app import run_visualizer
+from agent.memory.visualizer.web_app import run_visualizer
 
 
 def main():

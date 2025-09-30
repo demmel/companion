@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import List, Optional
 
 from agent.timeit import timeit
-from agent.memory_dag import (
+from agent.memory import (
     DagMemoryManager,
 )
-from agent.memory_dag.action_log import MemoryActionLog
+from agent.memory.action_log import MemoryActionLog
 
 from .state import State
 from .chain_of_action.trigger_history import (
@@ -29,9 +29,7 @@ from typing import List
 class ConversationData(BaseModel):
     """Serializable agent data for persistence"""
 
-    initial_exchange: TriggerHistoryEntry
     entries: List[TriggerHistoryEntry]
-    summaries: List[SummaryRecord]
 
 
 @dataclass
@@ -40,7 +38,6 @@ class AgentData:
 
     trigger_history: TriggerHistory
     state: State
-    initial_exchange: TriggerHistoryEntry
     dag_memory_manager: DagMemoryManager
 
 
@@ -63,7 +60,6 @@ class ConversationPersistence:
         conversation_id: str,
         state: State,
         trigger_history: TriggerHistory,
-        initial_exchange: TriggerHistoryEntry,
         dag_memory_manager: DagMemoryManager,
         save_baseline: bool = True,
     ) -> None:
@@ -73,12 +69,11 @@ class ConversationPersistence:
             conversation_id,
             state,
             trigger_history,
-            initial_exchange,
             dag_memory_manager,
         )
         if save_baseline:
             self._save_state_and_triggers(
-                "baseline", state, trigger_history, initial_exchange, dag_memory_manager
+                "baseline", state, trigger_history, dag_memory_manager
             )
 
     def _save_state_and_triggers(
@@ -86,7 +81,6 @@ class ConversationPersistence:
         prefix: str,
         state: State,
         trigger_history: TriggerHistory,
-        initial_exchange: TriggerHistoryEntry,
         dag_memory_manager: DagMemoryManager,
     ) -> None:
         """Save the state and trigger history for a conversation"""
@@ -96,9 +90,7 @@ class ConversationPersistence:
 
         trigger_file = self._trigger_file_name(prefix)
         trigger_data = ConversationData(
-            initial_exchange=initial_exchange,
             entries=trigger_history.entries,
-            summaries=trigger_history.summaries,
         )
         with open(trigger_file, "w") as f:
             f.write(trigger_data.model_dump_json(indent=2))
@@ -140,14 +132,7 @@ class ConversationPersistence:
         with open(trigger_file, "r") as f:
             trigger_data = ConversationData.model_validate(json.load(f))
             # Populate the trigger history
-            initial_exchange = trigger_data.initial_exchange
             trigger_history.entries = trigger_data.entries
-            if (
-                trigger_history.entries
-                and trigger_history.entries[0].entry_id != initial_exchange.entry_id
-            ):
-                trigger_history.entries.insert(0, initial_exchange)
-            trigger_history.summaries = trigger_data.summaries
 
         # Load state
         with open(state_file, "r") as f:
@@ -168,7 +153,6 @@ class ConversationPersistence:
         return AgentData(
             trigger_history=trigger_history,
             state=state,
-            initial_exchange=initial_exchange,
             dag_memory_manager=dag,
         )
 

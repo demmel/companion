@@ -10,11 +10,11 @@ import logging
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 
-from agent.memory.embedding_service import get_embedding_service, EmbeddingService
-from agent.memory_dag.memory_types import (
+from agent.embedding_service import get_embedding_service, EmbeddingService
+from agent.memory.memory_types import (
     MemoryType,
 )
-from agent.memory_dag.edge_types import GraphEdgeType
+from agent.memory.edge_types import GraphEdgeType
 from .models import MemoryElement, MemoryGraph, MemoryEdge
 from .memory_retrieval import MemoryQuery, QueryType
 

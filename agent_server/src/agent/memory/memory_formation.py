@@ -10,7 +10,7 @@ from enum import Enum
 
 from agent.chain_of_action.prompts import format_section, format_single_trigger_entry
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.memory_dag.actions import (
+from agent.memory.actions import (
     AddContainerAction,
     AddEdgeAction,
     AddEdgeToContextAction,
@@ -18,13 +18,13 @@ from agent.memory_dag.actions import (
     AddToContextAction,
     MemoryAction,
 )
-from agent.memory_dag.edge_types import (
+from agent.memory.edge_types import (
     AgentControlledEdgeType,
     GraphEdgeType,
     get_prompt_edge_type_list,
     get_edge_type_memory_formation_descriptions,
 )
-from agent.memory_dag.memory_types import (
+from agent.memory.memory_types import (
     AgentControlledMemoryType,
     MemoryType,
     get_prompt_memory_type_list,
@@ -59,7 +59,7 @@ def create_context_element(
     sequence_in_container: int,
 ) -> ContextElement:
     """Create a new memory element with given content and metadata."""
-    from agent.memory.embedding_service import get_embedding_service
+    from agent.embedding_service import get_embedding_service
 
     # Generate embedding for the memory
     embedding_service = get_embedding_service()
@@ -114,7 +114,7 @@ def extract_memories_from_interaction(
         trigger, exclude_action_types=[ActionType.WAIT]
     )
 
-    from agent.memory_dag.context_formatting import format_context
+    from agent.memory.context_formatting import format_context
 
     dag_context_text = (
         format_context(context)

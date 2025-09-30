@@ -34,7 +34,6 @@ class ActionPlanner:
         trigger_history: TriggerHistory,
         llm: LLM,
         model: SupportedModel,
-        relevant_memories: List[TriggerHistoryEntry],
         situational_analysis: str,
     ) -> ActionSequence:
         """Plan a sequence of actions to respond to the trigger"""

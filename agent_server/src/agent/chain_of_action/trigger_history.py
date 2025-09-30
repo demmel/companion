@@ -43,7 +43,6 @@ class TriggerHistory:
 
     def __init__(self):
         self.entries: List[TriggerHistoryEntry] = []
-        self.summaries: List[SummaryRecord] = []
 
     def add_trigger_response(
         self, trigger: Trigger, situational_context: str, actions: List[ActionData]
@@ -66,59 +65,19 @@ class TriggerHistory:
 
     def get_recent_entries(self) -> List[TriggerHistoryEntry]:
         """Get the most recent trigger history entries"""
-        count = len(self.entries)
-        if self.summaries:
-            # Show all entries after the last summary
-            # insert_at_index includes UI offset (1 + len(summaries)),
-            # but we only want to subtract the actual entries summarized
-            last_summary_index = self.summaries[-1].insert_at_index
-            entries_summarized = last_summary_index - len(self.summaries)
-            count -= entries_summarized
-        return self.entries[-count:] if count > 0 else self.entries.copy()
+        return self.entries
 
     def get_old_entries(self) -> List[TriggerHistoryEntry]:
         """Get entries that are not in the recent/stream of consciousness section"""
-        if not self.summaries:
-            # No summaries, so no "old" entries - everything is recent
-            return []
-
-        # Get entries before the last summary cutoff
-        last_summary_index = self.summaries[-1].insert_at_index
-        entries_summarized = last_summary_index - len(self.summaries)
-        return self.entries[:entries_summarized]
+        return self.entries
 
     def get_entries_before_index(self, end_index: int) -> List[TriggerHistoryEntry]:
         """Get all entries before the specified index for summarization"""
         return self.entries[:end_index]
 
-    def get_recent_summary(self) -> Optional[SummaryRecord]:
-        """Get the most recent summary record, if any"""
-        return self.summaries[-1] if self.summaries else None
-
-    def add_summary(self, summary_text: str, insert_at_index: int):
-        """
-        Add a new summary that should appear at the given index in the UI.
-
-        Args:
-            summary_text: The summary text
-            insert_at_index: Where this summary should appear chronologically in the UI
-        """
-        summary_record = SummaryRecord(
-            summary_text=summary_text, insert_at_index=insert_at_index
-        )
-        self.summaries.append(summary_record)
-
     def get_all_entries(self) -> List[TriggerHistoryEntry]:
         """Get all trigger history entries"""
         return self.entries.copy()
-
-    def get_all_summaries(self) -> List[SummaryRecord]:
-        """Get all summary records"""
-        return self.summaries.copy()
-
-    def get_most_recent_summary(self) -> Optional[str]:
-        """Get the most recent summary text, if any"""
-        return self.summaries[-1].summary_text if self.summaries else None
 
     def get_entry_by_id(self, entry_id: str) -> TriggerHistoryEntry:
         """Get a trigger by its entry ID"""

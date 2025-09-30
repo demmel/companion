@@ -2,7 +2,7 @@
 Functions for formatting context graphs for display in prompts.
 """
 
-from agent.memory_dag.edge_types import (
+from agent.memory.edge_types import (
     REVERSE_MAPPING,
     EdgeType,
     get_edge_type_context_descrioptions,

@@ -28,7 +28,6 @@ def calculate_context_budget(
         state=state,
         trigger=UserInputTrigger(content="sample", user_name="User"),
         trigger_history=TriggerHistory(),
-        relevant_memories=[],
         registry=action_registry,
         dag_context=ContextGraph(),
     )
