@@ -7,11 +7,9 @@ and memory evolve over time. Tracks memory lifetimes, retrieval patterns,
 context thrashing, and other performance metrics.
 """
 
-import json
-import logging
-from collections import defaultdict, Counter
+from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional, Any
 import statistics
@@ -22,10 +20,8 @@ import sys
 
 sys.path.append(str(Path(__file__).parent / "src"))
 
-from agent.experiments.temporal_context_dag.action_log import MemoryActionLog
-from agent.experiments.temporal_context_dag.models import MemoryGraph, ContextGraph
-from agent.experiments.temporal_context_dag.actions import (
-    MemoryAction,
+from agent.memory_dag.action_log import MemoryActionLog
+from agent.memory_dag.actions import (
     CheckpointAction,
     AddToContextAction,
     RemoveFromContextAction,
@@ -33,7 +29,7 @@ from agent.experiments.temporal_context_dag.actions import (
     AddMemoryAction,
     AddContainerAction,
 )
-from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.chain_of_action.trigger_history import TriggerHistory
 
 
 @dataclass

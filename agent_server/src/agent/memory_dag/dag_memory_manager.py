@@ -13,7 +13,7 @@ from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.trigger import Trigger
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.experiments.temporal_context_dag.memory_formation import (
+from agent.memory_dag.memory_formation import (
     extract_memories_as_actions,
 )
 from agent.llm import LLM, SupportedModel

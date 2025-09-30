@@ -10,7 +10,7 @@ from agent.chain_of_action.action.action_data import (
     create_result_summary,
     WaitActionData,
 )
-from agent.experiments.temporal_context_dag import (
+from agent.memory_dag import (
     DagMemoryManager,
 )
 

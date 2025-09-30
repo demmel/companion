@@ -10,7 +10,7 @@ from enum import Enum
 
 from agent.chain_of_action.prompts import format_section, format_single_trigger_entry
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.experiments.temporal_context_dag.actions import (
+from agent.memory_dag.actions import (
     AddContainerAction,
     AddEdgeAction,
     AddEdgeToContextAction,
@@ -18,13 +18,13 @@ from agent.experiments.temporal_context_dag.actions import (
     AddToContextAction,
     MemoryAction,
 )
-from agent.experiments.temporal_context_dag.edge_types import (
+from agent.memory_dag.edge_types import (
     AgentControlledEdgeType,
     GraphEdgeType,
     get_prompt_edge_type_list,
     get_edge_type_memory_formation_descriptions,
 )
-from agent.experiments.temporal_context_dag.memory_types import (
+from agent.memory_dag.memory_types import (
     AgentControlledMemoryType,
     MemoryType,
     get_prompt_memory_type_list,
@@ -109,9 +109,12 @@ def extract_memories_from_interaction(
     # Build context of the interaction for the agent to analyze
     # Exclude wait actions as they are not meaningful for memory formation
     from agent.chain_of_action.action.action_types import ActionType
-    interaction_context = format_single_trigger_entry(trigger, exclude_action_types=[ActionType.WAIT])
 
-    from agent.experiments.temporal_context_dag.context_formatting import format_context
+    interaction_context = format_single_trigger_entry(
+        trigger, exclude_action_types=[ActionType.WAIT]
+    )
+
+    from agent.memory_dag.context_formatting import format_context
 
     dag_context_text = (
         format_context(context)
@@ -316,7 +319,9 @@ I will only extract memories that are genuinely significant and create connectio
                 # Try to resolve source_id if not found directly
                 if source_id not in valid_existing_ids:
                     # Try to find by prefix match
-                    matching_ids = [mid for mid in valid_existing_ids if mid.startswith(source_id)]
+                    matching_ids = [
+                        mid for mid in valid_existing_ids if mid.startswith(source_id)
+                    ]
                     if len(matching_ids) == 1:
                         logger.info(
                             f"Resolved truncated memory ID '{source_id}' to full ID '{matching_ids[0]}'"

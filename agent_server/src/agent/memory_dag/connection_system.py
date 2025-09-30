@@ -5,7 +5,7 @@ LLM-driven system for deciding connections between memory elements.
 from typing import List
 import logging
 
-from agent.experiments.temporal_context_dag.edge_types import (
+from agent.memory_dag.edge_types import (
     AgentControlledEdgeType,
     GraphEdgeType,
 )

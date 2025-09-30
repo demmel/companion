@@ -7,8 +7,8 @@ from typing import Dict, List, Optional
 from enum import Enum
 import uuid
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.experiments.temporal_context_dag.edge_types import GraphEdgeType
-from agent.experiments.temporal_context_dag.memory_types import MemoryType
+from agent.memory_dag.edge_types import GraphEdgeType
+from agent.memory_dag.memory_types import MemoryType
 from pydantic import BaseModel, Field
 
 
@@ -33,7 +33,10 @@ class MemoryElement(BaseModel):
     emotional_significance: float = Field(ge=0.0, le=1.0)
     confidence_level: ConfidenceLevel
     memory_type: MemoryType
-    sequence_in_container: int = Field(default=0, description="Sequential position within the container/trigger that created this memory")
+    sequence_in_container: int = Field(
+        default=0,
+        description="Sequential position within the container/trigger that created this memory",
+    )
     embedding_vector: Optional[List[float]] = None
 
 

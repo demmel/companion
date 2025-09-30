@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import List, Optional
 
 from agent.timeit import timeit
-from agent.experiments.temporal_context_dag import (
+from agent.memory_dag import (
     DagMemoryManager,
 )
-from agent.experiments.temporal_context_dag.action_log import MemoryActionLog
+from agent.memory_dag.action_log import MemoryActionLog
 
 from .state import State
 from .chain_of_action.trigger_history import (

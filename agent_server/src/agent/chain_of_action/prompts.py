@@ -2,7 +2,7 @@ from typing import List, Literal, Optional
 from datetime import datetime
 import random
 
-from agent.experiments.temporal_context_dag.models import ContextGraph
+from agent.memory_dag.models import ContextGraph
 import nltk
 from nltk.corpus import words
 
@@ -275,7 +275,7 @@ def build_situational_analysis_prompt(
     # Use DAG context if available, otherwise use traditional context sections
     if dag_context:
         # DAG-based context - single comprehensive section
-        from agent.experiments.temporal_context_dag.context_formatting import (
+        from agent.memory_dag.context_formatting import (
             format_context,
         )
 

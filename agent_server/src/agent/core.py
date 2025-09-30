@@ -9,7 +9,7 @@ import queue
 from typing import List, Optional
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.prompts import build_situational_analysis_prompt
-from agent.experiments.temporal_context_dag.models import ContextGraph
+from agent.memory_dag.models import ContextGraph
 from pydantic import BaseModel
 
 from agent.api_types import (
@@ -422,7 +422,7 @@ class Agent:
 
             # Initialize DAG memory system if enabled
             if self.enable_dag_memory:
-                from agent.experiments.temporal_context_dag import (
+                from agent.memory_dag import (
                     DagMemoryManager,
                 )
 
