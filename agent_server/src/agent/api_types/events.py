@@ -107,3 +107,11 @@ TriggerEvent = (
 
 # Alias for backward compatibility
 AgentEvent = TriggerEvent
+
+
+class EventEnvelope(BaseModel):
+    """Envelope for events with sequence tracking for streaming protocol"""
+
+    event_sequence: int
+    trigger_id: str
+    event: AgentEvent

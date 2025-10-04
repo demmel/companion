@@ -4,9 +4,9 @@ Agent Event Manager - wraps Agent and manages event streaming
 
 import queue
 import threading
-from typing import Optional
+from typing import Optional, List, Tuple
 from agent.core import Agent
-from agent.api_types.events import AgentEvent
+from agent.api_types.events import AgentEvent, EventEnvelope
 from agent.chain_of_action.trigger import Trigger
 from agent.chain_of_action.trigger_history import TriggerHistory
 
@@ -19,29 +19,67 @@ class AgentEventManager:
 
     def __init__(self, agent: Agent):
         self.agent = agent
-        self.current_client_queue: Optional[queue.Queue[AgentEvent]] = None
+        self.current_client_queue: Optional[queue.Queue[EventEnvelope]] = None
         self.client_queue_lock = threading.Lock()
 
-    # EventEmitter protocol implementation (pass-through for now)
+        # Event buffering for current trigger
+        self.current_trigger_id: Optional[str] = None
+        self.event_sequence_counter: int = 0
+        self.event_buffer: List[EventEnvelope] = []  # Buffered envelopes
+        self.buffer_lock = threading.Lock()
+
+    # EventEmitter protocol implementation with buffering and sequencing
     def emit(self, event: AgentEvent, should_yield: bool = False) -> None:
-        """Emit an event to the current client queue (if any)"""
+        """Emit an event with sequence tracking and buffering"""
         import time
 
+        with self.buffer_lock:
+            # Track trigger lifecycle
+            if event.type == "trigger_started":
+                # New trigger starting - reset sequence counter and buffer
+                self.current_trigger_id = event.entry_id
+                self.event_sequence_counter = 0
+                self.event_buffer = []
+
+            # Assign current sequence number to this event
+            event_sequence = self.event_sequence_counter
+
+            # Increment for next event
+            self.event_sequence_counter += 1
+
+            # Create envelope with sequence and trigger_id
+            envelope = EventEnvelope(
+                event_sequence=event_sequence,
+                trigger_id=self.current_trigger_id or "",
+                event=event,
+            )
+
+            # Buffer the envelope
+            self.event_buffer.append(envelope)
+
+            # Check if trigger completed
+            if event.type == "trigger_completed":
+                # Trigger done - clear buffer (events already sent to client)
+                self.current_trigger_id = None
+                self.event_buffer = []
+                self.event_sequence_counter = 0
+
+        # TODO Phase 4: Remove queue entirely, send envelopes via hydration/streaming
+        # For now, keep backwards compatibility with queue
         with self.client_queue_lock:
             if self.current_client_queue:
-                self.current_client_queue.put(event)
-            # else: drop event (no client connected)
+                self.current_client_queue.put(envelope)
 
         if should_yield:
             time.sleep(0)  # Yield to allow event to be processed
 
     # Client queue management
-    def set_client_queue(self, client_queue: queue.Queue[AgentEvent]) -> None:
+    def set_client_queue(self, client_queue: queue.Queue[EventEnvelope]) -> None:
         """Set the current client queue (replaces existing client)"""
         with self.client_queue_lock:
             self.current_client_queue = client_queue
 
-    def clear_client_queue(self, client_queue: queue.Queue[AgentEvent]) -> None:
+    def clear_client_queue(self, client_queue: queue.Queue[EventEnvelope]) -> None:
         """Clear the current client queue if it matches the given queue"""
         with self.client_queue_lock:
             if self.current_client_queue == client_queue:

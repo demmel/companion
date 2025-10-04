@@ -15,7 +15,6 @@ from agent.api_types.api import (
     ImageUploadResponse,
     ResetResponse,
 )
-from agent.types import Message
 from agent.llm import create_llm, SupportedModel
 from typing import List, Optional
 from datetime import datetime
@@ -34,7 +33,7 @@ from fastapi.responses import FileResponse
 
 from agent.core import Agent
 from agent.paths import agent_paths
-from agent.api_types.events import AgentErrorEvent
+from agent.api_types.events import AgentErrorEvent, EventEnvelope
 from agent.agent_event_manager import AgentEventManager
 from agent.api_types.timeline import (
     TimelineResponse,
@@ -265,7 +264,7 @@ async def websocket_chat(websocket: WebSocket):
 
     # Create client-specific queue and register with manager (replaces any existing client)
     manager: AgentEventManager = app.state.agent_manager
-    client_queue: queue_module.Queue = queue_module.Queue()
+    client_queue: queue_module.Queue[EventEnvelope] = queue_module.Queue()
     manager.set_client_queue(client_queue)
 
     logger.info("WebSocket client connected, queue registered")
@@ -340,10 +339,10 @@ async def websocket_chat(websocket: WebSocket):
             """Handle outgoing events to client"""
             try:
                 while True:
-                    # Get event from our local client queue with timeout
+                    # Get envelope from our local client queue with timeout
                     try:
-                        event = await asyncio.to_thread(client_queue.get, True, 1.0)
-                        await websocket.send_text(event.model_dump_json())
+                        envelope = await asyncio.to_thread(client_queue.get, True, 1.0)
+                        await websocket.send_text(envelope.event.model_dump_json())
                     except queue_module.Empty:
                         # Timeout - check if WebSocket is still alive
                         if (
