@@ -5,7 +5,6 @@ SPEAK action implementation.
 import logging
 from typing import Type, Optional
 
-from agent.api_types import SpeakProgressData
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ExecutionContext
@@ -44,6 +43,13 @@ class SpeakOutput(ActionOutput):
 
     def result_summary(self) -> str:
         return self.response
+
+
+class SpeakProgressData(BaseModel):
+    """Progress data for SPEAK action streaming"""
+
+    text: str
+    is_partial: bool
 
 
 class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):

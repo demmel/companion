@@ -7,15 +7,15 @@ import time
 import threading
 import queue
 from typing import Optional
+from agent.chain_of_action.action.actions.speak_action import SpeakProgressData
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.memory.dag_memory_manager import DagMemoryManager
 from pydantic import BaseModel
 
-from agent.api_types import (
-    ActionProgressEvent,
-    SpeakProgressData,
-    ThinkProgressData,
+from agent.api_types.actions import (
     convert_action_to_dto,
+)
+from agent.api_types.triggers import (
     convert_trigger_to_dto,
 )
 from agent.chain_of_action.action.action_data import (
@@ -23,7 +23,11 @@ from agent.chain_of_action.action.action_data import (
     ThinkActionData,
     UpdateAppearanceActionData,
 )
-from agent.chain_of_action.action.actions.think_action import ThinkInput, ThinkOutput
+from agent.chain_of_action.action.actions.think_action import (
+    ThinkInput,
+    ThinkOutput,
+    ThinkProgressData,
+)
 from agent.chain_of_action.action.actions.visual_actions import (
     UpdateAppearanceInput,
     UpdateAppearanceOutput,
@@ -56,11 +60,12 @@ from .types import (
     ImageGenerationToolContent,
     ToolCallSuccess,
 )
-from agent.api_types import (
+from agent.api_types.events import (
+    ActionProgressEvent,
     ActionCompletedEvent,
     ActionStartedEvent,
     AgentErrorEvent,
-    TriggerEvent as AgentEvent,
+    AgentEvent,
     TriggerCompletedEvent,
     TriggerStartedEvent,
 )

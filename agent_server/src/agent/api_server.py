@@ -8,6 +8,13 @@ import uuid
 import shutil
 from pathlib import Path
 
+from agent.api_types.api import (
+    AutoWakeupSetRequest,
+    AutoWakeupSetResponse,
+    AutoWakeupStatusResponse,
+    ImageUploadResponse,
+    ResetResponse,
+)
 from agent.types import Message
 from agent.llm import create_llm, SupportedModel
 from typing import List, Optional
@@ -24,51 +31,17 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
 
 from agent.core import Agent
 from agent.paths import agent_paths
-from agent.api_types import (
-    TriggerHistoryResponse,
+from agent.api_types.events import AgentErrorEvent
+from agent.api_types.timeline import (
     TimelineResponse,
     TimelineEntry,
     TimelineEntryTrigger,
-    TimelineEntrySummary,
     PaginationInfo,
     convert_trigger_history_entry_to_dto,
-    convert_summary_to_dto,
 )
-
-
-# Response Models
-class ConversationResponse(BaseModel):
-    messages: List[Message]
-
-
-class ResetResponse(BaseModel):
-    message: str
-    timestamp: str
-
-
-class AutoWakeupStatusResponse(BaseModel):
-    enabled: bool
-    delay_seconds: int
-
-
-class AutoWakeupSetRequest(BaseModel):
-    enabled: bool
-
-
-class AutoWakeupSetResponse(BaseModel):
-    enabled: bool
-    message: str
-    timestamp: str
-
-
-class ImageUploadResponse(BaseModel):
-    id: str
-    size: int
-    url: str
 
 
 # Set up logging
@@ -136,28 +109,6 @@ async def get_context_info():
         "usage_percentage": context_info.usage_percentage,
         "approaching_limit": context_info.approaching_limit,
     }
-
-
-@app.get("/api/trigger-history", response_model=TriggerHistoryResponse)
-async def get_trigger_history():
-    """Get current trigger history for client hydration"""
-    agent: Agent = app.state.agent
-    trigger_history = agent.get_trigger_history()
-
-    # Convert all entries and summaries to DTOs
-    entry_dtos = [
-        convert_trigger_history_entry_to_dto(entry)
-        for entry in trigger_history.get_all_entries()
-    ]
-
-    recent_entries = trigger_history.get_recent_entries()
-
-    return TriggerHistoryResponse(
-        entries=entry_dtos,
-        summaries=[],
-        total_entries=len(trigger_history),
-        recent_entries_count=len(recent_entries),
-    )
 
 
 @app.get("/api/timeline", response_model=TimelineResponse)
@@ -359,7 +310,6 @@ async def websocket_chat(websocket: WebSocket):
                             app.state.agent.chat_stream(trigger=trigger)
                         except Exception as e:
                             # Put error event in queue
-                            from agent.api_types import AgentErrorEvent
 
                             error_event = AgentErrorEvent(
                                 message=f"Internal error: {str(e)}"

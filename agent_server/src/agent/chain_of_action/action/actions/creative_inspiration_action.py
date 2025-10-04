@@ -78,9 +78,7 @@ class CreativeInspirationAction(
                 count=action_input.count, seed=action_input.seed
             )
 
-            return ActionSuccessResult(
-                content=CreativeInspirationOutput(words=words)
-            )
+            return ActionSuccessResult(content=CreativeInspirationOutput(words=words))
         except Exception as e:
             return ActionFailureResult(
                 error=f"Unexpected error during GET_CREATIVE_INSPIRATION action: {str(e)}"

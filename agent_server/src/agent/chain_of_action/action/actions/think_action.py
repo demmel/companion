@@ -5,7 +5,6 @@ THINK action implementation.
 import logging
 from typing import Type
 
-from agent.api_types import ThinkProgressData
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ExecutionContext
@@ -41,6 +40,13 @@ class ThinkOutput(ActionOutput):
 
     def result_summary(self) -> str:
         return self.thoughts
+
+
+class ThinkProgressData(BaseModel):
+    """Progress data for THINK action streaming"""
+
+    text: str
+    is_partial: bool
 
 
 class ThinkAction(BaseAction[ThinkInput, ThinkOutput]):
