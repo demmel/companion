@@ -6,11 +6,7 @@ interface WaitActionDisplayProps {
   action: WaitAction;
 }
 
-export function WaitActionDisplay({ action }: WaitActionDisplayProps) {
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+export function WaitActionDisplay({}: WaitActionDisplayProps) {
   return (
     <div
       className={css({
@@ -22,14 +18,14 @@ export function WaitActionDisplay({ action }: WaitActionDisplayProps) {
         border: "1px solid",
         borderColor: "gray.700",
         rounded: "md",
-        fontSize: "xl",
+        fontSize: "md",
         color: "gray.400",
       })}
     >
       <Pause size={16} className={css({ color: "gray.400" })} />
 
       <div className={css({ flex: 1, fontStyle: "italic" })}>
-        {result || "Waiting for response..."}
+        Waiting for something to happen...
       </div>
     </div>
   );
