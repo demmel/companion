@@ -1,6 +1,11 @@
+from datetime import datetime
 from typing import Any, Literal, TypeGuard
 import typing
 from agent.chain_of_action.action.action_types import ActionType
+from agent.chain_of_action.action.actions.creative_inspiration_action import (
+    CreativeInspirationInput,
+    CreativeInspirationOutput,
+)
 from agent.chain_of_action.action.actions.fetch_url_action import (
     FetchUrlInput,
     FetchUrlOutput,
@@ -29,6 +34,14 @@ from agent.chain_of_action.action.actions.update_mood_action import (
 )
 from agent.chain_of_action.action.actions.wait_action import WaitInput, WaitOutput
 from .base_action_data import BaseActionData
+
+
+class CreativeInspirationActionData(
+    BaseActionData[CreativeInspirationInput, CreativeInspirationOutput]
+):
+    type: Literal[ActionType.GET_CREATIVE_INSPIRATION] = (
+        ActionType.GET_CREATIVE_INSPIRATION
+    )
 
 
 class FetchUrlActionData(BaseActionData[FetchUrlInput, FetchUrlOutput]):
@@ -78,7 +91,8 @@ class WaitActionData(BaseActionData[WaitInput, WaitOutput]):
 
 
 ActionData = (
-    FetchUrlActionData
+    CreativeInspirationActionData
+    | FetchUrlActionData
     | AddPriorityActionData
     | RemovePriorityActionData
     | SearchWebActionData
@@ -92,6 +106,7 @@ ActionData = (
 
 
 _ACTION_DATA_CONSTRUCTORS: dict[ActionType, type[ActionData]] = {
+    ActionType.GET_CREATIVE_INSPIRATION: CreativeInspirationActionData,
     ActionType.FETCH_URL: FetchUrlActionData,
     ActionType.ADD_PRIORITY: AddPriorityActionData,
     ActionType.REMOVE_PRIORITY: RemovePriorityActionData,

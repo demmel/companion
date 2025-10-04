@@ -102,6 +102,13 @@ class WaitActionDTO(BaseActionDTO):
     type: Literal["wait"] = "wait"
 
 
+class CreativeInspirationActionDTO(BaseActionDTO):
+    """DTO for creative inspiration actions"""
+
+    type: Literal["get_creative_inspiration"] = "get_creative_inspiration"
+    words: List[str]
+
+
 class AddPriorityActionDTO(BaseActionDTO):
     """DTO for add priority actions"""
 
@@ -147,6 +154,7 @@ ActionDTO = Union[
     UpdateEnvironmentActionDTO,
     UpdateMoodActionDTO,
     WaitActionDTO,
+    CreativeInspirationActionDTO,
     AddPriorityActionDTO,
     FetchUrlActionDTO,
     SearchWebActionDTO,
@@ -370,6 +378,11 @@ def convert_action_to_dto(action: ActionData) -> ActionDTO:
         return UpdateMoodActionDTO(**base_data)
     elif action.type == ActionType.WAIT:
         return WaitActionDTO(**base_data)
+    elif action.type == ActionType.GET_CREATIVE_INSPIRATION:
+        words = []
+        if action.result.type == "success":
+            words = action.result.content.words
+        return CreativeInspirationActionDTO(**base_data, words=words)
     elif action.type == ActionType.ADD_PRIORITY:
         return AddPriorityActionDTO(**base_data)
     elif action.type == ActionType.REMOVE_PRIORITY:

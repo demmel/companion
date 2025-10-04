@@ -3,6 +3,7 @@ from datetime import datetime
 import random
 
 from agent.memory.dag_memory_manager import DagMemoryManager
+from agent.memory.models import ContextGraph
 import nltk
 from nltk.corpus import words
 
@@ -295,32 +296,6 @@ def build_situational_analysis_prompt(
         format_section(
             "CURRENT SITUATION (WHAT I'M RESPONDING TO RIGHT NOW)",
             trigger_description,
-        )
-    )
-
-    # Add random inspiration words for creativity
-    inspiration_words = generate_random_inspiration_words(count=10)
-    inspiration_content = f"""{", ".join(inspiration_words)}
-
-HOW TO USE CREATIVE INSPIRATION:
-These random words can spark concrete creative ideas for what I want to do:
-• INTERESTS: Let words inspire new directions for autonomous exploration
-  - "copper" → explore metallurgy, jewelry making, or warm color palettes
-  - "storm" → investigate weather patterns, dramatic emotions, or powerful forces
-• APPROACHES: Use words as metaphors for how I want to engage
-  - "whisper" → gentle, subtle, intimate approach
-  - "dance" → playful, rhythmic, flowing approach
-  - "crystal" → clear, precise, focused approach
-• EXPRESSION: Translate words into mood, appearance, or communication style
-  - "velvet" → soft textures, luxurious mood, smooth communication
-  - "thunder" → bold presence, dramatic mood, powerful expression
-
-I should let at least one of these words spark genuine inspiration for what I want to do or how I want to approach this situation."""
-
-    sections.append(
-        format_section(
-            "CREATIVE INSPIRATION",
-            inspiration_content,
         )
     )
 

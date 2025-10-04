@@ -6,6 +6,7 @@ import { UpdateAppearanceActionDisplay } from "./UpdateAppearanceActionDisplay";
 import { UpdateEnvironmentActionDisplay } from "./UpdateEnvironmentActionDisplay";
 import { UpdateMoodActionDisplay } from "./UpdateMoodActionDisplay";
 import { WaitActionDisplay } from "./WaitActionDisplay";
+import { CreativeInspirationActionDisplay } from "./CreativeInspirationActionDisplay";
 import { AddPriorityActionDisplay } from "./AddPriorityActionDisplay";
 import { RemovePriorityActionDisplay } from "./RemovePriorityActionDisplay";
 import { FetchUrlActionDisplay } from "./FetchUrlActionDisplay";
@@ -34,6 +35,8 @@ export function ActionDisplay({ action }: ActionDisplayProps) {
         return <UpdateMoodActionDisplay action={action} />;
       case "wait":
         return <WaitActionDisplay action={action} />;
+      case "get_creative_inspiration":
+        return <CreativeInspirationActionDisplay action={action} />;
       case "add_priority":
         return <AddPriorityActionDisplay action={action} />;
       case "remove_priority":

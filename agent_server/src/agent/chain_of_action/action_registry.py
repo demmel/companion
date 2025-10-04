@@ -5,6 +5,9 @@ Action registry for discovering and managing available actions.
 from typing import Dict, List, Type
 import logging
 
+from agent.chain_of_action.action.actions.creative_inspiration_action import (
+    CreativeInspirationAction,
+)
 from agent.chain_of_action.action.actions.fetch_url_action import FetchUrlAction
 from agent.chain_of_action.action.actions.priority_actions import (
     AddPriorityAction,
@@ -47,6 +50,7 @@ class ActionRegistry:
         self.register(SearchWebAction)
         self.register(AddPriorityAction)
         self.register(RemovePriorityAction)
+        self.register(CreativeInspirationAction)
         # etc.
 
     def register(self, action_class: Type[BaseAction]):

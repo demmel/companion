@@ -55,6 +55,7 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
     case "speak":
     case "update_mood":
     case "wait":
+    case "get_creative_inspiration":
     case "add_priority":
     case "remove_priority":
       return {

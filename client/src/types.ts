@@ -54,6 +54,11 @@ export interface WaitAction extends BaseAction {
   type: "wait";
 }
 
+export interface CreativeInspirationAction extends BaseAction {
+  type: "get_creative_inspiration";
+  words: string[];
+}
+
 export interface AddPriorityAction extends BaseAction {
   type: "add_priority";
 }
@@ -88,6 +93,7 @@ export type Action =
   | UpdateEnvironmentAction
   | UpdateMoodAction
   | WaitAction
+  | CreativeInspirationAction
   | AddPriorityAction
   | RemovePriorityAction
   | FetchUrlAction

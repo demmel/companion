@@ -29,3 +29,6 @@ class ActionType(str, Enum):
 
     # Meta Actions
     WAIT = "wait"  # Wait for response before continuing
+    GET_CREATIVE_INSPIRATION = (
+        "get_creative_inspiration"  # Get random words for creative inspiration
+    )
