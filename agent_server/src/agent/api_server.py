@@ -35,7 +35,7 @@ from fastapi.responses import FileResponse
 from agent.core import Agent
 from agent.paths import agent_paths
 from agent.api_types.events import AgentErrorEvent
-from agent.queue_event_emitter import QueueEventEmitter
+from agent.agent_event_manager import AgentEventManager
 from agent.api_types.timeline import (
     TimelineResponse,
     TimelineEntry,
@@ -53,19 +53,26 @@ logging.basicConfig(
 )
 
 
-def initialize_agent(load: bool) -> tuple[Agent, QueueEventEmitter]:
+def initialize_agent(load: bool) -> AgentEventManager:
     """Initialize the agent with specific conversation files for development"""
     llm = create_llm()
-    event_emitter = QueueEventEmitter()
+
+    # Create manager first (it will be the event emitter)
+    manager = AgentEventManager(agent=None)  # type: ignore - will set agent next
+
+    # Create agent with manager as event emitter
     agent = Agent(
         model=SupportedModel.MISTRAL_SMALL_3_2_Q4,
         llm=llm,
-        event_emitter=event_emitter,
+        event_emitter=manager,
         enable_image_generation=True,
         auto_summarize_threshold=16000,
         individual_trigger_compression=True,
         auto_save=True,
     )
+
+    # Set the agent in the manager
+    manager.agent = agent
 
     if load:
         try:
@@ -77,7 +84,7 @@ def initialize_agent(load: bool) -> tuple[Agent, QueueEventEmitter]:
             logger.error(f"Full traceback:\n{traceback.format_exc()}")
             logger.info("Starting with a fresh agent instead")
 
-    return agent, event_emitter
+    return manager
 
 
 app = FastAPI(
@@ -86,7 +93,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.state.agent, app.state.event_emitter = initialize_agent(
+app.state.agent_manager = initialize_agent(
     load=True  # Set to True to load specific conversation for development
 )
 
@@ -103,7 +110,8 @@ app.add_middleware(
 @app.get("/api/context")
 async def get_context_info():
     """Get current context information"""
-    context_info = app.state.agent.get_context_info()
+    manager: AgentEventManager = app.state.agent_manager
+    context_info = manager.get_context_info()
     return {
         "message_count": context_info.message_count,
         "conversation_messages": context_info.conversation_messages,
@@ -121,8 +129,8 @@ async def get_timeline(
     before: Optional[str] = None,
 ):
     """Get paginated timeline in chronological order, defaulting to most recent page"""
-    agent: Agent = app.state.agent
-    trigger_history = agent.get_trigger_history()
+    manager: AgentEventManager = app.state.agent_manager
+    trigger_history = manager.get_trigger_history()
 
     # Build timeline entries in proper chronological order with summaries interspersed
     timeline_entries: List[TimelineEntry] = []
@@ -205,31 +213,29 @@ async def get_timeline(
 async def reset_agent():
     """Reset the agent"""
 
-    # Get the old agent and event emitter to transfer state and clean up resources
-    old_agent: Agent | None = app.state.agent
-    old_event_emitter: QueueEventEmitter | None = app.state.event_emitter
+    # Get the old manager to transfer state and clean up resources
+    old_manager: AgentEventManager | None = app.state.agent_manager
     current_client_queue = None
 
-    if old_agent:
+    if old_manager:
         # Disable wakeup timer scheduling and cancel any active timer
-        old_agent.set_auto_wakeup_enabled(False)
+        old_manager.set_auto_wakeup_enabled(False)
 
         # Disable auto-save to prevent the old agent from saving mid-reset
-        old_agent.auto_save = False
+        old_manager.auto_save = False
 
-    if old_event_emitter:
-        # Get the current client queue to transfer to new event emitter
-        with old_event_emitter.client_queue_lock:
-            current_client_queue = old_event_emitter.current_client_queue
-            # Clear the old event emitter's queue reference so it stops pushing events
-            old_event_emitter.current_client_queue = None
+        # Get the current client queue to transfer to new manager
+        with old_manager.client_queue_lock:
+            current_client_queue = old_manager.current_client_queue
+            # Clear the old manager's queue reference so it stops pushing events
+            old_manager.current_client_queue = None
 
-    # Reinitialize the agent
-    new_agent, new_event_emitter = initialize_agent(
+    # Reinitialize the agent manager
+    new_manager = initialize_agent(
         load=False  # Set to False to avoid loading specific conversation
     )
 
-    # Transfer the client queue to the new event emitter if one exists
+    # Transfer the client queue to the new manager if one exists
     if current_client_queue is not None:
         # Clear any remaining events from the old agent before transferring
         while not current_client_queue.empty():
@@ -238,10 +244,9 @@ async def reset_agent():
             except:
                 break
 
-        new_event_emitter.set_client_queue(current_client_queue)
+        new_manager.set_client_queue(current_client_queue)
 
-    app.state.agent = new_agent
-    app.state.event_emitter = new_event_emitter
+    app.state.agent_manager = new_manager
 
     return ResetResponse(
         message="Agent reset successfully",
@@ -258,9 +263,10 @@ async def websocket_chat(websocket: WebSocket):
     import threading
     import queue as queue_module
 
-    # Create client-specific queue and register with event emitter (replaces any existing client)
+    # Create client-specific queue and register with manager (replaces any existing client)
+    manager: AgentEventManager = app.state.agent_manager
     client_queue: queue_module.Queue = queue_module.Queue()
-    app.state.event_emitter.set_client_queue(client_queue)
+    manager.set_client_queue(client_queue)
 
     logger.info("WebSocket client connected, queue registered")
 
@@ -313,14 +319,14 @@ async def websocket_chat(websocket: WebSocket):
 
                     def process_message():
                         try:
-                            app.state.agent.chat_stream(trigger=trigger)
+                            manager.chat_stream(trigger=trigger)
                         except Exception as e:
                             # Put error event in queue
 
                             error_event = AgentErrorEvent(
                                 message=f"Internal error: {str(e)}"
                             )
-                            app.state.agent.emit_event(error_event)
+                            manager.emit(error_event)
 
                     # Run agent processing in background thread
                     thread = threading.Thread(target=process_message)
@@ -374,30 +380,29 @@ async def websocket_chat(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
-        # Clear our queue from the event emitter (only if it's still ours)
-        app.state.event_emitter.clear_client_queue(client_queue)
+        # Clear our queue from the manager (only if it's still ours)
+        manager.clear_client_queue(client_queue)
         logger.info("WebSocket client disconnected, queue cleared")
 
 
 @app.get("/api/auto-wakeup", response_model=AutoWakeupStatusResponse)
 async def get_auto_wakeup_status():
     """Get current auto-wakeup status"""
-    agent: Agent = app.state.agent
+    manager: AgentEventManager = app.state.agent_manager
     return AutoWakeupStatusResponse(
-        enabled=agent.get_auto_wakeup_enabled(),
-        delay_seconds=agent.wakeup_delay_seconds,
+        enabled=manager.get_auto_wakeup_enabled(),
+        delay_seconds=manager.wakeup_delay_seconds,
     )
 
 
 @app.post("/api/auto-wakeup", response_model=AutoWakeupSetResponse)
 async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
     """Set auto-wakeup enabled state"""
-    agent: Agent = app.state.agent
-
-    agent.set_auto_wakeup_enabled(request.enabled)
+    manager: AgentEventManager = app.state.agent_manager
+    manager.set_auto_wakeup_enabled(request.enabled)
 
     return AutoWakeupSetResponse(
-        enabled=agent.get_auto_wakeup_enabled(),
+        enabled=manager.get_auto_wakeup_enabled(),
         message=f"Auto-wakeup {'enabled' if request.enabled else 'disabled'}",
         timestamp=datetime.now().isoformat(),
     )
@@ -465,10 +470,11 @@ async def health_check():
 
     logger.info("Health check requested")
 
+    manager: AgentEventManager = app.state.agent_manager
     return {
         "status": "healthy",
-        "agent_initialized": app.state.agent is not None,
-        "agent_name": app.state.agent.state.name,
+        "agent_initialized": manager is not None,
+        "agent_name": manager.state.name if manager.state else None,
         "timestamp": datetime.now().isoformat(),
     }
 
