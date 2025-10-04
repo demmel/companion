@@ -13,6 +13,8 @@ from pydantic import BaseModel
 
 from agent.api_types import (
     ActionProgressEvent,
+    SpeakProgressData,
+    ThinkProgressData,
     convert_action_to_dto,
     convert_trigger_to_dto,
 )
@@ -696,10 +698,7 @@ class Agent:
                 action_number: int,
                 entry_id: str,
             ) -> None:
-                from agent.chain_of_action.action_events import (
-                    SpeakProgressData,
-                    ThinkProgressData,
-                )
+
                 from datetime import datetime
 
                 # Handle streaming progress for THINK and SPEAK actions

@@ -5,9 +5,9 @@ SPEAK action implementation.
 import logging
 from typing import Type, Optional
 
+from agent.api_types import SpeakProgressData
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.action_events import SpeakProgressData
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType

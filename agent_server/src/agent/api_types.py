@@ -237,6 +237,20 @@ class TriggerCompletedEvent(BaseModel):
     approaching_limit: bool
 
 
+class SpeakProgressData(BaseModel):
+    """Progress data for SPEAK action streaming"""
+
+    text: str
+    is_partial: bool
+
+
+class ThinkProgressData(BaseModel):
+    """Progress data for THINK action streaming"""
+
+    text: str
+    is_partial: bool
+
+
 class ActionProgressEvent(BaseModel):
     """Event emitted for streaming action progress"""
 
