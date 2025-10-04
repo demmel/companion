@@ -35,6 +35,7 @@ from fastapi.responses import FileResponse
 from agent.core import Agent
 from agent.paths import agent_paths
 from agent.api_types.events import AgentErrorEvent
+from agent.queue_event_emitter import QueueEventEmitter
 from agent.api_types.timeline import (
     TimelineResponse,
     TimelineEntry,
@@ -52,12 +53,14 @@ logging.basicConfig(
 )
 
 
-def initialize_agent(load: bool) -> Agent:
+def initialize_agent(load: bool) -> tuple[Agent, QueueEventEmitter]:
     """Initialize the agent with specific conversation files for development"""
     llm = create_llm()
+    event_emitter = QueueEventEmitter()
     agent = Agent(
         model=SupportedModel.MISTRAL_SMALL_3_2_Q4,
         llm=llm,
+        event_emitter=event_emitter,
         enable_image_generation=True,
         auto_summarize_threshold=16000,
         individual_trigger_compression=True,
@@ -74,7 +77,7 @@ def initialize_agent(load: bool) -> Agent:
             logger.error(f"Full traceback:\n{traceback.format_exc()}")
             logger.info("Starting with a fresh agent instead")
 
-    return agent
+    return agent, event_emitter
 
 
 app = FastAPI(
@@ -83,7 +86,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.state.agent = initialize_agent(
+app.state.agent, app.state.event_emitter = initialize_agent(
     load=True  # Set to True to load specific conversation for development
 )
 
@@ -202,8 +205,9 @@ async def get_timeline(
 async def reset_agent():
     """Reset the agent"""
 
-    # Get the old agent to transfer state and clean up resources
+    # Get the old agent and event emitter to transfer state and clean up resources
     old_agent: Agent | None = app.state.agent
+    old_event_emitter: QueueEventEmitter | None = app.state.event_emitter
     current_client_queue = None
 
     if old_agent:
@@ -213,18 +217,19 @@ async def reset_agent():
         # Disable auto-save to prevent the old agent from saving mid-reset
         old_agent.auto_save = False
 
-        # Get the current client queue to transfer to new agent
-        with old_agent.client_queue_lock:
-            current_client_queue = old_agent.current_client_queue
-            # Clear the old agent's queue reference so it stops pushing events
-            old_agent.current_client_queue = None
+    if old_event_emitter:
+        # Get the current client queue to transfer to new event emitter
+        with old_event_emitter.client_queue_lock:
+            current_client_queue = old_event_emitter.current_client_queue
+            # Clear the old event emitter's queue reference so it stops pushing events
+            old_event_emitter.current_client_queue = None
 
     # Reinitialize the agent
-    new_agent = initialize_agent(
+    new_agent, new_event_emitter = initialize_agent(
         load=False  # Set to False to avoid loading specific conversation
     )
 
-    # Transfer the client queue to the new agent if one exists
+    # Transfer the client queue to the new event emitter if one exists
     if current_client_queue is not None:
         # Clear any remaining events from the old agent before transferring
         while not current_client_queue.empty():
@@ -233,9 +238,10 @@ async def reset_agent():
             except:
                 break
 
-        new_agent.set_client_queue(current_client_queue)
+        new_event_emitter.set_client_queue(current_client_queue)
 
     app.state.agent = new_agent
+    app.state.event_emitter = new_event_emitter
 
     return ResetResponse(
         message="Agent reset successfully",
@@ -252,9 +258,9 @@ async def websocket_chat(websocket: WebSocket):
     import threading
     import queue as queue_module
 
-    # Create client-specific queue and register with agent (replaces any existing client)
+    # Create client-specific queue and register with event emitter (replaces any existing client)
     client_queue: queue_module.Queue = queue_module.Queue()
-    app.state.agent.set_client_queue(client_queue)
+    app.state.event_emitter.set_client_queue(client_queue)
 
     logger.info("WebSocket client connected, queue registered")
 
@@ -368,8 +374,8 @@ async def websocket_chat(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
-        # Clear our queue from the agent (only if it's still ours)
-        app.state.agent.clear_client_queue(client_queue)
+        # Clear our queue from the event emitter (only if it's still ours)
+        app.state.event_emitter.clear_client_queue(client_queue)
         logger.info("WebSocket client disconnected, queue cleared")
 
 

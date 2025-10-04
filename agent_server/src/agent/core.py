@@ -5,9 +5,9 @@ Core agent implementation
 from datetime import datetime
 import time
 import threading
-import queue
 from typing import Optional
 from agent.chain_of_action.action.actions.speak_action import SpeakProgressData
+from agent.event_emitter import EventEmitter
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.memory.dag_memory_manager import DagMemoryManager
 from pydantic import BaseModel
@@ -92,6 +92,7 @@ class Agent:
         self,
         model: SupportedModel,
         llm: LLM,
+        event_emitter: EventEmitter,
         auto_save: bool = True,
         enable_image_generation: bool = True,
         individual_trigger_compression: bool = True,
@@ -100,6 +101,7 @@ class Agent:
         self.llm = llm
         self.model = model
         self.context_window = llm.models[model].context_window
+        self.event_emitter = event_emitter
 
         # Set summarization threshold
         if auto_summarize_threshold is not None:
@@ -129,10 +131,6 @@ class Agent:
 
         # DAG memory system (initialized after first message if enabled)
         self.dag_memory_manager = None
-
-        # Single client queue for WebSocket communication
-        self.current_client_queue: Optional[queue.Queue[AgentEvent]] = None
-        self.client_queue_lock = threading.Lock()
 
         # Auto-wakeup timer functionality
         self.auto_wakeup_enabled = False
@@ -219,26 +217,8 @@ class Agent:
         return self.auto_wakeup_enabled
 
     def emit_event(self, event: AgentEvent, should_yield: bool = False) -> None:
-        """Emit an event to the current client (if any)"""
-        with self.client_queue_lock:
-            if self.current_client_queue:
-                self.current_client_queue.put(event)
-            # else: drop event (no client connected)
-
-        if should_yield:
-            time.sleep(0)  # Yield to allow event to be processed
-
-    def set_client_queue(self, client_queue: queue.Queue[AgentEvent]) -> None:
-        """Set the current client queue (replaces existing client)"""
-        with self.client_queue_lock:
-            self.current_client_queue = client_queue
-
-    def clear_client_queue(self, client_queue: queue.Queue[AgentEvent]) -> None:
-        """Clear the current client queue if it matches the given queue"""
-        with self.client_queue_lock:
-            if self.current_client_queue == client_queue:
-                self.current_client_queue = None
-            # else: do nothing (different client)
+        """Emit an event via the event emitter"""
+        self.event_emitter.emit(event, should_yield)
 
     def _cancel_wakeup_timer(self) -> None:
         """Cancel the current wakeup timer if it exists"""
