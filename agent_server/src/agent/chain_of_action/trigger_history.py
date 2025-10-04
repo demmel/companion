@@ -27,8 +27,9 @@ class TriggerHistoryEntry(BaseModel):
     trigger: Trigger
     actions_taken: List[ActionData] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)
+    end_timestamp: Optional[datetime] = Field(default=None)
     entry_id: str = Field(default_factory=lambda: str(datetime.now().timestamp()))
-    situational_context: Optional[str] = Field(default=None)
+    situational_context: str
     compressed_summary: Optional[str] = Field(default=None)
     embedding_vector: Optional[List[float]] = Field(default=None)
 

@@ -16,7 +16,7 @@ from agent.structured_llm import direct_structured_llm_call
 from pydantic import BaseModel, Field
 from agent.chain_of_action.prompts import format_section
 
-from .models import ContextGraph
+from .models import ContextGraph, MemoryGraph
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,7 @@ def extract_memory_queries(
     model: SupportedModel,
     max_queries: int,
     trigger: Trigger,
+    memory_graph: MemoryGraph,
 ) -> QueryExtractionResult:
     """
     Extract diverse memory retrieval queries from current context.
@@ -75,12 +76,14 @@ def extract_memory_queries(
         llm: LLM instance for query generation
         model: Model to use for query extraction
         max_queries: Maximum number of queries to generate
+        trigger: The trigger to extract queries for
+        memory_graph: Memory graph to access containers for compressed display
 
     Returns:
         QueryExtractionResult with diverse queries and context summary
     """
     # Build context description
-    context_description = _build_context_description(context)
+    context_description = _build_context_description(context, memory_graph)
 
     # Build prompt for query extraction
     prompt = f"""I'm {state.name}, {state.role}. I need to search my long-term memory for relevant information based on what just happened and my current context.
@@ -150,7 +153,7 @@ Generate up to {max_queries} high-quality queries, each with a clear reasoning f
         )
 
 
-def _build_context_description(context: ContextGraph) -> str:
+def _build_context_description(context: ContextGraph, memory_graph: MemoryGraph) -> str:
     """Build a description of the current context for query extraction."""
     from .context_formatting import format_context
 
@@ -158,4 +161,4 @@ def _build_context_description(context: ContextGraph) -> str:
         return "No memories currently in active context."
 
     # Use the proper context formatting system
-    return format_context(context)
+    return format_context(context, memory_graph)

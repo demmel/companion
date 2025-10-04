@@ -45,34 +45,28 @@ def create_test_action_log():
     memory1 = MemoryElement(
         id="mem1",
         content="I am an AI assistant designed to help users with various tasks",
-        evidence="System initialization message",
         timestamp=datetime.now(),
-        emotional_significance=0.7,
         confidence_level=ConfidenceLevel.USER_CONFIRMED,
-        memory_type=MemoryType.IDENTITY,
         embedding_vector=[0.1] * 768,  # Dummy embedding
+        container_id="container1",
     )
 
     memory2 = MemoryElement(
         id="mem2",
         content="User asked about the weather in San Francisco",
-        evidence="User query: 'What's the weather like in SF?'",
         timestamp=datetime.now(),
-        emotional_significance=0.3,
         confidence_level=ConfidenceLevel.STRONG_INFERENCE,
-        memory_type=MemoryType.FACTUAL,
         embedding_vector=[0.2] * 768,
+        container_id="container1",
     )
 
     memory3 = MemoryElement(
         id="mem3",
         content="I committed to always be helpful and honest in my responses",
-        evidence="Core system directive",
         timestamp=datetime.now(),
-        emotional_significance=0.9,
         confidence_level=ConfidenceLevel.USER_CONFIRMED,
-        memory_type=MemoryType.COMMITMENT,
         embedding_vector=[0.3] * 768,
+        container_id="container2",
     )
 
     # Add memory actions

@@ -3,6 +3,7 @@ Execution units for action batching and optimization.
 """
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import List
 import time
 import logging
@@ -99,6 +100,7 @@ class SingleActionUnit(ExecutionUnit):
             action_input = input_type(**self.action_plan.input)
 
             start_time = time.time()
+            start_timestamp = datetime.now()
             result = action.execute(
                 action_input=action_input,
                 context=context,
@@ -115,6 +117,7 @@ class SingleActionUnit(ExecutionUnit):
                 input=action_input,
                 result=result,
                 duration_ms=duration_ms,
+                start_timestamp=start_timestamp,
             )
 
             # Update context with completed action
@@ -151,6 +154,7 @@ class SingleActionUnit(ExecutionUnit):
                 input=action_input,
                 result=ActionFailureResult(error=str(e)),
                 duration_ms=0.0,
+                start_timestamp=datetime.now(),
             )
 
             context.completed_actions.append(error_data)
@@ -205,6 +209,7 @@ class VisualBatchUnit(ExecutionUnit):
 
         # Execute batch
         start_time = time.time()
+        start_timestamp = datetime.now()
 
         def batch_progress_callback(data):
             # Forward progress for the second action (the one generating the image)
@@ -306,6 +311,7 @@ class VisualBatchUnit(ExecutionUnit):
                     input=action_plan.input,
                     result=action_result,
                     duration_ms=duration_ms,
+                    start_timestamp=start_timestamp,
                 )
                 action_data_results.append(action_data)
 
@@ -339,6 +345,7 @@ class VisualBatchUnit(ExecutionUnit):
                     input=None,
                     result=ActionFailureResult(error=str(e)),
                     duration_ms=0.0,
+                    start_timestamp=datetime.now(),
                 )
                 error_results.append(error_data)
 

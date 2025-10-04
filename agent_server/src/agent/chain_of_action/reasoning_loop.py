@@ -71,6 +71,7 @@ class ActionBasedReasoningLoop:
         trigger_entry = TriggerHistoryEntry(
             trigger=trigger,
             actions_taken=[],  # Will be populated as actions complete
+            situational_context="",  # Will be populated after situational analysis
         )
         entry_id = trigger_entry.entry_id
 
@@ -87,8 +88,6 @@ class ActionBasedReasoningLoop:
             action_registry=self.registry,
         )
 
-        dag_context = dag_memory_manager.get_current_context()
-
         # Perform situational analysis once before action planning loop
         from .prompts import build_situational_analysis_prompt
 
@@ -97,7 +96,7 @@ class ActionBasedReasoningLoop:
             trigger=trigger,
             trigger_history=trigger_history,
             registry=self.registry,
-            dag_context=dag_context,
+            dag_memory_manager=dag_memory_manager,
         )
 
         # Get images from trigger
@@ -285,7 +284,9 @@ I will write this in my natural emotional voice while weaving in specific words 
 
 {state_desc}
 
-{format_section("MY RECENT EXPERIENCE TO COMPRESS", full_entry_text)}
+{format_section("MY INITIAL ANALYSIS", trigger_entry.situational_context)}
+
+{format_section("WHAT I ACTUALLY DID", full_entry_text)}
 
 **MY COMPRESSION TASK:**
 

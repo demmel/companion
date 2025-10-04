@@ -9,9 +9,6 @@ from enum import Enum
 class EdgeType(str, Enum):
     """All possible edge types including forward and reverse forms."""
 
-    FOLLOWS = "follows"
-    FOLLOWED_BY = "followed_by"
-
     EXPLAINS = "explains"
     EXPLAINED_BY = "explained_by"
 
@@ -37,7 +34,6 @@ class EdgeType(str, Enum):
 class GraphEdgeType(str, Enum):
     """Edge types that can exist in memory graph - subset of ReversibleEdgeType."""
 
-    FOLLOWED_BY = EdgeType.FOLLOWED_BY.value
     EXPLAINED_BY = EdgeType.EXPLAINED_BY.value
     EXPLAINS = EdgeType.EXPLAINS.value
     CAUSED = EdgeType.CAUSED.value
@@ -51,7 +47,6 @@ class GraphEdgeType(str, Enum):
 class AgentControlledEdgeType(str, Enum):
     """Edge types agents can create - subset of MemoryEdgeType."""
 
-    FOLLOWED_BY = GraphEdgeType.FOLLOWED_BY.value
     EXPLAINED_BY = GraphEdgeType.EXPLAINED_BY.value
     EXPLAINS = GraphEdgeType.EXPLAINS.value
     CAUSED = GraphEdgeType.CAUSED.value
@@ -65,8 +60,6 @@ class AgentControlledEdgeType(str, Enum):
 def get_prompt_description(edge_type: AgentControlledEdgeType) -> str:
     """Get prompt description for edge type - statically exhaustive."""
     match edge_type:
-        case AgentControlledEdgeType.FOLLOWED_BY:
-            return "Existing memory is chronologically followed by new memory"
         case AgentControlledEdgeType.EXPLAINED_BY:
             return "Existing memory provides context/explanation for new memory"
         case AgentControlledEdgeType.EXPLAINS:
@@ -92,10 +85,6 @@ def get_context_description(edge_type: EdgeType) -> str:
             return "This memory provides context, background, or reasoning for another memory"
         case EdgeType.EXPLAINED_BY:
             return "This memory is given context, background, or reasoning by another memory"
-        case EdgeType.FOLLOWS:
-            return "This memory happens after another memory in chronological sequence"
-        case EdgeType.FOLLOWED_BY:
-            return "This memory happens before another memory in chronological sequence"
         case EdgeType.CAUSED:
             return "This memory directly caused, triggered, or led to another memory"
         case EdgeType.CAUSED_BY:
@@ -123,7 +112,6 @@ def get_context_description(edge_type: EdgeType) -> str:
 
 
 REVERSALS = [
-    (EdgeType.FOLLOWS, EdgeType.FOLLOWED_BY),
     (EdgeType.EXPLAINS, EdgeType.EXPLAINED_BY),
     (EdgeType.CAUSED, EdgeType.CAUSED_BY),
     (EdgeType.CONTRADICTS, EdgeType.CONTRADICTED_BY),

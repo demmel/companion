@@ -51,7 +51,7 @@ class UpdateChainConnector:
             GraphEdgeType.CLARIFIED_BY,
             GraphEdgeType.CONTRADICTED_BY,
             GraphEdgeType.RETRACTED_BY,
-            GraphEdgeType.CORRECTED_BY
+            GraphEdgeType.CORRECTED_BY,
         }
 
         # Build adjacency lists for efficient traversal
@@ -78,7 +78,7 @@ class UpdateChainConnector:
         self,
         target_memories: List[str],
         token_budget: int = 2000,
-        memory_weights: Optional[Dict[str, float]] = None
+        memory_weights: Optional[Dict[str, float]] = None,
     ) -> UpdateChainResult:
         """
         Expand target memories with their update chains.
@@ -111,7 +111,7 @@ class UpdateChainConnector:
             connected_memories=connected_memories,
             required_nodes=all_required_nodes,
             required_edges=all_required_edges,
-            total_memories=len(all_required_nodes)
+            total_memories=len(all_required_nodes),
         )
 
     def _get_update_chain(self, memory_id: str) -> tuple[Set[str], Set[str]]:

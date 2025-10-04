@@ -3,11 +3,10 @@ Action result definitions.
 """
 
 from abc import abstractmethod
+from datetime import datetime
 from typing import Generic, TypeVar
 from typing_extensions import Literal
 from pydantic import BaseModel
-
-from agent.chain_of_action.action.action_types import ActionType
 
 
 class ActionOutput(BaseModel):
@@ -45,3 +44,4 @@ class BaseActionData(BaseModel, Generic[TInput, TOutput]):
     input: TInput
     result: ActionResult[TOutput]
     duration_ms: float
+    start_timestamp: datetime

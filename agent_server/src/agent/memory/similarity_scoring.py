@@ -143,9 +143,7 @@ class SimilarityScorer:
                 ]
                 for edge in outgoing_edges
             )
-            memory_type_weight = get_memory_type_weight(
-                memory.memory_type, should_penalize
-            )
+            memory_type_weight = get_memory_type_weight(should_penalize)
             combined_score *= memory_type_weight
 
             max_score = max(score.weighted_score for score in query_scores)
@@ -334,8 +332,8 @@ def ensure_memory_has_embedding(memory: MemoryElement) -> MemoryElement:
     if memory.embedding_vector is None:
         embedding_service = get_embedding_service()
 
-        # Create embedding text from content and evidence
-        embedding_text = f"{memory.content}\n{memory.evidence}"
+        # Create embedding text from content
+        embedding_text = f"{memory.content}"
         memory.embedding_vector = embedding_service.encode(embedding_text)
 
         logger.debug(f"Generated embedding for memory {memory.id}")
@@ -343,26 +341,9 @@ def ensure_memory_has_embedding(memory: MemoryElement) -> MemoryElement:
     return memory
 
 
-def get_memory_type_weight(memory_type: MemoryType, is_penalized: bool) -> float:
-    """Get retrieval priority weight for memory type."""
-    match memory_type:
-        case MemoryType.COMMITMENT:
-            base_weight = 10.0
-        case MemoryType.IDENTITY:
-            base_weight = 3.0
-        case MemoryType.EMOTIONAL:
-            base_weight = 2.0
-        case MemoryType.PREFERENCE:
-            base_weight = 2.0
-        case MemoryType.FACTUAL:
-            base_weight = 1.0
-        case MemoryType.PROCEDURAL:
-            base_weight = 1.5
-        case _:
-            assert_never(_)
-
+def get_memory_type_weight(is_penalized: bool) -> float:
     # Dramatically reduce weight for superseded memories
     if is_penalized:
-        return base_weight * 0.1  # 90% reduction in priority
+        return 0.1  # 90% reduction in priority
 
-    return base_weight
+    return 1.0  # No penalty

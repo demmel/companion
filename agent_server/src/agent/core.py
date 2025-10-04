@@ -8,7 +8,7 @@ import threading
 import queue
 from typing import Optional
 from agent.chain_of_action.action_registry import ActionRegistry
-from agent.memory.models import ContextGraph
+from agent.memory.dag_memory_manager import DagMemoryManager
 from pydantic import BaseModel
 
 from agent.api_types import (
@@ -33,6 +33,7 @@ from agent.chain_of_action.action.base_action_data import (
 from agent.chain_of_action.trigger import (
     Trigger,
     UserInputTrigger,
+    BirthTrigger,
     WakeupTrigger,
 )
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
@@ -118,7 +119,6 @@ class Agent:
 
         # Initialize the agent's state system (None until configured by first message)
         self.state: Optional[State] = None
-        self.initial_exchange = None
 
         # DAG memory system (initialized after first message if enabled)
         self.dag_memory_manager = None
@@ -170,9 +170,6 @@ class Agent:
         assert (
             self.state is not None
         ), "Cannot save conversation without initialized state"
-        assert (
-            self.initial_exchange is not None
-        ), "Cannot save conversation without initial exchange"
         assert (
             self.dag_memory_manager is not None
         ), "Cannot save conversation without DAG memory manager"
@@ -229,6 +226,13 @@ class Agent:
         with self.client_queue_lock:
             self.current_client_queue = client_queue
 
+    def clear_client_queue(self, client_queue: queue.Queue[AgentEvent]) -> None:
+        """Clear the current client queue if it matches the given queue"""
+        with self.client_queue_lock:
+            if self.current_client_queue == client_queue:
+                self.current_client_queue = None
+            # else: do nothing (different client)
+
     def _cancel_wakeup_timer(self) -> None:
         """Cancel the current wakeup timer if it exists"""
         logger.info("Cancelling existing wakeup timer if any")
@@ -268,17 +272,12 @@ class Agent:
 
     def get_context_info(self) -> ContextInfo:
         """Get information about current context usage based on action planning prompt size"""
-        # Get DAG context if available
-        dag_context = None
-        if self.dag_memory_manager is not None:
-            dag_context = self.dag_memory_manager.get_current_context()
-
         return get_context_info(
             state=self.state,
             trigger_history=self.trigger_history,
             action_registry=self.action_reasoning_loop.registry,
             summarize_at_tokens=self.auto_summarize_threshold,
-            dag_context=dag_context,
+            dag_memory_manager=self.dag_memory_manager,
         )
 
     def chat_stream(self, trigger: Trigger) -> None:
@@ -339,8 +338,15 @@ class Agent:
         # First input is character definition, not conversation
         from agent.state_initialization import derive_initial_state_from_message
 
+        birth_trigger = BirthTrigger(
+            content=trigger.content,
+            user_name=trigger.user_name,
+            timestamp=trigger.timestamp,
+            image_paths=trigger.image_paths,
+        )
+
         self.initial_exchange = TriggerHistoryEntry(
-            trigger=trigger,
+            trigger=birth_trigger,
             situational_context="",  # No situational context for initial exchange
             actions_taken=[],
         )
@@ -384,7 +390,6 @@ class Agent:
 
             self.dag_memory_manager = DagMemoryManager.create(
                 initial_state=self.state,
-                backstory=backstory,
                 token_budget=self.auto_summarize_threshold,
                 action_registry=self.action_reasoning_loop.registry,
                 trigger_history=self.trigger_history,
@@ -409,6 +414,7 @@ class Agent:
                 ]
             )
             think_action_result = ThinkActionData(
+                start_timestamp=datetime.now(),
                 reasoning="Deriving initial state from character definition",
                 input=ThinkInput(
                     focus="Deriving initial state",
@@ -512,6 +518,7 @@ class Agent:
                     )
 
                     appearance_action_result = UpdateAppearanceActionData(
+                        start_timestamp=datetime.now(),
                         reasoning="Initial appearance image",
                         input=input,
                         result=ActionSuccessResult(content=output),
@@ -539,6 +546,7 @@ class Agent:
 
                     # Create and store error action result
                     error_action_result = UpdateAppearanceActionData(
+                        start_timestamp=datetime.now(),
                         reasoning="Initial appearance image",
                         input=input,
                         result=ActionFailureResult(error=str(e)),
@@ -565,6 +573,28 @@ class Agent:
                 AgentErrorEvent(
                     message=f"Failed to configure agent's character: {str(e)}",
                 )
+            )
+
+        # Compress the initial exchange before calculating context info
+        from agent.chain_of_action.reasoning_loop import _compress_trigger_entry
+
+        assert self.state is not None, "State must be initialized before compression"
+        _compress_trigger_entry(
+            self.initial_exchange,
+            self.state,
+            self.llm,
+            self.model,
+        )
+
+        # Process initial exchange memories if DAG enabled
+        if self.dag_memory_manager:
+            self.dag_memory_manager.postprocess_trigger(
+                trigger=self.initial_exchange,
+                state=self.state,
+                llm=self.llm,
+                model=self.model,
+                token_budget=self.auto_summarize_threshold,
+                action_registry=self.action_reasoning_loop.registry,
             )
 
         context_info = self.get_context_info()
@@ -764,10 +794,10 @@ def get_context_info(
     trigger_history: TriggerHistory,
     action_registry: ActionRegistry,
     summarize_at_tokens: int,
-    dag_context: ContextGraph | None = None,
+    dag_memory_manager: Optional[DagMemoryManager] = None,
 ) -> ContextInfo:
     """Get information about current context usage based on action planning prompt size"""
-    if state is not None and dag_context is not None:
+    if state is not None and dag_memory_manager is not None:
         # Use situational analysis prompt for accurate estimation (typically the longest)
         from agent.chain_of_action.prompts import build_situational_analysis_prompt
         from agent.chain_of_action.trigger import UserInputTrigger
@@ -780,7 +810,7 @@ def get_context_info(
             trigger=sample_trigger,
             trigger_history=trigger_history,
             registry=action_registry,
-            dag_context=dag_context,
+            dag_memory_manager=dag_memory_manager,
         )
 
         # Calculate total prompt size

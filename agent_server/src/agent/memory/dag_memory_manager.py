@@ -27,9 +27,49 @@ from .context_management import (
     prune_context_to_budget_as_actions,
 )
 from .reducer import apply_action
-from .experiment_helpers import calculate_context_budget
 
 logger = logging.getLogger(__name__)
+
+
+def calculate_context_budget(
+    token_budget: int,
+    state: State,
+    action_registry: ActionRegistry,
+) -> int:
+    """
+    Calculate available token budget for context after accounting for prompt overhead.
+
+    Args:
+        token_budget: Total token budget
+        state: Current agent state
+        action_registry: Action registry for building sample prompt
+
+    Returns:
+        Available tokens for context
+    """
+    from agent.chain_of_action.prompts import build_situational_analysis_prompt
+    from agent.chain_of_action.trigger import UserInputTrigger
+
+    sa_prompt = build_situational_analysis_prompt(
+        state=state,
+        trigger=UserInputTrigger(content="sample", user_name="User"),
+        trigger_history=TriggerHistory(),
+        registry=action_registry,
+        dag_memory_manager=DagMemoryManager(
+            memory_graph=MemoryGraph(),
+            context_graph=ContextGraph(),
+            trigger_history=TriggerHistory(),
+        ),
+    )
+    prompt_tokens = int(len(sa_prompt) / 3.4)
+
+    context_budget = token_budget - prompt_tokens
+
+    logger.info(
+        f"Context budget calculation: total={token_budget}, prompt={prompt_tokens} => context budget={context_budget}"
+    )
+
+    return context_budget
 
 
 class ContextElementData(BaseModel):
@@ -71,7 +111,6 @@ class DagMemoryManager:
     def create(
         cls,
         initial_state: State,
-        backstory: str,
         token_budget: int,
         action_registry: ActionRegistry,
         trigger_history: TriggerHistory,
@@ -84,67 +123,19 @@ class DagMemoryManager:
             backstory: Agent backstory for initial memories
             token_budget: Token budget for context management
             action_registry: Action registry for budget calculation
+            trigger_history: Trigger history
+            llm: LLM instance to use
+            model: Model to use for semantic connection extraction
         """
-        from .experiment_helpers import (
-            create_initial_graph,
-            create_initial_context_subgraph,
-        )
-        from .actions import AddMemoryAction, AddToContextAction, AddContainerAction
-
-        # Start with completely empty state
+        # Start with completely empty state - memories will be added via postprocess_trigger
         manager = cls(
             MemoryGraph(), ContextGraph(elements=[], edges=[]), trigger_history
         )
 
-        # Record that we're starting initial creation
+        # Record that we're starting with empty state
         manager.action_log.add_checkpoint(
-            label="creation_start", description="Starting initial state creation"
-        )
-
-        # Create initial state using existing logic but capture as actions
-        temp_memory_graph = create_initial_graph(
-            initial_state, backstory, trigger_history.entries[0]
-        )
-        context_budget = calculate_context_budget(
-            token_budget, initial_state, action_registry
-        )
-        temp_context_graph = create_initial_context_subgraph(
-            temp_memory_graph, context_budget
-        )
-
-        # Convert initial memories to actions
-        initial_actions = []
-
-        # Add all initial memories
-        for memory in temp_memory_graph.elements.values():
-            initial_actions.append(AddMemoryAction(memory=memory))
-
-        # Add all initial memories to context
-        for context_element in temp_context_graph.elements:
-            initial_actions.append(
-                AddToContextAction(
-                    memory_id=context_element.memory.id,
-                    initial_tokens=context_element.tokens,
-                )
-            )
-
-        # Add all initial containers
-        for container in temp_memory_graph.containers.values():
-            initial_actions.append(
-                AddContainerAction(
-                    container_id=container.trigger.entry_id,
-                    element_ids=container.element_ids,
-                    trigger_timestamp=container.trigger.timestamp,
-                )
-            )
-
-        # Dispatch all initial actions
-        manager.dispatch_actions(initial_actions)
-
-        # Record completion of initial state
-        manager.action_log.add_checkpoint(
-            label="initial_state_complete",
-            description=f"Completed initial state creation with {len(manager.memory_graph.elements)} memories",
+            label="creation_start",
+            description="Starting with empty memory graph - initial exchange will be processed via postprocess_trigger",
         )
 
         return manager
@@ -233,7 +224,7 @@ class DagMemoryManager:
                 token_budget, state, action_registry
             )
             pruning_actions = prune_context_to_budget_as_actions(
-                self.context_graph, context_budget
+                self.memory_graph, self.context_graph, context_budget
             )
 
         if pruning_actions:
@@ -284,7 +275,7 @@ class DagMemoryManager:
         # Extract memories and connections as actions
         with timeit("Memory Extraction"):
             memory_actions = extract_memories_as_actions(
-                trigger, state, self.context_graph, llm, model
+                trigger, state, self.context_graph, llm, model, self.memory_graph
             )
 
         if memory_actions:

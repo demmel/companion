@@ -318,8 +318,6 @@ class MinimalSpanningConnector:
                 return 0.1  # Superseding edges are cheapest - we want these!
             case GraphEdgeType.CLARIFIED_BY:
                 return 0.2  # Clarification edges are very cheap
-            case GraphEdgeType.FOLLOWED_BY:
-                return 0.5  # Temporal edges are cheap
             case GraphEdgeType.CAUSED:
                 return 1.0  # Causal edges are medium cost
             case GraphEdgeType.EXPLAINS:

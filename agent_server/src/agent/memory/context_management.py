@@ -6,15 +6,17 @@ import logging
 from typing import List
 from collections import defaultdict
 
+from agent.memory.action_log import MemoryGraph
+
 from .models import ContextGraph
 from .actions import RemoveFromContextAction
-from .context_formatting import format_element
+from .context_formatting import format_container, format_element
 
 logger = logging.getLogger(__name__)
 
 
 def prune_context_to_budget_as_actions(
-    context: ContextGraph, budget: int
+    graph: MemoryGraph, context: ContextGraph, budget: int
 ) -> List[RemoveFromContextAction]:
     """
     Determine which memories and edges to remove from context to fit budget and return as actions.
@@ -40,15 +42,13 @@ def prune_context_to_budget_as_actions(
         forward_edges_map[edge.source_id].append(edge)
         backward_edges_map[edge.target_id].append(edge)
 
-    # Calculate LLM tokens used by each element
-    llm_tokens_used_by_element = {}
-    for e in context.elements:
-        forward_edges = forward_edges_map[e.memory.id]
-        backward_edges = backward_edges_map[e.memory.id]
-        element_string = format_element(e, forward_edges, backward_edges)
-        llm_tokens_used_by_element[e.memory.id] = len(element_string) / 3.4
+    containers = {e.memory.container_id for e in context.elements}
+    llm_tokens_used_by_container = {}
+    for container_id in containers:
+        container_string = format_container(container_id, graph)
+        llm_tokens_used_by_container[container_id] = len(container_string) / 3.4
 
-    llm_tokens_used = sum(llm_tokens_used_by_element.values())
+    llm_tokens_used = sum(llm_tokens_used_by_container.values())
 
     logger.info(f"  LLM tokens used by context before pruning: {llm_tokens_used:.1f}")
     logger.info(f"  Context budget: {budget}")
@@ -56,6 +56,7 @@ def prune_context_to_budget_as_actions(
     # Determine which memories to remove
     memories_to_remove = []
     remaining_elements = list(context.elements)
+    remaining_element_ids = {e.memory.id for e in remaining_elements}
 
     while llm_tokens_used > budget and remaining_elements:
         # Find least valuable memory (same logic as original)
@@ -63,7 +64,17 @@ def prune_context_to_budget_as_actions(
 
         memories_to_remove.append(least_valuable.memory.id)
         remaining_elements.remove(least_valuable)
-        llm_tokens_used -= llm_tokens_used_by_element[least_valuable.memory.id]
+        remaining_element_ids.remove(least_valuable.memory.id)
+
+        container_id = least_valuable.memory.container_id
+        container = graph.containers[container_id]
+        intersection = remaining_element_ids & {e for e in container.element_ids}
+        if not intersection:
+            # If this was the last memory in the container, remove container cost
+            llm_tokens_used -= llm_tokens_used_by_container[container_id]
+            logger.info(
+                f"  Removing memory {least_valuable.memory.id[:8]} also removes container {container_id[:8]} cost"
+            )
 
     if memories_to_remove:
         # Determine which edges to remove (those that reference removed memories)

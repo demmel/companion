@@ -87,7 +87,7 @@ def initialize_agent(load: bool) -> Agent:
         llm=llm,
         enable_image_generation=True,
         auto_summarize_threshold=16000,
-        individual_trigger_compression=False,
+        individual_trigger_compression=True,
         auto_save=True,
     )
 
@@ -149,13 +149,6 @@ async def get_trigger_history():
         convert_trigger_history_entry_to_dto(entry)
         for entry in trigger_history.get_all_entries()
     ]
-
-    # Include initial exchange if it exists (for UI display)
-    if agent.initial_exchange is not None:
-        initial_exchange_dto = convert_trigger_history_entry_to_dto(
-            agent.initial_exchange
-        )
-        entry_dtos.insert(0, initial_exchange_dto)  # Insert at beginning
 
     recent_entries = trigger_history.get_recent_entries()
 

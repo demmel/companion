@@ -28,14 +28,14 @@ class MemoryElement(BaseModel):
 
     id: str
     content: str
-    evidence: str
     timestamp: datetime
-    emotional_significance: float = Field(ge=0.0, le=1.0)
     confidence_level: ConfidenceLevel
-    memory_type: MemoryType
     sequence_in_container: int = Field(
         default=0,
         description="Sequential position within the container/trigger that created this memory",
+    )
+    container_id: str = Field(
+        description="ID of the TriggerHistoryEntry that created this memory"
     )
     embedding_vector: Optional[List[float]] = None
 

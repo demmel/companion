@@ -26,10 +26,7 @@ class NodeData:
     id: str
     content: str
     content_preview: str  # Truncated version for display
-    evidence: str
-    memory_type: str
     confidence_level: str
-    emotional_significance: float
     timestamp: str
     in_context: bool
     tokens: Optional[int] = None  # Only if in context
@@ -99,7 +96,6 @@ class GraphExtractor:
 
     # Edge type styling
     EDGE_TYPE_STYLES = {
-        GraphEdgeType.FOLLOWED_BY.value: {"color": "#666666", "style": "solid"},
         GraphEdgeType.CAUSED.value: {"color": "#4488FF", "style": "solid"},
         GraphEdgeType.EXPLAINS.value: {"color": "#22AA22", "style": "solid"},
         GraphEdgeType.EXPLAINED_BY.value: {"color": "#66BB66", "style": "solid"},
@@ -176,7 +172,7 @@ class GraphExtractor:
             content_preview = content_preview[:57] + "..."
 
         # Get styling
-        color = self.MEMORY_TYPE_COLORS.get(memory.memory_type.value, "#CCCCCC")
+        color = "#CCCCCC"
         outline_style = "thick-solid" if in_context else "thin-dashed"
         pattern = self._get_confidence_pattern(memory.confidence_level.value)
 
@@ -184,10 +180,7 @@ class GraphExtractor:
             id=memory.id,
             content=memory.content,
             content_preview=content_preview,
-            evidence=memory.evidence,
-            memory_type=memory.memory_type.value,
             confidence_level=memory.confidence_level.value,
-            emotional_significance=memory.emotional_significance,
             timestamp=memory.timestamp.isoformat(),
             in_context=in_context,
             tokens=tokens,

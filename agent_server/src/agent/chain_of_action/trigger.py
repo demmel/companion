@@ -4,7 +4,7 @@ Trigger system for initiating action sequences.
 
 from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Union, Literal, Optional, List, NewType
+from typing import Union, Literal, Optional, List, NewType, assert_never
 
 # Domain type for image file paths
 ImageFilePath = NewType("ImageFilePath", str)
@@ -19,6 +19,15 @@ class BaseTrigger(BaseModel):
     def get_images(self) -> ImageFilePaths:
         """Get image file paths associated with this trigger, if any"""
         return None
+
+
+class BirthTrigger(BaseTrigger):
+    """Trigger for agent creation event"""
+
+    type: Literal["birth"] = "birth"
+    content: str
+    user_name: str
+    image_paths: ImageFilePaths = None  # Paths to shared images
 
 
 class UserInputTrigger(BaseTrigger):
@@ -41,35 +50,27 @@ class WakeupTrigger(BaseTrigger):
 
 
 # Create discriminated union for proper polymorphic serialization
-Trigger = Union[UserInputTrigger, WakeupTrigger]
+Trigger = UserInputTrigger | WakeupTrigger | BirthTrigger
 
 
-def format_trigger_for_prompt(trigger: BaseTrigger) -> str:
+def format_trigger_for_prompt(trigger: Trigger) -> str:
     """Format the trigger with proper context about what happened"""
-    if isinstance(trigger, UserInputTrigger):
-        # For user input, show who spoke to the agent
-        user_trigger = trigger  # Type: UserInputTrigger
-        base_text = f'{user_trigger.user_name} said to me: "{user_trigger.content}"'
+    match trigger:
+        case UserInputTrigger():
+            user_trigger = trigger  # Type: UserInputTrigger
+            base_text = f'{user_trigger.user_name} said to me: "{user_trigger.content}"'
 
-        # Add image information if present
-        if user_trigger.image_paths:
-            image_count = len(user_trigger.image_paths)
-            if image_count == 1:
-                base_text += f" (User shared an image)"
-            else:
-                base_text += f" (User shared {image_count} images)"
-
-        return base_text
-    elif isinstance(trigger, WakeupTrigger):
-        # For wakeup, neutral autonomous continuation
-        return (
-            "I continue to exist and have my own experiences during this quiet moment"
-        )
-    else:
-        # Future trigger types would be formatted differently
-        # e.g., "A tool finished executing: {result}"
-        # e.g., "A timer went off: {timer_info}"
-        # e.g., "I decided to reflect on: {topic}"
-        raise NotImplementedError(
-            f"Trigger formatting not implemented for type: {trigger}"
-        )
+            # Add image information if present
+            if user_trigger.image_paths:
+                image_count = len(user_trigger.image_paths)
+                if image_count == 1:
+                    base_text += f" (User shared an image)"
+                else:
+                    base_text += f" (User shared {image_count} images)"
+            return base_text
+        case WakeupTrigger():
+            return "I continue to exist and have my own experiences during this quiet moment"
+        case BirthTrigger():
+            return "I was created and brought to life in this moment"
+        case _:
+            assert_never(trigger)

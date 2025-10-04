@@ -5,11 +5,11 @@ These types decouple the API contract from internal backend types,
 allowing for independent evolution of internal structures.
 """
 
-from typing import Union, Literal, Annotated, Optional, List
-from pydantic import BaseModel, Field
+from typing import Union, Literal, Optional, List, assert_never
+from pydantic import BaseModel
 
 from agent.chain_of_action.action.action_data import ActionData, create_context_given
-from agent.chain_of_action.action.base_action_data import BaseActionData
+from agent.chain_of_action.trigger import Trigger
 
 
 # Trigger DTOs
@@ -285,32 +285,37 @@ AgentEvent = TriggerEvent
 
 
 # Conversion functions from backend types to DTOs
-def convert_trigger_to_dto(trigger) -> TriggerDTO:
+def convert_trigger_to_dto(trigger: Trigger) -> TriggerDTO:
     """Convert backend TriggerEvent to DTO"""
-    from agent.chain_of_action.trigger import UserInputTrigger, WakeupTrigger
+    from agent.chain_of_action.trigger import (
+        UserInputTrigger,
+        WakeupTrigger,
+        BirthTrigger,
+    )
 
-    if isinstance(trigger, UserInputTrigger):
-        # Convert file paths to URLs for client
-        image_urls = None
-        if trigger.image_paths:
-            from pathlib import Path
+    match trigger:
+        case UserInputTrigger() | BirthTrigger():
+            # Convert file paths to URLs for client
+            image_urls = None
+            if trigger.image_paths:
+                from pathlib import Path
 
-            image_urls = [
-                f"/uploaded_images/{Path(path).name}" for path in trigger.image_paths
-            ]
-
-        return UserInputTriggerDTO(
-            content=trigger.content,
-            user_name=trigger.user_name,
-            timestamp=trigger.timestamp.isoformat(),
-            image_urls=image_urls,
-        )
-    elif isinstance(trigger, WakeupTrigger):
-        return WakeupTriggerDTO(
-            timestamp=trigger.timestamp.isoformat(),
-        )
-    else:
-        raise ValueError(f"Unsupported trigger type: {type(trigger)}")
+                image_urls = [
+                    f"/uploaded_images/{Path(path).name}"
+                    for path in trigger.image_paths
+                ]
+            return UserInputTriggerDTO(
+                content=trigger.content,
+                user_name=trigger.user_name,
+                timestamp=trigger.timestamp.isoformat(),
+                image_urls=image_urls,
+            )
+        case WakeupTrigger():
+            return WakeupTriggerDTO(
+                timestamp=trigger.timestamp.isoformat(),
+            )
+        case _:
+            assert_never(trigger)
 
 
 def convert_action_to_dto(action: ActionData) -> ActionDTO:

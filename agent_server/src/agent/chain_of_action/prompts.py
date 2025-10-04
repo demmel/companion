@@ -2,7 +2,7 @@ from typing import List, Literal, Optional
 from datetime import datetime
 import random
 
-from agent.memory.models import ContextGraph
+from agent.memory.dag_memory_manager import DagMemoryManager
 import nltk
 from nltk.corpus import words
 
@@ -12,7 +12,11 @@ from agent.chain_of_action.action.action_data import (
 )
 from agent.chain_of_action.action.base_action_data import BaseActionData
 from agent.chain_of_action.action.action_types import ActionType
-from agent.chain_of_action.trigger import BaseTrigger, format_trigger_for_prompt
+from agent.chain_of_action.trigger import (
+    BaseTrigger,
+    format_trigger_for_prompt,
+    Trigger,
+)
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 from agent.state import State, build_agent_state_description
 from agent.chain_of_action.action_registry import ActionRegistry
@@ -248,10 +252,10 @@ I am"""
 
 def build_situational_analysis_prompt(
     state: State,
-    trigger: BaseTrigger,
+    trigger: Trigger,
     trigger_history: TriggerHistory,
     registry: ActionRegistry,
-    dag_context: ContextGraph,
+    dag_memory_manager: DagMemoryManager,
 ) -> str:
     """Build the situational analysis prompt - first stage of decision making"""
     from .trigger import WakeupTrigger, UserInputTrigger
@@ -276,7 +280,9 @@ def build_situational_analysis_prompt(
         format_context,
     )
 
-    dag_context_text = format_context(dag_context)
+    dag_context_text = format_context(
+        dag_memory_manager.context_graph, dag_memory_manager.memory_graph
+    )
     if dag_context_text:
         sections.append(
             format_section(
@@ -457,7 +463,7 @@ Each action should have specific context about what to focus on - even the wait 
 
 def build_memory_extraction_prompt(
     state: State,
-    trigger: BaseTrigger,
+    trigger: Trigger,
     trigger_history: TriggerHistory,
 ) -> str:
     """Build prompt for extracting memory queries from current context"""

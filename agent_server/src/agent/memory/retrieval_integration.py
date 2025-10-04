@@ -67,6 +67,7 @@ def retrieve_relevant_memories_as_actions(
             model=model,
             max_queries=max_queries,
             trigger=trigger,
+            memory_graph=memory_graph,
         )
 
         if not query_result.queries:

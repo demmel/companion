@@ -73,7 +73,10 @@ class StepwiseGraphReconstructor:
         for container in add_container_actions:
             trigger_history.entries.append(
                 TriggerHistoryEntry(
-                    entry_id=container, actions_taken=[], trigger=WakeupTrigger()
+                    entry_id=container,
+                    actions_taken=[],
+                    trigger=WakeupTrigger(),
+                    situational_context="",
                 )
             )
         self.action_log = action_log
