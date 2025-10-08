@@ -2,8 +2,8 @@
 FastAPI server for single-user agent system
 """
 
-import json
 import logging
+from typing import Literal
 import uuid
 import shutil
 from pathlib import Path
@@ -16,7 +16,7 @@ from agent.api_types.api import (
     ResetResponse,
 )
 from agent.llm import create_llm, SupportedModel
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime
 
 from fastapi import (
@@ -42,6 +42,7 @@ from agent.api_types.timeline import (
     PaginationInfo,
     convert_trigger_history_entry_to_dto,
 )
+from pydantic import BaseModel, TypeAdapter
 
 
 # Set up logging
@@ -253,6 +254,27 @@ async def reset_agent():
     )
 
 
+class ClientSendMessageRequest(BaseModel):
+    """Message received from client over WebSocket"""
+
+    type: Literal["message"] = "message"
+    message: str
+    user_name: str
+    image_ids: Optional[List[str]] = None
+
+
+class ClientHydrationRequest(BaseModel):
+    """Hydration request from client over WebSocket"""
+
+    type: Literal["hydrate"] = "hydrate"
+    last_trigger_id: Optional[str] = None
+    last_event_sequence: Optional[int] = None
+
+
+ClientRequest = Union[ClientSendMessageRequest, ClientHydrationRequest]
+ClientRequestAdapter: TypeAdapter[ClientRequest] = TypeAdapter(ClientRequest)
+
+
 @app.websocket("/api/chat")
 async def websocket_chat(websocket: WebSocket):
     """WebSocket endpoint for streaming chat"""
@@ -273,63 +295,96 @@ async def websocket_chat(websocket: WebSocket):
 
         async def handle_incoming_messages():
             """Handle incoming messages from client"""
+            from typing import assert_never
+
             try:
                 while True:
                     # Receive message from client
                     data = await websocket.receive_text()
-                    message_data = json.loads(data)
-                    message = message_data.get("message", "")
-                    image_ids = message_data.get("image_ids", [])
-                    user_name = message_data.get("user_name", "User")
+                    client_request = ClientRequestAdapter.validate_json(data)
 
-                    # Resolve image IDs to file paths
-                    image_paths = None
-                    if image_ids:
-                        upload_dir = agent_paths.get_uploaded_images_dir()
-                        image_paths = []
-                        for image_id in image_ids:
-                            # Find the image file with this ID (could be any supported extension)
-                            for ext in [".jpg", ".jpeg", ".png", ".webp"]:
-                                image_file = upload_dir / f"{image_id}{ext}"
-                                if image_file.exists():
-                                    image_paths.append(str(image_file))
-                                    break
-                            else:
-                                logger.warning(f"Image not found for ID: {image_id}")
-
-                    # Create appropriate trigger
-                    if not message.strip() and not image_paths:
-                        from agent.chain_of_action.trigger import WakeupTrigger
-
-                        trigger = WakeupTrigger()
-                    else:
-                        from agent.chain_of_action.trigger import UserInputTrigger
-
-                        trigger = UserInputTrigger(
-                            content=message,
-                            user_name=user_name,
-                            image_paths=image_paths,
-                        )
-
-                    # Process message in background thread
-                    logger.info(
-                        f"Processing trigger: {trigger.model_dump_json(indent=2)}"
-                    )
-
-                    def process_message():
-                        try:
-                            manager.chat_stream(trigger=trigger)
-                        except Exception as e:
-                            # Put error event in queue
-
-                            error_event = AgentErrorEvent(
-                                message=f"Internal error: {str(e)}"
+                    match client_request:
+                        case ClientHydrationRequest():
+                            # Handle hydration request
+                            logger.info(
+                                f"Hydration request: trigger_id={client_request.last_trigger_id}, sequence={client_request.last_event_sequence}"
                             )
-                            manager.emit(error_event)
 
-                    # Run agent processing in background thread
-                    thread = threading.Thread(target=process_message)
-                    thread.start()
+                            # Get hydration events (returns List[AgentServerEvent])
+                            server_events = manager.get_hydration_events(
+                                last_trigger_id=client_request.last_trigger_id,
+                                last_event_sequence=client_request.last_event_sequence,
+                            )
+
+                            logger.info(f"Sending {len(server_events)} hydration events")
+                            for i, server_event in enumerate(server_events):
+                                logger.info(f"Sending event {i+1}/{len(server_events)}: {server_event.type}")
+                                await websocket.send_text(
+                                    server_event.model_dump_json()
+                                )
+                            logger.info(f"Finished sending {len(server_events)} hydration events")
+
+                        case ClientSendMessageRequest():
+                            # Handle sending message to agent
+                            message = client_request.message
+                            image_ids = client_request.image_ids or []
+                            user_name = client_request.user_name
+
+                            # Resolve image IDs to file paths
+                            image_paths = None
+                            if image_ids:
+                                upload_dir = agent_paths.get_uploaded_images_dir()
+                                image_paths = []
+                                for image_id in image_ids:
+                                    # Find the image file with this ID (could be any supported extension)
+                                    for ext in [".jpg", ".jpeg", ".png", ".webp"]:
+                                        image_file = upload_dir / f"{image_id}{ext}"
+                                        if image_file.exists():
+                                            image_paths.append(str(image_file))
+                                            break
+                                    else:
+                                        logger.warning(
+                                            f"Image not found for ID: {image_id}"
+                                        )
+
+                            # Create appropriate trigger
+                            if not message.strip() and not image_paths:
+                                from agent.chain_of_action.trigger import WakeupTrigger
+
+                                trigger = WakeupTrigger()
+                            else:
+                                from agent.chain_of_action.trigger import (
+                                    UserInputTrigger,
+                                )
+
+                                trigger = UserInputTrigger(
+                                    content=message,
+                                    user_name=user_name,
+                                    image_paths=image_paths,
+                                )
+
+                            # Process message in background thread
+                            logger.info(
+                                f"Processing trigger: {trigger.model_dump_json(indent=2)}"
+                            )
+
+                            def process_message():
+                                try:
+                                    manager.chat_stream(trigger=trigger)
+                                except Exception as e:
+                                    # Put error event in queue
+                                    error_event = AgentErrorEvent(
+                                        message=f"Internal error: {str(e)}"
+                                    )
+                                    manager.emit(error_event)
+
+                            # Run agent processing in background thread
+                            thread = threading.Thread(target=process_message)
+                            thread.start()
+
+                        case _:
+                            assert_never(client_request)
+
             except WebSocketDisconnect:
                 pass
             except Exception as e:

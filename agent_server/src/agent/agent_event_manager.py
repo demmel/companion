@@ -4,11 +4,11 @@ Agent Event Manager - wraps Agent and manages event streaming
 
 import queue
 import threading
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from agent.core import Agent
-from agent.api_types.events import AgentEvent, EventEnvelope
+from agent.api_types.events import AgentEvent, EventEnvelope, AgentServerEvent
 from agent.chain_of_action.trigger import Trigger
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
 
 
 class AgentEventManager:
@@ -85,6 +85,79 @@ class AgentEventManager:
             if self.current_client_queue == client_queue:
                 self.current_client_queue = None
             # else: do nothing (different client)
+
+    def get_hydration_events(
+        self,
+        last_trigger_id: Optional[str] = None,
+        last_event_sequence: Optional[int] = None,
+    ) -> List[AgentServerEvent]:
+        """
+        Get events for hydration based on client's last known state.
+
+        Cases:
+        1. trigger_id matches current + event_sequence: Return buffered events after that sequence
+        2. No trigger_id provided: Return last 3 complete triggers from history + current buffer
+        3. trigger_id doesn't match current: Return all triggers since (and including) that one from history + current buffer
+
+        Returns a list of AgentServerEvent (HistoricalTriggerEvent | EventEnvelope).
+        """
+        from agent.api_types.events import HistoricalTriggerEvent
+        from agent.api_types.timeline import convert_trigger_history_entry_to_dto
+
+        with self.buffer_lock:
+            # Determine what to send based on client state
+            trigger_history = self.agent.get_trigger_history()
+            all_entries = trigger_history.get_all_entries()
+
+            # Params: which historical entries and which buffer events to send
+            entries_to_send: List[TriggerHistoryEntry]
+            buffer_filter_sequence: int  # only send events > this sequence
+
+            # Determine case and set params
+            if last_trigger_id is None:
+                # Case 2: No trigger_id - send last 3 complete triggers + full buffer
+                entries_to_send = (
+                    all_entries[-3:] if len(all_entries) >= 3 else all_entries
+                )
+                buffer_filter_sequence = -1  # Send all buffer
+            elif last_trigger_id == self.current_trigger_id:
+                # Case 1: Client caught up to current trigger - no history, filtered buffer
+                entries_to_send = []
+                buffer_filter_sequence = last_event_sequence or -1
+            else:
+                # Case 3: trigger_id provided - find it in history
+                start_index = None
+                for i, entry in enumerate(all_entries):
+                    if entry.entry_id == last_trigger_id:
+                        start_index = i
+                        break
+
+                if start_index is None:
+                    raise ValueError("Invalid last_trigger_id provided")
+
+                # Found it - send all entries from there onwards (including matched) + full buffer
+                entries_to_send = all_entries[start_index:]
+
+                buffer_filter_sequence = -1
+
+            # Execute: build response based on params
+            result: List[AgentServerEvent] = []
+
+            result.extend(
+                HistoricalTriggerEvent(
+                    entry=convert_trigger_history_entry_to_dto(entry)
+                )
+                for entry in entries_to_send
+            )
+
+            # Filtered: send events after sequence
+            result.extend(
+                env
+                for env in self.event_buffer
+                if env.event_sequence > buffer_filter_sequence
+            )
+
+            return result
 
     # Proxy methods to Agent's public interface
     def chat_stream(self, trigger: Trigger) -> None:

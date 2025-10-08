@@ -1,6 +1,7 @@
 # Streaming event types for real-time updates
 from agent.api_types.actions import Action
 from agent.api_types.triggers import Trigger
+from agent.api_types.timeline import TriggerHistoryEntry
 from pydantic import BaseModel
 from typing_extensions import Literal
 
@@ -109,9 +110,21 @@ TriggerEvent = (
 AgentEvent = TriggerEvent
 
 
+class HistoricalTriggerEvent(BaseModel):
+    """Event representing a complete historical trigger with all its actions"""
+
+    type: Literal["historical_trigger"] = "historical_trigger"
+    entry: TriggerHistoryEntry
+
+
 class EventEnvelope(BaseModel):
     """Envelope for events with sequence tracking for streaming protocol"""
 
+    type: Literal["event_envelope"] = "event_envelope"
     event_sequence: int
     trigger_id: str
     event: AgentEvent
+
+
+# Discriminated union for all server events sent to clients
+AgentServerEvent = HistoricalTriggerEvent | EventEnvelope

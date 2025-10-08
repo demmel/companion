@@ -109,7 +109,7 @@ export const useWebSocket = ({
 
   const sendMessage = useCallback((message: string, username: string, imageIds?: string[]) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const payload: { message: string; image_ids?: string[]; user_name?: string } = { message };
+      const payload: { type: "message"; message: string; image_ids?: string[]; user_name?: string } = { type: "message", message };
       if (imageIds && imageIds.length > 0) {
         payload.image_ids = imageIds;
       }
