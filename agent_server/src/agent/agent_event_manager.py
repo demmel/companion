@@ -99,30 +99,31 @@ class AgentEventManager:
         2. No trigger_id provided: Return last 3 complete triggers from history + current buffer
         3. trigger_id doesn't match current: Return all triggers since (and including) that one from history + current buffer
 
-        Returns a list of AgentServerEvent (HistoricalTriggerEvent | EventEnvelope).
+        Returns a list of AgentServerEvent (HydrationResponse | EventEnvelope).
         """
-        from agent.api_types.events import HistoricalTriggerEvent
-        from agent.api_types.timeline import convert_trigger_history_entry_to_dto
+        from agent.api_types.events import HydrationResponse
+        from agent.api_types.timeline import build_timeline_page
 
         with self.buffer_lock:
             # Determine what to send based on client state
             trigger_history = self.agent.get_trigger_history()
             all_entries = trigger_history.get_all_entries()
 
-            # Params: which historical entries and which buffer events to send
-            entries_to_send: List[TriggerHistoryEntry]
+            # Params: pagination params for build_timeline_page and which buffer events to send
+            page_size: int
+            after_index: Optional[int]
             buffer_filter_sequence: int  # only send events > this sequence
 
             # Determine case and set params
             if last_trigger_id is None:
                 # Case 2: No trigger_id - send last 3 complete triggers + full buffer
-                entries_to_send = (
-                    all_entries[-3:] if len(all_entries) >= 3 else all_entries
-                )
+                page_size = 3
+                after_index = None  # Default to last page
                 buffer_filter_sequence = -1  # Send all buffer
             elif last_trigger_id == self.current_trigger_id:
                 # Case 1: Client caught up to current trigger - no history, filtered buffer
-                entries_to_send = []
+                page_size = 0  # No history
+                after_index = None  # No history
                 buffer_filter_sequence = last_event_sequence or -1
             else:
                 # Case 3: trigger_id provided - find it in history
@@ -133,24 +134,26 @@ class AgentEventManager:
                         break
 
                 if start_index is None:
-                    raise ValueError("Invalid last_trigger_id provided")
+                    raise ValueError(f"Invalid last_trigger_id: {last_trigger_id}")
 
                 # Found it - send all entries from there onwards (including matched) + full buffer
-                entries_to_send = all_entries[start_index:]
-
+                page_size = len(all_entries) - start_index
+                after_index = start_index
                 buffer_filter_sequence = -1
 
             # Execute: build response based on params
             result: List[AgentServerEvent] = []
 
-            result.extend(
-                HistoricalTriggerEvent(
-                    entry=convert_trigger_history_entry_to_dto(entry)
+            # Add HydrationResponse if we have historical entries to send
+            if page_size > 0:
+                timeline_entries, pagination = build_timeline_page(
+                    all_entries, page_size=page_size, after_index=after_index
                 )
-                for entry in entries_to_send
-            )
+                result.append(
+                    HydrationResponse(entries=timeline_entries, pagination=pagination)
+                )
 
-            # Filtered: send events after sequence
+            # Add filtered buffer events
             result.extend(
                 env
                 for env in self.event_buffer

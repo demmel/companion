@@ -1,7 +1,7 @@
 # Streaming event types for real-time updates
 from agent.api_types.actions import Action
 from agent.api_types.triggers import Trigger
-from agent.api_types.timeline import TriggerHistoryEntry
+from agent.api_types.timeline import TimelineEntry, PaginationInfo
 from pydantic import BaseModel
 from typing_extensions import Literal
 
@@ -110,13 +110,6 @@ TriggerEvent = (
 AgentEvent = TriggerEvent
 
 
-class HistoricalTriggerEvent(BaseModel):
-    """Event representing a complete historical trigger with all its actions"""
-
-    type: Literal["historical_trigger"] = "historical_trigger"
-    entry: TriggerHistoryEntry
-
-
 class EventEnvelope(BaseModel):
     """Envelope for events with sequence tracking for streaming protocol"""
 
@@ -126,5 +119,13 @@ class EventEnvelope(BaseModel):
     event: AgentEvent
 
 
+class HydrationResponse(BaseModel):
+    """Response to hydration request containing timeline page and pagination info"""
+
+    type: Literal["hydration_response"] = "hydration_response"
+    entries: list[TimelineEntry]
+    pagination: PaginationInfo
+
+
 # Discriminated union for all server events sent to clients
-AgentServerEvent = HistoricalTriggerEvent | EventEnvelope
+AgentServerEvent = HydrationResponse | EventEnvelope

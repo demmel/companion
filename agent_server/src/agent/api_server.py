@@ -129,78 +129,36 @@ async def get_timeline(
     before: Optional[str] = None,
 ):
     """Get paginated timeline in chronological order, defaulting to most recent page"""
+    from agent.api_types.timeline import build_timeline_page
+
     manager: AgentEventManager = app.state.agent_manager
     trigger_history = manager.get_trigger_history()
+    all_entries = trigger_history.get_all_entries()
 
-    # Build timeline entries in proper chronological order with summaries interspersed
-    timeline_entries: List[TimelineEntry] = []
+    # Parse cursor indices
+    before_index = None
+    after_index = None
 
-    # Get all the data we need
-    entries = trigger_history.get_all_entries()
-
-    # Current position in the timeline (0-based to match insert_at_index)
-    current_position = 0
-
-    # Process trigger entries and insert summaries at correct positions
-    for entry in entries:
-        # Add the trigger entry
-        entry_dto = convert_trigger_history_entry_to_dto(entry)
-        timeline_entries.append(TimelineEntryTrigger(entry=entry_dto))
-        current_position += 1
-
-    total_items = len(timeline_entries)
-
-    # Debug pagination logic
-    logger.info(
-        f"Timeline request: page_size={page_size}, after={after}, before={before}, total_items={total_items}"
-    )
-
-    # Handle pagination with after/before cursors
     if before is not None:
-        # Get entries before the specified index (older entries)
         try:
             before_index = int(before)
-            end_index = min(before_index, total_items)
-            start_index = max(0, end_index - page_size)
         except (ValueError, TypeError):
-            # Invalid before cursor, default to last page
-            start_index = max(0, total_items - page_size)
-            end_index = total_items
-    elif after is not None:
-        # Get entries after the specified index (newer entries)
+            logger.warning(f"Invalid before cursor: {before}")
+
+    if after is not None:
         try:
             after_index = int(after)
-            start_index = min(after_index, total_items)
-            end_index = min(start_index + page_size, total_items)
         except (ValueError, TypeError):
-            # Invalid after cursor, default to last page
-            start_index = max(0, total_items - page_size)
-            end_index = total_items
-    else:
-        # Default to showing the last page (most recent items)
-        start_index = max(0, total_items - page_size)
-        end_index = total_items
+            logger.warning(f"Invalid after cursor: {after}")
 
-    # Get page of items
-    page_entries = timeline_entries[start_index:end_index]
+    # Build timeline page using shared utility
+    page_entries, pagination = build_timeline_page(
+        all_entries, page_size, before_index, after_index
+    )
 
-    # Calculate pagination info
-    has_next = end_index < total_items  # Can go forward to newer items
-    has_previous = start_index > 0  # Can go back to older items
-
-    # Next cursor (after): entries after the current page end
-    next_cursor = str(end_index) if has_next else None
-
-    # Previous cursor (before): entries before the current page start
-    previous_cursor = str(start_index) if has_previous else None
-
-    pagination = PaginationInfo(
-        total_items=total_items,
-        page_size=page_size,
-        has_next=has_next,
-        has_previous=has_previous,
-        next_cursor=next_cursor,
-        previous_cursor=previous_cursor,
+    logger.info(
+        f"Timeline request: page_size={page_size}, after={after}, before={before}, "
+        f"returned {len(page_entries)} entries, total={pagination.total_items}"
     )
 
     return TimelineResponse(
@@ -316,13 +274,19 @@ async def websocket_chat(websocket: WebSocket):
                                 last_event_sequence=client_request.last_event_sequence,
                             )
 
-                            logger.info(f"Sending {len(server_events)} hydration events")
+                            logger.info(
+                                f"Sending {len(server_events)} hydration events"
+                            )
                             for i, server_event in enumerate(server_events):
-                                logger.info(f"Sending event {i+1}/{len(server_events)}: {server_event.type}")
+                                logger.info(
+                                    f"Sending event {i+1}/{len(server_events)}: {server_event.type}"
+                                )
                                 await websocket.send_text(
                                     server_event.model_dump_json()
                                 )
-                            logger.info(f"Finished sending {len(server_events)} hydration events")
+                            logger.info(
+                                f"Finished sending {len(server_events)} hydration events"
+                            )
 
                         case ClientSendMessageRequest():
                             # Handle sending message to agent
@@ -397,7 +361,7 @@ async def websocket_chat(websocket: WebSocket):
                     # Get envelope from our local client queue with timeout
                     try:
                         envelope = await asyncio.to_thread(client_queue.get, True, 1.0)
-                        await websocket.send_text(envelope.event.model_dump_json())
+                        await websocket.send_text(envelope.model_dump_json())
                     except queue_module.Empty:
                         # Timeout - check if WebSocket is still alive
                         if (
