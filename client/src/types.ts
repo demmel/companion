@@ -141,7 +141,7 @@ export interface TimelineEntrySummary {
   summary: Summary;
 }
 
-export type TimelineEntry = TimelineEntryTrigger | TimelineEntrySummary;
+export type TimelineEntry = TimelineEntryTrigger;
 
 export interface PaginationInfo {
   total_items: number;

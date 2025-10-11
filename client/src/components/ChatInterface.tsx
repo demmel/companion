@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { ClientAgentEvent, useWebSocket } from "@/hooks/useWebSocket";
+import { useAgentWebSocket } from "@/hooks/useAgentWebSocket";
 import { useStreamBatcher } from "@/hooks/useStreamBatcher";
 import { useTimeline } from "@/hooks/useTimeline";
 import { useUsername } from "@/contexts/UsernameContext";
@@ -7,6 +7,7 @@ import { ChatHeader } from "@/components/ChatHeader";
 import { ChatInput } from "@/components/ChatInput";
 import { Timeline } from "@/components/Timeline";
 import { AgentClient } from "@/client";
+import { TimelineEntry, PaginationInfo } from "@/types";
 import { css } from "@styled-system/css";
 import { debug } from "@/utils/debug";
 
@@ -18,9 +19,39 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("");
   const { username } = useUsername();
 
-  // New architecture: batch events then convert to structured messages
+  // Hydration state (from WebSocket)
+  const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([]);
+  const [paginationInfo, setPaginationInfo] = useState<PaginationInfo | null>(null);
+
+  const handleError = useCallback((error: Event) => {
+    console.error("WebSocket error:", error);
+  }, []);
+
+  const handleHydration = useCallback((entries: TimelineEntry[], pagination: PaginationInfo) => {
+    setTimelineEntries(entries);
+    setPaginationInfo(pagination);
+  }, []);
+
+  // useAgentWebSocket handles protocol discrimination
+  const {
+    agentEvents,
+    isConnected,
+    isConnecting,
+    sendMessage,
+  } = useAgentWebSocket({
+    url: client.chatWsUrl,
+    onError: handleError,
+    onHydration: handleHydration,
+  });
+
+  // Batch streaming events
   const { events, queueEvent, clearEvents, orphanedEventCount } =
     useStreamBatcher(50);
+
+  // Queue agent events as they arrive
+  useEffect(() => {
+    agentEvents.forEach((event) => queueEvent(event));
+  }, [agentEvents, queueEvent]);
 
   useMemo(() => {
     debug.log("Events:", events);
@@ -33,28 +64,9 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     setContextInfo,
     canLoadMore,
     isLoadingMore,
-    // hasLoadedAnyData,
     loadMore,
-    loadInitialData,
     clearData,
-  } = useTimeline(client, events);
-
-  const handleMessage = useCallback(
-    (event: ClientAgentEvent) => {
-      queueEvent(event);
-    },
-    [queueEvent],
-  );
-
-  const handleError = useCallback((error: Event) => {
-    console.error("WebSocket error:", error);
-  }, []);
-
-  const { isConnected, isConnecting, sendMessage } = useWebSocket({
-    url: client.chatWsUrl,
-    onMessage: handleMessage,
-    onError: handleError,
-  });
+  } = useTimeline(client, events, timelineEntries, paginationInfo);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -71,26 +83,21 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     }, 100);
   };
 
-  // Load initial data on mount
+  // Load context info on mount (timeline comes from hydration now)
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load timeline and context info in parallel
-        const [_, contextData] = await Promise.all([
-          loadInitialData(),
-          client.getContextInfo(),
-        ]);
-
+        const contextData = await client.getContextInfo();
         if (contextData) {
           setContextInfo(contextData);
         }
       } catch (error) {
-        console.error("Failed to load initial data:", error);
+        console.error("Failed to load context info:", error);
       }
     };
 
     loadData();
-  }, [client, loadInitialData, setContextInfo]);
+  }, [client, setContextInfo]);
 
   // Scroll to bottom when entries are first loaded
   const hasLoadedInitialData = useRef(false);
@@ -113,8 +120,11 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
       console.error("Error resetting server:", error);
     }
 
+    // Clear all client state
     clearEvents();
     clearData();
+    setTimelineEntries([]);
+    setPaginationInfo(null);
   };
 
   return (

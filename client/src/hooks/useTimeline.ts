@@ -3,7 +3,7 @@ import { ClientAgentEvent } from "./useWebSocket";
 import { useTriggerEvents } from "./useTriggerEvents";
 import { useTimelineHistory } from "./useTimelineHistory";
 import { AgentClient } from "../client";
-import { TimelineEntry, TimelineEntryTrigger, ContextInfo } from "../types";
+import { TimelineEntry, TimelineEntryTrigger, ContextInfo, PaginationInfo } from "../types";
 
 export interface UseTimelineReturn {
   // Combined timeline data
@@ -28,44 +28,43 @@ export interface UseTimelineReturn {
 export function useTimeline(
   client: AgentClient,
   events: ClientAgentEvent[],
+  hydrationEntries: TimelineEntry[],
+  hydrationPagination: PaginationInfo | null,
 ): UseTimelineReturn {
-  // Historical entries from API
-  const historyData = useTimelineHistory(client);
+  // Historical entries from hydration or REST API
+  const historyData = useTimelineHistory(client, hydrationEntries, hydrationPagination);
 
   // Streaming entries from WebSocket events
   const streamingData = useTriggerEvents(events);
 
   // Combine historical + streaming entries
   const combinedEntries = useMemo(() => {
+    // Get entry IDs from historical data to filter out duplicates
+    const historicalEntryIds = new Set(
+      historyData.entries
+        .filter((e): e is TimelineEntryTrigger => e.type === "trigger")
+        .map((e) => e.entry.entry_id),
+    );
+
+    // Filter streaming entries to exclude those already in history
+    const uniqueStreamingEntries = streamingData.streamingEntries.filter(
+      (entry) => !historicalEntryIds.has(entry.entry_id),
+    );
+
     // Convert streaming trigger entries to timeline entries
     const streamingTimelineEntries: TimelineEntry[] =
-      streamingData.streamingEntries.map((entry) => ({
+      uniqueStreamingEntries.map((entry) => ({
         type: "trigger" as const,
         entry,
       }));
 
+    // Combine and sort by timestamp
     const combined = [...historyData.entries, ...streamingTimelineEntries];
-
-    // Debug: check for duplicates by extracting entry_id from TimelineEntry
-    const entryIds = combined
-      .filter((e): e is TimelineEntryTrigger => e.type === "trigger")
-      .map((e) => e.entry.entry_id);
-    const duplicates = entryIds.filter(
-      (id, index) => entryIds.indexOf(id) !== index,
-    );
-    if (duplicates.length > 0) {
-      console.warn("Duplicate entry IDs found:", duplicates);
-      console.log(
-        "Historical trigger entries:",
-        historyData.entries
-          .filter((e): e is TimelineEntryTrigger => e.type === "trigger")
-          .map((e) => e.entry.entry_id),
-      );
-      console.log(
-        "Streaming entries:",
-        streamingData.streamingEntries.map((e) => e.entry_id),
-      );
-    }
+    combined.sort((a, b) => {
+      const aTime = new Date(a.entry.timestamp).getTime();
+      const bTime = new Date(b.entry.timestamp).getTime();
+      return aTime - bTime;
+    });
 
     return combined;
   }, [historyData.entries, streamingData.streamingEntries]);

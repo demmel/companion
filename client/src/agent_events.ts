@@ -1,4 +1,4 @@
-import { Trigger, Action } from "./types";
+import { Trigger, Action, TimelineEntry, PaginationInfo } from "./types";
 
 export interface AgentErrorEvent {
   message: string;
@@ -73,7 +73,7 @@ export interface ActionCompletedEvent {
   type: "action_completed";
 }
 
-// Union type for all agent events
+// Union type for all agent events (NOT including server event wrappers)
 export type AgentEvent =
   | AgentErrorEvent
   | SummarizationStartedEvent
@@ -83,3 +83,20 @@ export type AgentEvent =
   | ActionStartedEvent
   | ActionProgressEvent
   | ActionCompletedEvent;
+
+// Server event wrappers for hydration protocol
+export interface EventEnvelope {
+  type: "event_envelope";
+  event_sequence: number;
+  trigger_id: string;
+  event: AgentEvent;
+}
+
+export interface HydrationResponse {
+  type: "hydration_response";
+  entries: TimelineEntry[];
+  pagination: PaginationInfo;
+}
+
+// Discriminated union for all events sent from server
+export type AgentServerEvent = HydrationResponse | EventEnvelope;

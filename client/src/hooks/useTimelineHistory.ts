@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { AgentClient } from "../client";
-import { TimelineEntry, TimelineResponse } from "../types";
+import { TimelineEntry, TimelineResponse, PaginationInfo } from "../types";
 
 export interface UseTimelineHistoryReturn {
   // Historical data
@@ -19,12 +19,26 @@ export interface UseTimelineHistoryReturn {
 
 export function useTimelineHistory(
   client: AgentClient,
+  hydrationEntries: TimelineEntry[],
+  hydrationPagination: PaginationInfo | null,
 ): UseTimelineHistoryReturn {
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [previousCursor, setPreviousCursor] = useState<string | null>(null);
   const [canLoadMore, setCanLoadMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasLoadedAnyData, setHasLoadedAnyData] = useState(false);
+
+  // Initialize from hydration data
+  useEffect(() => {
+    if (hydrationEntries.length > 0 && !hasLoadedAnyData) {
+      setEntries(hydrationEntries);
+      if (hydrationPagination) {
+        setPreviousCursor(hydrationPagination.previous_cursor || null);
+        setCanLoadMore(hydrationPagination.has_previous);
+      }
+      setHasLoadedAnyData(true);
+    }
+  }, [hydrationEntries, hydrationPagination, hasLoadedAnyData]);
 
   const processTimelineResponse = useCallback(
     (response: TimelineResponse, isPrepend: boolean = false) => {

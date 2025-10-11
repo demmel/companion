@@ -4,7 +4,6 @@ import { useState } from "react";
 import { TriggerHistoryEntry, TimelineEntry } from "@/types";
 import { TriggerCard } from "./trigger/TriggerCard";
 import { ActionDisplay } from "./action/ActionDisplay";
-import { SummaryCard } from "./SummaryCard";
 
 interface TimelineProps {
   entries: TimelineEntry[];
@@ -151,33 +150,14 @@ function TimelineItem({
   isExpanded,
   onToggleExpanded,
 }: TimelineItemProps) {
-  switch (timelineEntry.type) {
-    case "trigger": {
-      const entry = timelineEntry.entry;
-      return (
-        <TimelineEntryView
-          entry={entry}
-          isActive={isActive}
-          isExpanded={isExpanded}
-          onToggleExpanded={onToggleExpanded}
-        />
-      );
-    }
-    case "summary": {
-      return (
-        <SummaryCard
-          summary={timelineEntry.summary}
-          isExpanded={isExpanded}
-          onToggleExpanded={onToggleExpanded}
-        />
-      );
-    }
-    default: {
-      // TypeScript ensures we handle all cases
-      const _exhaustive: never = timelineEntry;
-      return _exhaustive;
-    }
-  }
+  return (
+    <TimelineEntryView
+      entry={timelineEntry.entry}
+      isActive={isActive}
+      isExpanded={isExpanded}
+      onToggleExpanded={onToggleExpanded}
+    />
+  );
 }
 
 export function Timeline({ entries, isStreamActive }: TimelineProps) {
@@ -226,19 +206,11 @@ export function Timeline({ entries, isStreamActive }: TimelineProps) {
             isActive = triggerIndex === activeEntryIndex;
             isExpanded = !collapsedEntries.has(entry.entry_id);
             onToggleExpanded = () => toggleExpanded(entry.entry_id);
-          } else if (timelineEntry.type === "summary") {
-            const summaryKey = `summary-${timelineEntry.summary.insert_at_index}`;
-            isExpanded = !collapsedEntries.has(summaryKey);
-            onToggleExpanded = () => toggleExpanded(summaryKey);
           }
 
           return (
             <TimelineItem
-              key={
-                timelineEntry.type === "trigger"
-                  ? timelineEntry.entry.entry_id
-                  : `summary-${timelineEntry.summary.insert_at_index}`
-              }
+              key={timelineEntry.entry.entry_id}
               timelineEntry={timelineEntry}
               isActive={isActive}
               isExpanded={isExpanded}

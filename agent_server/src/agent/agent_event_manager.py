@@ -57,9 +57,14 @@ class AgentEventManager:
             # Buffer the envelope
             self.event_buffer.append(envelope)
 
-            # Check if trigger completed
+            # Check if trigger completed or errored
             if event.type == "trigger_completed":
                 # Trigger done - clear buffer (events already sent to client)
+                self.current_trigger_id = None
+                self.event_buffer = []
+                self.event_sequence_counter = 0
+            elif event.type == "error" and self.current_trigger_id:
+                # Error during trigger processing - clear buffer to prevent sending stale events
                 self.current_trigger_id = None
                 self.event_buffer = []
                 self.event_sequence_counter = 0
