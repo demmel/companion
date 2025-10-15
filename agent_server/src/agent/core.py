@@ -311,6 +311,13 @@ class Agent:
             import traceback
 
             traceback.print_exc()
+
+            # Emit error event to trigger buffer clearing
+            self.emit_event(
+                AgentErrorEvent(
+                    message=f"Internal error: {str(e)}",
+                )
+            )
         finally:
             # Clear processing flag, schedule next wakeup timer, and notify waiting threads
             with self.processing_condition:
@@ -721,18 +728,30 @@ class Agent:
                 from datetime import datetime
 
                 # Convert ActionResult to ActionDTO
-                action_dto = convert_action_to_dto(result)
+                try:
+                    action_dto = convert_action_to_dto(result)
 
-                self.agent.emit_event(
-                    ActionCompletedEvent(
-                        entry_id=entry_id,
-                        action=action_dto,
-                        sequence_number=sequence_number,
-                        action_number=action_number,
-                        timestamp=datetime.now().isoformat(),
-                    ),
-                    should_yield=True,
-                )
+                    self.agent.emit_event(
+                        ActionCompletedEvent(
+                            entry_id=entry_id,
+                            action=action_dto,
+                            sequence_number=sequence_number,
+                            action_number=action_number,
+                            timestamp=datetime.now().isoformat(),
+                        ),
+                        should_yield=True,
+                    )
+                except Exception as e:
+                    # If DTO conversion fails (e.g., for failed visual actions),
+                    # emit an error event instead to ensure buffer clearing
+                    logger.error(
+                        f"Failed to convert action to DTO: {e}. Action type: {action_type}, Result type: {result.result.type}"
+                    )
+                    self.agent.emit_event(
+                        AgentErrorEvent(
+                            message=f"Failed to process action result: {str(e)}",
+                        )
+                    )
 
             def on_sequence_finished(
                 self, sequence_number: int, total_results: int, successful_actions: int

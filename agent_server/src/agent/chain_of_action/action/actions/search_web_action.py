@@ -112,12 +112,25 @@ class SearchWebAction(BaseAction[SearchWebInput, SearchWebOutput]):
             title = html.unescape(re.sub(r"<[^>]+>", "", title).strip())
             snippet = html.unescape(re.sub(r"<[^>]+>", "", snippet).strip())
 
-            if url and title and url.startswith(("http://", "https://")):
-                results.append(
-                    SearchResult(
-                        url=url, title=title, snippet=snippet or "No snippet available"
+            # Handle protocol-relative URLs and extract real URL from DuckDuckGo redirect
+            if url and title:
+                if url.startswith("//"):
+                    url = "https:" + url
+
+                # Extract actual URL from DuckDuckGo redirect (uddg parameter)
+                if "duckduckgo.com/l/?uddg=" in url:
+                    from urllib.parse import urlparse, parse_qs, unquote
+                    parsed = urlparse(url)
+                    params = parse_qs(parsed.query)
+                    if "uddg" in params:
+                        url = unquote(params["uddg"][0])
+
+                if url.startswith(("http://", "https://")):
+                    results.append(
+                        SearchResult(
+                            url=url, title=title, snippet=snippet or "No snippet available"
+                        )
                     )
-                )
 
         return results
 
@@ -139,9 +152,21 @@ class SearchWebAction(BaseAction[SearchWebInput, SearchWebOutput]):
             # DuckDuckGo search URL
             search_url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
 
-            # Make the search request
+            # Make the search request with proper Chrome headers
+            # Note: Requires 'brotli' package to be installed for decompression
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br, zstd",
+                "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": '"Windows"',
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
             }
 
             logger.debug(f"Searching DuckDuckGo for: {query}")

@@ -259,4 +259,4 @@ def _apply_token_decay(context: ContextGraph, action: ApplyTokenDecayAction) -> 
 
 def _apply_checkpoint(action: CheckpointAction) -> None:
     """Process a checkpoint action (mainly for logging)."""
-    logger.info(f"Checkpoint '{action.label}': {action.description}")
+    logger.debug(f"Checkpoint '{action.label}': {action.description}")

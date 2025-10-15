@@ -278,7 +278,7 @@ async def websocket_chat(websocket: WebSocket):
                                 f"Sending {len(server_events)} hydration events"
                             )
                             for i, server_event in enumerate(server_events):
-                                logger.info(
+                                logger.debug(
                                     f"Sending event {i+1}/{len(server_events)}: {server_event.type}"
                                 )
                                 await websocket.send_text(
