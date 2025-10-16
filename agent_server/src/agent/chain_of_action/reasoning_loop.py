@@ -199,6 +199,8 @@ class ActionBasedReasoningLoop:
             _compress_trigger_entry(trigger_entry, state, llm, model)
             _extract_memory_embedding(trigger_entry)
 
+        trigger_history.add_trigger_entry(trigger_entry)
+
         # POSTPROCESS: Extract memories from completed reasoning if DAG enabled
         if dag_memory_manager:
             assert (
@@ -213,8 +215,6 @@ class ActionBasedReasoningLoop:
                 action_registry=self.registry,
                 # update_state=False,  # Agent manages its own state
             )
-
-        trigger_history.add_trigger_entry(trigger_entry)
 
         # Emit completion event after adding to history
         callback.on_trigger_completed(trigger_entry)

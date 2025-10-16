@@ -162,7 +162,8 @@ def convert_action_to_dto(action: ActionData) -> Action:
             image_description = action.result.content.image_description
             image_url = action.result.content.image_result.image_url
         else:
-            raise ValueError("Invalid result type for UpdateAppearanceAction")
+            image_description = "Failed to generate image"
+            image_url = ""
 
         return UpdateAppearanceAction(
             **base_data, image_description=image_description, image_url=image_url
@@ -175,7 +176,8 @@ def convert_action_to_dto(action: ActionData) -> Action:
             image_description = action.result.content.image_description
             image_url = action.result.content.image_result.image_url
         else:
-            raise ValueError("Invalid result type for UpdateEnvironmentAction")
+            image_description = "Failed to generate image"
+            image_url = ""
 
         return UpdateEnvironmentAction(
             **base_data, image_description=image_description, image_url=image_url
