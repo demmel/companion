@@ -113,6 +113,8 @@ export interface TriggerHistoryEntry {
   actions_taken: Action[];
   timestamp: string;
   entry_id: string;
+  situational_context: string;
+  compressed_summary?: string;
 }
 
 export interface TriggerHistoryResponse {

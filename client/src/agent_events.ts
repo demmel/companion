@@ -1,4 +1,10 @@
-import { Trigger, Action, TimelineEntry, PaginationInfo } from "./types";
+import {
+  Trigger,
+  Action,
+  TimelineEntry,
+  PaginationInfo,
+  TriggerHistoryEntry,
+} from "./types";
 
 export interface AgentErrorEvent {
   message: string;
@@ -31,10 +37,7 @@ export interface TriggerStartedEvent {
 }
 
 export interface TriggerCompletedEvent {
-  entry_id: string;
-  total_actions: number;
-  successful_actions: number;
-  timestamp: string;
+  entry: TriggerHistoryEntry;
   type: "trigger_completed";
   // Context information for UI updates
   estimated_tokens: number;

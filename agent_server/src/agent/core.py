@@ -18,6 +18,9 @@ from agent.api_types.actions import (
 from agent.api_types.triggers import (
     convert_trigger_to_dto,
 )
+from agent.api_types.timeline import (
+    convert_trigger_history_entry_to_dto,
+)
 from agent.chain_of_action.action.action_data import (
     ActionData,
     ThinkActionData,
@@ -594,16 +597,7 @@ class Agent:
         context_info = self.get_context_info()
         self.emit_event(
             TriggerCompletedEvent(
-                entry_id=entry_id,
-                timestamp=datetime.now().isoformat(),
-                total_actions=len(self.initial_exchange.actions_taken),
-                successful_actions=len(
-                    [
-                        a
-                        for a in self.initial_exchange.actions_taken
-                        if a.result.type == "success"
-                    ]
-                ),
+                entry=convert_trigger_history_entry_to_dto(self.initial_exchange),
                 estimated_tokens=context_info.estimated_tokens,
                 context_limit=context_info.context_limit,
                 usage_percentage=context_info.usage_percentage,
@@ -633,18 +627,11 @@ class Agent:
                     should_yield=True,
                 )
 
-            def on_trigger_completed(
-                self, entry_id: str, total_actions: int, successful_actions: int
-            ) -> None:
-                from datetime import datetime
-
+            def on_trigger_completed(self, entry: TriggerHistoryEntry) -> None:
                 context_info = self.agent.get_context_info()
                 self.agent.emit_event(
                     TriggerCompletedEvent(
-                        entry_id=entry_id,
-                        total_actions=total_actions,
-                        successful_actions=successful_actions,
-                        timestamp=datetime.now().isoformat(),
+                        entry=convert_trigger_history_entry_to_dto(entry),
                         estimated_tokens=context_info.estimated_tokens,
                         context_limit=context_info.context_limit,
                         usage_percentage=context_info.usage_percentage,

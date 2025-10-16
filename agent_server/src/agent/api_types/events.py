@@ -1,7 +1,7 @@
 # Streaming event types for real-time updates
 from agent.api_types.actions import Action
 from agent.api_types.triggers import Trigger
-from agent.api_types.timeline import TimelineEntry, PaginationInfo
+from agent.api_types.timeline import TimelineEntry, PaginationInfo, TriggerHistoryEntry
 from pydantic import BaseModel
 from typing_extensions import Literal
 
@@ -43,10 +43,7 @@ class TriggerCompletedEvent(BaseModel):
     """Event emitted when all actions for a trigger are complete"""
 
     type: Literal["trigger_completed"] = "trigger_completed"
-    entry_id: str
-    total_actions: int
-    successful_actions: int
-    timestamp: str
+    entry: TriggerHistoryEntry
     # Context information for UI updates
     estimated_tokens: int
     context_limit: int

@@ -58,48 +58,51 @@ export const useAgentWebSocket = ({
   const reconnectTimeoutRef = useRef<number | undefined>(undefined);
 
   // Handle discrimination and unwrapping
-  const handleServerEvent = useCallback((rawData: string) => {
-    try {
-      const serverEvent = JSON.parse(rawData) as AgentServerEvent;
+  const handleServerEvent = useCallback(
+    (rawData: string) => {
+      try {
+        const serverEvent = JSON.parse(rawData) as AgentServerEvent;
 
-      switch (serverEvent.type) {
-        case "hydration_response": {
-          const hydration = serverEvent as HydrationResponse;
-          console.log(
-            `[Hydration] Received ${hydration.entries.length} timeline entries`,
-          );
+        switch (serverEvent.type) {
+          case "hydration_response": {
+            const hydration = serverEvent as HydrationResponse;
+            console.log(
+              `[Hydration] Received ${hydration.entries.length} timeline entries`,
+            );
 
-          // Call hydration callback if provided
-          onHydration?.(hydration.entries, hydration.pagination);
-          break;
+            // Call hydration callback if provided
+            onHydration?.(hydration.entries, hydration.pagination);
+            break;
+          }
+
+          case "event_envelope": {
+            const envelope = serverEvent as EventEnvelope;
+
+            // Track last known state for reconnection
+            lastTriggerId.current = envelope.trigger_id;
+            lastEventSequence.current = envelope.event_sequence;
+
+            // Unwrap to AgentEvent and add client ID
+            const clientEvent: ClientAgentEvent = {
+              ...envelope.event,
+              id: eventIdCounter.current++,
+            };
+
+            setAgentEvents((prev) => [...prev, clientEvent]);
+            break;
+          }
+
+          default: {
+            const exhaustiveCheck: never = serverEvent;
+            console.warn("Unknown server event type:", exhaustiveCheck);
+          }
         }
-
-        case "event_envelope": {
-          const envelope = serverEvent as EventEnvelope;
-
-          // Track last known state for reconnection
-          lastTriggerId.current = envelope.trigger_id;
-          lastEventSequence.current = envelope.event_sequence;
-
-          // Unwrap to AgentEvent and add client ID
-          const clientEvent: ClientAgentEvent = {
-            ...envelope.event,
-            id: eventIdCounter.current++,
-          };
-
-          setAgentEvents((prev) => [...prev, clientEvent]);
-          break;
-        }
-
-        default: {
-          const exhaustiveCheck: never = serverEvent;
-          console.warn("Unknown server event type:", exhaustiveCheck);
-        }
+      } catch (error) {
+        console.error("Failed to parse server event:", error);
       }
-    } catch (error) {
-      console.error("Failed to parse server event:", error);
-    }
-  }, [onHydration]);
+    },
+    [onHydration],
+  );
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Check, X, User } from 'lucide-react';
-import { css } from '@styled-system/css';
-import { useUsername } from '@/contexts/UsernameContext';
+import React, { useState, useRef, useEffect } from "react";
+import { Check, X, User } from "lucide-react";
+import { css } from "@styled-system/css";
+import { useUsername } from "@/contexts/UsernameContext";
 
 interface UsernameSettingsProps {
   isOpen: boolean;
@@ -38,14 +38,14 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
   // Close when clicking escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === "Escape" && isOpen) {
         onClose();
       }
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
     }
   }, [isOpen, onClose]);
 
@@ -67,9 +67,9 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleSave();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       handleCancel();
     }
   };
@@ -79,41 +79,41 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
   return (
     <div
       className={css({
-        position: 'absolute',
-        top: '100%',
+        position: "absolute",
+        top: "100%",
         left: 0,
         mt: 2,
-        bg: 'gray.800',
-        border: '1px solid',
-        borderColor: 'gray.600',
-        rounded: 'lg',
+        bg: "gray.800",
+        border: "1px solid",
+        borderColor: "gray.600",
+        rounded: "lg",
         p: 4,
-        minWidth: '280px',
+        minWidth: "280px",
         zIndex: 50,
-        boxShadow: 'lg',
+        boxShadow: "lg",
       })}
     >
       <div
         className={css({
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           mb: 3,
         })}
       >
         <div
           className={css({
-            display: 'flex',
-            alignItems: 'center',
+            display: "flex",
+            alignItems: "center",
             gap: 2,
           })}
         >
-          <User size={16} className={css({ color: 'gray.400' })} />
+          <User size={16} className={css({ color: "gray.400" })} />
           <h3
             className={css({
-              fontSize: 'sm',
-              fontWeight: 'medium',
-              color: 'white',
+              fontSize: "sm",
+              fontWeight: "medium",
+              color: "white",
             })}
           >
             Username
@@ -123,10 +123,10 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
           onClick={onClose}
           className={css({
             p: 1,
-            color: 'gray.400',
-            _hover: { color: 'white' },
-            transition: 'colors',
-            rounded: 'md',
+            color: "gray.400",
+            _hover: { color: "white" },
+            transition: "colors",
+            rounded: "md",
           })}
         >
           <X size={14} />
@@ -135,8 +135,8 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
 
       <div
         className={css({
-          display: 'flex',
-          alignItems: 'center',
+          display: "flex",
+          alignItems: "center",
           gap: 2,
         })}
       >
@@ -154,16 +154,16 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
                 flex: 1,
                 px: 2,
                 py: 1,
-                bg: 'gray.700',
-                border: '1px solid',
-                borderColor: 'gray.600',
-                rounded: 'md',
-                color: 'white',
-                fontSize: 'sm',
-                _placeholder: { color: 'gray.400' },
+                bg: "gray.700",
+                border: "1px solid",
+                borderColor: "gray.600",
+                rounded: "md",
+                color: "white",
+                fontSize: "sm",
+                _placeholder: { color: "gray.400" },
                 _focus: {
-                  outline: 'none',
-                  borderColor: 'blue.500',
+                  outline: "none",
+                  borderColor: "blue.500",
                 },
               })}
             />
@@ -172,13 +172,13 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
               disabled={!inputValue.trim()}
               className={css({
                 p: 1,
-                color: 'green.400',
-                _hover: { color: 'green.300' },
+                color: "green.400",
+                _hover: { color: "green.300" },
                 _disabled: {
-                  color: 'gray.600',
-                  cursor: 'not-allowed',
+                  color: "gray.600",
+                  cursor: "not-allowed",
                 },
-                transition: 'colors',
+                transition: "colors",
               })}
             >
               <Check size={16} />
@@ -187,9 +187,9 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
               onClick={handleCancel}
               className={css({
                 p: 1,
-                color: 'red.400',
-                _hover: { color: 'red.300' },
-                transition: 'colors',
+                color: "red.400",
+                _hover: { color: "red.300" },
+                transition: "colors",
               })}
             >
               <X size={16} />
@@ -200,8 +200,8 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
             <span
               className={css({
                 flex: 1,
-                color: 'gray.300',
-                fontSize: 'sm',
+                color: "gray.300",
+                fontSize: "sm",
               })}
             >
               {username}
@@ -211,13 +211,13 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
               className={css({
                 px: 2,
                 py: 1,
-                bg: 'blue.600',
-                color: 'white',
-                rounded: 'md',
-                fontSize: 'xs',
-                fontWeight: 'medium',
-                _hover: { bg: 'blue.700' },
-                transition: 'colors',
+                bg: "blue.600",
+                color: "white",
+                rounded: "md",
+                fontSize: "xs",
+                fontWeight: "medium",
+                _hover: { bg: "blue.700" },
+                transition: "colors",
               })}
             >
               Edit
@@ -228,8 +228,8 @@ export function UsernameSettings({ isOpen, onClose }: UsernameSettingsProps) {
 
       <p
         className={css({
-          fontSize: 'xs',
-          color: 'gray.500',
+          fontSize: "xs",
+          color: "gray.500",
           mt: 2,
         })}
       >

@@ -115,12 +115,13 @@ export function useTriggerEvents(
   useEffect(() => {
     if (events.length === 0) return;
 
+    let numConversationMessages = contextInfo?.conversation_messages || 0;
     let currentTrigger = activeTrigger
       ? {
-        ...activeTrigger,
-        actions: [...activeTrigger.actions],
-        actionMap: new Map(activeTrigger.actionMap),
-      }
+          ...activeTrigger,
+          actions: [...activeTrigger.actions],
+          actionMap: new Map(activeTrigger.actionMap),
+        }
       : null;
     let hasActiveStreaming = isStreamActive;
 
@@ -145,6 +146,7 @@ export function useTriggerEvents(
             );
           }
 
+          numConversationMessages += 1;
           currentTrigger = {
             entry_id: event.entry_id,
             trigger: event.trigger,
@@ -249,43 +251,18 @@ export function useTriggerEvents(
         }
 
         case "trigger_completed": {
-          // Complete the trigger and convert to final entry
-          if (!currentTrigger || currentTrigger.entry_id !== event.entry_id) {
+          // Use the complete entry from the event
+          const triggerEntry: TriggerHistoryEntry = event.entry;
+
+          if (
+            !currentTrigger ||
+            currentTrigger.entry_id !== triggerEntry.entry_id
+          ) {
             debug.warn(
-              `Received trigger_completed for unknown entry_id: ${event.entry_id}`,
+              `Received trigger_completed for unknown entry_id: ${triggerEntry.entry_id}`,
             );
             continue;
           }
-
-          if (!currentTrigger.trigger) {
-            debug.warn(
-              `Trigger completed but no trigger data found for entry_id: ${event.entry_id}`,
-            );
-            continue;
-          }
-
-          // Convert action builders to final actions (sorted by sequence, then action number)
-          const actions: Action[] = [];
-          const sortedActions = [...currentTrigger.actions].sort((a, b) => {
-            if (a.sequence_number !== b.sequence_number) {
-              return a.sequence_number - b.sequence_number;
-            }
-            return a.action_number - b.action_number;
-          });
-
-          for (const actionBuilder of sortedActions) {
-            if (actionBuilder.status.type !== "streaming") {
-              actions.push(convertActionBuilderToAction(actionBuilder));
-            }
-          }
-
-          // Create final trigger entry
-          const triggerEntry: TriggerHistoryEntry = {
-            trigger: currentTrigger.trigger,
-            actions_taken: actions,
-            timestamp: currentTrigger.trigger.timestamp,
-            entry_id: event.entry_id,
-          };
 
           // Extract and update context info from the trigger completed event
           const newContextInfo: ContextInfo = {
@@ -293,7 +270,7 @@ export function useTriggerEvents(
             context_limit: event.context_limit,
             usage_percentage: event.usage_percentage,
             approaching_limit: event.approaching_limit,
-            conversation_messages: event.total_actions, // Use total_actions as proxy
+            conversation_messages: numConversationMessages,
           };
           setContextInfo(newContextInfo);
 
@@ -344,6 +321,8 @@ export function useTriggerEvents(
         actions_taken: activeActions,
         timestamp: activeTrigger.trigger.timestamp,
         entry_id: activeTrigger.entry_id,
+        situational_context: "", // Not available yet for active triggers
+        compressed_summary: undefined,
       };
 
       entries.push(activeTriggerEntry);

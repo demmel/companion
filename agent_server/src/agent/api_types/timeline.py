@@ -24,6 +24,8 @@ class TriggerHistoryEntry(BaseModel):
     actions_taken: list[Action]
     timestamp: str
     entry_id: str
+    situational_context: str
+    compressed_summary: str | None = None
 
 
 class TimelineEntryTrigger(BaseModel):
@@ -80,6 +82,8 @@ def convert_trigger_history_entry_to_dto(
         actions_taken=[convert_action_to_dto(action) for action in entry.actions_taken],
         timestamp=entry.timestamp.isoformat(),
         entry_id=entry.entry_id,
+        situational_context=entry.situational_context,
+        compressed_summary=entry.compressed_summary,
     )
 
 

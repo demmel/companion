@@ -1,13 +1,24 @@
 import { css } from "@styled-system/css";
-import { MessageCircle, User, Clock, Coffee } from "lucide-react";
-import { Trigger } from "@/types";
+import {
+  MessageCircle,
+  User,
+  Clock,
+  Coffee,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
+import { TriggerHistoryEntry } from "@/types";
 import { ImageDisplay } from "../common/ImageDisplay";
+import { useState } from "react";
 
 interface TriggerCardProps {
-  trigger: Trigger;
+  entry: TriggerHistoryEntry;
 }
 
-export function TriggerCard({ trigger }: TriggerCardProps) {
+export function TriggerCard({ entry }: TriggerCardProps) {
+  const { trigger, situational_context, compressed_summary } = entry;
+  const [showSituational, setShowSituational] = useState(false);
+  const [showCompressed, setShowCompressed] = useState(false);
   const getTriggerIcon = () => {
     switch (trigger.type) {
       case "user_input":
@@ -115,6 +126,95 @@ export function TriggerCard({ trigger }: TriggerCardProps) {
             })}
           </div>
         )}
+
+      {/* Collapsible Debug Sections */}
+      <div
+        className={css({
+          mt: 3,
+          pt: 3,
+          borderTop: "1px solid",
+          borderTopColor: "gray.600",
+        })}
+      >
+        {/* Situational Analysis */}
+        <button
+          onClick={() => setShowSituational(!showSituational)}
+          className={css({
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            cursor: "pointer",
+            background: "transparent",
+            border: "none",
+            color: "gray.400",
+            fontSize: "sm",
+            padding: 0,
+            mb: 2,
+            _hover: { color: "gray.300" },
+          })}
+        >
+          {showSituational ? (
+            <ChevronDown size={14} />
+          ) : (
+            <ChevronRight size={14} />
+          )}
+          <span>Situational Analysis</span>
+        </button>
+        {showSituational && (
+          <div
+            className={css({
+              fontSize: "sm",
+              color: "gray.400",
+              whiteSpace: "pre-wrap",
+              pl: 4,
+              mb: 3,
+            })}
+          >
+            {situational_context}
+          </div>
+        )}
+
+        {/* Compressed Summary */}
+        {compressed_summary && (
+          <>
+            <button
+              onClick={() => setShowCompressed(!showCompressed)}
+              className={css({
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                cursor: "pointer",
+                background: "transparent",
+                border: "none",
+                color: "gray.400",
+                fontSize: "sm",
+                padding: 0,
+                mb: 2,
+                _hover: { color: "gray.300" },
+              })}
+            >
+              {showCompressed ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+              <span>Compressed Summary</span>
+            </button>
+            {showCompressed && (
+              <div
+                className={css({
+                  fontSize: "sm",
+                  color: "gray.400",
+                  whiteSpace: "pre-wrap",
+                  pl: 4,
+                })}
+              >
+                {compressed_summary}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

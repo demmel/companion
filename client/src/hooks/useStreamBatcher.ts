@@ -39,9 +39,9 @@ export function useStreamBatcher(
           case "trigger_completed":
             // Accept if we have this trigger, then clean it up
             const hasCompletedTrigger = activeTriggerIds.current.has(
-              event.entry_id,
+              event.entry.entry_id,
             );
-            activeTriggerIds.current.delete(event.entry_id);
+            activeTriggerIds.current.delete(event.entry.entry_id);
             return hasCompletedTrigger;
 
           case "action_started":

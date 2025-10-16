@@ -6,6 +6,7 @@ from typing import Protocol, Optional, Any
 
 from agent.chain_of_action.action.action_data import ActionData
 from agent.chain_of_action.trigger import Trigger
+from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from .action.action_types import ActionType
 from .action.base_action_data import BaseActionData
 
@@ -77,9 +78,7 @@ class ActionCallback(Protocol):
         """Called when trigger processing starts"""
         pass
 
-    def on_trigger_completed(
-        self, entry_id: str, total_actions: int, successful_actions: int
-    ) -> None:
+    def on_trigger_completed(self, entry: TriggerHistoryEntry) -> None:
         """Called when trigger processing is complete"""
         pass
 
@@ -142,7 +141,5 @@ class NoOpCallback:
     def on_trigger_started(self, entry_id: str, trigger: Trigger) -> None:
         pass
 
-    def on_trigger_completed(
-        self, entry_id: str, total_actions: int, successful_actions: int
-    ) -> None:
+    def on_trigger_completed(self, entry: TriggerHistoryEntry) -> None:
         pass

@@ -49,7 +49,7 @@ function TimelineEntryView({
           bg: isActive ? "blue.800/50" : "gray.700/30",
         })}
       >
-        <TriggerCard trigger={entry.trigger} />
+        <TriggerCard entry={entry} />
 
         {/* Actions summary and expand toggle */}
         {hasActions && (
@@ -61,7 +61,7 @@ function TimelineEntryView({
               mt: 3,
               pt: 3,
               borderTop: "1px solid",
-              borderColor: "gray.600",
+              borderTopColor: "gray.600",
             })}
           >
             <div

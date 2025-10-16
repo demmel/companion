@@ -107,18 +107,26 @@ export const useWebSocket = ({
     reconnectCountRef.current = 0;
   }, []);
 
-  const sendMessage = useCallback((message: string, username: string, imageIds?: string[]) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const payload: { type: "message"; message: string; image_ids?: string[]; user_name?: string } = { type: "message", message };
-      if (imageIds && imageIds.length > 0) {
-        payload.image_ids = imageIds;
+  const sendMessage = useCallback(
+    (message: string, username: string, imageIds?: string[]) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        const payload: {
+          type: "message";
+          message: string;
+          image_ids?: string[];
+          user_name?: string;
+        } = { type: "message", message };
+        if (imageIds && imageIds.length > 0) {
+          payload.image_ids = imageIds;
+        }
+        payload.user_name = username;
+        wsRef.current.send(JSON.stringify(payload));
+      } else {
+        console.warn("WebSocket is not connected");
       }
-      payload.user_name = username;
-      wsRef.current.send(JSON.stringify(payload));
-    } else {
-      console.warn("WebSocket is not connected");
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     connect();

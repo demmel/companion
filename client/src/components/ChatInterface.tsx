@@ -21,28 +21,29 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
 
   // Hydration state (from WebSocket)
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>([]);
-  const [paginationInfo, setPaginationInfo] = useState<PaginationInfo | null>(null);
+  const [paginationInfo, setPaginationInfo] = useState<PaginationInfo | null>(
+    null,
+  );
 
   const handleError = useCallback((error: Event) => {
     console.error("WebSocket error:", error);
   }, []);
 
-  const handleHydration = useCallback((entries: TimelineEntry[], pagination: PaginationInfo) => {
-    setTimelineEntries(entries);
-    setPaginationInfo(pagination);
-  }, []);
+  const handleHydration = useCallback(
+    (entries: TimelineEntry[], pagination: PaginationInfo) => {
+      setTimelineEntries(entries);
+      setPaginationInfo(pagination);
+    },
+    [],
+  );
 
   // useAgentWebSocket handles protocol discrimination
-  const {
-    agentEvents,
-    isConnected,
-    isConnecting,
-    sendMessage,
-  } = useAgentWebSocket({
-    url: client.chatWsUrl,
-    onError: handleError,
-    onHydration: handleHydration,
-  });
+  const { agentEvents, isConnected, isConnecting, sendMessage } =
+    useAgentWebSocket({
+      url: client.chatWsUrl,
+      onError: handleError,
+      onHydration: handleHydration,
+    });
 
   // Batch streaming events
   const { events, queueEvent, clearEvents, orphanedEventCount } =

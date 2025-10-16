@@ -193,7 +193,6 @@ class ActionBasedReasoningLoop:
             cast_base_action_data_to_action_data(action)
             for action in context.completed_actions
         ]
-        trigger_history.add_trigger_entry(trigger_entry)
 
         # Compress this trigger entry into a summary (if enabled)
         if individual_trigger_compression:
@@ -215,10 +214,10 @@ class ActionBasedReasoningLoop:
                 # update_state=False,  # Agent manages its own state
             )
 
+        trigger_history.add_trigger_entry(trigger_entry)
+
         # Emit completion event after adding to history
-        callback.on_trigger_completed(
-            entry_id, len(context.completed_actions), successful_count
-        )
+        callback.on_trigger_completed(trigger_entry)
 
         logger.debug(
             f"Added trigger entry {entry_id} with {len(context.completed_actions)} actions to trigger history"

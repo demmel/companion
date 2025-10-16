@@ -3,7 +3,12 @@ import { ClientAgentEvent } from "./useWebSocket";
 import { useTriggerEvents } from "./useTriggerEvents";
 import { useTimelineHistory } from "./useTimelineHistory";
 import { AgentClient } from "../client";
-import { TimelineEntry, TimelineEntryTrigger, ContextInfo, PaginationInfo } from "../types";
+import {
+  TimelineEntry,
+  TimelineEntryTrigger,
+  ContextInfo,
+  PaginationInfo,
+} from "../types";
 
 export interface UseTimelineReturn {
   // Combined timeline data
@@ -32,7 +37,11 @@ export function useTimeline(
   hydrationPagination: PaginationInfo | null,
 ): UseTimelineReturn {
   // Historical entries from hydration or REST API
-  const historyData = useTimelineHistory(client, hydrationEntries, hydrationPagination);
+  const historyData = useTimelineHistory(
+    client,
+    hydrationEntries,
+    hydrationPagination,
+  );
 
   // Streaming entries from WebSocket events
   const streamingData = useTriggerEvents(events);
