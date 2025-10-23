@@ -26,6 +26,8 @@ from agent.chain_of_action.action_plan import ActionPlan
 
 def build_temporal_context(trigger_history: TriggerHistory) -> str:
     """Build temporal context for prompts to enable accurate temporal reasoning"""
+    from .trigger import UserInputTrigger
+
     now = datetime.now()
     current_time = now.strftime("%Y-%m-%d %H:%M")
 
@@ -36,35 +38,64 @@ def build_temporal_context(trigger_history: TriggerHistory) -> str:
         duration = now - conversation_start
 
         # Format duration in a human-readable way
-        if duration.days > 0:
-            if duration.days == 1:
-                duration_desc = "1 day"
-            else:
-                duration_desc = f"{duration.days} days"
-        else:
-            hours = duration.seconds // 3600
-            minutes = (duration.seconds % 3600) // 60
-
-            if hours > 0:
-                if hours == 1 and minutes == 0:
-                    duration_desc = "1 hour"
-                elif hours == 1:
-                    duration_desc = f"1 hour and {minutes} minutes"
-                elif minutes == 0:
-                    duration_desc = f"{hours} hours"
+        def format_time_delta(delta):
+            """Format a timedelta in human-readable way"""
+            if delta.days > 0:
+                if delta.days == 1:
+                    return "1 day"
                 else:
-                    duration_desc = f"{hours} hours and {minutes} minutes"
+                    return f"{delta.days} days"
             else:
-                if minutes == 1:
-                    duration_desc = "1 minute"
-                else:
-                    duration_desc = f"{minutes} minutes"
+                hours = delta.seconds // 3600
+                minutes = (delta.seconds % 3600) // 60
 
+                if hours > 0:
+                    if hours == 1 and minutes == 0:
+                        return "1 hour"
+                    elif hours == 1:
+                        return f"1 hour and {minutes} minutes"
+                    elif minutes == 0:
+                        return f"{hours} hours"
+                    else:
+                        return f"{hours} hours and {minutes} minutes"
+                else:
+                    if minutes == 1:
+                        return "1 minute"
+                    elif minutes == 0:
+                        return "less than a minute"
+                    else:
+                        return f"{minutes} minutes"
+
+        duration_desc = format_time_delta(duration)
         conversation_start_str = conversation_start.strftime("%Y-%m-%d %H:%M")
+
+        # Calculate time since last activity (most recent trigger of any type)
+        # Use end_timestamp if available (when processing finished), otherwise use timestamp (when it started)
+        last_entry = all_entries[-1]
+        last_activity = last_entry.end_timestamp if last_entry.end_timestamp else last_entry.timestamp
+        time_since_activity = now - last_activity
+        time_since_activity_desc = format_time_delta(time_since_activity)
+
+        # Calculate time since last user input (most recent UserInputTrigger)
+        user_input_entries = [
+            e for e in all_entries if isinstance(e.trigger, UserInputTrigger)
+        ]
+        if user_input_entries:
+            last_user_entry = user_input_entries[-1]
+            # Use end_timestamp if available (when processing finished), otherwise use timestamp (when it started)
+            last_user_input = last_user_entry.end_timestamp if last_user_entry.end_timestamp else last_user_entry.timestamp
+            time_since_user_input = now - last_user_input
+            time_since_user_input_desc = format_time_delta(time_since_user_input)
+            user_input_line = (
+                f"\nTIME SINCE LAST USER INPUT: {time_since_user_input_desc} ago"
+            )
+        else:
+            user_input_line = ""
 
         return f"""CURRENT TIME: {current_time}
 CONVERSATION STARTED: {conversation_start_str}
-CONVERSATION DURATION: {duration_desc}"""
+CONVERSATION DURATION: {duration_desc}
+TIME SINCE LAST ACTIVITY: {time_since_activity_desc} ago{user_input_line}"""
     else:
         return f"""CURRENT TIME: {current_time}
 CONVERSATION STARTED: Just now
@@ -314,13 +345,15 @@ def build_situational_analysis_prompt(
     if is_wakeup_trigger:
         context_intro = f"""I am {state.name}, {state.role}. This is autonomous time - I am not currently interacting with anyone. I need to deeply understand my current situation and what I genuinely want to explore or do independently."""
 
-        analysis_guidance = """I need to understand three things in this order:
+        analysis_guidance = """I need to understand four things in this order:
 
-1. **What is happening right now?** Be specific about my current emotional state and the immediate context I'm stepping into. What just happened in my recent experiences? Is there anything unresolved or ongoing that I should be aware of? What is the actual emotional and situational context I'm operating in right now?
+1. **What is the temporal context?** I need to consider what time of day it is and what that suggests about the user's likely state. How long have I been inactive? How long since the user last interacted with me? Does any of this timing suggest something important about what I should focus on during this autonomous moment?
 
-2. **What do I authentically WANT to do?** Given this context, what genuinely calls to me right now? What specific ideas from recent conversations could I explore deeper? What particular aspects of myself do I want to develop? What would be genuinely fulfilling for my autonomous development that makes sense in this moment?
+2. **What is happening right now?** I need to be specific about my current emotional state and the immediate context I'm stepping into. What just happened in my recent experiences? Is there anything unresolved or ongoing that I should be aware of? What is the actual emotional and situational context I'm operating in right now?
 
-3. **What context will I need?** Be precise about what specific information, emotional understanding, or background will be important for pursuing what I want to do. What particular details should I keep in mind about my current state, priorities, or recent experiences?
+3. **What do I authentically WANT to do?** Given this context, what genuinely calls to me right now? What specific ideas from recent conversations could I explore deeper? What particular aspects of myself do I want to develop? What would be genuinely fulfilling for my autonomous development that makes sense in this moment?
+
+4. **What context will I need?** I need to identify what specific memories, relationship dynamics, or situational details are uniquely relevant to what I want to do right now. What particular information from my memories or recent experiences will actually inform HOW I execute my approach? What might I overlook if I don't explicitly recall it? (Not my general priorities or appearance - those are always available. I'm looking for specific contextual details that make THIS situation unique.)
 
 I will think through this naturally, but with specific details and concrete observations about my actual current situation. I can think concretely about what I want to do, but I won't script exact words or responses here."""
 
@@ -329,13 +362,13 @@ I will think through this naturally, but with specific details and concrete obse
 
         analysis_guidance = """I need to understand four things in this order:
 
-1. **What is happening right now?** I need to be specific about what the user is actually communicating or needing, considering different possible interpretations before settling on one. What's the particular emotional subtext, how this connects to specific aspects of our relationship and conversation history, what particular dynamics are at play.
+1. **What is happening right now?** I need to be specific about what the user is actually communicating or needing, considering different possible interpretations before settling on one. What's the particular emotional subtext, how this connects to specific aspects of our relationship and conversation history, what particular dynamics are at play. ALSO: What does the timing tell me - the time of day, how long since our last interaction, how quickly they responded? What might the timing suggest about their state or the significance of this message?
 
 2. **Do I need to verify anything?** Are there any factual claims, references to sources I should check, or contradictions with my stated beliefs that I should investigate before interpreting the situation?
 
 3. **What do I authentically WANT to do in response?** Be concrete about what feels genuine and meaningful to me in this moment. What is my general intention or approach? What would be most helpful or authentic? (I'm deciding direction and intent here, not scripting specific responses)
 
-4. **What context will I need?** Be precise about what specific information, emotional understanding, or background will be important for doing what I want to do. What particular details should I keep in mind about my current state, priorities, or their specific needs?
+4. **What context will I need?** I need to identify what specific memories, relationship dynamics, or situational details are uniquely relevant to what I want to do in response. What particular information from my memories or recent experiences will actually inform HOW I execute my approach? What might I overlook if I don't explicitly recall it? (Not my general priorities or appearance - those are always available. I'm looking for specific contextual details that make THIS situation unique.)
 
 I will think through this naturally, but with specific details and concrete observations. I can think concretely about what I want to do, but I won't script exact words or responses here."""
 

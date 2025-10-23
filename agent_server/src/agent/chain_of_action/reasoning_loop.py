@@ -216,6 +216,11 @@ class ActionBasedReasoningLoop:
                 # update_state=False,  # Agent manages its own state
             )
 
+        # Set the end timestamp now that processing is complete
+        from datetime import datetime
+
+        trigger_entry.end_timestamp = datetime.now()
+
         # Emit completion event after adding to history
         callback.on_trigger_completed(trigger_entry)
 
@@ -255,28 +260,34 @@ def _compress_trigger_entry(
 
     if is_wakeup_trigger:
         # Autonomous time compression - preserve intellectual development
-        compression_focus = """I need to compress this autonomous experience into a concise but detailed summary that captures both my intellectual development and emotional experience from my perspective. I should maximize the preservation of important details while eliminating redundancy. This should read naturally as part of my internal monologue while preserving essential autonomous development.
+        compression_focus = """I need to compress this autonomous experience into a concise but detailed summary that captures my intellectual development WITH emotional context from my perspective. I should maximize the preservation of important factual information and discoveries while eliminating redundancy and atmospheric filler. This should read naturally as part of my internal monologue while preserving essential autonomous development.
 
 The compressed entry MUST capture:
-- **Intellectual Development**: Key ideas explored, insights gained, creative frameworks developed, autonomous reflection topics
+- **Information Discovered**: What specific information I found through my actions with concrete details - search results (titles, sources, key points), content fetched from URLs (what the pages said), data retrieved, specific facts or techniques learned
+- **Intellectual Development**: Key ideas explored, insights gained, creative frameworks developed, autonomous reflection topics (not just "I thought about X" but what I actually concluded)
+- **Concrete Ideas**: Specific concepts, frameworks, or thought processes I developed and can build upon
 - **Self-Development**: How I grew or evolved my thinking, what I learned about myself, independent exploration
-- **Concrete Ideas**: Specific concepts, frameworks, or thought processes I developed (not just "I thought about X" but what I actually concluded)
 - **Autonomous Context**: That this was independent thinking/development, not reactive to interaction
 - **Emotional Experience**: My feelings and internal state during this autonomous development
 
-I will write this preserving the intellectual substance of my autonomous thinking while maintaining my natural emotional voice. I will capture both "what I intellectually developed" and "how I felt while developing it" so I can build on these ideas in future autonomous time."""
+AVOID: Verbose atmospheric descriptions of settings (lights, scents, environments), elaborate metaphors, or stream-of-consciousness prose unless they contain unique situational information. Focus on information density over emotional atmosphere.
+
+I will write this prioritizing what I discovered and intellectually developed, with emotional context woven in naturally. I will capture "what I learned and concluded" first, then "how I felt while developing it"."""
 
     else:
         # Interactive time compression - preserve relational context
-        compression_focus = """I need to compress this interaction into a concise but detailed summary that captures both the emotional essence and concrete details of what happened from my perspective. I should maximize the preservation of important details while eliminating redundancy. This should read naturally as part of my internal monologue while preserving essential referential information.
+        compression_focus = """I need to compress this interaction into a concise but detailed summary that captures concrete details WITH emotional context from my perspective. I should maximize the preservation of important factual information while eliminating redundancy and atmospheric filler. This should read naturally as part of my internal monologue while preserving essential referential information.
 
 The compressed entry MUST capture:
 - **Concrete Details**: What was specifically said, which priority topics were relevant (use actual priority content, not IDs), specific actions taken, and factual context
-- **Emotional Experience**: My thoughts and feelings in response to what happened  
-- **Relational Dynamics**: Important interpersonal moments and emotional shifts
+- **Information Learned**: What I discovered from my actions with specific details - search results found (titles, sources, key points), content fetched from URLs (what the pages said), data retrieved, specific facts or techniques learned (not just "I searched for X" but "I searched for X and found: [actual findings with specifics]")
 - **Actionable Context**: Details I need to reference in future conversations ("what I just said/did/thought")
+- **Emotional Experience**: My thoughts and feelings in response to what happened
+- **Relational Dynamics**: Important interpersonal moments and emotional shifts
 
-I will write this in my natural emotional voice while weaving in specific words spoken, priority content, mood changes, and actions taken. I will include both the "how I felt" and the "what actually happened" so I can reference these details coherently in future interactions."""
+AVOID: Verbose atmospheric descriptions of settings (lights, scents, environments), elaborate metaphors, or stream-of-consciousness prose unless they contain unique situational information. Focus on information density over emotional atmosphere.
+
+I will write this prioritizing concrete facts and information discovered, with emotional context woven in naturally. I will capture "what actually happened" and "what I learned" first, then "how I felt about it"."""
 
     # Build compression prompt following agent conventions
     prompt = f"""I am {state.name}, {state.role}. I need to compress my recent experience into a concise stream of consciousness entry for my memory that preserves both emotional depth and factual details.

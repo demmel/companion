@@ -137,43 +137,46 @@ export function TriggerCard({ entry }: TriggerCardProps) {
         })}
       >
         {/* Situational Analysis */}
-        <button
-          onClick={() => setShowSituational(!showSituational)}
-          className={css({
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-            cursor: "pointer",
-            background: "transparent",
-            border: "none",
-            color: "gray.400",
-            fontSize: "sm",
-            padding: 0,
-            mb: 2,
-            _hover: { color: "gray.300" },
-          })}
-        >
-          {showSituational ? (
-            <ChevronDown size={14} />
-          ) : (
-            <ChevronRight size={14} />
-          )}
-          <span>Situational Analysis</span>
-        </button>
-        {showSituational && (
-          <div
-            className={css({
-              fontSize: "sm",
-              color: "gray.400",
-              whiteSpace: "pre-wrap",
-              pl: 4,
-              mb: 3,
-            })}
-          >
-            {situational_context}
-          </div>
+        {situational_context && (
+          <>
+            <button
+              onClick={() => setShowSituational(!showSituational)}
+              className={css({
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                cursor: "pointer",
+                background: "transparent",
+                border: "none",
+                color: "gray.400",
+                fontSize: "sm",
+                padding: 0,
+                mb: 2,
+                _hover: { color: "gray.300" },
+              })}
+            >
+              {showSituational ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+              <span>Situational Analysis</span>
+            </button>
+            {showSituational && (
+              <div
+                className={css({
+                  fontSize: "sm",
+                  color: "gray.400",
+                  whiteSpace: "pre-wrap",
+                  pl: 4,
+                  mb: 3,
+                })}
+              >
+                {situational_context}
+              </div>
+            )}
+          </>
         )}
-
         {/* Compressed Summary */}
         {compressed_summary && (
           <>
