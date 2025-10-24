@@ -142,6 +142,10 @@ class ConversationPersistence:
             dag = DagMemoryManager.load_from_file(
                 self._dag_file_name(prefix), trigger_history
             )
+        # with timeit("Loading DAG memory from action log file"):
+        #     dag = DagMemoryManager.load_from_action_log(
+        #         self._dag_action_log_file_name(prefix), trigger_history=trigger_history
+        #     )
         with timeit("Loading DAG memory action log from file"):
             action_log = MemoryActionLog.load_from_file(
                 self._dag_action_log_file_name(prefix)

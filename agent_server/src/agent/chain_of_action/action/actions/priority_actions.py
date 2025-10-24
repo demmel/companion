@@ -4,10 +4,9 @@ Priority management actions implementation.
 
 import time
 import logging
-from typing import Literal, Type, Union
+from typing import Literal, Type, Union, Optional, List
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, model_validator
 
 from agent.state import Priority
 
@@ -42,6 +41,43 @@ class DuplicatePriorityCheck(BaseModel):
     )
 
 
+class RelativePosition(BaseModel):
+    type: Literal["before", "after", "highest", "lowest"]
+    relative_to_id: Optional[str] = Field(
+        default=None,
+        description="ID of priority to position relative to (required for 'before' or 'after')",
+    )
+
+    @model_validator(mode="after")
+    def validate_relative_to_id(self) -> "RelativePosition":
+        if self.type in ["before", "after"] and not self.relative_to_id:
+            raise ValueError(f"relative_to_id is required when type is '{self.type}'")
+        return self
+
+    def calculate_insert_index(self, priorities: List[Priority]) -> int:
+        """Calculate insert index from this position specification"""
+        match self.type:
+            case "highest":
+                return 0
+            case "lowest":
+                return len(priorities)
+            case "before":
+                return next(
+                    i for i, p in enumerate(priorities) if p.id == self.relative_to_id
+                )
+            case "after":
+                return (
+                    next(
+                        i
+                        for i, p in enumerate(priorities)
+                        if p.id == self.relative_to_id
+                    )
+                    + 1
+                )
+            case _:
+                assert_never(self.type)
+
+
 class AddPriorityInput(BaseModel):
     """Input for ADD_PRIORITY action"""
 
@@ -50,6 +86,10 @@ class AddPriorityInput(BaseModel):
     )
     priority_content: str = Field(
         description="What I want to prioritize - a clear description of something I choose to focus on"
+    )
+    position: RelativePosition = Field(
+        default_factory=lambda: RelativePosition(type="lowest"),
+        description="Where to place this priority in my ordered list",
     )
 
 
@@ -94,6 +134,10 @@ class AddPriorityAction(BaseAction[AddPriorityInput, AddPriorityOutput]):
     """Add a new priority that the agent wants to focus on"""
 
     action_type = ActionType.ADD_PRIORITY
+
+    @classmethod
+    def can_perform(cls, state: State) -> bool:
+        return len(state.current_priorities) < state.max_priorities
 
     def _check_for_duplicate_priority(
         self,
@@ -222,13 +266,33 @@ Is the new priority truly redundant (not just related) to any existing priority?
                     )
                 )
 
+        # Check max limit
+        if len(state.current_priorities) >= state.max_priorities:
+            return ActionFailureResult(
+                error=f"Cannot add priority: at maximum of {state.max_priorities}"
+            )
+
+        # Validate relative_to_id exists
+        position = action_input.position
+        if position.relative_to_id:
+            # Check if relative_to_id exists
+            if not any(
+                p.id == position.relative_to_id for p in state.current_priorities
+            ):
+                return ActionFailureResult(
+                    error=f"Priority with ID '{position.relative_to_id}' not found"
+                )
+
+        # Calculate insert position
+        insert_index = position.calculate_insert_index(state.current_priorities)
+
         # Generate new sequential ID
         new_id = f"p{state.next_priority_id}"
         state.next_priority_id += 1
 
-        # Add the new priority
+        # Add the new priority at the calculated position
         new_priority = Priority(id=new_id, content=action_input.priority_content)
-        state.current_priorities.append(new_priority)
+        state.current_priorities.insert(insert_index, new_priority)
 
         return ActionSuccessResult(
             content=AddPriorityOutput(
@@ -265,6 +329,10 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, RemovePriorityOutput]
     """Remove a priority that is no longer relevant"""
 
     action_type = ActionType.REMOVE_PRIORITY
+
+    @classmethod
+    def can_perform(cls, state: State) -> bool:
+        return len(state.current_priorities) > 0
 
     @classmethod
     def get_action_description(cls) -> str:

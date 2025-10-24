@@ -67,6 +67,16 @@ export interface RemovePriorityAction extends BaseAction {
   type: "remove_priority";
 }
 
+export interface PriorityOperationResult {
+  operation_type: "add" | "remove" | "merge" | "refine" | "reorder";
+  summary: string;
+}
+
+export interface EvaluatePrioritiesAction extends BaseAction {
+  type: "evaluate_priorities";
+  operations: PriorityOperationResult[];
+}
+
 export interface FetchUrlAction extends BaseAction {
   type: "fetch_url";
   url: string;
@@ -96,6 +106,7 @@ export type Action =
   | CreativeInspirationAction
   | AddPriorityAction
   | RemovePriorityAction
+  | EvaluatePrioritiesAction
   | FetchUrlAction
   | SearchWebAction;
 

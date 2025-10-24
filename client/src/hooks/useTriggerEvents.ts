@@ -58,6 +58,7 @@ function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
     case "get_creative_inspiration":
     case "add_priority":
     case "remove_priority":
+    case "evaluate_priorities":
       return {
         ...baseAction,
       } as Action;

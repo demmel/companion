@@ -19,6 +19,7 @@ class ActionType(str, Enum):
     # REMOVE_MEMORY = "remove_memory"    # Forget specific memories
     ADD_PRIORITY = "add_priority"  # Add new priority
     REMOVE_PRIORITY = "remove_priority"  # Remove/complete priority
+    EVALUATE_PRIORITIES = "evaluate_priorities"  # Holistically reevaluate priorities
 
     # Communication Actions
     SPEAK = "speak"  # Generate conversational response

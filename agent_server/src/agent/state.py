@@ -46,39 +46,52 @@ class State(BaseModel):
 
     # Priorities - what the agent chooses to focus on
     current_priorities: List[Priority]
+    max_priorities: int = 25  # Maximum number of priorities
     next_priority_id: int = Field(default=1)  # Counter for generating sequential IDs
 
 
 def build_agent_state_description(state: State) -> str:
     """Build a markdown-formatted description of the agent's current state for reasoning"""
+    from agent.chain_of_action.prompts import format_section
 
-    parts = ["## My Current State\n"]
+    sections = []
 
-    # Core identity
+    # Mood and context section
+    context_parts = []
     mood_desc = f"{state.current_mood}"
     if state.mood_intensity != "neutral":
         mood_desc += f" ({state.mood_intensity})"
-    parts.append(f"**Mood**: {mood_desc}")
+    context_parts.append(f"**Mood**: {mood_desc}")
 
-    # Appearance and environment
     if state.current_appearance:
-        parts.append(f"**Appearance:** {state.current_appearance}")
+        context_parts.append(f"**Appearance:** {state.current_appearance}")
     if state.current_environment:
-        parts.append(f"**Environment:** {state.current_environment}")
+        context_parts.append(f"**Environment:** {state.current_environment}")
 
-    # Values and preferences
+    sections.append(format_section("MY MOOD AND CONTEXT", "\n".join(context_parts)))
+
+    # Core values section
     if state.core_values:
-        parts.append("\n**Core Values:**")
+        values_parts = []
         for value in state.core_values:
-            parts.append(f"- {value.content}")
+            values_parts.append(f"- {value.content}")
+        sections.append(format_section("MY CORE VALUES", "\n".join(values_parts)))
 
-    # Current priorities
+    # Current priorities section
     if state.current_priorities:
-        parts.append("\n**My Current Priorities:**")
-        for priority in state.current_priorities:
-            parts.append(f"- {priority.content} (id: {priority.id})")
+        priority_parts = []
+        priority_parts.append("These are ordered by importance (most important first).")
+        for i, priority in enumerate(state.current_priorities, 1):
+            priority_parts.append(f"{i}. [id: {priority.id}] - {priority.content}")
 
-    return "\n".join(parts)
+        # Add grounding instruction for priority IDs
+        existing_ids = ", ".join([p.id for p in state.current_priorities])
+        priority_parts.append(f"\n**IMPORTANT:** The ONLY priority IDs that currently exist are: {existing_ids}")
+        priority_parts.append("Any other priority ID (not listed above) does NOT exist and cannot be used in operations.")
+
+        sections.append(format_section("MY CURRENT PRIORITIES", "\n".join(priority_parts)))
+
+    return "\n\n".join(sections)
 
 
 def create_default_agent_state() -> State:
@@ -102,5 +115,6 @@ def create_default_agent_state() -> State:
             Priority(id="p3", content="having meaningful conversations"),
             Priority(id="p4", content="learning something new"),
         ],
+        max_priorities=25,
         next_priority_id=5,
     )

@@ -91,6 +91,20 @@ class RemovePriorityAction(BaseAction):
     type: Literal["remove_priority"] = "remove_priority"
 
 
+class PriorityOperationResult(BaseModel):
+    """Result of a priority operation"""
+
+    operation_type: Literal["add", "remove", "merge", "refine", "reorder"]
+    summary: str
+
+
+class EvaluatePrioritiesAction(BaseAction):
+    """for evaluate priorities actions"""
+
+    type: Literal["evaluate_priorities"] = "evaluate_priorities"
+    operations: list[PriorityOperationResult]
+
+
 class FetchUrlAction(BaseAction):
     """for fetch URL actions"""
 
@@ -126,9 +140,10 @@ Action = (
     | WaitAction
     | CreativeInspirationAction
     | AddPriorityAction
+    | RemovePriorityAction
+    | EvaluatePrioritiesAction
     | FetchUrlAction
     | SearchWebAction
-    | RemovePriorityAction
 )
 
 
@@ -195,6 +210,16 @@ def convert_action_to_dto(action: ActionData) -> Action:
         return AddPriorityAction(**base_data)
     elif action.type == ActionType.REMOVE_PRIORITY:
         return RemovePriorityAction(**base_data)
+    elif action.type == ActionType.EVALUATE_PRIORITIES:
+        operations = []
+        if action.result.type == "success":
+            operations = [
+                PriorityOperationResult(
+                    operation_type=op_result.operation_type, summary=op_result.summary
+                )
+                for op_result in action.result.content.operation_results
+            ]
+        return EvaluatePrioritiesAction(**base_data, operations=operations)
     elif action.type == ActionType.FETCH_URL:
         url = action.input.url
         looking_for = action.input.looking_for

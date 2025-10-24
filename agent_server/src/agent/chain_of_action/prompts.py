@@ -72,7 +72,11 @@ def build_temporal_context(trigger_history: TriggerHistory) -> str:
         # Calculate time since last activity (most recent trigger of any type)
         # Use end_timestamp if available (when processing finished), otherwise use timestamp (when it started)
         last_entry = all_entries[-1]
-        last_activity = last_entry.end_timestamp if last_entry.end_timestamp else last_entry.timestamp
+        last_activity = (
+            last_entry.end_timestamp
+            if last_entry.end_timestamp
+            else last_entry.timestamp
+        )
         time_since_activity = now - last_activity
         time_since_activity_desc = format_time_delta(time_since_activity)
 
@@ -83,7 +87,11 @@ def build_temporal_context(trigger_history: TriggerHistory) -> str:
         if user_input_entries:
             last_user_entry = user_input_entries[-1]
             # Use end_timestamp if available (when processing finished), otherwise use timestamp (when it started)
-            last_user_input = last_user_entry.end_timestamp if last_user_entry.end_timestamp else last_user_entry.timestamp
+            last_user_input = (
+                last_user_entry.end_timestamp
+                if last_user_entry.end_timestamp
+                else last_user_entry.timestamp
+            )
             time_since_user_input = now - last_user_input
             time_since_user_input_desc = format_time_delta(time_since_user_input)
             user_input_line = (
@@ -395,7 +403,7 @@ def build_action_planning_prompt(
     """Build the action planning prompt using situational analysis"""
     from .trigger import WakeupTrigger
 
-    actions_list = registry.get_available_actions_for_prompt()
+    actions_list = registry.get_available_actions_for_prompt(state)
     is_wakeup_trigger = isinstance(trigger, WakeupTrigger)
 
     # Build summary of completed actions
@@ -425,6 +433,8 @@ def build_action_planning_prompt(
         )
     )
 
+    state_desc = build_agent_state_description(state)
+
     # Build trigger-specific planning guidance
     if is_wakeup_trigger:
         context_intro = f"""I am {state.name}. Based on my situational analysis, I'm planning my next actions for this autonomous time."""
@@ -433,6 +443,8 @@ def build_action_planning_prompt(
         context_intro = f"""I am {state.name}. Based on my situational analysis, I'm planning my next actions in response to what just happened."""
 
     return f"""{context_intro}
+
+{state_desc}
 
 {"\n".join(sections)}
 
@@ -465,6 +477,14 @@ Examples of when NOT to include wait:
 - I want to think about my priorities, then plan which ones to add or remove based on my reflection
 
 Each action should have specific context about what to focus on - even the wait action should include context about what I'm waiting for or why I'm choosing to wait. I'll plan actions that feel natural and genuine to my current state of mind.
+
+**CRITICAL - PRIORITY ID VERIFICATION:**
+When planning priority-related actions (add_priority, remove_priority, evaluate_priorities), I MUST verify priority IDs against "My Current Priorities" in the state above:
+- The ONLY priority IDs that exist are those shown in "My Current Priorities" with [id: ...] tags
+- I MUST NOT plan remove_priority for IDs that aren't in the current list
+- I MUST NOT use relative_to_id in add_priority position for IDs that aren't in the current list
+- If I remember or believe a priority exists (like p309, p307, p331, etc.) but it's NOT listed in "My Current Priorities" above, it does NOT exist
+- Example: If "My Current Priorities" shows [id: p1], [id: p5], [id: p10], then ONLY p1, p5, and p10 exist for operations
 
 **MEMORY GROUNDING:** I will only reference information from my situational analysis, actual memories, and the results of actions I've already executed. I will not assume additional details beyond what I actually know. When I need to speculate beyond my actual knowledge, I will clearly mark it with phrases like 'I imagine...' or 'It seems like...' to distinguish speculation from facts."""
 

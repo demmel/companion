@@ -13,6 +13,9 @@ from agent.chain_of_action.action.actions.priority_actions import (
     AddPriorityAction,
     RemovePriorityAction,
 )
+from agent.chain_of_action.action.actions.evaluate_priorities_action import (
+    EvaluatePrioritiesAction,
+)
 from agent.chain_of_action.action.actions.search_web_action import SearchWebAction
 from agent.chain_of_action.action.actions.speak_action import SpeakAction
 from agent.chain_of_action.action.actions.think_action import ThinkAction
@@ -22,6 +25,7 @@ from agent.chain_of_action.action.actions.visual_actions import (
 )
 from agent.chain_of_action.action.actions.update_mood_action import UpdateMoodAction
 from agent.chain_of_action.action.actions.wait_action import WaitAction
+from agent.state import State
 
 from .action.action_types import ActionType
 from .action.base_action import BaseAction
@@ -50,6 +54,7 @@ class ActionRegistry:
         self.register(SearchWebAction)
         self.register(AddPriorityAction)
         self.register(RemovePriorityAction)
+        self.register(EvaluatePrioritiesAction)
         self.register(CreativeInspirationAction)
         # etc.
 
@@ -91,35 +96,89 @@ class ActionRegistry:
         else:
             return action_class()
 
-    def get_available_actions_for_prompt(self) -> str:
+    def get_available_actions_for_state(self, state: State) -> List[ActionType]:
+        """Get actions that can be performed in current state"""
+        return [
+            action_type
+            for action_type in self.get_available_actions()
+            if self.get_action(action_type).can_perform(state)
+        ]
+
+    def _format_field_info(self, field_name: str, field_info: dict, schema: dict, indent: str, required: bool) -> List[str]:
+        """Recursively format field information, expanding nested objects"""
+        lines = []
+        description = field_info.get("description", "No description")
+        field_type = field_info.get("type", "unknown")
+        req_str = " (required)" if required else " (optional)"
+
+        # Check if this is a reference to another definition
+        if "$ref" in field_info:
+            ref_path = field_info["$ref"].split("/")[-1]  # Get the definition name
+            if "$defs" in schema and ref_path in schema["$defs"]:
+                ref_schema = schema["$defs"][ref_path]
+                field_type = "object"
+                lines.append(f"{indent}- {field_name} ({field_type}){req_str}: {description}")
+                # Expand the nested object
+                if "properties" in ref_schema:
+                    for nested_field, nested_info in ref_schema["properties"].items():
+                        nested_required = nested_field in ref_schema.get("required", [])
+                        lines.extend(self._format_field_info(nested_field, nested_info, schema, indent + "  ", nested_required))
+                return lines
+
+        # Check for enum/literal types
+        if "enum" in field_info:
+            enum_values = ", ".join([f"'{v}'" for v in field_info["enum"]])
+            lines.append(f"{indent}- {field_name} ({field_type}, one of: {enum_values}){req_str}: {description}")
+        elif "anyOf" in field_info:
+            # Handle Optional types and unions
+            types = []
+            for option in field_info["anyOf"]:
+                if option.get("type") == "null":
+                    continue
+                if "enum" in option:
+                    enum_values = ", ".join([f"'{v}'" for v in option["enum"]])
+                    types.append(f"one of: {enum_values}")
+                else:
+                    types.append(option.get("type", "unknown"))
+            type_str = " or ".join(types) if types else "unknown"
+            lines.append(f"{indent}- {field_name} ({type_str}){req_str}: {description}")
+        else:
+            lines.append(f"{indent}- {field_name} ({field_type}){req_str}: {description}")
+
+        return lines
+
+    def _format_action_for_prompt(self, action_type: ActionType) -> List[str]:
+        """Format a single action for prompt display"""
+        action_class = self.get_action(action_type)
+        action_desc = action_class.get_action_description()
+
+        input_type = action_class.get_input_type()
+        schema = input_type.model_json_schema()
+
+        lines = [f"- {action_type.value}: {action_desc}"]
+
+        if "properties" in schema:
+            lines.append("  Input parameters:")
+            for field_name, field_info in schema["properties"].items():
+                required = field_name in schema.get("required", [])
+                lines.extend(self._format_field_info(field_name, field_info, schema, "    ", required))
+
+        return lines
+
+    def get_available_actions_for_prompt(self, state: State) -> str:
         """Get formatted string of available actions with input schemas for prompts"""
-        action_descriptions = self.get_action_descriptions()
+
+        actions_to_show = (
+            self.get_available_actions_for_state(state)
+            if state
+            else self.get_available_actions()
+        )
 
         actions_info = []
-        for action_type in self.get_available_actions():
-            action_desc = action_descriptions[action_type]
-            action_class = self.get_action(action_type)
+        for action_type in actions_to_show:
+            actions_info.extend(self._format_action_for_prompt(action_type))
 
-            # Get the input schema
-            input_type = action_class.get_input_type()
-            schema = input_type.model_json_schema()
-
-            actions_info.append(f"- {action_type.value}: {action_desc}")
-
-            # Add input parameters from schema
-            if "properties" in schema:
-                actions_info.append("  Input parameters:")
-                for field_name, field_info in schema["properties"].items():
-                    description = field_info.get("description", "No description")
-                    field_type = field_info.get("type", "unknown")
-                    required = field_name in schema.get("required", [])
-                    req_str = " (required)" if required else " (optional)"
-                    actions_info.append(
-                        f"    - {field_name} ({field_type}){req_str}: {description}"
-                    )
-
-        actions_list = "\n".join(actions_info)
-        return actions_list
+        return "\n".join(actions_info)
 
     def get_system_knowledge_for_context(self) -> str:
         """Get system knowledge description for situational awareness (not execution)"""

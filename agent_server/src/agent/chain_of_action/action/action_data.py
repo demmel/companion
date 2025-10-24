@@ -16,6 +16,10 @@ from agent.chain_of_action.action.actions.priority_actions import (
     RemovePriorityInput,
     RemovePriorityOutput,
 )
+from agent.chain_of_action.action.actions.evaluate_priorities_action import (
+    EvaluatePrioritiesInput,
+    EvaluatePrioritiesOutput,
+)
 from agent.chain_of_action.action.actions.search_web_action import (
     SearchWebInput,
     SearchWebOutput,
@@ -58,6 +62,12 @@ class RemovePriorityActionData(
     type: Literal[ActionType.REMOVE_PRIORITY] = ActionType.REMOVE_PRIORITY
 
 
+class EvaluatePrioritiesActionData(
+    BaseActionData[EvaluatePrioritiesInput, EvaluatePrioritiesOutput]
+):
+    type: Literal[ActionType.EVALUATE_PRIORITIES] = ActionType.EVALUATE_PRIORITIES
+
+
 class SearchWebActionData(BaseActionData[SearchWebInput, SearchWebOutput]):
     type: Literal[ActionType.SEARCH_WEB] = ActionType.SEARCH_WEB
 
@@ -95,6 +105,7 @@ ActionData = (
     | FetchUrlActionData
     | AddPriorityActionData
     | RemovePriorityActionData
+    | EvaluatePrioritiesActionData
     | SearchWebActionData
     | SpeakActionData
     | ThinkActionData
@@ -110,6 +121,7 @@ _ACTION_DATA_CONSTRUCTORS: dict[ActionType, type[ActionData]] = {
     ActionType.FETCH_URL: FetchUrlActionData,
     ActionType.ADD_PRIORITY: AddPriorityActionData,
     ActionType.REMOVE_PRIORITY: RemovePriorityActionData,
+    ActionType.EVALUATE_PRIORITIES: EvaluatePrioritiesActionData,
     ActionType.SEARCH_WEB: SearchWebActionData,
     ActionType.SPEAK: SpeakActionData,
     ActionType.THINK: ThinkActionData,

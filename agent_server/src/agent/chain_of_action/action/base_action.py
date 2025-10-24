@@ -35,6 +35,11 @@ class BaseAction(ABC, Generic[TInput, TOutput]):
         """Get the Pydantic model class for this action's input"""
         pass
 
+    @classmethod
+    def can_perform(cls, state: State) -> bool:
+        """Whether this action is currently available"""
+        return True  # Default: always available
+
     @abstractmethod
     def execute(
         self,

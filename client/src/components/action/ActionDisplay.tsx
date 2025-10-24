@@ -9,6 +9,7 @@ import { WaitActionDisplay } from "./WaitActionDisplay";
 import { CreativeInspirationActionDisplay } from "./CreativeInspirationActionDisplay";
 import { AddPriorityActionDisplay } from "./AddPriorityActionDisplay";
 import { RemovePriorityActionDisplay } from "./RemovePriorityActionDisplay";
+import { EvaluatePrioritiesActionDisplay } from "./EvaluatePrioritiesActionDisplay";
 import { FetchUrlActionDisplay } from "./FetchUrlActionDisplay";
 import { SearchWebActionDisplay } from "./SearchWebActionDisplay";
 import { useState } from "react";
@@ -41,6 +42,8 @@ export function ActionDisplay({ action }: ActionDisplayProps) {
         return <AddPriorityActionDisplay action={action} />;
       case "remove_priority":
         return <RemovePriorityActionDisplay action={action} />;
+      case "evaluate_priorities":
+        return <EvaluatePrioritiesActionDisplay action={action} />;
       case "fetch_url":
         return <FetchUrlActionDisplay action={action} />;
       case "search_web":
