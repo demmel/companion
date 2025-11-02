@@ -104,7 +104,14 @@ class ActionRegistry:
             if self.get_action(action_type).can_perform(state)
         ]
 
-    def _format_field_info(self, field_name: str, field_info: dict, schema: dict, indent: str, required: bool) -> List[str]:
+    def _format_field_info(
+        self,
+        field_name: str,
+        field_info: dict,
+        schema: dict,
+        indent: str,
+        required: bool,
+    ) -> List[str]:
         """Recursively format field information, expanding nested objects"""
         lines = []
         description = field_info.get("description", "No description")
@@ -117,18 +124,30 @@ class ActionRegistry:
             if "$defs" in schema and ref_path in schema["$defs"]:
                 ref_schema = schema["$defs"][ref_path]
                 field_type = "object"
-                lines.append(f"{indent}- {field_name} ({field_type}){req_str}: {description}")
+                lines.append(
+                    f"{indent}- {field_name} ({field_type}){req_str}: {description}"
+                )
                 # Expand the nested object
                 if "properties" in ref_schema:
                     for nested_field, nested_info in ref_schema["properties"].items():
                         nested_required = nested_field in ref_schema.get("required", [])
-                        lines.extend(self._format_field_info(nested_field, nested_info, schema, indent + "  ", nested_required))
+                        lines.extend(
+                            self._format_field_info(
+                                nested_field,
+                                nested_info,
+                                schema,
+                                indent + "  ",
+                                nested_required,
+                            )
+                        )
                 return lines
 
         # Check for enum/literal types
         if "enum" in field_info:
             enum_values = ", ".join([f"'{v}'" for v in field_info["enum"]])
-            lines.append(f"{indent}- {field_name} ({field_type}, one of: {enum_values}){req_str}: {description}")
+            lines.append(
+                f"{indent}- {field_name} ({field_type}, one of: {enum_values}){req_str}: {description}"
+            )
         elif "anyOf" in field_info:
             # Handle Optional types and unions
             types = []
@@ -143,7 +162,9 @@ class ActionRegistry:
             type_str = " or ".join(types) if types else "unknown"
             lines.append(f"{indent}- {field_name} ({type_str}){req_str}: {description}")
         else:
-            lines.append(f"{indent}- {field_name} ({field_type}){req_str}: {description}")
+            lines.append(
+                f"{indent}- {field_name} ({field_type}){req_str}: {description}"
+            )
 
         return lines
 
@@ -161,7 +182,11 @@ class ActionRegistry:
             lines.append("  Input parameters:")
             for field_name, field_info in schema["properties"].items():
                 required = field_name in schema.get("required", [])
-                lines.extend(self._format_field_info(field_name, field_info, schema, "    ", required))
+                lines.extend(
+                    self._format_field_info(
+                        field_name, field_info, schema, "    ", required
+                    )
+                )
 
         return lines
 

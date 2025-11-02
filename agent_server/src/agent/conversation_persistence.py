@@ -85,15 +85,17 @@ class ConversationPersistence:
     ) -> None:
         """Save the state and trigger history for a conversation"""
         state_file = self._state_file_name(prefix)
-        with open(state_file, "w") as f:
-            f.write(state.model_dump_json(indent=2))
+        with timeit("Saving state to fiel"):
+            with open(state_file, "w") as f:
+                f.write(state.model_dump_json(indent=2))
 
         trigger_file = self._trigger_file_name(prefix)
         trigger_data = ConversationData(
             entries=trigger_history.entries,
         )
-        with open(trigger_file, "w") as f:
-            f.write(trigger_data.model_dump_json(indent=2))
+        with timeit("Saving trigger history to file"):
+            with open(trigger_file, "w") as f:
+                f.write(trigger_data.model_dump_json(indent=2))
 
         # Save DAG memory data if present
         if dag_memory_manager:
@@ -153,6 +155,8 @@ class ConversationPersistence:
         dag.action_log = action_log
         with timeit("Replaying DAG memory action log"):
             _, _ = dag.action_log.replay_from_empty(trigger_history)
+
+        # self.save_conversation(prefix, state, trigger_history, dag, save_baseline=False)
 
         return AgentData(
             trigger_history=trigger_history,

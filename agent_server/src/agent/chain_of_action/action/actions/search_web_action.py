@@ -120,6 +120,7 @@ class SearchWebAction(BaseAction[SearchWebInput, SearchWebOutput]):
                 # Extract actual URL from DuckDuckGo redirect (uddg parameter)
                 if "duckduckgo.com/l/?uddg=" in url:
                     from urllib.parse import urlparse, parse_qs, unquote
+
                     parsed = urlparse(url)
                     params = parse_qs(parsed.query)
                     if "uddg" in params:
@@ -128,7 +129,9 @@ class SearchWebAction(BaseAction[SearchWebInput, SearchWebOutput]):
                 if url.startswith(("http://", "https://")):
                     results.append(
                         SearchResult(
-                            url=url, title=title, snippet=snippet or "No snippet available"
+                            url=url,
+                            title=title,
+                            snippet=snippet or "No snippet available",
                         )
                     )
 

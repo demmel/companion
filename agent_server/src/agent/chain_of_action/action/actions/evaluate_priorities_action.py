@@ -5,7 +5,7 @@ Priority evaluation action - holistic reevaluation of priorities.
 import logging
 from typing import List, Literal, Type, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agent.state import Priority, State
 from agent.llm import LLM, SupportedModel
@@ -39,13 +39,17 @@ class RemovePriorityOp(BaseModel):
 
 class MergePrioritiesOp(BaseModel):
     type: Literal["merge"] = "merge"
-    reasoning: str = Field(description="Why these priorities should be merged and what the combined focus should be")
+    reasoning: str = Field(
+        description="Why these priorities should be merged and what the combined focus should be",
+    )
     priority_ids: List[str]  # First one's position kept
 
 
 class RefinePriorityOp(BaseModel):
     type: Literal["refine"] = "refine"
-    reasoning: str = Field(description="Why this priority needs refinement and what improvement is needed")
+    reasoning: str = Field(
+        description="Why this priority needs refinement and what improvement is needed",
+    )
     priority_id: str
     refinement_guidance: str  # How to refine, not the refined content
 
@@ -264,17 +268,22 @@ def _apply_remove_operation(op: "RemovePriorityOp", state: State) -> tuple[bool,
     """Apply remove operation. Returns (success, summary_line)"""
     # Find the priority to get its content
     priority = next(
-        (p for p in state.current_priorities if p.id == op.priority_id),
-        None
+        (p for p in state.current_priorities if p.id == op.priority_id), None
     )
     if not priority:
-        return (False, f"Cannot remove: priority {op.priority_id} not found (may have been removed by previous operation)")
+        return (
+            False,
+            f"Cannot remove: priority {op.priority_id} not found (may have been removed by previous operation)",
+        )
 
     # Remove from list
     state.current_priorities = [
         p for p in state.current_priorities if p.id != op.priority_id
     ]
-    return (True, f"- Removed [{op.priority_id}]: '{priority.content}' (reasoning: {op.reasoning})")
+    return (
+        True,
+        f"- Removed [{op.priority_id}]: '{priority.content}' (reasoning: {op.reasoning})",
+    )
 
 
 def _apply_merge_operation(
@@ -287,7 +296,10 @@ def _apply_merge_operation(
     ]
     if len(priorities_to_merge) != len(op.priority_ids):
         missing = set(op.priority_ids) - {p.id for p in priorities_to_merge}
-        return (False, f"Cannot merge: priorities {missing} not found (may have been removed by previous operation)")
+        return (
+            False,
+            f"Cannot merge: priorities {missing} not found (may have been removed by previous operation)",
+        )
 
     priorities_text = "\n".join([f"[{p.id}] {p.content}" for p in priorities_to_merge])
 
@@ -306,7 +318,10 @@ Output ONLY the merged priority text itself - no explanations, no meta-commentar
     # Check if LLM refused to generate content
     refusal_phrases = ["i'm unable", "i can't", "i cannot", "i apologize", "i'm sorry"]
     if any(phrase in merged_content.lower()[:100] for phrase in refusal_phrases):
-        return (False, f"Cannot merge {op.priority_ids}: LLM refused to generate content (possible content policy issue)")
+        return (
+            False,
+            f"Cannot merge {op.priority_ids}: LLM refused to generate content (possible content policy issue)",
+        )
 
     # Find position of first priority (we know it exists due to validation above)
     first_pos = next(
@@ -360,12 +375,18 @@ Output ONLY the refined priority text itself - no explanations, no meta-commenta
     # Check if LLM refused to generate content
     refusal_phrases = ["i'm unable", "i can't", "i cannot", "i apologize", "i'm sorry"]
     if any(phrase in refined_content.lower()[:100] for phrase in refusal_phrases):
-        return (False, f"Cannot refine [{op.priority_id}]: LLM refused to generate content (possible content policy issue)")
+        return (
+            False,
+            f"Cannot refine [{op.priority_id}]: LLM refused to generate content (possible content policy issue)",
+        )
 
     # Save original content for summary, then update
     original_content = priority.content
     priority.content = refined_content
-    return (True, f"- Refined [{op.priority_id}]: '{original_content}' → '{refined_content}' (reasoning: {op.reasoning})")
+    return (
+        True,
+        f"- Refined [{op.priority_id}]: '{original_content}' → '{refined_content}' (reasoning: {op.reasoning})",
+    )
 
 
 def _apply_reorder_operation(op: "ReorderPriorityOp", state: State) -> tuple[bool, str]:
@@ -397,4 +418,7 @@ def _apply_reorder_operation(op: "ReorderPriorityOp", state: State) -> tuple[boo
     position_desc = op.new_position.type
     if op.new_position.relative_to_id:
         position_desc += f" [{op.new_position.relative_to_id}]"
-    return (True, f"- Moved [{op.priority_id}] to {position_desc} (reasoning: {op.reasoning})")
+    return (
+        True,
+        f"- Moved [{op.priority_id}] to {position_desc} (reasoning: {op.reasoning})",
+    )

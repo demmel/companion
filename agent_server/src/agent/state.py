@@ -86,10 +86,16 @@ def build_agent_state_description(state: State) -> str:
 
         # Add grounding instruction for priority IDs
         existing_ids = ", ".join([p.id for p in state.current_priorities])
-        priority_parts.append(f"\n**IMPORTANT:** The ONLY priority IDs that currently exist are: {existing_ids}")
-        priority_parts.append("Any other priority ID (not listed above) does NOT exist and cannot be used in operations.")
+        priority_parts.append(
+            f"\n**IMPORTANT:** The ONLY priority IDs that currently exist are: {existing_ids}"
+        )
+        priority_parts.append(
+            "Any other priority ID (not listed above) does NOT exist and cannot be used in operations."
+        )
 
-        sections.append(format_section("MY CURRENT PRIORITIES", "\n".join(priority_parts)))
+        sections.append(
+            format_section("MY CURRENT PRIORITIES", "\n".join(priority_parts))
+        )
 
     return "\n\n".join(sections)
 
