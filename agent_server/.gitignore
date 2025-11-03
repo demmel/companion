@@ -15,6 +15,11 @@ wheels/
 # Virtual environments
 .venv
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # Generated files and binary artifacts
 generated_images/
 uploaded_images/

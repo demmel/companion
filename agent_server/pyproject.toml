@@ -20,6 +20,7 @@ dependencies = [
     "torchvision",
     "transformers>=4.40.0",
     "accelerate>=0.20.0",
+    "anthropic>=0.40.0",
     "bitsandbytes>=0.41.0",
     "pytest>=8.4.1",
     "black>=25.1.0",

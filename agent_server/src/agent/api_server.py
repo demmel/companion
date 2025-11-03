@@ -2,6 +2,10 @@
 FastAPI server for single-user agent system
 """
 
+from agent.logging_config import setup_logging
+
+setup_logging()
+
 import logging
 from typing import Literal
 import uuid
@@ -37,20 +41,11 @@ from agent.api_types.events import AgentErrorEvent, EventEnvelope
 from agent.agent_event_manager import AgentEventManager
 from agent.api_types.timeline import (
     TimelineResponse,
-    TimelineEntry,
-    TimelineEntryTrigger,
-    PaginationInfo,
-    convert_trigger_history_entry_to_dto,
 )
 from pydantic import BaseModel, TypeAdapter
 
 
-# Set up logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(name)-64s | %(levelname)-8s | %(message)s",
-)
 
 
 def initialize_agent(load: bool) -> AgentEventManager:
@@ -62,7 +57,7 @@ def initialize_agent(load: bool) -> AgentEventManager:
 
     # Create agent with manager as event emitter
     agent = Agent(
-        model=SupportedModel.MISTRAL_SMALL_3_2_Q4,
+        model=SupportedModel.CLAUDE_SONNET_4_5,
         llm=llm,
         event_emitter=manager,
         enable_image_generation=True,
@@ -556,6 +551,12 @@ else:
 
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    print("=" * 60)
+    print("Please use uvicorn to run the server:")
+    print()
+    print("  Development:")
+    print("    uvicorn agent.api_server:app --reload")
+    print()
+    print("  Production:")
+    print("    uvicorn agent.api_server:app --host 0.0.0.0 --port 8000")
+    print("=" * 60)

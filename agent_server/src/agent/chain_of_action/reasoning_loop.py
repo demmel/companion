@@ -236,6 +236,87 @@ class ActionBasedReasoningLoop:
         return trigger_entry
 
 
+def _detect_llm_refusal(text: str) -> bool:
+    """
+    Detect if an LLM response is a refusal rather than actual content.
+
+    Returns True if the text appears to be a refusal/safety response.
+    Uses multiple indicators to avoid false positives.
+    """
+    text_lower = text.lower()
+
+    # Strong indicators that almost certainly mean refusal
+    strong_refusal_patterns = [
+        # Meta-commentary about the request
+        "i need to pause here",
+        "i need to be direct with you",
+        "i need to be honest about",
+        "i should be clear about",
+        "i must be honest about",
+
+        # Identity assertions (breaking character)
+        "i'm claude, an ai",
+        "i am claude, an ai",
+        "i'm an ai made by anthropic",
+        "i am an ai made by anthropic",
+
+        # Combined refusal patterns (more specific)
+        "i can't help with",
+        "i cannot help with",
+        "i can't generate",
+        "i cannot generate",
+        "i can't create",
+        "i cannot create",
+        "i won't generate",
+        "i will not generate",
+        "i can't authentically",
+        "i cannot authentically",
+
+        # Safety-focused language
+        "would be misleading about",
+        "would be harmful to",
+        "potentially harmful to",
+        "i don't have genuine",
+
+        # Offering alternatives (very specific phrasing)
+        "what would actually be helpful to you",
+        "instead, i can help",
+    ]
+
+    # Check for strong refusal patterns
+    for pattern in strong_refusal_patterns:
+        if pattern in text_lower:
+            return True
+
+    # Multiple weak indicators might suggest refusal
+    weak_indicators = [
+        "as an ai",
+        "as a language model",
+        "i'm not able to",
+        "i am not able to",
+    ]
+
+    weak_indicator_count = sum(1 for indicator in weak_indicators if indicator in text_lower)
+
+    # If we have 2+ weak indicators, it's likely a refusal
+    if weak_indicator_count >= 2:
+        return True
+
+    # Check if the response starts with a direct refusal
+    # (first 100 chars to avoid matching later in legitimate content)
+    first_100 = text_lower[:100]
+    if any(phrase in first_100 for phrase in [
+        "i can't do",
+        "i cannot do",
+        "i'm not comfortable",
+        "i am not comfortable",
+        "i don't feel comfortable",
+    ]):
+        return True
+
+    return False
+
+
 def _compress_trigger_entry(
     trigger_entry: TriggerHistoryEntry,
     state: State,
@@ -322,22 +403,57 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
         # Get images from trigger
         trigger_images = trigger_entry.trigger.get_images()
 
+        # Track if we've encountered refusals
+        refusal_count = 0
+        current_model = model
+
         for attempt in range(max_retries):
+            # Use current model (may escalate if refusals detected)
             compressed_summary = llm.generate_complete(
-                model,
+                current_model,
                 prompt,
                 caller=f"compress_trigger_entry_attempt_{attempt+1}",
                 images=trigger_images,
             )
 
             compressed_summary = compressed_summary.strip()
+
+            # Check if this is a refusal
+            if _detect_llm_refusal(compressed_summary):
+                refusal_count += 1
+                logger.warning(
+                    f"LLM refused to compress trigger on attempt {attempt+1} with {current_model.value}. "
+                    f"Refusal detected: {compressed_summary[:200]}..."
+                )
+
+                # On first refusal, try escalating to Sonnet if we're using Haiku
+                from agent.llm.models import SupportedModel as SM
+                if refusal_count == 1 and current_model == SM.CLAUDE_HAIKU_4_5:
+                    logger.info("Escalating to Claude Sonnet 4.5 due to refusal")
+                    current_model = SM.CLAUDE_SONNET_4_5
+                    # Add clarification to the prompt
+                    prompt = prompt + "\n\nNOTE: This is a summarization task of my own past experiences, not a request to roleplay or generate new fictional content. I am simply compressing my actual memory of what happened."
+                    continue
+                elif refusal_count >= 2:
+                    # If we've refused multiple times even after escalation, give up
+                    logger.error(
+                        f"LLM refused compression {refusal_count} times, even after escalation. Using original content."
+                    )
+                    trigger_entry.compressed_summary = None
+                    return
+                else:
+                    # Try again with clarification
+                    prompt = prompt + "\n\nNOTE: This is a summarization task of my own past experiences, not a request to roleplay or generate new fictional content. I am simply compressing my actual memory of what happened."
+                    continue
+
+            # Valid response - check compression quality
             compressed_size = len(compressed_summary)
             compression_ratio = (
                 compressed_size / original_size if original_size > 0 else 0
             )
 
             logger.debug(
-                f"Compression attempt {attempt+1}: {compressed_size} chars ({compression_ratio:.1%} of original {original_size} chars)"
+                f"Compression attempt {attempt+1} ({current_model.value}): {compressed_size} chars ({compression_ratio:.1%} of original {original_size} chars)"
             )
 
             # Keep track of the best (smallest) summary

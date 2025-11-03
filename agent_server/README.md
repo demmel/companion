@@ -177,14 +177,47 @@ Agent: [speaks] That sounds wonderful! I love creating warm, inviting spaces...
 
 ## 🛠️ Configuration
 
+### Environment Variables
+
+The agent uses environment variables for configuration. See [CONFIGURATION.md](CONFIGURATION.md) for detailed documentation.
+
+**Quick setup:**
+```bash
+# 1. Copy example file
+cp .env.example .env
+
+# 2. Edit with your values
+nano .env
+
+# 3. Add your API keys and settings
+ANTHROPIC_API_KEY=sk-ant-...  # For Claude models
+OLLAMA_HOST=localhost:11434   # For local models
+LOG_LEVEL=INFO                # Logging verbosity
+```
+
+**Running the server:**
+```bash
+# Development
+uvicorn agent.api_server:app --reload
+
+# Production
+uvicorn agent.api_server:app --host 0.0.0.0 --port 8000
+```
+
 ### LLM Models
 
-Supported models in `src/agent/llm.py`:
+The system supports multiple providers through a unified interface (`src/agent/llm/`):
 
+**Ollama (Local):**
 - `mistral-small3.2:latest` (recommended)
 - `mistral-nemo:latest`
 - `llama3.1:8b`
 - Custom models via Ollama
+
+**Anthropic (API):**
+- `claude-sonnet-4-5-20250929` (Claude Sonnet 4.5) - Latest, most capable
+- `claude-opus-4-1-20250805` (Claude Opus 4.1) - Most powerful
+- `claude-haiku-4-5-20251001` (Claude Haiku 4.5) - Fastest, most efficient
 
 ### Memory Settings
 
