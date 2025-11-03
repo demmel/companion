@@ -312,13 +312,38 @@ class Agent:
         except Exception as e:
             logger.error(f"Error occurred during chat_stream: {e}")
             import traceback
+            from agent.llm.interface import (
+                LLMAuthenticationError,
+                LLMInsufficientCreditsError,
+                LLMRateLimitError,
+                LLMAPIError,
+                LLMError,
+            )
 
             traceback.print_exc()
+
+            # Determine error type and create appropriate message
+            if isinstance(e, LLMAuthenticationError):
+                message = (
+                    "Authentication failed. Please check your API key configuration."
+                )
+            elif isinstance(e, LLMInsufficientCreditsError):
+                message = "Insufficient credits or quota exceeded. Please add credits to your account."
+            elif isinstance(e, LLMRateLimitError):
+                message = (
+                    "Rate limit exceeded. Please wait a few moments and try again."
+                )
+            elif isinstance(e, LLMAPIError):
+                message = f"LLM API error: {str(e)}"
+            elif isinstance(e, LLMError):
+                message = f"LLM error: {str(e)}"
+            else:
+                message = f"Internal error: {str(e)}"
 
             # Emit error event to trigger buffer clearing
             self.emit_event(
                 AgentErrorEvent(
-                    message=f"Internal error: {str(e)}",
+                    message=message,
                 )
             )
         finally:

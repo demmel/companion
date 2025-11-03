@@ -13,6 +13,43 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+
+# Provider-agnostic LLM exceptions
+class LLMError(Exception):
+    """Base exception for all LLM errors"""
+
+    pass
+
+
+class LLMAuthenticationError(LLMError):
+    """Authentication failed - invalid API key or credentials"""
+
+    def __init__(self, message: str = "Authentication failed: Check your API key"):
+        super().__init__(message)
+
+
+class LLMInsufficientCreditsError(LLMError):
+    """Insufficient credits or quota exceeded"""
+
+    def __init__(
+        self, message: str = "Insufficient credits: Add credits to your account"
+    ):
+        super().__init__(message)
+
+
+class LLMRateLimitError(LLMError):
+    """Rate limit exceeded"""
+
+    def __init__(self, message: str = "Rate limit exceeded: Wait and retry"):
+        super().__init__(message)
+
+
+class LLMAPIError(LLMError):
+    """Generic API error"""
+
+    pass
+
+
 # Type alias for image data
 ImageInput = Union[str, bytes, Path]
 ImagesInput = Optional[Sequence[ImageInput]]
