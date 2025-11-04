@@ -143,7 +143,6 @@ class SearchWebAction(BaseAction[SearchWebInput, SearchWebOutput]):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[SearchWebOutput]:
 

@@ -224,11 +224,8 @@ Is the new priority truly redundant (not just related) to any existing priority?
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[AddPriorityOutput]:
-        start_time = time.time()
-
         logger.debug("=== ADD_PRIORITY ACTION ===")
         logger.debug(f"PRIORITY: {action_input.priority_content}")
         logger.debug(f"REASON: {action_input.reason}")
@@ -236,7 +233,10 @@ Is the new priority truly redundant (not just related) to any existing priority?
         # Check for duplicate or similar priorities using LLM
         if state.current_priorities:
             duplicate_check = self._check_for_duplicate_priority(
-                action_input.priority_content, state.current_priorities, llm, model
+                action_input.priority_content,
+                state.current_priorities,
+                llm,
+                context.evaluate_priorities_action_model,
             )
 
             if duplicate_check.is_duplicate:
@@ -348,7 +348,6 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, RemovePriorityOutput]
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[RemovePriorityOutput]:
 

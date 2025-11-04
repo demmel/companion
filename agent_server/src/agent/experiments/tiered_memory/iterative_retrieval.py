@@ -32,7 +32,9 @@ from .context_builder import estimate_context_tokens
 logger = logging.getLogger(__name__)
 
 
-def build_lightweight_agent_state_description(state: State, max_priorities: int = 10) -> str:
+def build_lightweight_agent_state_description(
+    state: State, max_priorities: int = 10
+) -> str:
     """Build a lightweight state description for memory retrieval with limited priorities.
 
     Copied from agent.state.build_agent_state_description but limits priorities to reduce token usage.
@@ -61,7 +63,9 @@ def build_lightweight_agent_state_description(state: State, max_priorities: int 
     if state.current_priorities:
         priorities_to_show = state.current_priorities[:max_priorities]
         if len(state.current_priorities) > max_priorities:
-            parts.append(f"\n**My Current Priorities (top {max_priorities} of {len(state.current_priorities)}):**")
+            parts.append(
+                f"\n**My Current Priorities (top {max_priorities} of {len(state.current_priorities)}):**"
+            )
         else:
             parts.append("\n**My Current Priorities:**")
 
@@ -74,15 +78,9 @@ def build_lightweight_agent_state_description(state: State, max_priorities: int 
 class DrillDownRequest(BaseModel):
     """Request to drill down into a specific memory element."""
 
-    tier: MemoryTier = Field(
-        description="Which tier this element is from"
-    )
-    element_id: str = Field(
-        description="ID of the element to drill down into"
-    )
-    reason: str = Field(
-        description="Why I need more detail about this element"
-    )
+    tier: MemoryTier = Field(description="Which tier this element is from")
+    element_id: str = Field(description="ID of the element to drill down into")
+    reason: str = Field(description="Why I need more detail about this element")
 
 
 class DrillDownDecision(BaseModel):
@@ -93,7 +91,7 @@ class DrillDownDecision(BaseModel):
     )
     drill_down_requests: List[DrillDownRequest] = Field(
         default_factory=list,
-        description="Which elements I want to see in more detail (empty if needs_more_detail is false)"
+        description="Which elements I want to see in more detail (empty if needs_more_detail is false)",
     )
     reasoning: str = Field(
         description="My reasoning about what information I have and what I still need"
@@ -179,6 +177,7 @@ def iterative_drill_down_retrieval(
     logger.info(f"Starting iterative drill-down retrieval for: '{query}'")
 
     from agent.embedding_service import get_embedding_service
+
     embedding_service = get_embedding_service()
     query_embedding = embedding_service.encode(query)
 
@@ -216,12 +215,17 @@ def iterative_drill_down_retrieval(
         elif current_tier == MemoryTier.TRIGGER_RESPONSE:
             # Apply filter if drilling down
             if drill_down_filter:
-                filtered_entries = [e for e in trigger_entries if e.entry_id in drill_down_filter]
+                filtered_entries = [
+                    e for e in trigger_entries if e.entry_id in drill_down_filter
+                ]
             else:
                 filtered_entries = trigger_entries
             # Show fewer trigger entries since they're verbose
             tier_results = retrieve_from_tier_2(
-                query_embedding, filtered_entries, top_k=5, min_similarity=min_similarity
+                query_embedding,
+                filtered_entries,
+                top_k=5,
+                min_similarity=min_similarity,
             )
         else:  # ATOMIC
             tier_results = retrieve_from_tier_1(
@@ -280,25 +284,31 @@ Available drill-down: {"One tier deeper" if current_tier != MemoryTier.ATOMIC el
                 response_model=DrillDownDecision,
                 model=model,
                 llm=llm,
-                caller="iterative_drill_down_decision"
+                caller="iterative_drill_down_decision",
             )
 
-            iteration_log.append({
-                "iteration": iteration,
-                "tier": current_tier.value,
-                "results_shown": len(new_results),
-                "decision": decision.model_dump(),
-            })
+            iteration_log.append(
+                {
+                    "iteration": iteration,
+                    "tier": current_tier.value,
+                    "results_shown": len(new_results),
+                    "decision": decision.model_dump(),
+                }
+            )
 
-            logger.info(f"Agent decision: needs_more_detail={decision.needs_more_detail}, "
-                       f"requests={len(decision.drill_down_requests)}")
+            logger.info(
+                f"Agent decision: needs_more_detail={decision.needs_more_detail}, "
+                f"requests={len(decision.drill_down_requests)}"
+            )
 
             if not decision.needs_more_detail:
                 logger.info("Agent has enough context, stopping drill-down")
                 break
 
             if not decision.drill_down_requests:
-                logger.info("Agent wants more but didn't specify what, moving to next tier")
+                logger.info(
+                    "Agent wants more but didn't specify what, moving to next tier"
+                )
                 # Move to next tier down
                 if current_tier == MemoryTier.SEMANTIC_CLUSTER:
                     current_tier = MemoryTier.CONVERSATION
@@ -310,7 +320,9 @@ Available drill-down: {"One tier deeper" if current_tier != MemoryTier.ATOMIC el
                     break  # Already at atomic level
             else:
                 # Agent requested specific elements - drill into those
-                logger.info(f"Agent requested {len(decision.drill_down_requests)} specific elements")
+                logger.info(
+                    f"Agent requested {len(decision.drill_down_requests)} specific elements"
+                )
 
                 # Collect allowed IDs from the requested elements
                 allowed_ids = set()
@@ -331,10 +343,14 @@ Available drill-down: {"One tier deeper" if current_tier != MemoryTier.ATOMIC el
                         allowed_ids.add(request.element_id)
 
                 if not allowed_ids:
-                    logger.warning("No valid IDs found for drill-down requests, stopping")
+                    logger.warning(
+                        "No valid IDs found for drill-down requests, stopping"
+                    )
                     break
 
-                logger.info(f"Drilling down to {len(allowed_ids)} specific child elements")
+                logger.info(
+                    f"Drilling down to {len(allowed_ids)} specific child elements"
+                )
 
                 # Store the filter for next iteration
                 drill_down_filter = allowed_ids
@@ -357,7 +373,9 @@ Available drill-down: {"One tier deeper" if current_tier != MemoryTier.ATOMIC el
     final_context = "\n\n".join(accumulated_context)
     final_tokens = estimate_context_tokens(final_context)
 
-    logger.info(f"Iterative retrieval complete: {iteration} iterations, {final_tokens} tokens")
+    logger.info(
+        f"Iterative retrieval complete: {iteration} iterations, {final_tokens} tokens"
+    )
 
     return {
         "final_context": final_context,

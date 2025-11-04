@@ -28,10 +28,6 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-
-
-
-
 def retrieve_from_tier_1(
     query_embedding: List[float],
     memory_graph: MemoryGraph,
@@ -58,8 +54,7 @@ def retrieve_from_tier_1(
             continue
 
         similarity = embedding_service.cosine_similarity(
-            query_embedding,
-            memory.embedding_vector
+            query_embedding, memory.embedding_vector
         )
 
         if similarity >= min_similarity:
@@ -74,7 +69,7 @@ def retrieve_from_tier_1(
                         "timestamp": memory.timestamp.isoformat(),
                         "confidence": memory.confidence_level.value,
                         "container_id": memory.container_id,
-                    }
+                    },
                 )
             )
 
@@ -109,8 +104,7 @@ def retrieve_from_tier_2(
             continue
 
         similarity = embedding_service.cosine_similarity(
-            query_embedding,
-            entry.embedding_vector
+            query_embedding, entry.embedding_vector
         )
 
         if similarity >= min_similarity:
@@ -126,7 +120,7 @@ def retrieve_from_tier_2(
                     metadata={
                         "timestamp": entry.timestamp.isoformat(),
                         "action_count": len(entry.actions_taken),
-                    }
+                    },
                 )
             )
 
@@ -161,8 +155,7 @@ def retrieve_from_tier_3(
             continue
 
         similarity = embedding_service.cosine_similarity(
-            query_embedding,
-            conversation.embedding_vector
+            query_embedding, conversation.embedding_vector
         )
 
         if similarity >= min_similarity:
@@ -179,7 +172,7 @@ def retrieve_from_tier_3(
                         "duration_seconds": conversation.duration_seconds,
                         "topic_tags": conversation.topic_tags,
                         "entry_count": len(conversation.trigger_entry_ids),
-                    }
+                    },
                 )
             )
 
@@ -214,8 +207,7 @@ def retrieve_from_tier_4(
             continue
 
         similarity = embedding_service.cosine_similarity(
-            query_embedding,
-            cluster.embedding_vector
+            query_embedding, cluster.embedding_vector
         )
 
         if similarity >= min_similarity:
@@ -236,7 +228,7 @@ def retrieve_from_tier_4(
                         "conversation_count": len(cluster.conversation_ids),
                         "trigger_entry_count": len(cluster.trigger_entry_ids),
                         "memory_element_count": len(cluster.memory_element_ids),
-                    }
+                    },
                 )
             )
 
@@ -306,11 +298,14 @@ def retrieve_multi_tier(
     # Sort all results by similarity score (best matches first)
     all_results.sort(key=lambda r: r.score, reverse=True)
 
-    logger.info(
-        f"Multi-tier retrieval complete: {len(all_results)} total results"
-    )
+    logger.info(f"Multi-tier retrieval complete: {len(all_results)} total results")
 
-    tiers_used = [MemoryTier.ATOMIC, MemoryTier.TRIGGER_RESPONSE, MemoryTier.CONVERSATION, MemoryTier.SEMANTIC_CLUSTER]
+    tiers_used = [
+        MemoryTier.ATOMIC,
+        MemoryTier.TRIGGER_RESPONSE,
+        MemoryTier.CONVERSATION,
+        MemoryTier.SEMANTIC_CLUSTER,
+    ]
 
     return TieredRetrievalResults(
         query=query,
@@ -369,7 +364,7 @@ def drill_down_result(
                             metadata={
                                 "parent_cluster": cluster.cluster_topic,
                                 "topic_tags": conv.topic_tags,
-                            }
+                            },
                         )
                     )
 
@@ -388,7 +383,7 @@ def drill_down_result(
                             metadata={
                                 "parent_cluster": cluster.cluster_topic,
                                 "timestamp": entry.timestamp.isoformat(),
-                            }
+                            },
                         )
                     )
 
@@ -412,7 +407,7 @@ def drill_down_result(
                             metadata={
                                 "parent_conversation": result.element_id,
                                 "timestamp": entry.timestamp.isoformat(),
-                            }
+                            },
                         )
                     )
 

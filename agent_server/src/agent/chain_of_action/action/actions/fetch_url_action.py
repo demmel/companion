@@ -24,7 +24,7 @@ from ..base_action_data import (
 )
 
 from agent.state import State, build_agent_state_description
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,6 @@ class FetchUrlAction(BaseAction[FetchUrlInput, FetchUrlOutput]):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[FetchUrlOutput]:
         try:
@@ -196,12 +195,19 @@ I just read something interesting. Let me capture the key details I learned...
 This was about"""
 
             used_context = (len(prefix) + len(suffix)) / llm.models[
-                model
+                context.fetch_url_action_model
             ].estimated_token_size
 
             # Truncate content to account for the prompt size and needed response tokens
-            max_tokens = llm.models[model].context_window - used_context - 4096
-            max_chars = max_tokens * llm.models[model].estimated_token_size
+            max_tokens = (
+                llm.models[context.fetch_url_action_model].context_window
+                - used_context
+                - 4096
+            )
+            max_chars = (
+                max_tokens
+                * llm.models[context.fetch_url_action_model].estimated_token_size
+            )
             if len(content) > max_chars:
                 content = (
                     content[:max_chars]
@@ -222,7 +228,9 @@ This was about"""
             # Use LLM to summarize the content
             try:
                 summary_response = llm.generate_complete(
-                    model, summarization_prompt, caller="fetch_url_action"
+                    context.fetch_url_action_model,
+                    summarization_prompt,
+                    caller="fetch_url_action",
                 )
             except Exception as llm_error:
                 logger.error(f"LLM summarization failed: {llm_error}")

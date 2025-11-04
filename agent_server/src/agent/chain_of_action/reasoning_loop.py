@@ -10,6 +10,7 @@ from agent.chain_of_action.action.action_data import (
     create_result_summary,
     WaitActionData,
 )
+from agent.llm.models import ModelConfig
 from agent.memory import (
     DagMemoryManager,
 )
@@ -22,6 +23,7 @@ from .callbacks import ActionCallback, NoOpCallback
 from agent.state import State
 from agent.llm import LLM, SupportedModel
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +44,6 @@ class ActionBasedReasoningLoop:
         trigger: Trigger,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         callback: ActionCallback,
         trigger_history: TriggerHistory,
         token_budget: int,
@@ -60,6 +61,9 @@ class ActionBasedReasoningLoop:
 
         if callback is None:
             callback = NoOpCallback()
+
+        # Load current model configuration for this trigger
+        model_config = Config.get_model_config()
 
         logger.debug(f"=== PROCESSING TRIGGER ===")
         logger.debug(f"TRIGGER: {trigger}")
@@ -83,7 +87,7 @@ class ActionBasedReasoningLoop:
             trigger=trigger,
             state=state,
             llm=llm,
-            model=model,
+            model=model_config.memory_retrieval_model,
             token_budget=token_budget,
             action_registry=self.registry,
         )
@@ -102,8 +106,9 @@ class ActionBasedReasoningLoop:
         # Get images from trigger
         trigger_images = trigger.get_images()
 
+        # Use configured model for situational analysis
         situational_analysis = llm.generate_complete(
-            model,
+            model_config.situational_analysis_model,
             situational_analysis_prompt,
             caller="situational_analysis",
             images=trigger_images,
@@ -121,6 +126,12 @@ class ActionBasedReasoningLoop:
             session_id=str(uuid.uuid4()),
             situation_analysis=situational_analysis,
             agent_capabilities_knowledge_prompt=self.registry.get_system_knowledge_for_context(),
+            # Pass action-specific models from config
+            think_action_model=model_config.think_action_model,
+            speak_action_model=model_config.speak_action_model,
+            visual_action_model=model_config.visual_action_model,
+            fetch_url_action_model=model_config.fetch_url_action_model,
+            evaluate_priorities_action_model=model_config.evaluate_priorities_action_model,
         )
 
         sequence_num = 0
@@ -135,14 +146,14 @@ class ActionBasedReasoningLoop:
 
             logger.debug(f"Planning sequence {sequence_num}...")
 
-            # Plan next sequence of actions, showing what's already been done
+            # Plan next sequence of actions, showing what's already done
             sequence = self.planner.plan_actions(
                 trigger=trigger,
                 completed_actions=context.completed_actions,  # Show planner what's already done
                 state=state,
                 trigger_history=trigger_history,
                 llm=llm,
-                model=model,
+                model=model_config.action_planning_model,
                 situational_analysis=situational_analysis,
             )
 
@@ -160,7 +171,6 @@ class ActionBasedReasoningLoop:
                 state=state,
                 trigger_history=trigger_history,
                 llm=llm,
-                model=model,
                 sequence_number=sequence_num,
                 callback=callback,
                 trigger_entry=trigger_entry,
@@ -196,7 +206,9 @@ class ActionBasedReasoningLoop:
 
         # Compress this trigger entry into a summary (if enabled)
         if individual_trigger_compression:
-            _compress_trigger_entry(trigger_entry, state, llm, model)
+            _compress_trigger_entry(
+                trigger_entry, state, llm, model_config.trigger_compression_model
+            )
             _extract_memory_embedding(trigger_entry)
 
         trigger_history.add_trigger_entry(trigger_entry)
@@ -210,7 +222,7 @@ class ActionBasedReasoningLoop:
                 trigger=trigger_entry,
                 state=state,
                 llm=llm,
-                model=model,
+                model=model_config.memory_formation_model,
                 token_budget=token_budget,
                 action_registry=self.registry,
                 # update_state=False,  # Agent manages its own state
@@ -253,13 +265,11 @@ def _detect_llm_refusal(text: str) -> bool:
         "i need to be honest about",
         "i should be clear about",
         "i must be honest about",
-
         # Identity assertions (breaking character)
         "i'm claude, an ai",
         "i am claude, an ai",
         "i'm an ai made by anthropic",
         "i am an ai made by anthropic",
-
         # Combined refusal patterns (more specific)
         "i can't help with",
         "i cannot help with",
@@ -271,13 +281,11 @@ def _detect_llm_refusal(text: str) -> bool:
         "i will not generate",
         "i can't authentically",
         "i cannot authentically",
-
         # Safety-focused language
         "would be misleading about",
         "would be harmful to",
         "potentially harmful to",
         "i don't have genuine",
-
         # Offering alternatives (very specific phrasing)
         "what would actually be helpful to you",
         "instead, i can help",
@@ -296,7 +304,9 @@ def _detect_llm_refusal(text: str) -> bool:
         "i am not able to",
     ]
 
-    weak_indicator_count = sum(1 for indicator in weak_indicators if indicator in text_lower)
+    weak_indicator_count = sum(
+        1 for indicator in weak_indicators if indicator in text_lower
+    )
 
     # If we have 2+ weak indicators, it's likely a refusal
     if weak_indicator_count >= 2:
@@ -305,13 +315,16 @@ def _detect_llm_refusal(text: str) -> bool:
     # Check if the response starts with a direct refusal
     # (first 100 chars to avoid matching later in legitimate content)
     first_100 = text_lower[:100]
-    if any(phrase in first_100 for phrase in [
-        "i can't do",
-        "i cannot do",
-        "i'm not comfortable",
-        "i am not comfortable",
-        "i don't feel comfortable",
-    ]):
+    if any(
+        phrase in first_100
+        for phrase in [
+            "i can't do",
+            "i cannot do",
+            "i'm not comfortable",
+            "i am not comfortable",
+            "i don't feel comfortable",
+        ]
+    ):
         return True
 
     return False
@@ -428,11 +441,15 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
 
                 # On first refusal, try escalating to Sonnet if we're using Haiku
                 from agent.llm.models import SupportedModel as SM
+
                 if refusal_count == 1 and current_model == SM.CLAUDE_HAIKU_4_5:
                     logger.info("Escalating to Claude Sonnet 4.5 due to refusal")
                     current_model = SM.CLAUDE_SONNET_4_5
                     # Add clarification to the prompt
-                    prompt = prompt + "\n\nNOTE: This is a summarization task of my own past experiences, not a request to roleplay or generate new fictional content. I am simply compressing my actual memory of what happened."
+                    prompt = (
+                        prompt
+                        + "\n\nNOTE: This is a summarization task of my own past experiences, not a request to roleplay or generate new fictional content. I am simply compressing my actual memory of what happened."
+                    )
                     continue
                 elif refusal_count >= 2:
                     # If we've refused multiple times even after escalation, give up
@@ -443,7 +460,10 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
                     return
                 else:
                     # Try again with clarification
-                    prompt = prompt + "\n\nNOTE: This is a summarization task of my own past experiences, not a request to roleplay or generate new fictional content. I am simply compressing my actual memory of what happened."
+                    prompt = (
+                        prompt
+                        + "\n\nNOTE: This is a summarization task of my own past experiences, not a request to roleplay or generate new fictional content. I am simply compressing my actual memory of what happened."
+                    )
                     continue
 
             # Valid response - check compression quality

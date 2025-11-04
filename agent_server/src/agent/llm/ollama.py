@@ -68,7 +68,9 @@ class OllamaLLM(ILLM):
             keep_alive=keep_alive or config.keep_alive,
         )
 
-    def _extract_content_from_response(self, response: ollama.ChatResponse) -> Optional[str]:
+    def _extract_content_from_response(
+        self, response: ollama.ChatResponse
+    ) -> Optional[str]:
         """Extract text content from Ollama chat response"""
         return response["message"]["content"]
 
@@ -136,7 +138,9 @@ class OllamaLLM(ILLM):
             images=[ollama.Image(value=image) for image in images] if images else None,
         )
 
-    def _extract_content_from_generate_response(self, response: ollama.GenerateResponse) -> str:
+    def _extract_content_from_generate_response(
+        self, response: ollama.GenerateResponse
+    ) -> str:
         """Extract text content from Ollama generate response"""
         return response["response"]  # type: ignore
 

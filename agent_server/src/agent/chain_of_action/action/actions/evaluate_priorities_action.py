@@ -115,7 +115,6 @@ class EvaluatePrioritiesAction(
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[EvaluatePrioritiesOutput]:
         from agent.structured_llm import direct_structured_llm_call
@@ -169,7 +168,7 @@ IMPORTANT GUIDELINES:
             plan = direct_structured_llm_call(
                 prompt=prompt,
                 response_model=EvaluationPlan,
-                model=model,
+                model=context.evaluate_priorities_action_model,
                 llm=llm,
                 caller="evaluate_priorities",
             )
@@ -180,7 +179,9 @@ IMPORTANT GUIDELINES:
             operations = plan.operations
 
             for op in operations:
-                success, message = _apply_operation(op, state, llm, model)
+                success, message = _apply_operation(
+                    op, state, llm, context.evaluate_priorities_action_model
+                )
                 if not success:
                     return ActionFailureResult(error=message)
                 summary_parts.append(message)

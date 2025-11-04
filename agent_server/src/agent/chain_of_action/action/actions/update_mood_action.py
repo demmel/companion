@@ -65,7 +65,6 @@ class UpdateMoodAction(BaseAction[UpdateMoodInput, UpdateMoodOutput]):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[UpdateMoodOutput]:
         logger.debug("=== UPDATE_MOOD ACTION ===")

@@ -71,7 +71,6 @@ class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[SpeakOutput]:
         from agent.chain_of_action.prompts import (
@@ -242,7 +241,10 @@ Now I'll elaborate on my communication intent and respond naturally as myself:""
             # Use streaming generation with progress callback
             full_response = ""
             for response_chunk in llm.generate_streaming(
-                model, direct_prompt, caller="speak_action", images=trigger_images
+                context.speak_action_model,
+                direct_prompt,
+                caller="speak_action",
+                images=trigger_images,
             ):
                 if "response" in response_chunk:
                     chunk_text = response_chunk["response"]

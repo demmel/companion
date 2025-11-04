@@ -14,6 +14,7 @@ from agent.chain_of_action.action.base_action_data import (
     BaseActionData,
 )
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.llm.models import ModelConfig
 
 from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
@@ -39,7 +40,6 @@ class ActionExecutor:
         state: State,
         trigger_history: TriggerHistory,
         llm: LLM,
-        model: SupportedModel,
         sequence_number: int,
         callback: ActionCallback,
         trigger_entry: TriggerHistoryEntry,
@@ -94,7 +94,6 @@ class ActionExecutor:
                 context,
                 state,
                 llm,
-                model,
                 sequence_number,
                 callback,
                 trigger_entry,

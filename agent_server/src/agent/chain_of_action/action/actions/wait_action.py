@@ -54,7 +54,6 @@ class WaitAction(BaseAction[WaitInput, WaitOutput]):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[WaitOutput]:
         logger.debug("=== DONE ACTION ===")

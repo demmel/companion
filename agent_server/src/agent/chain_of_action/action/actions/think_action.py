@@ -68,7 +68,6 @@ class ThinkAction(BaseAction[ThinkInput, ThinkOutput]):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[ThinkOutput]:
         from agent.chain_of_action.prompts import (
@@ -187,7 +186,10 @@ When something happens, I process it through my own unique perspective, drawing 
             # Use streaming generation with progress callback
             full_response = ""
             for response_chunk in llm.generate_streaming(
-                model, direct_prompt, caller="think_action", images=trigger_images
+                context.think_action_model,
+                direct_prompt,
+                caller="think_action",
+                images=trigger_images,
             ):
                 if "response" in response_chunk:
                     chunk_text = response_chunk["response"]

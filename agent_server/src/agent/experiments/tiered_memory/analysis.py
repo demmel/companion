@@ -98,14 +98,12 @@ class TieredMemoryAnalyzer:
             )
 
         # Determine best strategies
-        best_by_score = max(
-            metrics.keys(),
-            key=lambda s: metrics[s].avg_score
-        )
+        best_by_score = max(metrics.keys(), key=lambda s: metrics[s].avg_score)
 
         best_by_efficiency = min(
             metrics.keys(),
-            key=lambda s: metrics[s].estimated_tokens_standard / (metrics[s].avg_score + 0.001)
+            key=lambda s: metrics[s].estimated_tokens_standard
+            / (metrics[s].avg_score + 0.001),
         )
 
         return QueryAnalysis(
@@ -190,12 +188,22 @@ class TieredMemoryAnalyzer:
                     tokens_drill_down.append(m.estimated_tokens_drill_down)
 
             if avg_scores:
-                lines.append(f"Average results per query: {sum(total_results) / len(total_results):.1f}")
-                lines.append(f"Average relevance score: {sum(avg_scores) / len(avg_scores):.3f}")
-                lines.append(f"Average tokens (standard): {sum(tokens_standard) / len(tokens_standard):.0f}")
-                lines.append(f"Average tokens (drill-down): {sum(tokens_drill_down) / len(tokens_drill_down):.0f}")
+                lines.append(
+                    f"Average results per query: {sum(total_results) / len(total_results):.1f}"
+                )
+                lines.append(
+                    f"Average relevance score: {sum(avg_scores) / len(avg_scores):.3f}"
+                )
+                lines.append(
+                    f"Average tokens (standard): {sum(tokens_standard) / len(tokens_standard):.0f}"
+                )
+                lines.append(
+                    f"Average tokens (drill-down): {sum(tokens_drill_down) / len(tokens_drill_down):.0f}"
+                )
 
-                efficiency = (sum(avg_scores) / len(avg_scores)) / (sum(tokens_standard) / len(tokens_standard))
+                efficiency = (sum(avg_scores) / len(avg_scores)) / (
+                    sum(tokens_standard) / len(tokens_standard)
+                )
                 lines.append(f"Efficiency (score per token): {efficiency:.6f}")
 
         # Per-query analysis
@@ -207,16 +215,22 @@ class TieredMemoryAnalyzer:
             lines.append("-" * 80)
 
             lines.append(f"Best strategy (by score): {analysis.best_strategy_by_score}")
-            lines.append(f"Best strategy (by efficiency): {analysis.best_strategy_by_efficiency}")
+            lines.append(
+                f"Best strategy (by efficiency): {analysis.best_strategy_by_efficiency}"
+            )
             lines.append("")
 
             lines.append("Strategy Performance:")
             lines.append("")
-            lines.append(f"{'Strategy':<20} {'Results':<10} {'Avg Score':<12} {'Tokens (std)':<15} {'Efficiency':<12}")
+            lines.append(
+                f"{'Strategy':<20} {'Results':<10} {'Avg Score':<12} {'Tokens (std)':<15} {'Efficiency':<12}"
+            )
             lines.append("-" * 80)
 
             for strategy, metrics in sorted(analysis.strategy_metrics.items()):
-                efficiency = metrics.avg_score / (metrics.estimated_tokens_standard + 0.001)
+                efficiency = metrics.avg_score / (
+                    metrics.estimated_tokens_standard + 0.001
+                )
                 lines.append(
                     f"{strategy:<20} "
                     f"{metrics.total_results:<10} "
@@ -240,12 +254,16 @@ class TieredMemoryAnalyzer:
                 tier_usage[tier] += count
 
         total_tier_results = sum(tier_usage.values())
-        lines.append(f"Total results across all queries and strategies: {total_tier_results}")
+        lines.append(
+            f"Total results across all queries and strategies: {total_tier_results}"
+        )
         lines.append("")
         lines.append("Distribution by tier:")
         for tier in sorted(tier_usage.keys()):
             count = tier_usage[tier]
-            percentage = (count / total_tier_results) * 100 if total_tier_results > 0 else 0
+            percentage = (
+                (count / total_tier_results) * 100 if total_tier_results > 0 else 0
+            )
             lines.append(f"  {tier}: {count} ({percentage:.1f}%)")
 
         # Recommendations
@@ -281,12 +299,18 @@ class TieredMemoryAnalyzer:
 
         lines.append(f"2. For maximum token efficiency:")
         lines.append(f"   Use '{best_efficiency_strategy[0]}' strategy")
-        lines.append(f"   (Best for {best_efficiency_strategy[1]}/{len(analyses)} queries)")
+        lines.append(
+            f"   (Best for {best_efficiency_strategy[1]}/{len(analyses)} queries)"
+        )
         lines.append("")
 
-        lines.append(f"3. Consider using different strategies for different query types:")
+        lines.append(
+            f"3. Consider using different strategies for different query types:"
+        )
         lines.append(f"   - Broad topic queries: Start with tier 4 (semantic clusters)")
-        lines.append(f"   - Specific event queries: Use tier 2-3 (triggers/conversations)")
+        lines.append(
+            f"   - Specific event queries: Use tier 2-3 (triggers/conversations)"
+        )
         lines.append(f"   - Detailed action queries: Use tier 1 (atomic elements)")
 
         return "\n".join(lines)
@@ -320,12 +344,14 @@ class TieredMemoryAnalyzer:
         # Sort by efficiency (score per token)
         all_metrics.sort(
             key=lambda x: x[2].avg_score / (x[2].estimated_tokens_standard + 0.001),
-            reverse=True
+            reverse=True,
         )
 
         lines.append("## Top 10 Most Efficient Query-Strategy Pairs")
         lines.append("")
-        lines.append(f"{'Query':<40} {'Strategy':<20} {'Score':<10} {'Tokens':<10} {'Efficiency':<12}")
+        lines.append(
+            f"{'Query':<40} {'Strategy':<20} {'Score':<10} {'Tokens':<10} {'Efficiency':<12}"
+        )
         lines.append("-" * 100)
 
         for query, strategy, metrics in all_metrics[:10]:
@@ -342,7 +368,9 @@ class TieredMemoryAnalyzer:
         lines.append("")
         lines.append("## Bottom 10 Least Efficient Query-Strategy Pairs")
         lines.append("")
-        lines.append(f"{'Query':<40} {'Strategy':<20} {'Score':<10} {'Tokens':<10} {'Efficiency':<12}")
+        lines.append(
+            f"{'Query':<40} {'Strategy':<20} {'Score':<10} {'Tokens':<10} {'Efficiency':<12}"
+        )
         lines.append("-" * 100)
 
         for query, strategy, metrics in all_metrics[-10:]:

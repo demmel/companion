@@ -32,15 +32,9 @@ MAX_CLUSTERS = 20  # Maximum number of clusters to create
 class ClusterTopicAnalysis(BaseModel):
     """LLM analysis of cluster topic and content."""
 
-    topic: str = Field(
-        description="Concise topic/theme name for this cluster"
-    )
-    summary: str = Field(
-        description="2-3 sentence summary of the cluster content"
-    )
-    reasoning: str = Field(
-        description="Why these items belong together"
-    )
+    topic: str = Field(description="Concise topic/theme name for this cluster")
+    summary: str = Field(description="2-3 sentence summary of the cluster content")
+    reasoning: str = Field(description="Why these items belong together")
 
 
 class EmbeddingCluster:
@@ -70,12 +64,9 @@ class EmbeddingCluster:
             return 0.0
 
         embedding_service = get_embedding_service()
-        return embedding_service.cosine_similarity(
-            embedding,
-            self.centroid.tolist()
-        )
+        return embedding_service.cosine_similarity(embedding, self.centroid.tolist())
 
-    def merge_with(self, other: 'EmbeddingCluster'):
+    def merge_with(self, other: "EmbeddingCluster"):
         """Merge another cluster into this one."""
         self.member_ids.extend(other.member_ids)
         self.member_embeddings.extend(other.member_embeddings)
@@ -101,7 +92,9 @@ def hierarchical_clustering(
     if not elements:
         return []
 
-    logger.info(f"Clustering {len(elements)} elements with threshold {similarity_threshold}")
+    logger.info(
+        f"Clustering {len(elements)} elements with threshold {similarity_threshold}"
+    )
 
     # Initialize: each element is its own cluster
     clusters = [EmbeddingCluster(f"cluster_{i}") for i in range(len(elements))]
@@ -123,8 +116,7 @@ def hierarchical_clustering(
                 if centroid_i is None or centroid_j is None:
                     continue
                 sim = embedding_service.cosine_similarity(
-                    centroid_i.tolist(),
-                    centroid_j.tolist()
+                    centroid_i.tolist(), centroid_j.tolist()
                 )
                 if sim > best_similarity:
                     best_similarity = sim
@@ -161,7 +153,7 @@ def create_semantic_clusters_from_conversations(
     llm: LLM,
     model: SupportedModel,
     state,
-    on_cluster_created = None,
+    on_cluster_created=None,
 ) -> List[SemanticCluster]:
     """
     Create semantic clusters from tier 3 conversations.
@@ -198,17 +190,12 @@ def create_semantic_clusters_from_conversations(
         # Get conversation objects for this cluster
         conv_dict = {conv.id: conv for conv in conversations}
         cluster_conversations = [
-            conv_dict[conv_id]
-            for conv_id in cluster.member_ids
-            if conv_id in conv_dict
+            conv_dict[conv_id] for conv_id in cluster.member_ids if conv_id in conv_dict
         ]
 
         # Generate topic and summary via LLM
         topic_analysis = _analyze_cluster_topic(
-            cluster_conversations,
-            llm,
-            model,
-            state
+            cluster_conversations, llm, model, state
         )
 
         # Create embedding for cluster summary
@@ -227,7 +214,7 @@ def create_semantic_clusters_from_conversations(
             conversation_ids=[conv.id for conv in cluster_conversations],
             trigger_entry_ids=all_trigger_entry_ids,
             memory_element_ids=[],  # Will be populated if we drill down further
-            cluster_size=len(all_trigger_entry_ids)
+            cluster_size=len(all_trigger_entry_ids),
         )
 
         semantic_clusters.append(semantic_cluster)
@@ -252,7 +239,7 @@ def create_semantic_clusters_from_trigger_entries(
     llm: LLM,
     model: SupportedModel,
     state,
-    on_cluster_created = None,
+    on_cluster_created=None,
 ) -> List[SemanticCluster]:
     """
     Create semantic clusters directly from tier 2 trigger entries.
@@ -267,7 +254,9 @@ def create_semantic_clusters_from_trigger_entries(
     Returns:
         List of SemanticCluster objects
     """
-    logger.info(f"Creating semantic clusters from {len(trigger_entries)} trigger entries")
+    logger.info(
+        f"Creating semantic clusters from {len(trigger_entries)} trigger entries"
+    )
 
     # Prepare elements for clustering
     elements = [
@@ -299,10 +288,7 @@ def create_semantic_clusters_from_trigger_entries(
 
         # Generate topic and summary
         topic_analysis = _analyze_trigger_cluster_topic(
-            cluster_entries,
-            llm,
-            model,
-            state
+            cluster_entries, llm, model, state
         )
 
         # Create embedding for cluster summary
@@ -316,7 +302,7 @@ def create_semantic_clusters_from_trigger_entries(
             conversation_ids=[],
             trigger_entry_ids=[entry.entry_id for entry in cluster_entries],
             memory_element_ids=[],
-            cluster_size=len(cluster_entries)
+            cluster_size=len(cluster_entries),
         )
 
         semantic_clusters.append(semantic_cluster)
@@ -345,12 +331,12 @@ def _analyze_cluster_topic(
 
     # Build context
     conv_summaries = []
-    for i, conv in enumerate(conversations[:10]):  # Limit to first 10 for token efficiency
+    for i, conv in enumerate(
+        conversations[:10]
+    ):  # Limit to first 10 for token efficiency
         timestamp = conv.start_timestamp.strftime("%Y-%m-%d %H:%M")
         tags = ", ".join(conv.topic_tags)
-        conv_summaries.append(
-            f"{i+1}. [{timestamp}] Tags: {tags}\n   {conv.summary}"
-        )
+        conv_summaries.append(f"{i+1}. [{timestamp}] Tags: {tags}\n   {conv.summary}")
 
     state_desc = build_agent_state_description(state)
 
@@ -376,7 +362,7 @@ The summary should describe what I explored, discussed, or experienced across th
             response_model=ClusterTopicAnalysis,
             model=model,
             llm=llm,
-            caller="cluster_topic_analysis"
+            caller="cluster_topic_analysis",
         )
         return analysis
 
@@ -386,7 +372,7 @@ The summary should describe what I explored, discussed, or experienced across th
         return ClusterTopicAnalysis(
             topic="General Discussion",
             summary=f"Cluster of {len(conversations)} related conversations",
-            reasoning="Fallback due to analysis failure"
+            reasoning="Fallback due to analysis failure",
         )
 
 
@@ -405,9 +391,7 @@ def _analyze_trigger_cluster_topic(
     for i, entry in enumerate(trigger_entries[:10]):  # Limit for tokens
         timestamp = entry.timestamp.strftime("%Y-%m-%d %H:%M")
         summary = entry.compressed_summary or "No summary"
-        entry_summaries.append(
-            f"{i+1}. [{timestamp}] {summary}"
-        )
+        entry_summaries.append(f"{i+1}. [{timestamp}] {summary}")
 
     state_desc = build_agent_state_description(state)
 
@@ -433,7 +417,7 @@ The summary should describe what I experienced or engaged with. Use "I" or "we" 
             response_model=ClusterTopicAnalysis,
             model=model,
             llm=llm,
-            caller="trigger_cluster_topic_analysis"
+            caller="trigger_cluster_topic_analysis",
         )
         return analysis
 
@@ -442,7 +426,7 @@ The summary should describe what I experienced or engaged with. Use "I" or "we" 
         return ClusterTopicAnalysis(
             topic="General Discussion",
             summary=f"Cluster of {len(trigger_entries)} related interactions",
-            reasoning="Fallback due to analysis failure"
+            reasoning="Fallback due to analysis failure",
         )
 
 
@@ -451,7 +435,7 @@ def create_semantic_clusters_from_memory_elements(
     llm: LLM,
     model: SupportedModel,
     state,
-    on_cluster_created = None,
+    on_cluster_created=None,
 ) -> List[SemanticCluster]:
     """
     Create semantic clusters directly from tier 1 memory elements.
@@ -496,10 +480,7 @@ def create_semantic_clusters_from_memory_elements(
 
         # Generate summary
         topic_analysis = _analyze_memory_cluster_topic(
-            cluster_memories,
-            llm,
-            model,
-            state
+            cluster_memories, llm, model, state
         )
 
         # Create embedding for cluster summary
@@ -516,7 +497,7 @@ def create_semantic_clusters_from_memory_elements(
             conversation_ids=[],
             trigger_entry_ids=list(container_ids),
             memory_element_ids=[mem.id for mem in cluster_memories],
-            cluster_size=len(cluster_memories)
+            cluster_size=len(cluster_memories),
         )
 
         semantic_clusters.append(semantic_cluster)
@@ -548,9 +529,7 @@ def _analyze_memory_cluster_topic(
     for i, mem in enumerate(memories[:15]):  # Limit for tokens
         timestamp = mem.timestamp.strftime("%Y-%m-%d %H:%M")
         content = mem.content[:100] + "..." if len(mem.content) > 100 else mem.content
-        memory_contents.append(
-            f"{i+1}. [{timestamp}] {content}"
-        )
+        memory_contents.append(f"{i+1}. [{timestamp}] {content}")
 
     state_desc = build_agent_state_description(state)
 
@@ -576,7 +555,7 @@ The summary should describe what I remember or what these memories capture about
             response_model=ClusterTopicAnalysis,
             model=model,
             llm=llm,
-            caller="memory_cluster_topic_analysis"
+            caller="memory_cluster_topic_analysis",
         )
         return analysis
 
@@ -585,5 +564,5 @@ The summary should describe what I remember or what these memories capture about
         return ClusterTopicAnalysis(
             topic="General Memories",
             summary=f"Cluster of {len(memories)} related memories",
-            reasoning="Fallback due to analysis failure"
+            reasoning="Fallback due to analysis failure",
         )

@@ -44,28 +44,17 @@ class TopicShiftAnalysis(BaseModel):
         description="Whether a significant topic shift occurred"
     )
     shift_location: int = Field(
-        default=-1,
-        description="Index where the topic shift occurs (-1 if no shift)"
+        default=-1, description="Index where the topic shift occurs (-1 if no shift)"
     )
-    before_topic: str = Field(
-        default="",
-        description="Topic before the shift"
-    )
-    after_topic: str = Field(
-        default="",
-        description="Topic after the shift"
-    )
-    reasoning: str = Field(
-        description="Explanation of the analysis"
-    )
+    before_topic: str = Field(default="", description="Topic before the shift")
+    after_topic: str = Field(default="", description="Topic after the shift")
+    reasoning: str = Field(description="Explanation of the analysis")
 
 
 class ConversationSummary(BaseModel):
     """LLM-generated summary of a conversation."""
 
-    summary: str = Field(
-        description="Concise summary of the conversation"
-    )
+    summary: str = Field(description="Concise summary of the conversation")
     topic_tags: List[str] = Field(
         description="Key topics discussed in the conversation"
     )
@@ -105,7 +94,7 @@ def detect_time_based_boundaries(
                     start_index=current_segment_start,
                     end_index=i - 1,
                     trigger_entries=trigger_entries[current_segment_start:i],
-                    reason=f"Time gap of {gap_minutes:.1f} minutes"
+                    reason=f"Time gap of {gap_minutes:.1f} minutes",
                 )
             )
             current_segment_start = i
@@ -116,7 +105,7 @@ def detect_time_based_boundaries(
             start_index=current_segment_start,
             end_index=len(trigger_entries) - 1,
             trigger_entries=trigger_entries[current_segment_start:],
-            reason="End of sequence"
+            reason="End of sequence",
         )
     )
 
@@ -177,10 +166,12 @@ Consider:
             response_model=TopicShiftAnalysis,
             model=model,
             llm=llm,
-            caller="topic_shift_detection"
+            caller="topic_shift_detection",
         )
 
-        if analysis.has_topic_shift and 0 < analysis.shift_location < len(segment.trigger_entries):
+        if analysis.has_topic_shift and 0 < analysis.shift_location < len(
+            segment.trigger_entries
+        ):
             # Split the segment
             logger.info(
                 f"Topic shift detected at index {analysis.shift_location}: "
@@ -191,15 +182,15 @@ Consider:
                 ConversationSegment(
                     start_index=segment.start_index,
                     end_index=segment.start_index + analysis.shift_location - 1,
-                    trigger_entries=segment.trigger_entries[:analysis.shift_location],
-                    reason=f"Topic shift: {analysis.before_topic}"
+                    trigger_entries=segment.trigger_entries[: analysis.shift_location],
+                    reason=f"Topic shift: {analysis.before_topic}",
                 ),
                 ConversationSegment(
                     start_index=segment.start_index + analysis.shift_location,
                     end_index=segment.end_index,
-                    trigger_entries=segment.trigger_entries[analysis.shift_location:],
-                    reason=f"Topic shift: {analysis.after_topic}"
-                )
+                    trigger_entries=segment.trigger_entries[analysis.shift_location :],
+                    reason=f"Topic shift: {analysis.after_topic}",
+                ),
             ]
         else:
             return [segment]
@@ -260,7 +251,7 @@ The summary should be written as "I" or "we" - describing what I experienced, wh
             response_model=ConversationSummary,
             model=model,
             llm=llm,
-            caller="conversation_summarization"
+            caller="conversation_summarization",
         )
         return summary
 
@@ -269,8 +260,8 @@ The summary should be written as "I" or "we" - describing what I experienced, wh
         # Fallback summary
         return ConversationSummary(
             summary=f"Conversation from {segment.trigger_entries[0].timestamp} "
-                   f"to {segment.trigger_entries[-1].timestamp}",
-            topic_tags=["general"]
+            f"to {segment.trigger_entries[-1].timestamp}",
+            topic_tags=["general"],
         )
 
 
@@ -280,7 +271,7 @@ def detect_conversations(
     model: SupportedModel,
     state,
     use_topic_detection: bool = True,
-    on_conversation_created = None,
+    on_conversation_created=None,
     existing_conversations: Optional[List[ConversationBoundary]] = None,
 ) -> List[ConversationBoundary]:
     """
@@ -307,7 +298,8 @@ def detect_conversations(
 
         # Filter out already processed entries
         remaining_entries = [
-            entry for entry in trigger_entries
+            entry
+            for entry in trigger_entries
             if entry.entry_id not in processed_entry_ids
         ]
 
@@ -331,9 +323,13 @@ def detect_conversations(
 
     # Step 2: Optional topic-based splitting with incremental conversation creation
     if use_topic_detection:
-        logger.info(f"Analyzing {len(time_segments)} time-based segments for topic shifts...")
+        logger.info(
+            f"Analyzing {len(time_segments)} time-based segments for topic shifts..."
+        )
         for i, segment in enumerate(time_segments, 1):
-            logger.info(f"  Analyzing segment {i}/{len(time_segments)} ({len(segment.trigger_entries)} entries)")
+            logger.info(
+                f"  Analyzing segment {i}/{len(time_segments)} ({len(segment.trigger_entries)} entries)"
+            )
             topic_segments = detect_topic_shifts_in_segment(segment, llm, model)
 
             # Create conversations immediately for valid segments
@@ -384,10 +380,11 @@ def _create_conversation_from_segment(
         id=str(uuid.uuid4()),
         trigger_entry_ids=[entry.entry_id for entry in segment.trigger_entries],
         start_timestamp=segment.trigger_entries[0].timestamp,
-        end_timestamp=segment.trigger_entries[-1].end_timestamp or segment.trigger_entries[-1].timestamp,
+        end_timestamp=segment.trigger_entries[-1].end_timestamp
+        or segment.trigger_entries[-1].timestamp,
         summary=summary_result.summary,
         embedding_vector=embedding,
-        topic_tags=summary_result.topic_tags
+        topic_tags=summary_result.topic_tags,
     )
 
     logger.info(

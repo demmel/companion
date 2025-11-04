@@ -66,7 +66,6 @@ class CreativeInspirationAction(
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[CreativeInspirationOutput]:
         try:

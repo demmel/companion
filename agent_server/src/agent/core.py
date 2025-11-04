@@ -9,6 +9,7 @@ from typing import Optional
 from agent.chain_of_action.action.actions.speak_action import SpeakProgressData
 from agent.event_emitter import EventEmitter
 from agent.chain_of_action.action_registry import ActionRegistry
+from agent.llm.models import ModelConfig
 from agent.memory.dag_memory_manager import DagMemoryManager
 from pydantic import BaseModel
 
@@ -93,8 +94,8 @@ class Agent:
 
     def __init__(
         self,
-        model: SupportedModel,
         llm: LLM,
+        model_config: ModelConfig,
         event_emitter: EventEmitter,
         auto_save: bool = True,
         enable_image_generation: bool = True,
@@ -102,16 +103,18 @@ class Agent:
         auto_summarize_threshold: Optional[int] = None,
     ):
         self.llm = llm
-        self.model = model
-        self.context_window = llm.models[model].context_window
         self.event_emitter = event_emitter
+        self.model_config = model_config
 
         # Set summarization threshold
         if auto_summarize_threshold is not None:
             self.auto_summarize_threshold = auto_summarize_threshold
         else:
-            # Default 60% threshold
-            self.auto_summarize_threshold = int(self.context_window * 0.75)
+            # Default to 70% of context window of situational analysis model
+            self.auto_summarize_threshold = int(
+                self.llm.models[model_config.situational_analysis_model].context_window
+                * 0.7
+            )
         self.enable_image_generation = enable_image_generation
         self.individual_trigger_compression = individual_trigger_compression
 
@@ -402,8 +405,15 @@ class Agent:
             derive_state_start_time = time.time()
 
             # Derive agent's state from character definition
+            # Load model config for state initialization
+            from agent.config import Config
+
+            model_config = Config.get_model_config()
             self.state, backstory = derive_initial_state_from_message(
-                trigger.content, self.llm, self.model, trigger.get_images()
+                trigger.content,
+                self.llm,
+                model_config.state_initialization_model,
+                trigger.get_images(),
             )
 
             from agent.memory import (
@@ -493,7 +503,7 @@ class Agent:
                         self.state.current_environment,
                         self.state.name,
                         self.llm,
-                        self.model,
+                        model_config.visual_action_model,
                     )
 
                     # Execute image generation with progress callback
@@ -519,7 +529,7 @@ class Agent:
                         image_generator.generate_image_direct(
                             image_description,
                             self.llm,
-                            self.model,
+                            model_config.visual_action_model,
                             progress_callback,
                         )
                     )
@@ -599,13 +609,15 @@ class Agent:
 
         # Compress the initial exchange before calculating context info
         from agent.chain_of_action.reasoning_loop import _compress_trigger_entry
+        from agent.config import Config
 
         assert self.state is not None, "State must be initialized before compression"
+        model_config = Config.get_model_config()
         _compress_trigger_entry(
             self.initial_exchange,
             self.state,
             self.llm,
-            self.model,
+            model_config.trigger_compression_model,
         )
 
         # Process initial exchange memories if DAG enabled
@@ -614,7 +626,7 @@ class Agent:
                 trigger=self.initial_exchange,
                 state=self.state,
                 llm=self.llm,
-                model=self.model,
+                model=model_config.memory_formation_model,
                 token_budget=self.auto_summarize_threshold,
                 action_registry=self.action_reasoning_loop.registry,
             )
@@ -795,7 +807,6 @@ class Agent:
             trigger=trigger,
             state=self.state,
             llm=self.llm,
-            model=self.model,
             callback=callback,
             trigger_history=self.trigger_history,
             individual_trigger_compression=self.individual_trigger_compression,

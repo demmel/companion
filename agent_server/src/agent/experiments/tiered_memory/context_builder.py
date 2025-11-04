@@ -100,12 +100,18 @@ def format_for_llm_prompt(
         elif result.tier == MemoryTier.TRIGGER_RESPONSE:
             # Check if parent conversation (tier 3) was selected
             for conv_id, conv in tiered_graph.conversations.items():
-                if conv_id in selected_ids and result.element_id in conv.trigger_entry_ids:
+                if (
+                    conv_id in selected_ids
+                    and result.element_id in conv.trigger_entry_ids
+                ):
                     return conv_id
         elif result.tier == MemoryTier.CONVERSATION:
             # Check if parent cluster (tier 4) was selected
             for cluster_id, cluster in tiered_graph.semantic_clusters.items():
-                if cluster_id in selected_ids and result.element_id in cluster.conversation_ids:
+                if (
+                    cluster_id in selected_ids
+                    and result.element_id in cluster.conversation_ids
+                ):
                     return cluster_id
         return None
 
@@ -165,7 +171,16 @@ def format_for_llm_prompt(
         MemoryTier.ATOMIC: 3,
     }
 
-    top_level_items.sort(key=lambda r: (tier_order[r.tier], -get_timestamp(r).timestamp() if get_timestamp(r) != datetime.min and get_timestamp(r) != datetime.max else 0))
+    top_level_items.sort(
+        key=lambda r: (
+            tier_order[r.tier],
+            (
+                -get_timestamp(r).timestamp()
+                if get_timestamp(r) != datetime.min and get_timestamp(r) != datetime.max
+                else 0
+            ),
+        )
+    )
 
     for item in top_level_items:
         format_with_children(item)

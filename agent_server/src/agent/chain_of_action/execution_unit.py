@@ -17,7 +17,7 @@ from agent.chain_of_action.callbacks import ActionCallback
 from agent.chain_of_action.context import ExecutionContext
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.state import State
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,6 @@ class ExecutionUnit(ABC):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         sequence_number: int,
         callback: ActionCallback,
         trigger_entry: TriggerHistoryEntry,
@@ -69,7 +68,6 @@ class SingleActionUnit(ExecutionUnit):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         sequence_number: int,
         callback: ActionCallback,
         trigger_entry: TriggerHistoryEntry,
@@ -106,7 +104,6 @@ class SingleActionUnit(ExecutionUnit):
                 context=context,
                 state=state,
                 llm=llm,
-                model=model,
                 progress_callback=action_progress_callback,
             )
             duration_ms = (time.time() - start_time) * 1000
@@ -191,7 +188,6 @@ class VisualBatchUnit(ExecutionUnit):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         sequence_number: int,
         callback: ActionCallback,
         trigger_entry: TriggerHistoryEntry,
@@ -232,7 +228,7 @@ class VisualBatchUnit(ExecutionUnit):
                     context,
                     state,
                     llm,
-                    model,
+                    context.visual_action_model,
                     batch_progress_callback,
                     enable_image_generation=False,
                 )
@@ -243,7 +239,7 @@ class VisualBatchUnit(ExecutionUnit):
                     context,
                     state,
                     llm,
-                    model,
+                    context.visual_action_model,
                     batch_progress_callback,
                     enable_image_generation=False,
                 )
@@ -273,7 +269,7 @@ class VisualBatchUnit(ExecutionUnit):
                     state.current_environment,
                     state.name,
                     llm,
-                    model,
+                    context.visual_action_model,
                     trigger_images,
                 )
 
@@ -285,7 +281,7 @@ class VisualBatchUnit(ExecutionUnit):
                     image_description,
                     action_registry.enable_image_generation,
                     llm,
-                    model,
+                    context.visual_action_model,
                     batch_progress_callback,
                 )
 

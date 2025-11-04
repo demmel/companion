@@ -586,9 +586,7 @@ def main():
     test_queries = create_default_test_queries()
     token_budget = 8000
     results = experiment.run_retrieval_experiment(
-        test_queries,
-        token_budget=token_budget,
-        use_iterative=args.iterative
+        test_queries, token_budget=token_budget, use_iterative=args.iterative
     )
 
     # PHASE 5: Save retrieval results and generate summary report
@@ -616,12 +614,8 @@ def main():
     summary_lines.append("RETRIEVAL RESULTS SUMMARY")
     summary_lines.append("=" * 80)
     summary_lines.append("")
-    summary_lines.append(
-        f"Token Budget: {token_budget} tokens per query"
-    )
-    summary_lines.append(
-        f"Total Queries: {len(test_queries)}"
-    )
+    summary_lines.append(f"Token Budget: {token_budget} tokens per query")
+    summary_lines.append(f"Total Queries: {len(test_queries)}")
     summary_lines.append("")
 
     # Per-query details
@@ -654,7 +648,9 @@ def main():
     summary_lines.append("OVERALL STATISTICS")
     summary_lines.append("=" * 80)
     summary_lines.append(f"  Total Tokens Used: {total_tokens:>7}")
-    summary_lines.append(f"  Average Tokens per Query: {total_tokens / len(test_queries):.0f}")
+    summary_lines.append(
+        f"  Average Tokens per Query: {total_tokens / len(test_queries):.0f}"
+    )
     avg_utilization = (total_tokens / (token_budget * len(test_queries))) * 100
     summary_lines.append(f"  Average Budget Utilization: {avg_utilization:.1f}%")
 

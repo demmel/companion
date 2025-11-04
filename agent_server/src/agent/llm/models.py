@@ -59,6 +59,30 @@ class AnthropicModelConfig:
     estimated_token_size: float = 3.4  # Similar to other models
 
 
+@dataclass
+class ModelConfig:
+    """Configuration for which model to use for each action type"""
+
+    # Planning and initialization
+    state_initialization_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+    action_planning_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+    situational_analysis_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+
+    # Memory operations
+    memory_retrieval_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+    memory_formation_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+    trigger_compression_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+
+    # Generation actions
+    think_action_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+    speak_action_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+
+    # Utility actions
+    visual_action_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+    fetch_url_action_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+    evaluate_priorities_action_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
+
+
 # Provider detection
 _OLLAMA_MODELS = {
     SupportedModel.MISTRAL_SMALL,

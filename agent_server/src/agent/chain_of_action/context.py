@@ -6,6 +6,7 @@ from typing import List
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.action.base_action_data import BaseActionData
+from agent.llm import SupportedModel
 
 from .trigger import BaseTrigger
 from .action_plan import ActionPlan
@@ -21,6 +22,13 @@ class ExecutionContext(BaseModel):
     agent_capabilities_knowledge_prompt: str
     planned_actions: List[ActionPlan] = Field(default_factory=list)
     current_action_index: int = 0
+
+    # Models for action execution
+    think_action_model: SupportedModel
+    speak_action_model: SupportedModel
+    visual_action_model: SupportedModel
+    fetch_url_action_model: SupportedModel
+    evaluate_priorities_action_model: SupportedModel
 
     def add_completed_action(self, result: BaseActionData):
         """Add a completed action to the context"""

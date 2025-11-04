@@ -189,7 +189,6 @@ class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceO
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[UpdateAppearanceOutput]:
         return _execute_appearance_update(
@@ -197,8 +196,7 @@ class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceO
             context,
             state,
             llm,
-            model,
-            progress_callback,
+            context.visual_action_model,
             self.enable_image_generation,
         )
 
@@ -227,7 +225,6 @@ class UpdateEnvironmentAction(
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback,
     ) -> ActionResult[UpdateEnvironmentOutput]:
         return _execute_environment_update(
@@ -235,7 +232,7 @@ class UpdateEnvironmentAction(
             context,
             state,
             llm,
-            model,
+            context.visual_action_model,
             progress_callback,
             self.enable_image_generation,
         )
@@ -320,7 +317,7 @@ The result should be a natural evolution of my current appearance with the reque
             state.current_environment,
             state.name,
             llm,
-            model,
+            context.visual_action_model,
             trigger_images,
         )
 
@@ -425,7 +422,7 @@ The result should be a natural evolution of my current environment with the requ
             state.current_environment,
             state.name,
             llm,
-            model,
+            context.visual_action_model,
             trigger_images,
         )
 

@@ -47,7 +47,6 @@ class BaseAction(ABC, Generic[TInput, TOutput]):
         context: ExecutionContext,
         state: State,
         llm: LLM,
-        model: SupportedModel,
         progress_callback: Callable[[Any], None],
     ) -> ActionResult[TOutput]:
         """Execute the action and return result"""

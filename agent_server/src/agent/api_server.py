@@ -17,6 +17,9 @@ from agent.api_types.api import (
     AutoWakeupSetResponse,
     AutoWakeupStatusResponse,
     ImageUploadResponse,
+    ModelConfigResponse,
+    ModelConfigUpdateRequest,
+    ModelConfigUpdateResponse,
     ResetResponse,
 )
 from agent.llm import create_llm, SupportedModel
@@ -42,7 +45,9 @@ from agent.agent_event_manager import AgentEventManager
 from agent.api_types.timeline import (
     TimelineResponse,
 )
-from pydantic import BaseModel, TypeAdapter
+from agent.config import Config
+from agent.llm.models import ModelConfig
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -57,8 +62,8 @@ def initialize_agent(load: bool) -> AgentEventManager:
 
     # Create agent with manager as event emitter
     agent = Agent(
-        model=SupportedModel.CLAUDE_SONNET_4_5,
         llm=llm,
+        model_config=Config.get_model_config(),
         event_emitter=manager,
         enable_image_generation=True,
         auto_summarize_threshold=16000,
@@ -419,6 +424,76 @@ async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
         message=f"Auto-wakeup {'enabled' if request.enabled else 'disabled'}",
         timestamp=datetime.now().isoformat(),
     )
+
+
+@app.get("/api/model-config", response_model=ModelConfigResponse)
+async def get_model_config():
+    """Get current model configuration for all action types"""
+    model_config = Config.get_model_config()
+
+    return ModelConfigResponse(
+        state_initialization_model=model_config.state_initialization_model.value,
+        action_planning_model=model_config.action_planning_model.value,
+        situational_analysis_model=model_config.situational_analysis_model.value,
+        memory_retrieval_model=model_config.memory_retrieval_model.value,
+        memory_formation_model=model_config.memory_formation_model.value,
+        think_action_model=model_config.think_action_model.value,
+        speak_action_model=model_config.speak_action_model.value,
+        visual_action_model=model_config.visual_action_model.value,
+        fetch_url_action_model=model_config.fetch_url_action_model.value,
+        evaluate_priorities_action_model=model_config.evaluate_priorities_action_model.value,
+    )
+
+
+@app.post("/api/model-config", response_model=ModelConfigUpdateResponse)
+async def update_model_config(request: ModelConfigUpdateRequest):
+    """Update model configuration for all action types"""
+    try:
+        # Validate that all provided models are valid SupportedModel values
+        new_config = ModelConfig(
+            state_initialization_model=SupportedModel(
+                request.state_initialization_model
+            ),
+            action_planning_model=SupportedModel(request.action_planning_model),
+            situational_analysis_model=SupportedModel(
+                request.situational_analysis_model
+            ),
+            memory_retrieval_model=SupportedModel(request.memory_retrieval_model),
+            memory_formation_model=SupportedModel(request.memory_formation_model),
+            think_action_model=SupportedModel(request.think_action_model),
+            speak_action_model=SupportedModel(request.speak_action_model),
+            visual_action_model=SupportedModel(request.visual_action_model),
+            fetch_url_action_model=SupportedModel(request.fetch_url_action_model),
+            evaluate_priorities_action_model=SupportedModel(
+                request.evaluate_priorities_action_model
+            ),
+        )
+
+        # Save the configuration
+        Config.set_model_config(new_config)
+        agent: Agent = app.state.agent_manager.agent
+        if agent:
+            agent.model_config = new_config
+
+        # Return the updated configuration
+        return ModelConfigUpdateResponse(
+            message="Model configuration updated successfully",
+            timestamp=datetime.now().isoformat(),
+            config=ModelConfigResponse(
+                state_initialization_model=new_config.state_initialization_model.value,
+                action_planning_model=new_config.action_planning_model.value,
+                situational_analysis_model=new_config.situational_analysis_model.value,
+                memory_retrieval_model=new_config.memory_retrieval_model.value,
+                memory_formation_model=new_config.memory_formation_model.value,
+                think_action_model=new_config.think_action_model.value,
+                speak_action_model=new_config.speak_action_model.value,
+                visual_action_model=new_config.visual_action_model.value,
+                fetch_url_action_model=new_config.fetch_url_action_model.value,
+                evaluate_priorities_action_model=new_config.evaluate_priorities_action_model.value,
+            ),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid model name: {str(e)}")
 
 
 @app.post("/api/upload-image", response_model=ImageUploadResponse)
