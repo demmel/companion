@@ -197,6 +197,7 @@ class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceO
             state,
             llm,
             context.visual_action_model,
+            progress_callback,
             self.enable_image_generation,
         )
 

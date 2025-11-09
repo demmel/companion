@@ -36,6 +36,7 @@ class ModelConfigResponse(BaseModel):
     situational_analysis_model: str
     memory_retrieval_model: str
     memory_formation_model: str
+    trigger_compression_model: str
     think_action_model: str
     speak_action_model: str
     visual_action_model: str
@@ -51,6 +52,7 @@ class ModelConfigUpdateRequest(BaseModel):
     situational_analysis_model: str
     memory_retrieval_model: str
     memory_formation_model: str
+    trigger_compression_model: str
     think_action_model: str
     speak_action_model: str
     visual_action_model: str
@@ -64,3 +66,9 @@ class ModelConfigUpdateResponse(BaseModel):
     message: str
     timestamp: str
     config: ModelConfigResponse
+
+
+class SupportedModelsResponse(BaseModel):
+    """Response containing list of all supported models"""
+
+    models: list[str]

@@ -21,6 +21,7 @@ from agent.api_types.api import (
     ModelConfigUpdateRequest,
     ModelConfigUpdateResponse,
     ResetResponse,
+    SupportedModelsResponse,
 )
 from agent.llm import create_llm, SupportedModel
 from typing import List, Optional, Union
@@ -426,6 +427,14 @@ async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
     )
 
 
+@app.get("/api/supported-models", response_model=SupportedModelsResponse)
+async def get_supported_models():
+    """Get list of all supported models"""
+    return SupportedModelsResponse(
+        models=[model.value for model in SupportedModel]
+    )
+
+
 @app.get("/api/model-config", response_model=ModelConfigResponse)
 async def get_model_config():
     """Get current model configuration for all action types"""
@@ -437,6 +446,7 @@ async def get_model_config():
         situational_analysis_model=model_config.situational_analysis_model.value,
         memory_retrieval_model=model_config.memory_retrieval_model.value,
         memory_formation_model=model_config.memory_formation_model.value,
+        trigger_compression_model=model_config.trigger_compression_model.value,
         think_action_model=model_config.think_action_model.value,
         speak_action_model=model_config.speak_action_model.value,
         visual_action_model=model_config.visual_action_model.value,
@@ -460,6 +470,7 @@ async def update_model_config(request: ModelConfigUpdateRequest):
             ),
             memory_retrieval_model=SupportedModel(request.memory_retrieval_model),
             memory_formation_model=SupportedModel(request.memory_formation_model),
+            trigger_compression_model=SupportedModel(request.trigger_compression_model),
             think_action_model=SupportedModel(request.think_action_model),
             speak_action_model=SupportedModel(request.speak_action_model),
             visual_action_model=SupportedModel(request.visual_action_model),
@@ -485,6 +496,7 @@ async def update_model_config(request: ModelConfigUpdateRequest):
                 situational_analysis_model=new_config.situational_analysis_model.value,
                 memory_retrieval_model=new_config.memory_retrieval_model.value,
                 memory_formation_model=new_config.memory_formation_model.value,
+                trigger_compression_model=new_config.trigger_compression_model.value,
                 think_action_model=new_config.think_action_model.value,
                 speak_action_model=new_config.speak_action_model.value,
                 visual_action_model=new_config.visual_action_model.value,

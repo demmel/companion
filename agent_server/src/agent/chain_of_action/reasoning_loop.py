@@ -402,9 +402,10 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
 
     try:
         # Calculate original entry size (without any existing compressed summary)
+        # Include situational_context since compression replaces both actions AND situational analysis
         original_size = len(
             format_single_trigger_entry(trigger_entry, use_summary=False)
-        )
+        ) + len(trigger_entry.situational_context or "")
 
         best_summary = None
         best_size = float("inf")

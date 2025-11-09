@@ -192,3 +192,41 @@ export interface ImageUploadResponse {
   size: number;
   url: string;
 }
+
+// Model configuration types
+export interface ModelConfigResponse {
+  state_initialization_model: string;
+  action_planning_model: string;
+  situational_analysis_model: string;
+  memory_retrieval_model: string;
+  memory_formation_model: string;
+  trigger_compression_model: string;
+  think_action_model: string;
+  speak_action_model: string;
+  visual_action_model: string;
+  fetch_url_action_model: string;
+  evaluate_priorities_action_model: string;
+}
+
+export interface ModelConfigUpdateRequest {
+  state_initialization_model: string;
+  action_planning_model: string;
+  situational_analysis_model: string;
+  memory_retrieval_model: string;
+  memory_formation_model: string;
+  trigger_compression_model: string;
+  think_action_model: string;
+  speak_action_model: string;
+  visual_action_model: string;
+  fetch_url_action_model: string;
+  evaluate_priorities_action_model: string;
+}
+
+export interface ModelConfigUpdateResponse {
+  message: string;
+  timestamp: string;
+}
+
+export interface SupportedModelsResponse {
+  models: string[];
+}

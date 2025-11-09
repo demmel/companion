@@ -3,6 +3,10 @@ import {
   AutoWakeupStatusResponse,
   AutoWakeupSetResponse,
   ImageUploadResponse,
+  ModelConfigResponse,
+  ModelConfigUpdateRequest,
+  ModelConfigUpdateResponse,
+  SupportedModelsResponse,
 } from "./types";
 
 interface ClientConfig {
@@ -125,6 +129,50 @@ export class AgentClient {
 
     if (!response.ok) {
       throw new Error(`Image upload failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getSupportedModels(): Promise<SupportedModelsResponse> {
+    const response = await fetch(`${this.httpBaseUrl}/api/supported-models`);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to get supported models: ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  async getModelConfig(): Promise<ModelConfigResponse> {
+    const response = await fetch(`${this.httpBaseUrl}/api/model-config`);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to get model configuration: ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  async updateModelConfig(
+    config: ModelConfigUpdateRequest,
+  ): Promise<ModelConfigUpdateResponse> {
+    const response = await fetch(`${this.httpBaseUrl}/api/model-config`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(config),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to update model configuration: ${response.statusText}`,
+      );
     }
 
     return response.json();
