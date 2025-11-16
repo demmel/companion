@@ -47,7 +47,7 @@ class OllamaLLM(ILLM):
         # Apply model defaults with overrides
         options = {
             "num_gpu": -1,
-            "num_thread": 16,
+            "num_thread": 32,  # Use all available cores
             "num_ctx": config.context_window,
             "temperature": temperature or config.default_temperature,
             "top_p": top_p or config.default_top_p,
@@ -119,7 +119,7 @@ class OllamaLLM(ILLM):
         # Apply model defaults with overrides
         options = {
             "num_gpu": -1,
-            "num_thread": 16,
+            "num_thread": 32,  # Use all available cores
             "num_ctx": config.context_window,
             "temperature": temperature or config.default_temperature,
             "top_p": top_p or config.default_top_p,
