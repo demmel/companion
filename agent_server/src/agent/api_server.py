@@ -430,9 +430,7 @@ async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
 @app.get("/api/supported-models", response_model=SupportedModelsResponse)
 async def get_supported_models():
     """Get list of all supported models"""
-    return SupportedModelsResponse(
-        models=[model.value for model in SupportedModel]
-    )
+    return SupportedModelsResponse(models=[model.value for model in SupportedModel])
 
 
 @app.get("/api/model-config", response_model=ModelConfigResponse)
