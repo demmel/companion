@@ -5,93 +5,31 @@ Defines the structure of raw data and metadata saved during experiments.
 """
 
 from datetime import datetime
-from typing import Optional, Dict
-from pydantic import BaseModel
+from typing import Generic, Iterable, List, Optional, Dict, Sequence, TypeVar
+from pydantic import BaseModel, Field
+
+TOutput = TypeVar("TOutput", bound=BaseModel)
+TExpected = TypeVar("TExpected", bound=BaseModel)
 
 
-class RunData(BaseModel):
+class RunData(BaseModel, Generic[TOutput, TExpected]):
     """
     Raw data from a single experimental run.
 
     This contains all the input, output, and expected data for one execution
     of a test case using a variant. Supports heterogeneous types - each test
     case can have completely different data types.
-
-    Type information is preserved through metadata fields for correct deserialization.
     """
-    model_config = {"arbitrary_types_allowed": True}
 
     variant_name: str
     test_case_name: str
     run_index: int
 
     # Data fields (actual types vary by test case)
-    output_data: Optional[BaseModel]  # None if execution failed
-    expected_output: Optional[BaseModel]
-
-    # Type metadata for deserialization
-    output_type_module: Optional[str]  # e.g., "agent.experiments.autonomous_research.extraction"
-    output_type_name: Optional[str]    # e.g., "ExtractionResponse"
-    expected_type_module: Optional[str]
-    expected_type_name: Optional[str]
+    output_data: Optional[TOutput]  # None if execution failed
+    expected_output: Optional[TExpected]
 
     timestamp: datetime
-
-    def model_dump(self, **kwargs):
-        """Custom serialization to handle BaseModel fields correctly."""
-        # Exclude the BaseModel fields from super().model_dump()
-        exclude = {"output_data", "expected_output"}
-        data = super().model_dump(exclude=exclude, **kwargs)
-
-        # Serialize BaseModel fields manually
-        if self.output_data is not None:
-            data["output_data"] = self.output_data.model_dump()
-        else:
-            data["output_data"] = None
-
-        if self.expected_output is not None:
-            data["expected_output"] = self.expected_output.model_dump()
-        else:
-            data["expected_output"] = None
-
-        return data
-
-    @classmethod
-    def create(
-        cls,
-        variant_name: str,
-        test_case_name: str,
-        run_index: int,
-        output_data: Optional[BaseModel],
-        expected_output: Optional[BaseModel],
-        timestamp: datetime,
-    ) -> "RunData":
-        """
-        Create RunData with automatic type metadata extraction.
-
-        Args:
-            variant_name: Name of the variant
-            test_case_name: Name of the test case
-            run_index: Index of this run
-            output_data: Output from execution (None if failed)
-            expected_output: Expected output for comparison (None if not available)
-            timestamp: When this run occurred
-
-        Returns:
-            RunData with type metadata automatically populated
-        """
-        return cls(
-            variant_name=variant_name,
-            test_case_name=test_case_name,
-            run_index=run_index,
-            output_data=output_data,
-            expected_output=expected_output,
-            output_type_module=type(output_data).__module__ if output_data else None,
-            output_type_name=type(output_data).__name__ if output_data else None,
-            expected_type_module=type(expected_output).__module__ if expected_output else None,
-            expected_type_name=type(expected_output).__name__ if expected_output else None,
-            timestamp=timestamp,
-        )
 
 
 class RunMetadata(BaseModel):
@@ -104,8 +42,32 @@ class RunMetadata(BaseModel):
 
     duration_seconds: float
     success: bool
-    error_message: Optional[str] = None
-    retry_count: int = 0
+    errors: List[str] = Field(default_factory=list)
+
+    def retry_count(self) -> int:
+        """Get the number of retries attempted."""
+        return len(self.errors)
+
+
+class Metric(BaseModel):
+    """A single metric value for a run."""
+
+    mean: float
+    stddev: float
+    min: float
+    max: float
+
+    @staticmethod
+    def from_values(values: Sequence[float]) -> "Metric":
+        """Create Metric from a list of values."""
+        import statistics
+
+        return Metric(
+            mean=statistics.mean(values),
+            stddev=statistics.stdev(values) if len(values) > 1 else 0.0,
+            min=min(values),
+            max=max(values),
+        )
 
 
 class TestCaseMetrics(BaseModel):
@@ -114,9 +76,14 @@ class TestCaseMetrics(BaseModel):
     total_runs: int
     successful_runs: int
     success_rate: float
-    mean_duration: float
-    mean_retries: float
-    metrics: Dict[str, float]  # Dynamic metrics from MetricsCalculator
+    duration: Metric
+    retries: Metric
+    metrics: Dict[
+        str, Metric
+    ]  # Dynamic per-run metrics from MetricsCalculator (aggregated)
+    comparative_metrics: Dict[str, float] = (
+        {}
+    )  # Comparative metrics across variants (not aggregated)
 
 
 class VariantResults(BaseModel):

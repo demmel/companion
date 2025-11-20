@@ -8,8 +8,14 @@ all raw data to disk.
 import time
 import logging
 from datetime import datetime
-from typing import TypeVar, Generic, List, Sequence, Callable, Optional, Protocol, runtime_checkable
-from pydantic import BaseModel
+from typing import (
+    TypeVar,
+    Generic,
+    Sequence,
+    Callable,
+    Optional,
+    Protocol,
+)
 
 from .base import TestCase
 from .data import RunData, RunMetadata
@@ -18,14 +24,14 @@ from .storage import ExperimentStorage
 logger = logging.getLogger(__name__)
 
 
-@runtime_checkable
 class HasName(Protocol):
     """Protocol for objects that have a name() method."""
+
     def name(self) -> str: ...
 
 
 # Type variable for variant interface (bounded to HasName)
-TVariant = TypeVar('TVariant', bound=HasName)
+TVariant = TypeVar("TVariant", bound=HasName)
 
 
 class ExperimentRunner(Generic[TVariant]):
@@ -43,7 +49,7 @@ class ExperimentRunner(Generic[TVariant]):
         self,
         storage: ExperimentStorage,
         max_retries: int = 3,
-        progress_callback: Optional[Callable[[str], None]] = None
+        progress_callback: Optional[Callable[[str], None]] = None,
     ):
         """
         Initialize experiment runner.
@@ -82,7 +88,7 @@ class ExperimentRunner(Generic[TVariant]):
             Experiment run timestamp (directory name)
         """
         # Generate timestamp for this experiment run
-        run_ts = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_ts = f"run_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 
         total_runs = len(variants) * len(test_cases) * num_runs
         self.progress_callback(
@@ -94,7 +100,7 @@ class ExperimentRunner(Generic[TVariant]):
         # Execute all combinations
         completed = 0
         for variant in variants:
-            variant_name = self._get_variant_name(variant)
+            variant_name = variant.name()
             self.progress_callback(f"\nTesting variant: {variant_name}")
 
             for test_case in test_cases:
@@ -105,9 +111,7 @@ class ExperimentRunner(Generic[TVariant]):
 
                     # Execute single run with retries
                     run_data, metadata = self._execute_single_run(
-                        variant=variant,
-                        test_case=test_case,
-                        run_index=run_index
+                        variant=variant, test_case=test_case, run_index=run_index
                     )
 
                     # Save to disk
@@ -115,11 +119,8 @@ class ExperimentRunner(Generic[TVariant]):
 
                     # Log result
                     status = "✅" if metadata.success else "❌"
-                    retry_info = (
-                        f", {metadata.retry_count} retries"
-                        if metadata.retry_count > 0
-                        else ""
-                    )
+                    retry_count = metadata.retry_count()
+                    retry_info = f", {retry_count} retries" if retry_count > 0 else ""
                     self.progress_callback(
                         f"      {status} {metadata.duration_seconds:.2f}s{retry_info}"
                     )
@@ -132,10 +133,7 @@ class ExperimentRunner(Generic[TVariant]):
         return run_ts
 
     def _execute_single_run(
-        self,
-        variant: TVariant,
-        test_case: TestCase[TVariant],
-        run_index: int
+        self, variant: TVariant, test_case: TestCase[TVariant], run_index: int
     ) -> tuple[RunData, RunMetadata]:
         """
         Execute a single run with retry logic.
@@ -150,11 +148,10 @@ class ExperimentRunner(Generic[TVariant]):
         """
         start_time = time.time()
         expected_output = test_case.expected_output()
-        retry_count = 0
-        last_error = None
+        errors = []
 
         # Get variant name (try name() method, name attribute, or str())
-        variant_name = self._get_variant_name(variant)
+        variant_name = variant.name()
 
         # Retry loop
         for attempt in range(self.max_retries + 1):
@@ -165,69 +162,46 @@ class ExperimentRunner(Generic[TVariant]):
                 # Success!
                 duration = time.time() - start_time
 
-                run_data = RunData.create(
+                run_data = RunData(
                     variant_name=variant_name,
                     test_case_name=test_case.name(),
                     run_index=run_index,
                     output_data=output_data,
                     expected_output=expected_output,
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
                 )
 
                 metadata = RunMetadata(
                     duration_seconds=duration,
                     success=True,
-                    error_message=None,
-                    retry_count=retry_count
                 )
 
                 return run_data, metadata
 
             except Exception as e:
-                last_error = str(e)
-                retry_count = attempt
+                errors.append(str(e))
                 logger.warning(
-                    f"Attempt {attempt + 1}/{self.max_retries + 1} failed: {last_error}"
+                    f"Attempt {attempt + 1}/{self.max_retries + 1} failed: {errors[-1]}"
                 )
-
-                # Don't sleep after final attempt
-                if attempt < self.max_retries:
-                    time.sleep(0.1)  # Brief pause before retry
 
         # All retries failed
         duration = time.time() - start_time
-        logger.error(
-            f"All {self.max_retries + 1} attempts failed. "
-            f"Final error: {last_error}"
-        )
+        logger.error(f"All {self.max_retries + 1} attempts failed. Errors: {errors}")
 
         # Create RunData with None output on failure
-        run_data = RunData.create(
+        run_data = RunData(
             variant_name=variant_name,
             test_case_name=test_case.name(),
             run_index=run_index,
             output_data=None,
             expected_output=expected_output,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
         metadata = RunMetadata(
             duration_seconds=duration,
             success=False,
-            error_message=last_error,
-            retry_count=retry_count
+            errors=errors,
         )
 
         return run_data, metadata
-
-    def _get_variant_name(self, variant: TVariant) -> str:
-        """
-        Get the name of the variant.
-
-        Args:
-            variant: The variant (must have a name() method)
-
-        Returns:
-            String identifier for the variant
-        """
-        return variant.name()

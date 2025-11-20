@@ -5,11 +5,8 @@ Handles saving and loading experiment data to/from disk with proper
 directory structure and JSON serialization.
 """
 
-import json
-import importlib
 from pathlib import Path
 from typing import Tuple, List
-from datetime import datetime
 from pydantic import BaseModel
 
 from .data import RunData, RunMetadata
@@ -42,9 +39,9 @@ class ExperimentStorage:
         """
         self.base_dir = Path(base_dir)
 
-    def save_run(
+    def save_run[TOutput: BaseModel, TExpected: BaseModel](
         self,
-        run_data: RunData,
+        run_data: RunData[TOutput, TExpected],
         metadata: RunMetadata,
         run_ts: str,
     ) -> Path:
@@ -60,18 +57,17 @@ class ExperimentStorage:
             Path to the run directory
         """
         # Create directory structure
-        run_dir = (
-            self.base_dir
-            / run_ts
-            / f"variant_{run_data.variant_name}"
-            / f"testcase_{run_data.test_case_name}"
-            / f"run_{run_data.run_index}"
+        run_dir = self.get_run_path(
+            run_ts,
+            run_data.variant_name,
+            run_data.test_case_name,
+            run_data.run_index,
         )
         run_dir.mkdir(parents=True, exist_ok=True)
 
         # Save data using custom model_dump() + json.dumps()
         with open(run_dir / "data.json", "w") as f:
-            json.dump(run_data.model_dump(), f, indent=2, default=str)
+            f.write(run_data.model_dump_json(indent=2))
 
         # Save metadata using Pydantic's model_dump()
         with open(run_dir / "metadata.json", "w") as f:
@@ -79,7 +75,9 @@ class ExperimentStorage:
 
         return run_dir
 
-    def load_run(self, run_path: Path) -> Tuple[RunData, RunMetadata]:
+    def load_run[TOutput: BaseModel, TExpected: BaseModel](
+        self, run_ts: str, variant_name: str, test_case_name: str, run_index: int
+    ) -> Tuple[RunData[TOutput, TExpected], RunMetadata]:
         """
         Load a single run from disk.
 
@@ -92,70 +90,39 @@ class ExperimentStorage:
             Tuple of (RunData, RunMetadata)
         """
         # Load raw JSON
-        with open(run_path / "data.json", "r") as f:
-            data_json = json.load(f)
+        run_dir = self.get_run_path(run_ts, variant_name, test_case_name, run_index)
 
-        # Extract type metadata and deserialize typed fields
-        output_data = None
-        if data_json.get("output_data") is not None:
-            if data_json.get("output_type_module") and data_json.get("output_type_name"):
-                output_type = self._import_type(
-                    data_json["output_type_module"],
-                    data_json["output_type_name"]
-                )
-                output_data = output_type.model_validate(data_json["output_data"])
-
-        expected_output = None
-        if data_json.get("expected_output") is not None:
-            if data_json.get("expected_type_module") and data_json.get("expected_type_name"):
-                expected_type = self._import_type(
-                    data_json["expected_type_module"],
-                    data_json["expected_type_name"]
-                )
-                expected_output = expected_type.model_validate(data_json["expected_output"])
-
-        # Construct RunData
-        run_data = RunData(
-            variant_name=data_json["variant_name"],
-            test_case_name=data_json["test_case_name"],
-            run_index=data_json["run_index"],
-            output_data=output_data,
-            expected_output=expected_output,
-            output_type_module=data_json.get("output_type_module"),
-            output_type_name=data_json.get("output_type_name"),
-            expected_type_module=data_json.get("expected_type_module"),
-            expected_type_name=data_json.get("expected_type_name"),
-            timestamp=datetime.fromisoformat(data_json["timestamp"]),
-        )
+        with open(run_dir / "data.json", "r") as f:
+            run_data = RunData[TOutput, TExpected].model_validate_json(f.read())
 
         # Load metadata
-        with open(run_path / "metadata.json", "r") as f:
+        with open(run_dir / "metadata.json", "r") as f:
             metadata = RunMetadata.model_validate_json(f.read())
 
         return run_data, metadata
 
-    def _import_type(self, module_name: str, class_name: str) -> type[BaseModel]:
+    def get_run_path(
+        self, run_ts: str, variant_name: str, test_case_name: str, run_index: int
+    ) -> Path:
         """
-        Dynamically import a Pydantic model type.
+        Get the path to a specific run directory.
 
         Args:
-            module_name: Module path (e.g., "agent.experiments.autonomous_research.extraction")
-            class_name: Class name (e.g., "ExtractionResponse")
+            run_ts: Timestamp identifier for this experiment run
+            variant_name: Name of the variant
+            test_case_name: Name of the test case
+            run_index: Index of the run
 
         Returns:
-            The Pydantic model class
-
-        Raises:
-            ImportError: If module or class cannot be found
-            TypeError: If class is not a Pydantic BaseModel
+            Path to the run directory
         """
-        module = importlib.import_module(module_name)
-        cls = getattr(module, class_name)
-
-        if not issubclass(cls, BaseModel):
-            raise TypeError(f"{module_name}.{class_name} is not a Pydantic BaseModel")
-
-        return cls
+        return (
+            self.base_dir
+            / run_ts
+            / f"variant_{variant_name}"
+            / f"testcase_{test_case_name}"
+            / f"run_{run_index}"
+        )
 
     def list_experiment_runs(self) -> List[str]:
         """
