@@ -690,90 +690,158 @@ class ExperimentAnalyzer:
 
         return "uncategorized"
 
-    def _aggregate_by_category(
+    def _collect_metric_means(
         self,
         results: ExperimentResults,
         metric_name: str,
-    ) -> Dict[str, Dict[str, Metric]]:
+        category_filter: Optional[str] = None,
+    ) -> Dict[str, List[float]]:
         """
-        Aggregate metric summary statistics by category.
-
-        Args:
-            results: Experiment results with pre-calculated metrics
-            metric_name: Name of metric to aggregate
-
-        Returns:
-            Dict mapping category -> variant_name -> Metric (aggregated across test cases)
-        """
-        category_data: Dict[str, Dict[str, List[float]]] = {}
-
-        # Collect mean values from each test case
-        for variant_name, variant_results in results.variants.items():
-            for test_case_name, test_metrics in variant_results.test_cases.items():
-                category = self._extract_category_from_test_case(test_case_name)
-
-                if category not in category_data:
-                    category_data[category] = {}
-
-                if variant_name not in category_data[category]:
-                    category_data[category][variant_name] = []
-
-                # Use pre-calculated metric mean from test case
-                metric = test_metrics.metrics.get(metric_name)
-                if metric:
-                    category_data[category][variant_name].append(metric.mean)
-
-        # Convert lists of means to Metric objects (includes n automatically)
-        category_metrics: Dict[str, Dict[str, Metric]] = {}
-        for category, variant_means in category_data.items():
-            category_metrics[category] = {}
-            for variant_name, means in variant_means.items():
-                if means:
-                    category_metrics[category][variant_name] = Metric.from_values(means)
-
-        return category_metrics
-
-    def _aggregate_comparative_by_category(
-        self,
-        results: ExperimentResults,
-        metric_name: str,
-    ) -> Dict[str, Dict[str, float]]:
-        """
-        Aggregate comparative metric scores by category.
+        Collect metric means across test cases for each variant.
 
         Args:
             results: Experiment results
-            metric_name: Name of comparative metric to aggregate
+            metric_name: Name of metric to collect (can be 'duration' for duration.mean)
+            category_filter: Optional category to filter by
 
         Returns:
-            Dict mapping category -> variant_name -> average score
+            Dict mapping variant_name -> list of means across test cases
         """
-        category_data: Dict[str, Dict[str, List[float]]] = {}
+        variant_means: Dict[str, List[float]] = {}
 
         for variant_name, variant_results in results.variants.items():
+            variant_means[variant_name] = []
+
             for test_case_name, test_metrics in variant_results.test_cases.items():
+                # Apply category filter if specified
+                if category_filter is not None:
+                    test_category = self._extract_category_from_test_case(test_case_name)
+                    if test_category != category_filter:
+                        continue
+
+                # Handle special case for duration
+                if metric_name == "duration":
+                    variant_means[variant_name].append(test_metrics.duration.mean)
+                else:
+                    metric = test_metrics.metrics.get(metric_name)
+                    if metric:
+                        variant_means[variant_name].append(metric.mean)
+
+        return variant_means
+
+    def _means_to_metrics(
+        self, variant_means: Dict[str, List[float]]
+    ) -> Dict[str, Metric]:
+        """
+        Convert lists of means to Metric objects.
+
+        Args:
+            variant_means: Dict mapping variant_name -> list of means
+
+        Returns:
+            Dict mapping variant_name -> Metric
+        """
+        variant_metrics = {}
+        for variant_name, means in variant_means.items():
+            if means:
+                variant_metrics[variant_name] = Metric.from_values(means)
+        return variant_metrics
+
+    def _metrics_to_cis(
+        self, variant_metrics: Dict[str, Metric]
+    ) -> Dict[str, Tuple[float, float, float]]:
+        """
+        Convert Metric objects to (mean, lower_ci, upper_ci) tuples.
+
+        Args:
+            variant_metrics: Dict mapping variant_name -> Metric
+
+        Returns:
+            Dict mapping variant_name -> (mean, lower_ci, upper_ci)
+        """
+        variant_cis = {}
+        for variant_name, metric in variant_metrics.items():
+            lower, upper = metric.confidence_interval()
+            variant_cis[variant_name] = (metric.mean, lower, upper)
+        return variant_cis
+
+    def _collect_comparative_scores(
+        self,
+        results: ExperimentResults,
+        metric_name: str,
+        category_filter: Optional[str] = None,
+    ) -> Dict[str, float]:
+        """
+        Collect and average comparative metric scores.
+
+        Args:
+            results: Experiment results
+            metric_name: Name of comparative metric
+            category_filter: Optional category to filter by
+
+        Returns:
+            Dict mapping variant_name -> averaged score
+        """
+        variant_scores: Dict[str, List[float]] = {}
+
+        for variant_name, variant_results in results.variants.items():
+            variant_scores[variant_name] = []
+
+            for test_case_name, test_metrics in variant_results.test_cases.items():
+                # Apply category filter if specified
+                if category_filter is not None:
+                    test_category = self._extract_category_from_test_case(test_case_name)
+                    if test_category != category_filter:
+                        continue
+
                 if metric_name in test_metrics.comparative_metrics:
-                    category = self._extract_category_from_test_case(test_case_name)
-
-                    if category not in category_data:
-                        category_data[category] = {}
-
-                    if variant_name not in category_data[category]:
-                        category_data[category][variant_name] = []
-
-                    category_data[category][variant_name].append(
+                    variant_scores[variant_name].append(
                         test_metrics.comparative_metrics[metric_name]
                     )
 
-        # Average the scores for each variant within each category
-        averaged_data: Dict[str, Dict[str, float]] = {}
-        for category, variant_scores in category_data.items():
-            averaged_data[category] = {}
-            for variant_name, scores in variant_scores.items():
-                if scores:
-                    averaged_data[category][variant_name] = statistics.mean(scores)
+        # Average the scores for each variant
+        averaged_scores = {}
+        for variant_name, scores in variant_scores.items():
+            if scores:
+                averaged_scores[variant_name] = statistics.mean(scores)
 
-        return averaged_data
+        return averaged_scores
+
+    def _render_metric_section(
+        self,
+        variant_metrics: Dict[str, Metric],
+        metric_name: str,
+        include_significance: bool = True,
+    ) -> List[str]:
+        """
+        Render a complete metric section with CIs, significance tests, and chart.
+
+        Args:
+            variant_metrics: Dict mapping variant_name -> Metric
+            metric_name: Name of the metric
+            include_significance: Whether to calculate and show significance markers
+
+        Returns:
+            List of chart lines
+        """
+        if not variant_metrics:
+            return []
+
+        # Convert to CIs
+        variant_cis = self._metrics_to_cis(variant_metrics)
+
+        # Calculate significance if requested
+        significance_markers = None
+        if include_significance and len(variant_metrics) > 1:
+            pairwise_tests = self._perform_pairwise_tests_from_metrics(variant_metrics)
+            significance_markers = self._calculate_significance_markers(
+                variant_cis, pairwise_tests
+            )
+
+        # Render chart
+        return self._render_error_bar_chart(
+            variant_cis, metric_name, significance_markers
+        )
 
     def generate_comparison_report(
         self,
@@ -855,60 +923,29 @@ class ExperimentAnalyzer:
 
             # Per-run metrics with error bars
             for metric_name in metrics_to_compare:
-                # Aggregate metrics by category from pre-calculated results
-                category_data = self._aggregate_by_category(
-                    merged_results, metric_name
+                # Collect and aggregate metrics for this category
+                variant_means = self._collect_metric_means(
+                    merged_results, metric_name, category_filter=category
                 )
+                variant_metrics = self._means_to_metrics(variant_means)
 
-                if category not in category_data:
-                    continue
-
-                variant_metric_data = category_data[category]
-
-                # Skip if no valid data
-                if not variant_metric_data:
-                    continue
-
-                # Calculate CIs for each variant from pre-calculated metrics
-                variant_cis = {}
-                for variant_name, metric in variant_metric_data.items():
-                    lower, upper = metric.confidence_interval()
-                    variant_cis[variant_name] = (metric.mean, lower, upper)
-
-                # Perform statistical tests using Metric summary statistics
-                pairwise_tests = self._perform_pairwise_tests_from_metrics(variant_metric_data)
-
-                # Determine significance markers (compare all to lowest-ranked)
-                significance_markers = self._calculate_significance_markers(
-                    variant_cis, pairwise_tests
-                )
-
-                # Render error bar chart
-                chart_lines = self._render_error_bar_chart(
-                    variant_cis, metric_name, significance_markers
-                )
-                lines.extend(chart_lines)
+                if variant_metrics:
+                    chart_lines = self._render_metric_section(
+                        variant_metrics, metric_name, include_significance=True
+                    )
+                    lines.extend(chart_lines)
 
             # Comparative metrics (no error bars)
             for metric_name in comparative_metrics:
-                category_scores = self._aggregate_comparative_by_category(
-                    merged_results, metric_name
+                variant_scores = self._collect_comparative_scores(
+                    merged_results, metric_name, category_filter=category
                 )
 
-                if category not in category_scores:
-                    continue
-
-                variant_scores = category_scores[category]
-
-                # Skip if no valid data
-                if not variant_scores:
-                    continue
-
-                # Render comparative metric chart
-                chart_lines = self._render_comparative_metric_chart(
-                    variant_scores, metric_name
-                )
-                lines.extend(chart_lines)
+                if variant_scores:
+                    chart_lines = self._render_comparative_metric_chart(
+                        variant_scores, metric_name
+                    )
+                    lines.extend(chart_lines)
 
         # OVERALL ANALYSIS (shown last for easy visibility)
         lines.append("\n" + "=" * 80)
@@ -919,105 +956,41 @@ class ExperimentAnalyzer:
 
         # Per-run metrics with error bars
         for metric_name in metrics_to_compare:
-            # Aggregate all test case means across all variants
-            variant_means_data: Dict[str, List[float]] = {}
+            variant_means = self._collect_metric_means(merged_results, metric_name)
+            variant_metrics = self._means_to_metrics(variant_means)
 
-            for variant_name, variant_results in merged_results.variants.items():
-                variant_means_data[variant_name] = []
-                for test_case_name, test_metrics in variant_results.test_cases.items():
-                    metric = test_metrics.metrics.get(metric_name)
-                    if metric:
-                        variant_means_data[variant_name].append(metric.mean)
-
-            # Skip if no valid data
-            if not variant_means_data or all(not v for v in variant_means_data.values()):
-                continue
-
-            # Convert to Metric objects
-            variant_metrics = {}
-            for variant_name, means in variant_means_data.items():
-                if means:
-                    variant_metrics[variant_name] = Metric.from_values(means)
-
-            # Calculate CIs for each variant
-            variant_cis = {}
-            for variant_name, metric in variant_metrics.items():
-                lower, upper = metric.confidence_interval()
-                variant_cis[variant_name] = (metric.mean, lower, upper)
-
-            # Perform statistical tests
-            pairwise_tests = self._perform_pairwise_tests_from_metrics(variant_metrics)
-
-            # Determine significance markers
-            significance_markers = self._calculate_significance_markers(
-                variant_cis, pairwise_tests
-            )
-
-            # Render error bar chart
-            chart_lines = self._render_error_bar_chart(
-                variant_cis, metric_name, significance_markers
-            )
-            lines.extend(chart_lines)
+            if variant_metrics:
+                chart_lines = self._render_metric_section(
+                    variant_metrics, metric_name, include_significance=True
+                )
+                lines.extend(chart_lines)
 
         # Comparative metrics (no error bars)
         for metric_name in comparative_metrics:
-            # Aggregate all comparative metric scores across all test cases
-            variant_comp_scores: Dict[str, List[float]] = {}
-
-            for variant_name, variant_results in merged_results.variants.items():
-                variant_comp_scores[variant_name] = []
-                for test_metrics in variant_results.test_cases.values():
-                    if metric_name in test_metrics.comparative_metrics:
-                        variant_comp_scores[variant_name].append(
-                            test_metrics.comparative_metrics[metric_name]
-                        )
-
-            # Average the scores for each variant
-            averaged_scores = {}
-            for variant_name, scores in variant_comp_scores.items():
-                if scores:
-                    averaged_scores[variant_name] = statistics.mean(scores)
-
-            # Skip if no valid data
-            if not averaged_scores:
-                continue
-
-            # Render comparative metric chart
-            chart_lines = self._render_comparative_metric_chart(
-                averaged_scores, metric_name
+            variant_scores = self._collect_comparative_scores(
+                merged_results, metric_name
             )
-            lines.extend(chart_lines)
+
+            if variant_scores:
+                chart_lines = self._render_comparative_metric_chart(
+                    variant_scores, metric_name
+                )
+                lines.extend(chart_lines)
 
         # Add duration analysis
         lines.append("\n" + "=" * 80)
         lines.append("EXECUTION TIME (seconds per test case)")
         lines.append("=" * 80)
 
-        # Collect duration means from pre-calculated metrics
-        variant_duration_data: Dict[str, List[float]] = {}
-        for variant_name, variant_results in merged_results.variants.items():
-            variant_duration_data[variant_name] = []
-            for test_metrics in variant_results.test_cases.values():
-                # Duration is stored as a Metric in TestCaseMetrics
-                variant_duration_data[variant_name].append(test_metrics.duration.mean)
+        # Collect and render duration
+        variant_means = self._collect_metric_means(merged_results, "duration")
+        variant_metrics = self._means_to_metrics(variant_means)
 
-        # Convert to Metric objects
-        variant_duration_metrics = {}
-        for variant_name, means in variant_duration_data.items():
-            if means:
-                variant_duration_metrics[variant_name] = Metric.from_values(means)
-
-        # Calculate CIs for duration
-        duration_cis = {}
-        for variant_name, metric in variant_duration_metrics.items():
-            lower, upper = metric.confidence_interval()
-            duration_cis[variant_name] = (metric.mean, lower, upper)
-
-        # Render duration chart (no significance testing for duration)
-        duration_chart = self._render_error_bar_chart(
-            duration_cis, "duration (seconds)"
-        )
-        lines.extend(duration_chart)
+        if variant_metrics:
+            chart_lines = self._render_metric_section(
+                variant_metrics, "duration (seconds)", include_significance=False
+            )
+            lines.extend(chart_lines)
 
         # Statistical significance legend
         lines.append("\n" + "-" * 80)
@@ -1147,53 +1120,28 @@ class ExperimentAnalyzer:
                 if not current_metric or not baseline_metric:
                     continue
 
-                # Extract summary statistics
-                current_mean = current_metric.mean
-                current_std = current_metric.stddev
-                current_n = current_test.total_runs
+                # Use pre-calculated CIs from Metric objects
+                current_ci = current_metric.confidence_interval()
+                baseline_ci = baseline_metric.confidence_interval()
 
-                baseline_mean = baseline_metric.mean
-                baseline_std = baseline_metric.stddev
-                baseline_n = baseline_test.total_runs
-
-                # Calculate CIs from summary statistics
-                # Handle cases where std=0 (no variance) or n=1
-                if current_n > 1 and current_std > 1e-10:
-                    current_se = current_std / np.sqrt(current_n)
-                    current_ci = stats.t.interval(
-                        0.95, current_n - 1, loc=current_mean, scale=current_se
-                    )
-                else:
-                    # No variance or single run - CI is just the point estimate
-                    current_ci = (current_mean, current_mean)
-
-                if baseline_n > 1 and baseline_std > 1e-10:
-                    baseline_se = baseline_std / np.sqrt(baseline_n)
-                    baseline_ci = stats.t.interval(
-                        0.95, baseline_n - 1, loc=baseline_mean, scale=baseline_se
-                    )
-                else:
-                    # No variance or single run - CI is just the point estimate
-                    baseline_ci = (baseline_mean, baseline_mean)
-
-                # Perform t-test
-                if current_n > 1 and baseline_n > 1:
+                # Perform t-test using Metric summary statistics
+                if current_metric.n > 1 and baseline_metric.n > 1:
                     t_stat, p_value = stats.ttest_ind_from_stats(
-                        current_mean, current_std, current_n,
-                        baseline_mean, baseline_std, baseline_n,
+                        current_metric.mean, current_metric.stddev, current_metric.n,
+                        baseline_metric.mean, baseline_metric.stddev, baseline_metric.n,
                         equal_var=False  # Welch's t-test
                     )
                 else:
                     p_value = 1.0  # Not enough data for significance test
 
-                delta = current_mean - baseline_mean
+                delta = current_metric.mean - baseline_metric.mean
 
                 # Categorize based on significance and direction
                 test_comparison = TestComparison(
                     test_name=test_name,
-                    current_mean=current_mean,
+                    current_mean=current_metric.mean,
                     current_ci=current_ci,
-                    baseline_mean=baseline_mean,
+                    baseline_mean=baseline_metric.mean,
                     baseline_ci=baseline_ci,
                     delta=delta,
                     p_value=p_value,
