@@ -18,6 +18,11 @@ from agent.llm.router import LLM
 from agent.ui_output import ui_print
 
 
+class NoExpectedOutput(BaseModel):
+    """Placeholder for test cases without expected output (validation happens during execution)."""
+    pass
+
+
 class BenchmarkResult(BaseModel):
     """Result of running a single benchmark."""
 
@@ -97,26 +102,22 @@ class CodeAgentBenchmarkTestCase(TestCase[LLMCodeAgentVariant]):
 
     def expected_output(self) -> Optional[BaseModel]:
         """Return expected output (not used since validation happens in execute)."""
-        return None
+        return NoExpectedOutput()
 
 
-class CodeAgentMetricsCalculator(MetricsCalculator):
+class CodeAgentMetricsCalculator(MetricsCalculator[BenchmarkResult, NoExpectedOutput]):
     """Extracts metrics from BenchmarkResult for experiment framework."""
 
     def calculate(
-        self, output: BaseModel, expected: Optional[BaseModel]
+        self, output: BenchmarkResult, expected: Optional[NoExpectedOutput]
     ) -> dict[str, float]:
         """Extract metrics from benchmark result."""
-        result = output
-        if not isinstance(result, BenchmarkResult):
-            return {}
-
         return {
-            "passed": 1.0 if result.passed else 0.0,
-            "score": result.score,
-            "iterations_used": float(result.iterations_used),
-            "function_calls": float(sum(result.functions_called.values())),
-            "error_count": float(len(result.errors_encountered)),
+            "passed": 1.0 if output.passed else 0.0,
+            "score": output.score,
+            "iterations_used": float(output.iterations_used),
+            "function_calls": float(sum(output.functions_called.values())),
+            "error_count": float(len(output.errors_encountered)),
         }
 
 

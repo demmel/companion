@@ -44,12 +44,67 @@ def main():
         help="Number of runs per test (default: 3)",
     )
     parser.add_argument(
+        "--compare-to",
+        type=str,
+        help="Compare results to a previous run (e.g., run_2025-11-22_10-29-08)",
+    )
+    parser.add_argument(
+        "--analyze",
+        type=str,
+        help="Analyze existing run without running new tests (e.g., run_2025-11-22_10-29-08)",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress per-test output",
     )
 
     args = parser.parse_args()
+
+    # Setup storage
+    storage_dir = Path(__file__).parent / "benchmark_results"
+    storage = ExperimentStorage(storage_dir)
+    analyzer = ExperimentAnalyzer(storage)
+    calculator = CodeAgentMetricsCalculator()
+
+    # Handle --analyze flag (analyze existing run without running new tests)
+    if args.analyze:
+        ui_print(f"Analyzing existing run: {args.analyze}\n")
+
+        # Try to load saved analysis, otherwise calculate fresh
+        try:
+            results = storage.load_analysis(args.analyze)
+        except FileNotFoundError:
+            ui_print("No saved analysis found, calculating metrics...")
+            results = analyzer.calculate_metrics(args.analyze, calculator)
+            storage.save_analysis(args.analyze, results)
+
+        # Load runs for comparison
+        runs_to_compare = [results]
+        if args.compare_to:
+            try:
+                baseline_results = storage.load_analysis(args.compare_to)
+            except FileNotFoundError:
+                ui_print(f"\nBaseline run not analyzed yet, analyzing now...")
+                baseline_results = analyzer.calculate_metrics(args.compare_to, calculator)
+                storage.save_analysis(args.compare_to, baseline_results)
+            runs_to_compare.append(baseline_results)
+
+        # Generate report
+        report = analyzer.generate_comparison_report(runs_to_compare)
+        ui_print("\n" + report)
+
+        # Generate filtered baseline comparison showing only significant changes
+        if args.compare_to and len(runs_to_compare) == 2:
+            try:
+                comparison = analyzer.generate_baseline_comparison(
+                    runs_to_compare[0], runs_to_compare[1]
+                )
+                ui_print("\n" + comparison)
+            except Exception as e:
+                ui_print(f"\nError generating baseline comparison: {e}")
+
+        return 0
 
     # Get model
     try:
@@ -84,10 +139,6 @@ def main():
     # Create variant
     variant = LLMCodeAgentVariant(llm, model)
 
-    # Setup storage
-    storage_dir = Path(__file__).parent / "benchmark_results"
-    storage = ExperimentStorage(storage_dir)
-
     # Run experiment
     ui_print(f"\n{'='*60}")
     ui_print("Running experiments...")
@@ -106,13 +157,35 @@ def main():
 
     # Analyze results
     ui_print("\nAnalyzing results...")
-    analyzer = ExperimentAnalyzer(storage)
-    calculator = CodeAgentMetricsCalculator()
     results = analyzer.calculate_metrics(run_timestamp, calculator)
+    storage.save_analysis(run_timestamp, results)
 
-    # Generate report
-    report = analyzer.generate_comparison_report(results, calculator)
+    # Load runs for comparison
+    runs_to_compare = [storage.load_analysis(run_timestamp)]
+    if args.compare_to:
+        try:
+            runs_to_compare.append(storage.load_analysis(args.compare_to))
+        except FileNotFoundError:
+            ui_print(f"\n⚠️  Baseline run not analyzed yet, analyzing now...")
+            baseline_results = analyzer.calculate_metrics(args.compare_to, calculator)
+            storage.save_analysis(args.compare_to, baseline_results)
+            runs_to_compare.append(baseline_results)
+        except Exception as e:
+            ui_print(f"\nError loading baseline: {e}")
+
+    # Generate report (includes both runs in charts if baseline provided)
+    report = analyzer.generate_comparison_report(runs_to_compare)
     ui_print("\n" + report)
+
+    # Generate filtered baseline comparison showing only significant changes
+    if args.compare_to and len(runs_to_compare) == 2:
+        try:
+            comparison = analyzer.generate_baseline_comparison(
+                runs_to_compare[0], runs_to_compare[1], variant_name=variant.name()
+            )
+            ui_print("\n" + comparison)
+        except Exception as e:
+            ui_print(f"\nError generating baseline comparison: {e}")
 
     ui_print(f"\nResults saved to: {storage_dir / run_timestamp}")
 

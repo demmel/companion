@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Tuple, List
 from pydantic import BaseModel
 
-from .data import RunData, RunMetadata
+from .data import RunData, RunMetadata, ExperimentResults
 
 
 class ExperimentStorage:
@@ -101,6 +101,41 @@ class ExperimentStorage:
 
         return run_data, metadata
 
+    def load_run_with_types(
+        self,
+        run_ts: str,
+        variant_name: str,
+        test_case_name: str,
+        run_index: int,
+        output_type: type[BaseModel],
+        expected_type: type[BaseModel],
+    ) -> Tuple[RunData, RunMetadata]:
+        """
+        Load a single run from disk with runtime type specification.
+
+        Args:
+            run_ts: Timestamp identifier for this experiment run
+            variant_name: Name of the variant
+            test_case_name: Name of the test case
+            run_index: Index of the run
+            output_type: Type to deserialize output_data to
+            expected_type: Type to deserialize expected_output to
+
+        Returns:
+            Tuple of (RunData, RunMetadata)
+        """
+        run_dir = self.get_run_path(run_ts, variant_name, test_case_name, run_index)
+
+        with open(run_dir / "data.json", "r") as f:
+            # Manually construct the generic type at runtime
+            run_data_type = RunData[output_type, expected_type]
+            run_data = run_data_type.model_validate_json(f.read())
+
+        with open(run_dir / "metadata.json", "r") as f:
+            metadata = RunMetadata.model_validate_json(f.read())
+
+        return run_data, metadata
+
     def get_run_path(
         self, run_ts: str, variant_name: str, test_case_name: str, run_index: int
     ) -> Path:
@@ -184,3 +219,46 @@ class ExperimentStorage:
                 if d.is_dir() and d.name.startswith("run_")
             ]
         )
+
+    def save_analysis(self, run_ts: str, results: ExperimentResults) -> Path:
+        """
+        Save analyzed experiment results (aggregated metrics).
+
+        Args:
+            run_ts: Timestamp identifier for this experiment run
+            results: The analyzed results to save
+
+        Returns:
+            Path to the analysis file
+        """
+        run_dir = self.base_dir / run_ts
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        analysis_path = run_dir / "analysis.json"
+        with open(analysis_path, "w") as f:
+            f.write(results.model_dump_json(indent=2))
+
+        return analysis_path
+
+    def load_analysis(self, run_ts: str) -> ExperimentResults:
+        """
+        Load analyzed experiment results.
+
+        Args:
+            run_ts: Timestamp identifier for this experiment run
+
+        Returns:
+            The analyzed results
+
+        Raises:
+            FileNotFoundError: If analysis file doesn't exist
+        """
+        analysis_path = self.base_dir / run_ts / "analysis.json"
+
+        if not analysis_path.exists():
+            raise FileNotFoundError(
+                f"No analysis found for {run_ts}. Run calculate_metrics() first."
+            )
+
+        with open(analysis_path, "r") as f:
+            return ExperimentResults.model_validate_json(f.read())

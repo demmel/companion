@@ -8,7 +8,7 @@ allowing recalculation without re-running expensive experiments.
 import logging
 from typing import Dict, List, Tuple, Optional
 import statistics
-from functools import lru_cache
+from dataclasses import dataclass
 from anthropic import BaseModel
 from scipy import stats
 import numpy as np
@@ -24,6 +24,19 @@ from .data import (
 from .storage import ExperimentStorage
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TestComparison:
+    """Comparison data for a single test between current and baseline."""
+
+    test_name: str
+    current_mean: float
+    current_ci: Tuple[float, float]
+    baseline_mean: float
+    baseline_ci: Tuple[float, float]
+    delta: float
+    p_value: float
 
 
 class ExperimentAnalyzer:
@@ -47,7 +60,6 @@ class ExperimentAnalyzer:
             storage: Storage instance for loading data
         """
         self.storage = storage
-        self._temp_calculator: Optional[MetricsCalculator] = None
 
     def calculate_metrics(
         self, run_ts: str, calculator: MetricsCalculator
@@ -65,6 +77,20 @@ class ExperimentAnalyzer:
         Returns:
             ExperimentResults with typed structure
         """
+        # Extract type information from calculator's generic parameters
+        import typing
+        from pydantic import BaseModel
+
+        output_type = BaseModel
+        expected_type = BaseModel
+
+        orig_bases = getattr(type(calculator), '__orig_bases__', None)
+        if orig_bases:
+            args = typing.get_args(orig_bases[0])
+            if len(args) >= 2:
+                output_type = args[0]
+                expected_type = args[1]
+
         variant_results = {}
         variants = self.storage.list_variants(run_ts)
 
@@ -80,11 +106,13 @@ class ExperimentAnalyzer:
 
                 run_metrics_list = []
                 metadata_list = []
+                metric_names = None  # Track metric names from first successful run
 
                 for run_index in run_indices:
-                    # Load run - type deserialization handled automatically
-                    run_data, metadata = self.storage.load_run(
-                        run_ts, variant_name, test_case_name, run_index
+                    # Load run with type information from calculator
+                    run_data, metadata = self.storage.load_run_with_types(
+                        run_ts, variant_name, test_case_name, run_index,
+                        output_type, expected_type
                     )
 
                     metadata_list.append(metadata)
@@ -94,7 +122,21 @@ class ExperimentAnalyzer:
                         metrics = calculator.calculate(
                             run_data.output_data, run_data.expected_output
                         )
+                        if metric_names is None:
+                            metric_names = set(metrics.keys())
                         run_metrics_list.append(metrics)
+                    else:
+                        # Failed run - will backfill with 0.0 later
+                        run_metrics_list.append(None)
+
+                # Backfill failed runs with 0.0 for all metrics
+                if metric_names:
+                    for i, metrics in enumerate(run_metrics_list):
+                        if metrics is None:
+                            run_metrics_list[i] = {name: 0.0 for name in metric_names}
+                else:
+                    # All runs failed - no metrics to calculate
+                    run_metrics_list = []
 
                 # Aggregate metrics across runs
                 test_case_metrics[test_case_name] = self._aggregate_metrics(
@@ -279,126 +321,47 @@ class ExperimentAnalyzer:
 
         return comparison
 
-    @lru_cache(maxsize=None)
-    def _get_raw_metric_values_cached(
-        self,
-        run_ts: str,
-        variant_name: str,
-        test_case_name: str,
-        metric_name: str,
-    ) -> Tuple[float, ...]:
+    def _perform_pairwise_tests_from_metrics(
+        self, variant_metrics: Dict[str, Metric]
+    ) -> Dict[Tuple[str, str], Tuple[float, float]]:
         """
-        Calculate raw metric values for all runs (cached version).
-
-        Returns tuple instead of list for hashability.
-        Uses self._temp_calculator which must be set before calling.
-        """
-        if self._temp_calculator is None:
-            raise RuntimeError(
-                "_temp_calculator must be set before calling this method"
-            )
-
-        run_indices = self.storage.list_runs(run_ts, variant_name, test_case_name)
-        values = []
-
-        for run_index in run_indices:
-            # Load run data and metadata
-            run_data, metadata = self.storage.load_run(
-                run_ts, variant_name, test_case_name, run_index
-            )
-
-            # Only calculate metrics for successful runs with output data
-            if metadata.success and run_data.output_data is not None:
-                metrics = self._temp_calculator.calculate(
-                    run_data.output_data, run_data.expected_output
-                )
-                if metric_name in metrics:
-                    value = metrics[metric_name]
-                    # Filter out NaN values
-                    if not np.isnan(value):
-                        values.append(value)
-
-        return tuple(values)
-
-    def _get_raw_metric_values(
-        self,
-        run_ts: str,
-        variant_name: str,
-        test_case_name: str,
-        metric_name: str,
-    ) -> List[float]:
-        """
-        Calculate raw metric values for all runs of a specific variant/test case.
+        Perform pairwise t-tests between all variants using pre-calculated metrics.
 
         Args:
-            run_ts: Experiment run timestamp
-            variant_name: Name of the variant
-            test_case_name: Name of the test case
-            metric_name: Name of the metric to extract
+            variant_metrics: Dict mapping variant_name -> Metric
 
         Returns:
-            List of metric values from all successful runs
+            Dict mapping (variant1, variant2) -> (t_statistic, p_value)
         """
-        # Use cached version and convert back to list
-        return list(
-            self._get_raw_metric_values_cached(
-                run_ts, variant_name, test_case_name, metric_name
-            )
-        )
+        results = {}
+        variant_names = list(variant_metrics.keys())
 
-    def _calculate_confidence_interval(
-        self, values: List[float], confidence: float = 0.95
-    ) -> Tuple[float, float, float]:
-        """
-        Calculate mean and confidence interval.
+        for i in range(len(variant_names)):
+            for j in range(i + 1, len(variant_names)):
+                v1, v2 = variant_names[i], variant_names[j]
+                metric1 = variant_metrics[v1]
+                metric2 = variant_metrics[v2]
 
-        Args:
-            values: List of metric values
-            confidence: Confidence level (default 0.95 for 95% CI)
+                if metric1.n > 1 and metric2.n > 1:
+                    # Welch's t-test from summary statistics
+                    t_stat, p_val = stats.ttest_ind_from_stats(
+                        metric1.mean, metric1.stddev, metric1.n,
+                        metric2.mean, metric2.stddev, metric2.n,
+                        equal_var=False
+                    )
+                    results[(v1, v2)] = (t_stat, p_val)
+                else:
+                    results[(v1, v2)] = (0.0, 1.0)  # Not enough data
 
-        Returns:
-            Tuple of (mean, lower_bound, upper_bound)
-        """
-        if not values:
-            return (0.0, 0.0, 0.0)
-
-        if len(values) == 1:
-            return (values[0], values[0], values[0])
-
-        # Check if all values are identical (or very close)
-        std_dev = float(np.std(values))
-        if std_dev < 1e-10:  # Essentially zero
-            mean_val = float(np.mean(values))
-            return (mean_val, mean_val, mean_val)
-
-        mean_val = float(np.mean(values))
-        std_err = stats.sem(values)  # Standard error of the mean
-
-        # Handle case where std_err is invalid
-        if std_err == 0 or np.isnan(std_err) or np.isinf(std_err):
-            return (mean_val, mean_val, mean_val)
-
-        try:
-            ci = stats.t.interval(
-                confidence, len(values) - 1, loc=mean_val, scale=std_err
-            )
-            lower = float(ci[0])
-            upper = float(ci[1])
-
-            # Check for NaN or infinite results
-            if np.isnan(lower) or np.isnan(upper) or np.isinf(lower) or np.isinf(upper):
-                return (mean_val, mean_val, mean_val)
-
-            return (mean_val, lower, upper)
-        except Exception:
-            # Fallback to just the mean if CI calculation fails
-            return (mean_val, mean_val, mean_val)
+        return results
 
     def _perform_pairwise_tests(
         self, variant_values: Dict[str, List[float]]
     ) -> Dict[Tuple[str, str], Tuple[float, float]]:
         """
         Perform pairwise t-tests between all variants.
+
+        DEPRECATED: Use _perform_pairwise_tests_from_metrics for pre-calculated metrics.
 
         Args:
             variant_values: Dict mapping variant_name -> list of metric values
@@ -422,6 +385,101 @@ class ExperimentAnalyzer:
                     results[(v1, v2)] = (0.0, 1.0)  # Not enough data
 
         return results
+
+    def _calculate_significance_markers(
+        self,
+        variant_cis: Dict[str, Tuple[float, float, float]],
+        pairwise_tests: Dict[Tuple[str, str], Tuple[float, float]],
+    ) -> Dict[str, str]:
+        """
+        Calculate significance markers comparing all variants to the lowest-ranked.
+
+        Args:
+            variant_cis: Dict mapping variant_name -> (mean, lower_ci, upper_ci)
+            pairwise_tests: Dict mapping (variant1, variant2) -> (t_statistic, p_value)
+
+        Returns:
+            Dict mapping variant_name -> significance_marker ("*", "**", "***", or empty)
+        """
+        # Sort variants by mean value (descending)
+        sorted_variants = sorted(
+            variant_cis.items(), key=lambda x: x[1][0], reverse=True
+        )
+
+        if len(sorted_variants) <= 1:
+            return {}
+
+        baseline_variant = sorted_variants[-1][0]  # Lowest ranked
+        significance_markers = {}
+
+        for variant_name, _ in sorted_variants[:-1]:
+            # Find p-value comparing this variant to baseline
+            p_val = None
+            for (v1, v2), (t, p) in pairwise_tests.items():
+                if (v1 == variant_name and v2 == baseline_variant) or (
+                    v2 == variant_name and v1 == baseline_variant
+                ):
+                    p_val = p
+                    break
+
+            if p_val is not None:
+                if p_val < 0.001:
+                    significance_markers[variant_name] = "***"
+                elif p_val < 0.01:
+                    significance_markers[variant_name] = "**"
+                elif p_val < 0.05:
+                    significance_markers[variant_name] = "*"
+
+        return significance_markers
+
+    def _calculate_chart_range(
+        self, values: List[float], padding: float = 0.05
+    ) -> tuple[float, float, float]:
+        """
+        Calculate min, max, and range for chart with padding.
+
+        Args:
+            values: List of values to calculate range for
+            padding: Fraction of range to add as padding (default 0.05 = 5%)
+
+        Returns:
+            Tuple of (min_val, max_val, range_val) with padding applied
+        """
+        min_val = min(values)
+        max_val = max(values)
+
+        # Add padding
+        range_val = max_val - min_val
+        if range_val == 0:
+            range_val = 1.0
+        min_val -= range_val * padding
+        max_val += range_val * padding
+        range_val = max_val - min_val
+
+        return (min_val, max_val, range_val)
+
+    def _generate_scale_line(
+        self, min_val: float, range_val: float, width: int = 50, left_padding: int = 16
+    ) -> str:
+        """
+        Generate scale label line for charts.
+
+        Args:
+            min_val: Minimum value for the scale
+            range_val: Range of values (max - min)
+            width: Width of the chart in characters
+            left_padding: Space for variant names and value column
+
+        Returns:
+            Formatted scale line with 5 evenly-spaced labels
+        """
+        scale_line = " " * left_padding
+        for i in range(5):
+            val = min_val + (range_val * i / 4)
+            pos = int(width * i / 4)
+            label = f"{val:.2f}"
+            scale_line += " " * max(0, pos - len(scale_line) + left_padding) + label
+        return scale_line
 
     def _render_comparative_metric_chart(
         self,
@@ -453,34 +511,22 @@ class ExperimentAnalyzer:
             return lines
 
         # Determine value range
-        min_val = min(valid_scores.values())
-        max_val = max(valid_scores.values())
-
-        # Add some padding
-        range_val = max_val - min_val
-        if range_val == 0:
-            range_val = 1.0
-        min_val -= range_val * 0.05
-        max_val += range_val * 0.05
-        range_val = max_val - min_val
+        min_val, max_val, range_val = self._calculate_chart_range(
+            list(valid_scores.values())
+        )
 
         # Sort variants by score (descending)
         sorted_variants = sorted(valid_scores.items(), key=lambda x: x[1], reverse=True)
 
+        # Render each variant
+        max_name_len = max(len(v) for v in valid_scores.keys())
+
         # Header with metric name
         lines.append(f"\n{metric_name.upper()} (comparative)")
 
-        # Scale labels
-        scale_line = " " * 16  # Space for variant names
-        for i in range(5):
-            val = min_val + (range_val * i / 4)
-            pos = int(width * i / 4)
-            label = f"{val:.2f}"
-            scale_line += " " * max(0, pos - len(scale_line) + 16) + label
-        lines.append(scale_line)
-
-        # Render each variant
-        max_name_len = max(len(v) for v in valid_scores.keys())
+        # Scale labels - account for name column + value column
+        left_padding = max_name_len + 8
+        lines.append(self._generate_scale_line(min_val, range_val, width, left_padding))
 
         for variant_name, score in sorted_variants:
             # Calculate position
@@ -504,6 +550,7 @@ class ExperimentAnalyzer:
         metric_name: str,
         significance: Optional[Dict[str, str]] = None,
         width: int = 50,
+        max_name_len: Optional[int] = None,
     ) -> List[str]:
         """
         Render ASCII error bar chart.
@@ -533,42 +580,37 @@ class ExperimentAnalyzer:
             lines.append("(No valid data for this metric)")
             return lines
 
-        min_val = min(all_values)
-        max_val = max(all_values)
+        # Calculate value range with padding
+        min_val, max_val, range_val = self._calculate_chart_range(all_values)
 
-        # Add some padding
-        range_val = max_val - min_val
-        if range_val == 0:
-            range_val = 1.0
-        min_val -= range_val * 0.05
-        max_val += range_val * 0.05
-        range_val = max_val - min_val
+        # Check if variants have timestamp suffixes (temporal comparison)
+        # If yes, sort chronologically; otherwise sort by score
+        variant_list = [(k, v) for k, v in variant_data.items() if not np.isnan(v[0])]
 
-        # Sort variants by mean value (descending), filter out NaN
-        sorted_variants = sorted(
-            [(k, v) for k, v in variant_data.items() if not np.isnan(v[0])],
-            key=lambda x: x[1][0],
-            reverse=True,
-        )
+        # Check if any variant has a timestamp pattern like "(run_2025-11-23_13-17-05)"
+        has_timestamps = any("(run_" in k for k, v in variant_list)
+
+        if has_timestamps:
+            # Temporal comparison: sort chronologically (earlier runs first)
+            sorted_variants = sorted(variant_list, key=lambda x: x[0])
+        else:
+            # Regular variant comparison: sort by mean value (descending)
+            sorted_variants = sorted(variant_list, key=lambda x: x[1][0], reverse=True)
 
         if not sorted_variants:
             lines.append("(No valid data for this metric)")
             return lines
 
+        # Use provided max_name_len or calculate from current data
+        if max_name_len is None:
+            max_name_len = max(len(v) for v in variant_data.keys())
+
         # Header with metric name
         lines.append(f"\n{metric_name.upper()}")
 
-        # Scale labels
-        scale_line = " " * 16  # Space for variant names
-        for i in range(5):
-            val = min_val + (range_val * i / 4)
-            pos = int(width * i / 4)
-            label = f"{val:.2f}"
-            scale_line += " " * max(0, pos - len(scale_line) + 16) + label
-        lines.append(scale_line)
-
-        # Render each variant
-        max_name_len = max(len(v) for v in variant_data.keys())
+        # Scale labels - account for name column + value column (8 chars for "  X.XXX  ")
+        left_padding = max_name_len + 8
+        lines.append(self._generate_scale_line(min_val, range_val, width, left_padding))
 
         for variant_name, (mean, lower_ci, upper_ci) in sorted_variants:
             # Skip if any value is NaN (shouldn't happen, but safety check)
@@ -651,24 +693,23 @@ class ExperimentAnalyzer:
     def _aggregate_by_category(
         self,
         results: ExperimentResults,
-        run_ts: str,
         metric_name: str,
-    ) -> Dict[str, Dict[str, List[float]]]:
+    ) -> Dict[str, Dict[str, Metric]]:
         """
-        Aggregate metric values by category.
+        Aggregate metric summary statistics by category.
 
         Args:
-            results: Experiment results
-            run_ts: Experiment run timestamp
+            results: Experiment results with pre-calculated metrics
             metric_name: Name of metric to aggregate
 
         Returns:
-            Dict mapping category -> variant_name -> list of values
+            Dict mapping category -> variant_name -> Metric (aggregated across test cases)
         """
         category_data: Dict[str, Dict[str, List[float]]] = {}
 
+        # Collect mean values from each test case
         for variant_name, variant_results in results.variants.items():
-            for test_case_name in variant_results.test_cases.keys():
+            for test_case_name, test_metrics in variant_results.test_cases.items():
                 category = self._extract_category_from_test_case(test_case_name)
 
                 if category not in category_data:
@@ -677,13 +718,20 @@ class ExperimentAnalyzer:
                 if variant_name not in category_data[category]:
                     category_data[category][variant_name] = []
 
-                # Load raw values for this test case
-                values = self._get_raw_metric_values(
-                    run_ts, variant_name, test_case_name, metric_name
-                )
-                category_data[category][variant_name].extend(values)
+                # Use pre-calculated metric mean from test case
+                metric = test_metrics.metrics.get(metric_name)
+                if metric:
+                    category_data[category][variant_name].append(metric.mean)
 
-        return category_data
+        # Convert lists of means to Metric objects (includes n automatically)
+        category_metrics: Dict[str, Dict[str, Metric]] = {}
+        for category, variant_means in category_data.items():
+            category_metrics[category] = {}
+            for variant_name, means in variant_means.items():
+                if means:
+                    category_metrics[category][variant_name] = Metric.from_values(means)
+
+        return category_metrics
 
     def _aggregate_comparative_by_category(
         self,
@@ -729,216 +777,111 @@ class ExperimentAnalyzer:
 
     def generate_comparison_report(
         self,
-        results: ExperimentResults,
-        calculator: MetricsCalculator,
+        runs: List[ExperimentResults],
     ) -> str:
         """
         Generate comparative analysis report with error bars and statistical significance.
 
         Args:
-            results: Results from calculate_metrics()
-            calculator: MetricsCalculator used to compute metrics
+            runs: List of experiment results to compare (can be from different runs/times)
 
         Returns:
             Formatted comparison report string
         """
-        # Set temp calculator for cached method
-        self._temp_calculator = calculator
-        # Clear the cache for a fresh analysis
-        self._get_raw_metric_values_cached.cache_clear()
+        lines = []
 
-        try:
-            lines = []
-            run_ts = results.run_ts
+        # Merge all runs into a single structure for display
+        # Label variants with run timestamp if multiple runs
+        from agent.experiments.framework.data import ExperimentResults
 
-            # Auto-discover per-run metrics from the results
-            metrics_to_compare = set()
-            for variant_results in results.variants.values():
-                for test_metrics in variant_results.test_cases.values():
-                    for key in test_metrics.metrics.keys():
-                        if key.endswith("_mean"):
-                            metric_name = key.replace("_mean", "")
-                            metrics_to_compare.add(metric_name)
+        merged_variants = {}
+        run_labels = []
 
-            metrics_to_compare = sorted(metrics_to_compare)
+        for run_results in runs:
+            run_label = run_results.run_ts
+            run_labels.append(run_label)
 
-            # Auto-discover comparative metrics
-            comparative_metrics = set()
-            for variant_results in results.variants.values():
-                for test_metrics in variant_results.test_cases.values():
-                    comparative_metrics.update(test_metrics.comparative_metrics.keys())
+            # Add variants from this run with timestamp suffix (if multiple runs)
+            label_suffix = f" ({run_label})" if len(runs) > 1 else ""
 
-            comparative_metrics = sorted(comparative_metrics)
+            for variant_name, variant_data in run_results.variants.items():
+                merged_variants[f"{variant_name}{label_suffix}"] = variant_data
 
-            lines.append("=" * 80)
-            lines.append("COMPARATIVE EXPERIMENT ANALYSIS")
-            lines.append("=" * 80)
-            lines.append(f"\nExperiment: {run_ts}")
-            lines.append(f"Variants: {len(results.variants)}")
+        merged_results = ExperimentResults(
+            run_ts=" vs ".join(run_labels) if len(runs) > 1 else run_labels[0],
+            variants=merged_variants
+        )
 
-            # Count test cases per category
-            all_test_cases = set()
-            for variant_results in results.variants.values():
-                all_test_cases.update(variant_results.test_cases.keys())
+        # Auto-discover per-run metrics from the results
+        metrics_to_compare = set()
+        for variant_results in merged_results.variants.values():
+            for test_metrics in variant_results.test_cases.values():
+                # Metrics are stored as Metric objects, not _mean suffixes
+                metrics_to_compare.update(test_metrics.metrics.keys())
 
-            category_counts = {}
-            for test_case in all_test_cases:
-                category = self._extract_category_from_test_case(test_case)
-                category_counts[category] = category_counts.get(category, 0) + 1
+        metrics_to_compare = sorted(metrics_to_compare)
 
-            # PER-CATEGORY ANALYSIS (shown first for bottom-up reading)
-            for category in sorted(category_counts.keys()):
-                lines.append("\n" + "=" * 80)
-                lines.append(
-                    f"CATEGORY: {category} ({category_counts[category]} test cases)"
-                )
-                lines.append("=" * 80)
+        # Auto-discover comparative metrics
+        comparative_metrics = set()
+        for variant_results in merged_results.variants.values():
+            for test_metrics in variant_results.test_cases.values():
+                comparative_metrics.update(test_metrics.comparative_metrics.keys())
 
-                # Per-run metrics with error bars
-                for metric_name in metrics_to_compare:
-                    # Aggregate values by category
-                    category_data = self._aggregate_by_category(
-                        results, run_ts, metric_name
-                    )
+        comparative_metrics = sorted(comparative_metrics)
 
-                    if category not in category_data:
-                        continue
+        lines.append("=" * 80)
+        lines.append("COMPARATIVE EXPERIMENT ANALYSIS")
+        lines.append("=" * 80)
+        lines.append(f"\nExperiment: {merged_results.run_ts}")
+        lines.append(f"Variants: {len(merged_results.variants)}")
 
-                    variant_values = category_data[category]
+        # Count test cases per category
+        all_test_cases = set()
+        for variant_results in merged_results.variants.values():
+            all_test_cases.update(variant_results.test_cases.keys())
 
-                    # Skip if no valid data
-                    if not variant_values or all(
-                        not v for v in variant_values.values()
-                    ):
-                        continue
+        category_counts = {}
+        for test_case in all_test_cases:
+            category = self._extract_category_from_test_case(test_case)
+            category_counts[category] = category_counts.get(category, 0) + 1
 
-                    # Calculate CIs for each variant
-                    variant_cis = {}
-                    for variant_name, values in variant_values.items():
-                        if values:
-                            variant_cis[variant_name] = (
-                                self._calculate_confidence_interval(values)
-                            )
-
-                    # Perform statistical tests
-                    pairwise_tests = self._perform_pairwise_tests(variant_values)
-
-                    # Determine significance markers (compare all to lowest-ranked)
-                    sorted_variants = sorted(
-                        variant_cis.items(), key=lambda x: x[1][0], reverse=True
-                    )
-                    if len(sorted_variants) > 1:
-                        baseline_variant = sorted_variants[-1][0]  # Lowest ranked
-                        significance_markers = {}
-
-                        for variant_name, _ in sorted_variants[:-1]:
-                            # Find p-value comparing this variant to baseline
-                            p_val = None
-                            for (v1, v2), (t, p) in pairwise_tests.items():
-                                if (v1 == variant_name and v2 == baseline_variant) or (
-                                    v2 == variant_name and v1 == baseline_variant
-                                ):
-                                    p_val = p
-                                    break
-
-                            if p_val is not None:
-                                if p_val < 0.001:
-                                    significance_markers[variant_name] = "***"
-                                elif p_val < 0.01:
-                                    significance_markers[variant_name] = "**"
-                                elif p_val < 0.05:
-                                    significance_markers[variant_name] = "*"
-                    else:
-                        significance_markers = {}
-
-                    # Render error bar chart
-                    chart_lines = self._render_error_bar_chart(
-                        variant_cis, metric_name, significance_markers
-                    )
-                    lines.extend(chart_lines)
-
-                # Comparative metrics (no error bars)
-                for metric_name in comparative_metrics:
-                    category_scores = self._aggregate_comparative_by_category(
-                        results, metric_name
-                    )
-
-                    if category not in category_scores:
-                        continue
-
-                    variant_scores = category_scores[category]
-
-                    # Skip if no valid data
-                    if not variant_scores:
-                        continue
-
-                    # Render comparative metric chart
-                    chart_lines = self._render_comparative_metric_chart(
-                        variant_scores, metric_name
-                    )
-                    lines.extend(chart_lines)
-
-            # OVERALL ANALYSIS (shown last for easy visibility)
+        # PER-CATEGORY ANALYSIS (shown first for bottom-up reading)
+        for category in sorted(category_counts.keys()):
             lines.append("\n" + "=" * 80)
             lines.append(
-                f"OVERALL PERFORMANCE (averaged across {len(all_test_cases)} test cases)"
+                f"CATEGORY: {category} ({category_counts[category]} test cases)"
             )
             lines.append("=" * 80)
 
             # Per-run metrics with error bars
             for metric_name in metrics_to_compare:
-                # Aggregate all values across all test cases for each variant
-                variant_values = {}
+                # Aggregate metrics by category from pre-calculated results
+                category_data = self._aggregate_by_category(
+                    merged_results, metric_name
+                )
 
-                for variant_name, variant_results in results.variants.items():
-                    variant_values[variant_name] = []
-                    for test_case_name in variant_results.test_cases.keys():
-                        values = self._get_raw_metric_values(
-                            run_ts, variant_name, test_case_name, metric_name
-                        )
-                        variant_values[variant_name].extend(values)
-
-                # Skip if no valid data
-                if not variant_values or all(not v for v in variant_values.values()):
+                if category not in category_data:
                     continue
 
-                # Calculate CIs for each variant
+                variant_metric_data = category_data[category]
+
+                # Skip if no valid data
+                if not variant_metric_data:
+                    continue
+
+                # Calculate CIs for each variant from pre-calculated metrics
                 variant_cis = {}
-                for variant_name, values in variant_values.items():
-                    if values:
-                        variant_cis[variant_name] = self._calculate_confidence_interval(
-                            values
-                        )
+                for variant_name, metric in variant_metric_data.items():
+                    lower, upper = metric.confidence_interval()
+                    variant_cis[variant_name] = (metric.mean, lower, upper)
 
-                # Perform statistical tests
-                pairwise_tests = self._perform_pairwise_tests(variant_values)
+                # Perform statistical tests using Metric summary statistics
+                pairwise_tests = self._perform_pairwise_tests_from_metrics(variant_metric_data)
 
-                # Determine significance markers
-                sorted_variants = sorted(
-                    variant_cis.items(), key=lambda x: x[1][0], reverse=True
+                # Determine significance markers (compare all to lowest-ranked)
+                significance_markers = self._calculate_significance_markers(
+                    variant_cis, pairwise_tests
                 )
-                if len(sorted_variants) > 1:
-                    baseline_variant = sorted_variants[-1][0]
-                    significance_markers = {}
-
-                    for variant_name, _ in sorted_variants[:-1]:
-                        p_val = None
-                        for (v1, v2), (t, p) in pairwise_tests.items():
-                            if (v1 == variant_name and v2 == baseline_variant) or (
-                                v2 == variant_name and v1 == baseline_variant
-                            ):
-                                p_val = p
-                                break
-
-                        if p_val is not None:
-                            if p_val < 0.001:
-                                significance_markers[variant_name] = "***"
-                            elif p_val < 0.01:
-                                significance_markers[variant_name] = "**"
-                            elif p_val < 0.05:
-                                significance_markers[variant_name] = "*"
-                else:
-                    significance_markers = {}
 
                 # Render error bar chart
                 chart_lines = self._render_error_bar_chart(
@@ -948,82 +891,386 @@ class ExperimentAnalyzer:
 
             # Comparative metrics (no error bars)
             for metric_name in comparative_metrics:
-                # Aggregate all comparative metric scores across all test cases
-                variant_scores: Dict[str, List[float]] = {}
+                category_scores = self._aggregate_comparative_by_category(
+                    merged_results, metric_name
+                )
 
-                for variant_name, variant_results in results.variants.items():
-                    variant_scores[variant_name] = []
-                    for test_metrics in variant_results.test_cases.values():
-                        if metric_name in test_metrics.comparative_metrics:
-                            variant_scores[variant_name].append(
-                                test_metrics.comparative_metrics[metric_name]
-                            )
+                if category not in category_scores:
+                    continue
 
-                # Average the scores for each variant
-                averaged_scores = {}
-                for variant_name, scores in variant_scores.items():
-                    if scores:
-                        averaged_scores[variant_name] = statistics.mean(scores)
+                variant_scores = category_scores[category]
 
                 # Skip if no valid data
-                if not averaged_scores:
+                if not variant_scores:
                     continue
 
                 # Render comparative metric chart
                 chart_lines = self._render_comparative_metric_chart(
-                    averaged_scores, metric_name
+                    variant_scores, metric_name
                 )
                 lines.extend(chart_lines)
 
-            # Add duration analysis
-            lines.append("\n" + "=" * 80)
-            lines.append("EXECUTION TIME (seconds per test case)")
-            lines.append("=" * 80)
+        # OVERALL ANALYSIS (shown last for easy visibility)
+        lines.append("\n" + "=" * 80)
+        lines.append(
+            f"OVERALL PERFORMANCE (averaged across {len(all_test_cases)} test cases)"
+        )
+        lines.append("=" * 80)
 
-            # Collect duration values from metadata
-            variant_durations = {}
-            for variant_name, variant_results in results.variants.items():
-                variant_durations[variant_name] = []
-                for test_case_name in variant_results.test_cases.keys():
-                    run_indices = self.storage.list_runs(
-                        run_ts, variant_name, test_case_name
-                    )
-                    for run_index in run_indices:
-                        run_path = (
-                            self.storage.base_dir
-                            / run_ts
-                            / f"variant_{variant_name}"
-                            / f"testcase_{test_case_name}"
-                            / f"run_{run_index}"
-                        )
-                        _, metadata = self.storage.load_run(run_path)
-                        if metadata.success:
-                            variant_durations[variant_name].append(
-                                metadata.duration_seconds
-                            )
+        # Per-run metrics with error bars
+        for metric_name in metrics_to_compare:
+            # Aggregate all test case means across all variants
+            variant_means_data: Dict[str, List[float]] = {}
 
-            # Calculate CIs for duration
-            duration_cis = {}
-            for variant_name, durations in variant_durations.items():
-                if durations:
-                    duration_cis[variant_name] = self._calculate_confidence_interval(
-                        durations
-                    )
+            for variant_name, variant_results in merged_results.variants.items():
+                variant_means_data[variant_name] = []
+                for test_case_name, test_metrics in variant_results.test_cases.items():
+                    metric = test_metrics.metrics.get(metric_name)
+                    if metric:
+                        variant_means_data[variant_name].append(metric.mean)
 
-            # Render duration chart (no significance testing for duration)
-            duration_chart = self._render_error_bar_chart(
-                duration_cis, "duration (seconds)"
+            # Skip if no valid data
+            if not variant_means_data or all(not v for v in variant_means_data.values()):
+                continue
+
+            # Convert to Metric objects
+            variant_metrics = {}
+            for variant_name, means in variant_means_data.items():
+                if means:
+                    variant_metrics[variant_name] = Metric.from_values(means)
+
+            # Calculate CIs for each variant
+            variant_cis = {}
+            for variant_name, metric in variant_metrics.items():
+                lower, upper = metric.confidence_interval()
+                variant_cis[variant_name] = (metric.mean, lower, upper)
+
+            # Perform statistical tests
+            pairwise_tests = self._perform_pairwise_tests_from_metrics(variant_metrics)
+
+            # Determine significance markers
+            significance_markers = self._calculate_significance_markers(
+                variant_cis, pairwise_tests
             )
-            lines.extend(duration_chart)
 
-            # Statistical significance legend
-            lines.append("\n" + "-" * 80)
-            lines.append("STATISTICAL SIGNIFICANCE")
-            lines.append("* p<0.05  ** p<0.01  *** p<0.001")
-            lines.append("(compared to lowest-ranked variant)")
-            lines.append("=" * 80)
+            # Render error bar chart
+            chart_lines = self._render_error_bar_chart(
+                variant_cis, metric_name, significance_markers
+            )
+            lines.extend(chart_lines)
 
-            return "\n".join(lines)
-        finally:
-            # Clear temp calculator
-            self._temp_calculator = None
+        # Comparative metrics (no error bars)
+        for metric_name in comparative_metrics:
+            # Aggregate all comparative metric scores across all test cases
+            variant_comp_scores: Dict[str, List[float]] = {}
+
+            for variant_name, variant_results in merged_results.variants.items():
+                variant_comp_scores[variant_name] = []
+                for test_metrics in variant_results.test_cases.values():
+                    if metric_name in test_metrics.comparative_metrics:
+                        variant_comp_scores[variant_name].append(
+                            test_metrics.comparative_metrics[metric_name]
+                        )
+
+            # Average the scores for each variant
+            averaged_scores = {}
+            for variant_name, scores in variant_comp_scores.items():
+                if scores:
+                    averaged_scores[variant_name] = statistics.mean(scores)
+
+            # Skip if no valid data
+            if not averaged_scores:
+                continue
+
+            # Render comparative metric chart
+            chart_lines = self._render_comparative_metric_chart(
+                averaged_scores, metric_name
+            )
+            lines.extend(chart_lines)
+
+        # Add duration analysis
+        lines.append("\n" + "=" * 80)
+        lines.append("EXECUTION TIME (seconds per test case)")
+        lines.append("=" * 80)
+
+        # Collect duration means from pre-calculated metrics
+        variant_duration_data: Dict[str, List[float]] = {}
+        for variant_name, variant_results in merged_results.variants.items():
+            variant_duration_data[variant_name] = []
+            for test_metrics in variant_results.test_cases.values():
+                # Duration is stored as a Metric in TestCaseMetrics
+                variant_duration_data[variant_name].append(test_metrics.duration.mean)
+
+        # Convert to Metric objects
+        variant_duration_metrics = {}
+        for variant_name, means in variant_duration_data.items():
+            if means:
+                variant_duration_metrics[variant_name] = Metric.from_values(means)
+
+        # Calculate CIs for duration
+        duration_cis = {}
+        for variant_name, metric in variant_duration_metrics.items():
+            lower, upper = metric.confidence_interval()
+            duration_cis[variant_name] = (metric.mean, lower, upper)
+
+        # Render duration chart (no significance testing for duration)
+        duration_chart = self._render_error_bar_chart(
+            duration_cis, "duration (seconds)"
+        )
+        lines.extend(duration_chart)
+
+        # Statistical significance legend
+        lines.append("\n" + "-" * 80)
+        lines.append("STATISTICAL SIGNIFICANCE")
+        lines.append("* p<0.05  ** p<0.01  *** p<0.001")
+        lines.append("(compared to lowest-ranked variant)")
+        lines.append("=" * 80)
+
+        return "\n".join(lines)
+
+    def _render_test_comparison_section(
+        self,
+        tests: List[TestComparison],
+        show_significance: bool = False,
+    ) -> List[str]:
+        """
+        Render a section of test comparisons with aligned charts.
+
+        Args:
+            tests: List of test comparisons
+            show_significance: Whether to show significance markers
+
+        Returns:
+            List of chart lines
+        """
+        lines = []
+        if not tests:
+            return lines
+
+        # Calculate max name length for alignment
+        max_test_name_len = max(len(f"{test.test_name} (baseline)") for test in tests)
+
+        # Render each test separately to keep current/baseline adjacent
+        for test in tests:
+            # Create mini-chart for this test only
+            variant_cis = {
+                f"{test.test_name} (current)": (test.current_mean, test.current_ci[0], test.current_ci[1]),
+                f"{test.test_name} (baseline)": (test.baseline_mean, test.baseline_ci[0], test.baseline_ci[1]),
+            }
+
+            significance_markers = None
+            if show_significance:
+                sig_marker = "***" if test.p_value < 0.001 else "**" if test.p_value < 0.01 else "*"
+                significance_markers = {f"{test.test_name} (current)": sig_marker}
+
+            chart_lines = self._render_error_bar_chart(
+                variant_cis, "SCORE", significance_markers, max_name_len=max_test_name_len
+            )
+            lines.extend(chart_lines)
+
+        return lines
+
+    def generate_baseline_comparison(
+        self,
+        current_results: ExperimentResults,
+        baseline_results: ExperimentResults,
+        variant_name: Optional[str] = None,
+    ) -> str:
+        """
+        Generate a report comparing current results to a baseline.
+
+        Args:
+            current_results: Results from current run
+            baseline_results: Results from baseline run
+            variant_name: Optional specific variant to compare (if None, compares all)
+
+        Returns:
+            Formatted comparison report showing improvements/regressions
+        """
+        lines = []
+        lines.append("=" * 80)
+        lines.append("BASELINE COMPARISON")
+        lines.append("=" * 80)
+        lines.append(f"Current:  {current_results.run_ts}")
+        lines.append(f"Baseline: {baseline_results.run_ts}")
+        lines.append("")
+
+        # Determine which variants to compare
+        if variant_name:
+            variants_to_compare = [variant_name]
+        else:
+            variants_to_compare = list(
+                set(current_results.variants.keys())
+                & set(baseline_results.variants.keys())
+            )
+
+        for var_name in sorted(variants_to_compare):
+            current_variant = current_results.variants.get(var_name)
+            baseline_variant = baseline_results.variants.get(var_name)
+
+            if not current_variant or not baseline_variant:
+                lines.append(f"\n⚠️  Variant '{var_name}' not found in both runs")
+                continue
+
+            lines.append(f"\nVariant: {var_name}")
+            lines.append("-" * 80)
+
+            # Collect all test cases
+            all_tests = set(current_variant.test_cases.keys()) | set(
+                baseline_variant.test_cases.keys()
+            )
+
+            sig_improvements = []  # p < 0.05, current > baseline
+            improvements = []  # p >= 0.05, current > baseline
+            sig_regressions = []  # p < 0.05, current < baseline
+            regressions = []  # p >= 0.05, current < baseline
+            no_change = []  # overlapping CIs or p >= 0.05 with small delta
+            new_tests = []
+            removed_tests = []
+
+            for test_name in sorted(all_tests):
+                current_test = current_variant.test_cases.get(test_name)
+                baseline_test = baseline_variant.test_cases.get(test_name)
+
+                # Handle new/removed tests
+                if not baseline_test:
+                    new_tests.append(test_name)
+                    continue
+                if not current_test:
+                    removed_tests.append(test_name)
+                    continue
+
+                # Get metrics
+                current_metric = current_test.metrics.get("score")
+                baseline_metric = baseline_test.metrics.get("score")
+
+                if not current_metric or not baseline_metric:
+                    continue
+
+                # Extract summary statistics
+                current_mean = current_metric.mean
+                current_std = current_metric.stddev
+                current_n = current_test.total_runs
+
+                baseline_mean = baseline_metric.mean
+                baseline_std = baseline_metric.stddev
+                baseline_n = baseline_test.total_runs
+
+                # Calculate CIs from summary statistics
+                # Handle cases where std=0 (no variance) or n=1
+                if current_n > 1 and current_std > 1e-10:
+                    current_se = current_std / np.sqrt(current_n)
+                    current_ci = stats.t.interval(
+                        0.95, current_n - 1, loc=current_mean, scale=current_se
+                    )
+                else:
+                    # No variance or single run - CI is just the point estimate
+                    current_ci = (current_mean, current_mean)
+
+                if baseline_n > 1 and baseline_std > 1e-10:
+                    baseline_se = baseline_std / np.sqrt(baseline_n)
+                    baseline_ci = stats.t.interval(
+                        0.95, baseline_n - 1, loc=baseline_mean, scale=baseline_se
+                    )
+                else:
+                    # No variance or single run - CI is just the point estimate
+                    baseline_ci = (baseline_mean, baseline_mean)
+
+                # Perform t-test
+                if current_n > 1 and baseline_n > 1:
+                    t_stat, p_value = stats.ttest_ind_from_stats(
+                        current_mean, current_std, current_n,
+                        baseline_mean, baseline_std, baseline_n,
+                        equal_var=False  # Welch's t-test
+                    )
+                else:
+                    p_value = 1.0  # Not enough data for significance test
+
+                delta = current_mean - baseline_mean
+
+                # Categorize based on significance and direction
+                test_comparison = TestComparison(
+                    test_name=test_name,
+                    current_mean=current_mean,
+                    current_ci=current_ci,
+                    baseline_mean=baseline_mean,
+                    baseline_ci=baseline_ci,
+                    delta=delta,
+                    p_value=p_value,
+                )
+
+                if p_value < 0.05:
+                    if delta > 0:
+                        sig_improvements.append(test_comparison)
+                    elif delta < 0:
+                        sig_regressions.append(test_comparison)
+                    else:
+                        no_change.append(test_comparison)
+                else:
+                    if abs(delta) < 0.01:
+                        no_change.append(test_comparison)
+                    elif delta > 0:
+                        improvements.append(test_comparison)
+                    else:
+                        regressions.append(test_comparison)
+
+            # Render charts for significant improvements
+            if sig_improvements:
+                lines.append(f"\n✅ SIGNIFICANT IMPROVEMENTS ({len(sig_improvements)}) - p < 0.05:")
+                sorted_improvements = sorted(sig_improvements, key=lambda x: x.delta, reverse=True)
+                lines.extend(self._render_test_comparison_section(sorted_improvements, show_significance=True))
+
+            # Render charts for non-significant improvements
+            if improvements:
+                lines.append(f"\n✅ Improvements ({len(improvements)}) - not statistically significant:")
+                sorted_improvements = sorted(improvements, key=lambda x: x.delta, reverse=True)
+                lines.extend(self._render_test_comparison_section(sorted_improvements))
+
+            # Render charts for significant regressions
+            if sig_regressions:
+                lines.append(f"\n❌ SIGNIFICANT REGRESSIONS ({len(sig_regressions)}) - p < 0.05:")
+                sorted_regressions = sorted(sig_regressions, key=lambda x: x.delta)
+                lines.extend(self._render_test_comparison_section(sorted_regressions, show_significance=True))
+
+            # Render charts for non-significant regressions
+            if regressions:
+                lines.append(f"\n❌ Regressions ({len(regressions)}) - not statistically significant:")
+                sorted_regressions = sorted(regressions, key=lambda x: x.delta)
+                lines.extend(self._render_test_comparison_section(sorted_regressions))
+
+            # Report new tests
+            if new_tests:
+                lines.append(f"\n🆕 New tests ({len(new_tests)}):")
+                for test in sorted(new_tests):
+                    curr_test = current_variant.test_cases[test]
+                    curr_metric = curr_test.metrics.get("score")
+                    if curr_metric:
+                        lines.append(f"  {test:35} {curr_metric.mean:.3f}")
+
+            # Report removed tests
+            if removed_tests:
+                lines.append(f"\n🗑️  Removed tests ({len(removed_tests)}):")
+                for test in sorted(removed_tests):
+                    lines.append(f"  {test}")
+
+            # Summary statistics
+            total = len(all_tests) - len(new_tests) - len(removed_tests)
+            if total > 0:
+                lines.append(f"\n{'-'*80}")
+                lines.append(f"SUMMARY")
+                lines.append(f"{'-'*80}")
+                lines.append(f"Total comparable tests: {total}")
+                lines.append(f"Significant improvements: {len(sig_improvements):3} ({len(sig_improvements)/total*100:5.1f}%)")
+                lines.append(f"Improvements (not sig):   {len(improvements):3} ({len(improvements)/total*100:5.1f}%)")
+                lines.append(f"No significant change:    {len(no_change):3} ({len(no_change)/total*100:5.1f}%)")
+                lines.append(f"Regressions (not sig):    {len(regressions):3} ({len(regressions)/total*100:5.1f}%)")
+                lines.append(f"Significant regressions:  {len(sig_regressions):3} ({len(sig_regressions)/total*100:5.1f}%)")
+
+                # Net change (significant only)
+                sig_net = len(sig_improvements) - len(sig_regressions)
+                if sig_net != 0:
+                    net_sign = "+" if sig_net > 0 else ""
+                    lines.append(f"\nNet significant change: {net_sign}{sig_net}")
+
+        lines.append("\n" + "=" * 80)
+        return "\n".join(lines)

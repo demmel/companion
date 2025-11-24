@@ -17,6 +17,8 @@ from typing import (
     Protocol,
 )
 
+from tqdm import tqdm
+
 from .base import TestCase
 from .data import RunData, RunMetadata
 from .storage import ExperimentStorage
@@ -97,18 +99,30 @@ class ExperimentRunner(Generic[TVariant]):
             f"{total_runs} total executions"
         )
 
-        # Execute all combinations
-        completed = 0
+        # Execute all combinations with nested progress bars
         for variant in variants:
             variant_name = variant.name()
-            self.progress_callback(f"\nTesting variant: {variant_name}")
 
-            for test_case in test_cases:
-                self.progress_callback(f"  Test case: {test_case.name()}")
+            # Progress bar for this variant
+            variant_pbar = tqdm(
+                test_cases,
+                desc=f"Variant: {variant_name}",
+                position=0,
+                leave=True
+            )
 
-                for run_index in range(num_runs):
-                    self.progress_callback(f"    Run {run_index + 1}/{num_runs}")
+            for test_case in variant_pbar:
+                test_name = test_case.name()
 
+                # Progress bar for runs of this test case
+                runs_pbar = tqdm(
+                    range(num_runs),
+                    desc=f"  {test_name}",
+                    position=1,
+                    leave=False
+                )
+
+                for run_index in runs_pbar:
                     # Execute single run with retries
                     run_data, metadata = self._execute_single_run(
                         variant=variant, test_case=test_case, run_index=run_index
@@ -117,15 +131,16 @@ class ExperimentRunner(Generic[TVariant]):
                     # Save to disk
                     self.storage.save_run(run_data, metadata, run_ts)
 
-                    # Log result
+                    # Update progress bar with result
                     status = "✅" if metadata.success else "❌"
                     retry_count = metadata.retry_count()
                     retry_info = f", {retry_count} retries" if retry_count > 0 else ""
-                    self.progress_callback(
-                        f"      {status} {metadata.duration_seconds:.2f}s{retry_info}"
+
+                    runs_pbar.set_postfix_str(
+                        f"{status} {metadata.duration_seconds:.2f}s{retry_info}"
                     )
 
-                    completed += 1
+                runs_pbar.close()
 
         self.progress_callback(
             f"\nExperiment complete! Saved to: {self.storage.base_dir / run_ts}"

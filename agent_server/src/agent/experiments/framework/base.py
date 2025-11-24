@@ -13,6 +13,10 @@ from pydantic import BaseModel
 # Type variable for variant interface (e.g., StructuredOutputFormat, LLMModel, etc.)
 TVariant = TypeVar("TVariant")
 
+# Type variables for output and expected data
+TOutput = TypeVar("TOutput", bound=BaseModel)
+TExpected = TypeVar("TExpected", bound=BaseModel)
+
 
 class TestCase(ABC, Generic[TVariant]):
     """
@@ -82,20 +86,19 @@ class TestCase(ABC, Generic[TVariant]):
         return None
 
 
-class MetricsCalculator(ABC):
+class MetricsCalculator(ABC, Generic[TOutput, TExpected]):
     """
     Calculates metrics by comparing output to expected output.
 
-    Works polymorphically with BaseModel - implementations can inspect
-    actual types if needed.
+    Generic over TOutput and TExpected types for type-safe deserialization.
 
     Supports two types of metrics:
     1. Per-run metrics: Compare individual output to expected (precision, recall, F1)
     2. Comparative metrics: Compare outputs across variants (richness, quality)
 
     Example:
-        class SemanticSimilarityCalculator(MetricsCalculator):
-            def calculate(self, output: BaseModel, expected: Optional[BaseModel]) -> Dict[str, float]:
+        class SemanticSimilarityCalculator(MetricsCalculator[MyOutput, MyExpected]):
+            def calculate(self, output: MyOutput, expected: Optional[MyExpected]) -> Dict[str, float]:
                 if expected is None:
                     return {}
 
@@ -121,7 +124,7 @@ class MetricsCalculator(ABC):
 
     @abstractmethod
     def calculate(
-        self, output: BaseModel, expected: Optional[BaseModel]
+        self, output: TOutput, expected: Optional[TExpected]
     ) -> Dict[str, float]:
         """
         Calculate per-run metrics from output and expected.
@@ -139,7 +142,7 @@ class MetricsCalculator(ABC):
     def calculate_comparative(
         self,
         test_case_name: str,
-        variant_outputs: Dict[str, List[BaseModel]],
+        variant_outputs: Dict[str, List[TOutput]],
     ) -> Dict[str, Dict[str, float]]:
         """
         Calculate comparative metrics across variants for a single test case.

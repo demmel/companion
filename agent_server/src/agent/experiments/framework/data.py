@@ -56,6 +56,7 @@ class Metric(BaseModel):
     stddev: float
     min: float
     max: float
+    n: int  # Sample size
 
     @staticmethod
     def from_values(values: Sequence[float]) -> "Metric":
@@ -67,7 +68,44 @@ class Metric(BaseModel):
             stddev=statistics.stdev(values) if len(values) > 1 else 0.0,
             min=min(values),
             max=max(values),
+            n=len(values),
         )
+
+    def confidence_interval(self, confidence: float = 0.95) -> tuple[float, float]:
+        """
+        Calculate confidence interval from summary statistics.
+
+        Args:
+            confidence: Confidence level (default 0.95 for 95% CI)
+
+        Returns:
+            Tuple of (lower_bound, upper_bound)
+        """
+        from scipy import stats
+        import numpy as np
+
+        # Handle cases with no variance or insufficient data
+        if self.n < 2 or self.stddev < 1e-10:
+            return (self.mean, self.mean)
+
+        # Calculate standard error
+        std_err = self.stddev / np.sqrt(self.n)
+
+        try:
+            ci = stats.t.interval(
+                confidence, self.n - 1, loc=self.mean, scale=std_err
+            )
+            lower = float(ci[0])
+            upper = float(ci[1])
+
+            # Check for NaN or infinite results
+            if np.isnan(lower) or np.isnan(upper) or np.isinf(lower) or np.isinf(upper):
+                return (self.mean, self.mean)
+
+            return (lower, upper)
+        except Exception:
+            # Fallback to just the mean if CI calculation fails
+            return (self.mean, self.mean)
 
 
 class TestCaseMetrics(BaseModel):
@@ -80,7 +118,7 @@ class TestCaseMetrics(BaseModel):
     retries: Metric
     metrics: Dict[
         str, Metric
-    ]  # Dynamic per-run metrics from MetricsCalculator (aggregated)
+    ]  # Dynamic per-run metrics from MetricsCalculator (aggregated from all runs, failed runs = 0.0)
     comparative_metrics: Dict[str, float] = (
         {}
     )  # Comparative metrics across variants (not aggregated)

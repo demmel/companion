@@ -13,4 +13,5 @@ class LLMCodeAgentVariant:
 
     def name(self) -> str:
         """Return the variant name (model identifier)."""
-        return str(self.model.value)
+        # Use model name enum instead of value (which contains slashes/colons)
+        return self.model.name
