@@ -74,13 +74,18 @@ def parse_code_blocks(text: str) -> tuple[str, list[str]]:
     return reasoning, code_blocks
 
 
-def execute_code(code: str, available_functions: dict[str, Callable]) -> str:
+def execute_code(
+    code: str,
+    available_functions: dict[str, Callable],
+    exec_globals: dict[str, Any],
+) -> str:
     """
     Execute code in a restricted environment.
 
     Args:
         code: The Python code to execute
         available_functions: Dict of functions to make available in the execution environment
+        exec_globals: Optional existing globals dict to use (for persistent state across executions)
 
     Returns the captured output and return value as a string.
     """
@@ -89,11 +94,6 @@ def execute_code(code: str, available_functions: dict[str, Callable]) -> str:
     sys.stdout = captured_output = io.StringIO()
 
     try:
-        # Create execution environment with safe builtins and provided functions
-        exec_globals: dict[str, Any] = {"__builtins__": get_safe_builtins()}
-        if available_functions:
-            exec_globals.update(available_functions)
-
         # Try to eval as expression first (to capture return value)
         try:
             result = eval(code, exec_globals, {})
@@ -110,13 +110,13 @@ def execute_code(code: str, available_functions: dict[str, Callable]) -> str:
         except SyntaxError:
             # Not a single expression - try to execute statements
             # and capture the last expression's value if possible
-            lines = code.strip().split('\n')
+            lines = code.strip().split("\n")
 
             # If multi-line, try to eval the last line after executing the rest
             if len(lines) > 1:
                 try:
                     # Execute all but last line
-                    exec('\n'.join(lines[:-1]), exec_globals, exec_globals)
+                    exec("\n".join(lines[:-1]), exec_globals, exec_globals)
                     # Try to eval the last line to get its return value
                     result = eval(lines[-1], exec_globals, exec_globals)
                     stdout = captured_output.getvalue()

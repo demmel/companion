@@ -26,6 +26,11 @@ def process_user_input(
     # Get available functions from cache
     available_functions = state.function_cache.get_all_funcs()
 
+    # Create persistent execution environment for this turn (like a REPL)
+    from agent.experiments.code_only_agent.execution import get_safe_builtins
+    exec_globals = {"__builtins__": get_safe_builtins()}
+    exec_globals.update(available_functions)
+
     for _ in range(max_iterations):
         # Build prompt
         sections = []
@@ -67,22 +72,23 @@ DO NOT use paths or dots - just call the function name directly.
         sections.append(
             format_section(
                 "Instructions",
-                """Look at "This Turn So Far" to see what you've already done this turn.
+                """Output your reasoning, then write code in a ```python block.
 
-Output your INTERNAL reasoning about what still needs to be done. This is for you, not the user.
+You have full Python capabilities:
+- Loops: for item in items: ...
+- List comprehensions: [x for x in items if condition]
+- String methods: .split(), .strip(), .endswith(), etc.
+- All builtins: len(), sum(), sorted(), filter(), map(), etc.
 
-If you still need to execute code:
-- Include it in a ```python code block
-- Call functions directly (e.g., speak("hello"), get_time())
-- DO NOT use import statements - all functions are already available
-- Use find_functions() to discover more functions if needed
+Try to solve tasks in ONE comprehensive code block when possible.
+Variables persist between iterations if you need multiple steps.
 
-If the task is complete (you've already used speak() or accomplished the goal):
-- Output ONLY reasoning explaining the task is done
-- DO NOT include ANY code blocks
-- No code block = you are signaling completion
+Available functions: speak(message), read_file(path), list_files(dir), get_time()
+DO NOT use import statements - functions are pre-loaded.
 
-IMPORTANT: Your reasoning is internal thoughts, NOT a response to the user.""",
+When task is complete: output reasoning with NO code block to signal done.
+
+Your reasoning is internal thoughts, NOT user-facing communication.""",
             )
         )
 
@@ -115,7 +121,9 @@ You cannot directly respond to the user - you can only write and execute code. A
 
         # Execute first code block (ignore others for now)
         code = code_blocks[0]
-        output = execute_code(code, available_functions=available_functions)
+        output = execute_code(
+            code, available_functions=available_functions, exec_globals=exec_globals
+        )
 
         # Record iteration
         turn.iterations.append(Iteration(reasoning=reasoning, code=code, output=output))
