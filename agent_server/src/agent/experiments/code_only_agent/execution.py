@@ -82,7 +82,7 @@ def execute_code(code: str, available_functions: dict[str, Callable]) -> str:
         code: The Python code to execute
         available_functions: Dict of functions to make available in the execution environment
 
-    Returns the captured output as a string.
+    Returns the captured output and return value as a string.
     """
     # Capture stdout
     old_stdout = sys.stdout
@@ -94,9 +94,50 @@ def execute_code(code: str, available_functions: dict[str, Callable]) -> str:
         if available_functions:
             exec_globals.update(available_functions)
 
-        exec(code, exec_globals, {})
-        output = captured_output.getvalue()
-        return output if output else "(no output)"
+        # Try to eval as expression first (to capture return value)
+        try:
+            result = eval(code, exec_globals, {})
+            stdout = captured_output.getvalue()
+
+            # Combine stdout and return value
+            parts = []
+            if stdout:
+                parts.append(stdout.rstrip())
+            if result is not None:
+                parts.append(f"Return: {result}")
+
+            return "\n".join(parts) if parts else "(no output)"
+        except SyntaxError:
+            # Not a single expression - try to execute statements
+            # and capture the last expression's value if possible
+            lines = code.strip().split('\n')
+
+            # If multi-line, try to eval the last line after executing the rest
+            if len(lines) > 1:
+                try:
+                    # Execute all but last line
+                    exec('\n'.join(lines[:-1]), exec_globals, exec_globals)
+                    # Try to eval the last line to get its return value
+                    result = eval(lines[-1], exec_globals, exec_globals)
+                    stdout = captured_output.getvalue()
+
+                    parts = []
+                    if stdout:
+                        parts.append(stdout.rstrip())
+                    if result is not None:
+                        parts.append(f"Return: {result}")
+
+                    return "\n".join(parts) if parts else "(no output)"
+                except (SyntaxError, Exception):
+                    # Last line is not an expression, just exec everything
+                    exec(code, exec_globals, exec_globals)
+                    output = captured_output.getvalue()
+                    return output if output else "(no output)"
+            else:
+                # Single statement that's not an expression
+                exec(code, exec_globals, exec_globals)
+                output = captured_output.getvalue()
+                return output if output else "(no output)"
     except Exception as e:
         return f"Error: {type(e).__name__}: {e}"
     finally:

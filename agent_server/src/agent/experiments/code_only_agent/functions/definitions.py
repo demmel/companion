@@ -13,3 +13,4 @@ class FunctionDef:
     signature: str
     description: str
     category: str
+    path: str = ""  # Path in function tree (e.g., "filesystem", "system/time")

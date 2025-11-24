@@ -51,10 +51,15 @@ def process_user_input(
             sections.append(format_section("This Turn So Far", "\n".join(iter_lines)))
 
         # Add available functions from cache
+        func_tree = state.function_cache.format_for_prompt(state)
         sections.append(
             format_section(
                 "Available Functions",
-                state.function_cache.format_for_prompt(),
+                f"""The tree below shows currently loaded functions organized by category.
+Call functions by their name shown in the signature (e.g., speak(...), get_time(), list_files(...)).
+DO NOT use paths or dots - just call the function name directly.
+
+{func_tree}""",
             )
         )
 
@@ -68,6 +73,9 @@ Output your INTERNAL reasoning about what still needs to be done. This is for yo
 
 If you still need to execute code:
 - Include it in a ```python code block
+- Call functions directly (e.g., speak("hello"), get_time())
+- DO NOT use import statements - all functions are already available
+- Use find_functions() to discover more functions if needed
 
 If the task is complete (you've already used speak() or accomplished the goal):
 - Output ONLY reasoning explaining the task is done
