@@ -18,6 +18,7 @@ from .data import RunData, RunMetadata
 from .storage import ExperimentStorage
 from .runner import ExperimentRunner
 from .analysis import ExperimentAnalyzer
+from .reports import generate_comparison_report, generate_baseline_comparison
 
 __all__ = [
     "TestCase",
@@ -27,4 +28,6 @@ __all__ = [
     "ExperimentStorage",
     "ExperimentRunner",
     "ExperimentAnalyzer",
+    "generate_comparison_report",
+    "generate_baseline_comparison",
 ]

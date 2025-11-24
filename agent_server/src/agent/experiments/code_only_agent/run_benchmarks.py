@@ -3,7 +3,13 @@
 import argparse
 from pathlib import Path
 
-from agent.experiments.framework import ExperimentRunner, ExperimentStorage, ExperimentAnalyzer
+from agent.experiments.framework import (
+    ExperimentRunner,
+    ExperimentStorage,
+    ExperimentAnalyzer,
+    generate_comparison_report,
+    generate_baseline_comparison,
+)
 from agent.experiments.code_only_agent.benchmarks.base import (
     CodeAgentBenchmarkTestCase,
     CodeAgentMetricsCalculator,
@@ -91,13 +97,13 @@ def main():
             runs_to_compare.append(baseline_results)
 
         # Generate report
-        report = analyzer.generate_comparison_report(runs_to_compare)
+        report = generate_comparison_report(runs_to_compare)
         ui_print("\n" + report)
 
         # Generate filtered baseline comparison showing only significant changes
         if args.compare_to and len(runs_to_compare) == 2:
             try:
-                comparison = analyzer.generate_baseline_comparison(
+                comparison = generate_baseline_comparison(
                     runs_to_compare[0], runs_to_compare[1]
                 )
                 ui_print("\n" + comparison)
@@ -174,13 +180,13 @@ def main():
             ui_print(f"\nError loading baseline: {e}")
 
     # Generate report (includes both runs in charts if baseline provided)
-    report = analyzer.generate_comparison_report(runs_to_compare)
+    report = generate_comparison_report(runs_to_compare)
     ui_print("\n" + report)
 
     # Generate filtered baseline comparison showing only significant changes
     if args.compare_to and len(runs_to_compare) == 2:
         try:
-            comparison = analyzer.generate_baseline_comparison(
+            comparison = generate_baseline_comparison(
                 runs_to_compare[0], runs_to_compare[1], variant_name=variant.name()
             )
             ui_print("\n" + comparison)

@@ -92,9 +92,7 @@ class Metric(BaseModel):
         std_err = self.stddev / np.sqrt(self.n)
 
         try:
-            ci = stats.t.interval(
-                confidence, self.n - 1, loc=self.mean, scale=std_err
-            )
+            ci = stats.t.interval(confidence, self.n - 1, loc=self.mean, scale=std_err)
             lower = float(ci[0])
             upper = float(ci[1])
 

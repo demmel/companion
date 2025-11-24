@@ -105,10 +105,7 @@ class ExperimentRunner(Generic[TVariant]):
 
             # Progress bar for this variant
             variant_pbar = tqdm(
-                test_cases,
-                desc=f"Variant: {variant_name}",
-                position=0,
-                leave=True
+                test_cases, desc=f"Variant: {variant_name}", position=0, leave=True
             )
 
             for test_case in variant_pbar:
@@ -116,10 +113,7 @@ class ExperimentRunner(Generic[TVariant]):
 
                 # Progress bar for runs of this test case
                 runs_pbar = tqdm(
-                    range(num_runs),
-                    desc=f"  {test_name}",
-                    position=1,
-                    leave=False
+                    range(num_runs), desc=f"  {test_name}", position=1, leave=False
                 )
 
                 for run_index in runs_pbar:
