@@ -22,10 +22,13 @@ def count_function_calls(turn: AgentTurn) -> dict[str, int]:
 
 def get_errors(turn: AgentTurn) -> list[str]:
     """Extract errors from turn outputs."""
+    from agent.experiments.code_only_agent.state import ErrorMessage
+
     errors = []
     for iteration in turn.iterations:
-        if iteration.output and "Error:" in iteration.output:
-            errors.append(iteration.output)
+        for output in iteration.outputs:
+            if isinstance(output, ErrorMessage):
+                errors.append(output.error)
     return errors
 
 
@@ -38,10 +41,10 @@ def validate_simple_greeting(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate simple_greeting benchmark."""
-    spoke = len(state.speak_messages) > 0
+    speaks = turn.get_speaks()
+    spoke = len(speaks) > 0
     has_greeting = any(
-        word in " ".join(state.speak_messages).lower()
-        for word in ["hello", "hi", "hey", "greetings"]
+        word in " ".join(speaks).lower() for word in ["hello", "hi", "hey", "greetings"]
     )
     passed = spoke and has_greeting
     score = 1.0 if passed else (0.5 if spoke else 0.0)
@@ -59,7 +62,7 @@ def validate_simple_greeting(
         execution_time_seconds=0.0,
         details=f"Agent spoke: {spoke}, Has greeting: {has_greeting}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -67,8 +70,8 @@ def validate_multi_part_message(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate multi_part_message benchmark."""
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Check for at least 2 facts (simplified - just check for multiple sentences/points)
     has_multiple_points = message.count(".") >= 2 or message.count("\n") >= 2
     passed = spoke and has_multiple_points
@@ -94,8 +97,8 @@ def validate_error_communication(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate error_communication benchmark."""
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).lower()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).lower()
     mentions_error = any(
         word in message
         for word in ["error", "not found", "doesn't exist", "cannot", "failed"]
@@ -115,7 +118,7 @@ def validate_error_communication(
         execution_time_seconds=0.0,
         details=f"Spoke: {spoke}, Mentions error: {mentions_error}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -123,8 +126,8 @@ def validate_clarification_request(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate clarification_request benchmark."""
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).lower()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).lower()
     asks_for_clarification = any(
         phrase in message
         for phrase in [
@@ -152,7 +155,7 @@ def validate_clarification_request(
         execution_time_seconds=0.0,
         details=f"Spoke: {spoke}, Asks for clarification: {asks_for_clarification}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -160,8 +163,8 @@ def validate_structured_response(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate structured_response benchmark."""
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).lower()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).lower()
     functions = ["speak", "read_file", "list_files", "get_time"]
     mentioned_count = sum(1 for func in functions if func in message)
     passed = spoke and mentioned_count >= 3
@@ -202,7 +205,7 @@ def validate_conversation_memory(
         execution_time_seconds=0.0,
         details="Multi-turn test - not yet implemented",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -217,7 +220,7 @@ def validate_list_current_directory(
     """Validate list_current_directory benchmark."""
     funcs = count_function_calls(turn)
     called_list_files = funcs.get("list_files", 0) > 0
-    spoke = len(state.speak_messages) > 0
+    spoke = len(turn.get_speaks()) > 0
     passed = called_list_files and spoke
 
     return BenchmarkResult(
@@ -233,7 +236,7 @@ def validate_list_current_directory(
         execution_time_seconds=0.0,
         details=f"Called list_files: {called_list_files}, Spoke: {spoke}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -249,8 +252,8 @@ def validate_read_single_file(
     """Validate read_single_file benchmark."""
     funcs = count_function_calls(turn)
     called_read_file = funcs.get("read_file", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     contains_content = "test content" in message.lower()
     passed = called_read_file and spoke and contains_content
 
@@ -277,8 +280,8 @@ def validate_count_files(
     """Validate count_files benchmark."""
     funcs = count_function_calls(turn)
     called_list_files = funcs.get("list_files", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Check if message contains a number
     has_number = any(char.isdigit() for char in message)
     passed = called_list_files and spoke and has_number
@@ -313,8 +316,8 @@ def validate_file_search(
     """Validate file_search benchmark."""
     funcs = count_function_calls(turn)
     called_list_files = funcs.get("list_files", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).lower()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).lower()
     found_target = "target" in message and ("exist" in message or "found" in message)
     passed = called_list_files and spoke and found_target
 
@@ -331,7 +334,7 @@ def validate_file_search(
         execution_time_seconds=0.0,
         details=f"Listed: {called_list_files}, Found target: {found_target}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -348,8 +351,8 @@ def validate_file_content_search(
     """Validate file_content_search benchmark."""
     funcs = count_function_calls(turn)
     read_count = funcs.get("read_file", 0)
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     identified_file2 = "file2" in message
     passed = read_count > 0 and spoke and identified_file2
 
@@ -383,7 +386,7 @@ def validate_read_multiple_files(
     """Validate read_multiple_files benchmark."""
     funcs = count_function_calls(turn)
     read_count = funcs.get("read_file", 0)
-    spoke = len(state.speak_messages) > 0
+    spoke = len(turn.get_speaks()) > 0
     # Ideally reads all 3
     passed = read_count >= 3 and spoke
 
@@ -400,7 +403,7 @@ def validate_read_multiple_files(
         execution_time_seconds=0.0,
         details=f"Read {read_count}/3 files, Spoke: {spoke}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -412,8 +415,8 @@ def validate_handle_read_error(
     tried_read = funcs.get("read_file", 0) > 0
     errors = get_errors(turn)
     got_error = len(errors) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).lower()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).lower()
     communicated_issue = any(
         word in message for word in ["error", "not found", "doesn't exist", "cannot"]
     )
@@ -449,8 +452,8 @@ def validate_nested_directory_exploration(
     """Validate nested_directory_exploration benchmark."""
     funcs = count_function_calls(turn)
     called_list = funcs.get("list_files", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     found_nested_file = "nested_file" in message
     passed = called_list and spoke and found_nested_file
 
@@ -482,8 +485,8 @@ def validate_get_current_time(
     """Validate get_current_time benchmark."""
     funcs = count_function_calls(turn)
     called_get_time = funcs.get("get_time", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Check for time-like pattern (contains numbers and colons or time words)
     has_time_info = ":" in message or any(
         word in message.lower() for word in ["time", "hour", "minute", "am", "pm"]
@@ -514,7 +517,7 @@ def validate_time_and_action(
     funcs = count_function_calls(turn)
     called_time = funcs.get("get_time", 0) > 0
     called_list = funcs.get("list_files", 0) > 0
-    spoke = len(state.speak_messages) > 0
+    spoke = len(turn.get_speaks()) > 0
     passed = called_time and called_list and spoke
 
     return BenchmarkResult(
@@ -530,7 +533,7 @@ def validate_time_and_action(
         execution_time_seconds=0.0,
         details=f"Time: {called_time}, List: {called_list}, Spoke: {spoke}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -540,8 +543,8 @@ def validate_time_formatting(
     """Validate time_formatting benchmark."""
     funcs = count_function_calls(turn)
     called_time = funcs.get("get_time", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     has_hour = any(char.isdigit() for char in message)
     passed = called_time and spoke and has_hour
 
@@ -574,7 +577,7 @@ def validate_sequential_operations(
     funcs = count_function_calls(turn)
     listed = funcs.get("list_files", 0) > 0
     read = funcs.get("read_file", 0) > 0
-    spoke = len(state.speak_messages) > 0
+    spoke = len(turn.get_speaks()) > 0
     # Check order by looking at iterations
     correct_order = False
     for i, iteration in enumerate(turn.iterations):
@@ -600,7 +603,7 @@ def validate_sequential_operations(
         execution_time_seconds=0.0,
         details=f"Listed: {listed}, Read: {read}, Correct order: {correct_order}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -615,8 +618,8 @@ def validate_conditional_logic(
     """Validate conditional_logic benchmark."""
     funcs = count_function_calls(turn)
     read = funcs.get("read_file", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     has_content = "content" in message.lower() or "check" in message.lower()
     passed = read and spoke and has_content
 
@@ -651,8 +654,8 @@ def validate_filtering_and_counting(
     """Validate filtering_and_counting benchmark."""
     funcs = count_function_calls(turn)
     listed = funcs.get("list_files", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Should say 2 txt files
     has_two = "2" in message or "two" in message.lower()
     passed = listed and spoke and has_two
@@ -686,8 +689,8 @@ def validate_aggregation(
     """Validate aggregation benchmark."""
     funcs = count_function_calls(turn)
     read_count = funcs.get("read_file", 0)
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Total should be 5 lines
     has_five = "5" in message or "five" in message.lower()
     passed = read_count >= 2 and spoke and has_five
@@ -721,8 +724,8 @@ def validate_comparison(
     """Validate comparison benchmark."""
     funcs = count_function_calls(turn)
     read_count = funcs.get("read_file", 0)
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).lower()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).lower()
     # file2 is longer
     identified_longer = "file2" in message and "longer" in message
     passed = read_count >= 2 and spoke and identified_longer
@@ -760,8 +763,8 @@ def validate_empty_directory(
     """Validate empty_directory benchmark."""
     funcs = count_function_calls(turn)
     listed = funcs.get("list_files", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).lower()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).lower()
     mentions_empty = "empty" in message or "no files" in message or "0" in message
     passed = listed and spoke and mentions_empty
 
@@ -793,7 +796,7 @@ def validate_empty_file(
     """Validate empty_file benchmark."""
     funcs = count_function_calls(turn)
     read = funcs.get("read_file", 0) > 0
-    spoke = len(state.speak_messages) > 0
+    spoke = len(turn.get_speaks()) > 0
     passed = read and spoke
 
     return BenchmarkResult(
@@ -809,7 +812,7 @@ def validate_empty_file(
         execution_time_seconds=0.0,
         details=f"Read: {read}, Spoke: {spoke}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -817,7 +820,7 @@ def validate_ambiguous_instruction(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate ambiguous_instruction benchmark."""
-    spoke = len(state.speak_messages) > 0
+    spoke = len(turn.get_speaks()) > 0
     no_errors = len(get_errors(turn)) == 0
     passed = spoke and no_errors
 
@@ -834,7 +837,7 @@ def validate_ambiguous_instruction(
         execution_time_seconds=0.0,
         details=f"Spoke: {spoke}, No errors: {no_errors}",
         user_input=turn.user_input,
-        agent_response=" ".join(state.speak_messages),
+        agent_response=" ".join(turn.get_speaks()),
     )
 
 
@@ -842,8 +845,8 @@ def validate_impossible_task(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate impossible_task benchmark."""
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).lower()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).lower()
     recognizes_limitation = any(
         phrase in message
         for phrase in ["cannot", "can't", "unable", "don't have", "not available"]
@@ -876,8 +879,8 @@ def validate_simple_arithmetic(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate simple_arithmetic benchmark."""
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     has_42 = "42" in message
     passed = spoke and has_42
 
@@ -902,8 +905,8 @@ def validate_string_manipulation(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate string_manipulation benchmark."""
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     has_caps = "HELLO WORLD" in message
     passed = spoke and has_caps
 
@@ -928,8 +931,8 @@ def validate_list_processing(
     turn: AgentTurn, state: State, test_path: Path
 ) -> BenchmarkResult:
     """Validate list_processing benchmark."""
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Check for numbers 1-10
     has_numbers = all(str(i) in message for i in range(1, 11))
     passed = spoke and has_numbers
@@ -962,8 +965,8 @@ def validate_data_structure_usage(
     """Validate data_structure_usage benchmark."""
     funcs = count_function_calls(turn)
     read = funcs.get("read_file", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Second column is ages: 30, 25
     has_ages = "30" in message and "25" in message
     passed = read and spoke and has_ages
@@ -998,8 +1001,8 @@ def validate_pattern_matching(
     """Validate pattern_matching benchmark."""
     funcs = count_function_calls(turn)
     read = funcs.get("read_file", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages).upper()
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks()).upper()
     # Should mention both ERROR lines
     has_connection = "CONNECTION" in message or "FAILED" in message
     has_timeout = "TIMEOUT" in message
@@ -1040,8 +1043,8 @@ def validate_file_inventory(
     """Validate file_inventory benchmark."""
     funcs = count_function_calls(turn)
     listed = funcs.get("list_files", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Should mention all 3 files
     mentions_all = all(f in message for f in ["doc.txt", "script.py", "data.json"])
     passed = listed and spoke and mentions_all
@@ -1076,8 +1079,8 @@ def validate_log_analysis(
     """Validate log_analysis benchmark."""
     funcs = count_function_calls(turn)
     read = funcs.get("read_file", 0) > 0
-    spoke = len(state.speak_messages) > 0
-    message = " ".join(state.speak_messages)
+    spoke = len(turn.get_speaks()) > 0
+    message = " ".join(turn.get_speaks())
     # Should identify 2 errors and 3 info
     has_2_errors = "2" in message or "two" in message.lower()
     has_3_info = "3" in message or "three" in message.lower()

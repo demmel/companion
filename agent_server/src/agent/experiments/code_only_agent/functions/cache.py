@@ -70,7 +70,7 @@ class FunctionCache:
             cached_names,
             lines,
             prefix="",
-            is_last_list=[]
+            is_last_list=[],
         )
 
         return "\n".join(lines)
@@ -83,7 +83,7 @@ class FunctionCache:
         cached_names: set[str],
         lines: list[str],
         prefix: str,
-        is_last_list: list[bool]
+        is_last_list: list[bool],
     ) -> None:
         """Recursively format tree with box-drawing characters."""
         # Get children at this path
@@ -118,8 +118,13 @@ class FunctionCache:
             # Count uncached functions in this subtree
             total_funcs = tree.count_functions_at_path(child_path)
             cached_in_subtree = sum(
-                1 for name in cached_names
-                if any(f.path.startswith(child_path) for f in self.cache.values() if f.name == name)
+                1
+                for name in cached_names
+                if any(
+                    f.path.startswith(child_path)
+                    for f in self.cache.values()
+                    if f.name == name
+                )
             )
             uncached_count = total_funcs - cached_in_subtree
 
@@ -139,5 +144,5 @@ class FunctionCache:
                 cached_names,
                 lines,
                 new_prefix,
-                is_last_list + [is_last_child]
+                is_last_list + [is_last_child],
             )

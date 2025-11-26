@@ -5,8 +5,18 @@ import logging
 from agent.chain_of_action.prompts import format_section
 from agent.llm.models import SupportedModel
 from agent.llm.router import LLM
-from agent.experiments.code_only_agent.state import State, AgentTurn, Iteration
-from agent.experiments.code_only_agent.execution import parse_code_blocks, execute_code
+from agent.state_initialization import derive_initial_state_from_message
+from agent.experiments.code_only_agent.state import (
+    State,
+    AgentTurn,
+    Iteration,
+)
+from agent.experiments.code_only_agent.execution import (
+    parse_code_blocks,
+    execute_code,
+    ExecutionState,
+    format_output_message,
+)
 from agent.experiments.code_only_agent.functions import initialize_base_functions
 
 logger = logging.getLogger(__name__)
@@ -23,13 +33,20 @@ def process_user_input(
     turn = AgentTurn(user_input=user_input, iterations=[])
     max_iterations = 10
 
-    # Get available functions from cache
-    available_functions = state.function_cache.get_all_funcs()
+    # Create execution state for this turn (persists across iterations)
+    exec_state = ExecutionState()
 
-    # Create persistent execution environment for this turn (like a REPL)
+    # Initialize safe builtins
     from agent.experiments.code_only_agent.execution import get_safe_builtins
-    exec_globals = {"__builtins__": get_safe_builtins()}
-    exec_globals.update(available_functions)
+
+    exec_state.exec_globals["__builtins__"] = get_safe_builtins()
+
+    # Initialize functions (including speak) with execution state
+    initialize_base_functions(state, llm, model, exec_state)
+
+    # Add other cached functions to exec_globals
+    available_functions = state.function_cache.get_all_funcs()
+    exec_state.exec_globals.update(available_functions)
 
     for _ in range(max_iterations):
         # Build prompt
@@ -51,8 +68,9 @@ def process_user_input(
                 iter_lines.append(f"  Reasoning: {iteration.reasoning}")
                 if iteration.code:
                     iter_lines.append(f"  Code: {iteration.code}")
-                if iteration.output:
-                    iter_lines.append(f"  Output: {iteration.output}")
+                if iteration.outputs:
+                    for output in iteration.outputs:
+                        iter_lines.append(f"  {format_output_message(output)}")
             sections.append(format_section("This Turn So Far", "\n".join(iter_lines)))
 
         # Add available functions from cache
@@ -114,19 +132,26 @@ You cannot directly respond to the user - you can only write and execute code. A
 
         # If no code, agent is done
         if not code_blocks:
-            turn.iterations.append(
-                Iteration(reasoning=reasoning, code=None, output=None)
-            )
+            turn.iterations.append(Iteration(reasoning=reasoning, code=None))
             break
 
         # Execute first code block (ignore others for now)
         code = code_blocks[0]
-        output = execute_code(
-            code, available_functions=available_functions, exec_globals=exec_globals
-        )
+
+        # Reset iteration messages
+        exec_state.reset_iteration_messages()
+
+        # Execute code
+        execute_code(code, exec_state)
 
         # Record iteration
-        turn.iterations.append(Iteration(reasoning=reasoning, code=code, output=output))
+        turn.iterations.append(
+            Iteration(
+                reasoning=reasoning,
+                code=code,
+                outputs=exec_state.current_iteration_messages,
+            )
+        )
 
     return turn
 
@@ -146,9 +171,17 @@ def run_agent(
     Returns:
         The AgentTurn containing all iterations
     """
-    # Initialize base functions if not already done
-    if not state.function_cache.cache:
-        initialize_base_functions(state)
+    # Initialize personality on first turn
+    if state.is_first_turn():
+        main_state, _ = derive_initial_state_from_message(
+            first_message=user_input, llm=llm, model=model
+        )
+        # Copy personality fields from main agent state
+        state.name = main_state.name
+        state.role = main_state.role
+        state.core_values = main_state.core_values
+        state.current_priorities = main_state.current_priorities
+        state.next_priority_id = main_state.next_priority_id
 
     turn = process_user_input(user_input, state, llm, model)
     state.history.append(turn)

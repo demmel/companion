@@ -23,9 +23,7 @@ from agent.ui_output import ui_print
 
 def main():
     """Run benchmark suite using experiment framework."""
-    parser = argparse.ArgumentParser(
-        description="Run code-only agent benchmark suite"
-    )
+    parser = argparse.ArgumentParser(description="Run code-only agent benchmark suite")
     parser.add_argument(
         "--category",
         type=str,
@@ -92,7 +90,9 @@ def main():
                 baseline_results = storage.load_analysis(args.compare_to)
             except FileNotFoundError:
                 ui_print(f"\nBaseline run not analyzed yet, analyzing now...")
-                baseline_results = analyzer.calculate_metrics(args.compare_to, calculator)
+                baseline_results = analyzer.calculate_metrics(
+                    args.compare_to, calculator
+                )
                 storage.save_analysis(args.compare_to, baseline_results)
             runs_to_compare.append(baseline_results)
 
@@ -137,7 +137,9 @@ def main():
             b for b in filtered_benchmarks if b.difficulty == args.difficulty
         ]
 
-    ui_print(f"Running {len(filtered_benchmarks)} benchmarks with {args.runs} runs each")
+    ui_print(
+        f"Running {len(filtered_benchmarks)} benchmarks with {args.runs} runs each"
+    )
 
     # Convert to framework test cases
     test_cases = [CodeAgentBenchmarkTestCase(b) for b in filtered_benchmarks]

@@ -20,6 +20,7 @@ from agent.ui_output import ui_print
 
 class NoExpectedOutput(BaseModel):
     """Placeholder for test cases without expected output (validation happens during execution)."""
+
     pass
 
 
@@ -52,6 +53,9 @@ class CodeAgentBenchmark:
     user_input: str
     setup_fn: Optional[Callable[[Path], None]]  # Creates files/dirs for test
     validation_fn: Callable[[AgentTurn, State, Path], BenchmarkResult]
+    setup_conversation: Optional[list[str]] = (
+        None  # User inputs for conversation context before test
+    )
 
     def __post_init__(self):
         """Validate difficulty level."""
@@ -84,6 +88,11 @@ class CodeAgentBenchmarkTestCase(TestCase[LLMCodeAgentVariant]):
 
             # Create fresh state
             state = State()
+
+            # Run setup conversation if provided
+            if self.benchmark.setup_conversation:
+                for setup_input in self.benchmark.setup_conversation:
+                    run_agent(setup_input, state, variant.llm, variant.model)
 
             # Run agent
             start_time = datetime.now()
@@ -142,6 +151,11 @@ class BenchmarkRunner:
 
             # Create fresh state
             state = State()
+
+            # Run setup conversation if provided
+            if benchmark.setup_conversation:
+                for setup_input in benchmark.setup_conversation:
+                    run_agent(setup_input, state, self.llm, self.model)
 
             # Run agent
             start_time = datetime.now()
@@ -322,9 +336,7 @@ class BenchmarkRunner:
         ui_print(
             f"Overall: {summary['passed']}/{summary['total_tasks']} passed ({summary['overall_score']:.1%})"
         )
-        ui_print(
-            f"Average iterations: {summary['avg_iterations_per_task']:.1f}"
-        )
+        ui_print(f"Average iterations: {summary['avg_iterations_per_task']:.1f}")
         ui_print(
             f"Total execution time: {summary['total_execution_time_seconds']:.1f}s"
         )

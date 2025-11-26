@@ -26,22 +26,32 @@ def test_agent_executes_code():
     code_executed = False
     for i, iteration in enumerate(turn.iterations, 1):
         ui_print(f"\n--- Iteration {i} ---")
-        ui_print(f"Reasoning: {iteration.reasoning[:200]}...")  # Truncate long reasoning
+        ui_print(
+            f"Reasoning: {iteration.reasoning[:200]}..."
+        )  # Truncate long reasoning
         if iteration.code:
             ui_print(f"Code: {iteration.code}")
             code_executed = True
-        if iteration.output:
-            ui_print(f"Output: {iteration.output}")
+        if iteration.outputs:
+            ui_print(f"Outputs:")
+            for output in iteration.outputs:
+                from agent.experiments.code_only_agent.execution import (
+                    format_output_message,
+                )
+
+                ui_print(f"  {format_output_message(output)}")
 
     # Assertions
     assert len(turn.iterations) > 0, "Agent should have at least one iteration"
     assert turn.user_input == user_input
     assert code_executed, "Agent should have executed at least one code block"
-    assert len(state.speak_messages) > 0, "Agent should have spoken to the user"
+
+    speaks = turn.get_speaks()
+    assert len(speaks) > 0, "Agent should have spoken to the user"
 
     ui_print(f"\n✓ Test completed - code executed: {code_executed}")
-    ui_print(f"✓ Agent spoke {len(state.speak_messages)} time(s)")
-    ui_print(f"Messages: {state.speak_messages}")
+    ui_print(f"✓ Agent spoke {len(speaks)} time(s)")
+    ui_print(f"Messages: {speaks}")
 
 
 if __name__ == "__main__":

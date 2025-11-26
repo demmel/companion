@@ -112,7 +112,10 @@ class FunctionTree:
             if func_def.name == name:
                 results.append(func_def)
             # Fuzzy match: substring of name or description
-            elif name_lower in func_def.name.lower() or name_lower in func_def.description.lower():
+            elif (
+                name_lower in func_def.name.lower()
+                or name_lower in func_def.description.lower()
+            ):
                 results.append(func_def)
 
         # Search children

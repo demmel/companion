@@ -4,6 +4,93 @@ import re
 import io
 import sys
 from typing import Callable, Any
+from dataclasses import dataclass
+from abc import ABC
+
+
+class OutputMessage(ABC):
+    """Base class for execution output messages."""
+
+    pass
+
+
+@dataclass
+class SpeakMessage(OutputMessage):
+    """Message sent to user via speak()."""
+
+    content: str
+
+
+@dataclass
+class StdoutMessage(OutputMessage):
+    """Standard output from code execution."""
+
+    content: str
+
+
+@dataclass
+class ErrorMessage(OutputMessage):
+    """Error from code execution."""
+
+    error: str
+
+
+class ExecutionState:
+    """Execution state for a turn (persists across iterations)."""
+
+    def __init__(self):
+        self.exec_globals: dict[str, Any] = {}
+        self.current_iteration_messages: list[OutputMessage] = []
+
+    def reset_iteration_messages(self) -> None:
+        """Clear messages for a new iteration while preserving exec_globals."""
+        self.current_iteration_messages = []
+
+
+def format_output_message(output: OutputMessage) -> str:
+    """Format an output message for display."""
+    if isinstance(output, SpeakMessage):
+        return f"[SPEAK] {output.content}"
+    elif isinstance(output, StdoutMessage):
+        return f"[STDOUT] {output.content}"
+    elif isinstance(output, ErrorMessage):
+        return f"[ERROR] {output.error}"
+    return str(output)
+
+
+class MessageCollector(io.StringIO):
+    """Custom stdout that collects StdoutMessages in chronological order."""
+
+    def __init__(self, exec_state: ExecutionState):
+        super().__init__()
+        self.exec_state = exec_state
+        self._buffer = ""
+
+    def write(self, text: str) -> int:
+        # Accumulate text in buffer
+        self._buffer += text
+
+        # If we have a complete line (ends with newline), flush it
+        if "\n" in self._buffer:
+            lines = self._buffer.split("\n")
+            # Process all complete lines
+            for line in lines[:-1]:
+                if line:  # Don't add empty lines
+                    self.exec_state.current_iteration_messages.append(
+                        StdoutMessage(content=line)
+                    )
+            # Keep the incomplete line in buffer
+            self._buffer = lines[-1]
+
+        return super().write(text)
+
+    def flush_remaining(self):
+        """Flush any remaining buffer content."""
+        if self._buffer:
+            self.exec_state.current_iteration_messages.append(
+                StdoutMessage(content=self._buffer)
+            )
+            self._buffer = ""
 
 
 def get_safe_builtins() -> dict[str, Callable]:
@@ -76,69 +163,26 @@ def parse_code_blocks(text: str) -> tuple[str, list[str]]:
 
 def execute_code(
     code: str,
-    available_functions: dict[str, Callable],
-    exec_globals: dict[str, Any],
-) -> str:
+    exec_state: ExecutionState,
+) -> None:
     """
-    Execute code in a restricted environment.
+    Execute code in a restricted environment and collect output messages.
 
     Args:
         code: The Python code to execute
-        available_functions: Dict of functions to make available in the execution environment
-        exec_globals: Optional existing globals dict to use (for persistent state across executions)
-
-    Returns the captured output and return value as a string.
+        exec_state: ExecutionState containing exec_globals and message collection
     """
-    # Capture stdout
+    # Capture stdout with MessageCollector
     old_stdout = sys.stdout
-    sys.stdout = captured_output = io.StringIO()
+    sys.stdout = MessageCollector(exec_state)
 
     try:
-        # Try to eval as expression first (to capture return value)
-        try:
-            result = eval(code, exec_globals, {})
-            stdout = captured_output.getvalue()
-
-            # Combine stdout and return value
-            parts = []
-            if stdout:
-                parts.append(stdout.rstrip())
-            if result is not None:
-                parts.append(f"Return: {result}")
-
-            return "\n".join(parts) if parts else "(no output)"
-        except SyntaxError:
-            # Not a single expression - try to execute statements
-            # and capture the last expression's value if possible
-            lines = code.strip().split("\n")
-
-            # If multi-line, try to eval the last line after executing the rest
-            if len(lines) > 1:
-                try:
-                    # Execute all but last line
-                    exec("\n".join(lines[:-1]), exec_globals, exec_globals)
-                    # Try to eval the last line to get its return value
-                    result = eval(lines[-1], exec_globals, exec_globals)
-                    stdout = captured_output.getvalue()
-
-                    parts = []
-                    if stdout:
-                        parts.append(stdout.rstrip())
-                    if result is not None:
-                        parts.append(f"Return: {result}")
-
-                    return "\n".join(parts) if parts else "(no output)"
-                except (SyntaxError, Exception):
-                    # Last line is not an expression, just exec everything
-                    exec(code, exec_globals, exec_globals)
-                    output = captured_output.getvalue()
-                    return output if output else "(no output)"
-            else:
-                # Single statement that's not an expression
-                exec(code, exec_globals, exec_globals)
-                output = captured_output.getvalue()
-                return output if output else "(no output)"
+        exec(code, exec_state.exec_globals, exec_state.exec_globals)
+        # Flush any remaining buffered output
+        sys.stdout.flush_remaining()
     except Exception as e:
-        return f"Error: {type(e).__name__}: {e}"
+        exec_state.current_iteration_messages.append(
+            ErrorMessage(error=f"{type(e).__name__}: {e}")
+        )
     finally:
         sys.stdout = old_stdout
