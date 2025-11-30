@@ -136,7 +136,7 @@ class Agent:
         # Initialize the agent's state system (None until configured by first message)
         self.state: Optional[State] = None
 
-        # DAG memory system (initialized after first message if enabled)
+        # Memory system (initialized after first message if enabled)
         self.memory_context: str = ""
         self.memory: Optional[IMemory] = None
 
@@ -184,9 +184,7 @@ class Agent:
             self.state is not None
         ), "Cannot save conversation without initialized state"
         assert self.memory is not None, "Cannot save conversation without memory"
-        assert isinstance(
-            self.memory, DagMemoryManager
-        ), "Memory must be DagMemoryManager to save conversation"
+
         logger.info(
             f"Saving conversation {self.conversation_id} with {len(self.trigger_history)} entries"
         )
@@ -194,7 +192,7 @@ class Agent:
             self.conversation_id,
             self.state,
             self.trigger_history,
-            dag_memory_manager=self.memory,
+            self.memory,
         )
         logger.info(f"Successfully saved conversation {self.conversation_id}")
         return self.conversation_id
@@ -210,7 +208,7 @@ class Agent:
 
         self.state = agent_data.state
         self.trigger_history = agent_data.trigger_history
-        self.memory = agent_data.dag_memory_manager
+        self.memory = agent_data.memory
 
     def set_auto_wakeup_enabled(self, enabled: bool) -> None:
         """Enable or disable auto-wakeup timer"""
@@ -623,7 +621,7 @@ class Agent:
             model_config.trigger_compression_model,
         )
 
-        # Process initial exchange memories if DAG enabled
+        # Process initial exchange memories if memory enabled
         if self.memory:
             self.memory.store(
                 self.initial_exchange,
