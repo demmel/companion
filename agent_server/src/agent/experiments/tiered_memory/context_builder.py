@@ -8,7 +8,7 @@ import logging
 from typing import Dict
 from datetime import datetime
 
-from agent.memory.models import MemoryGraph
+from agent.memory.dag.models import MemoryGraph
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 
 from .models import (

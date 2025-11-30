@@ -16,7 +16,7 @@ from agent.chain_of_action.trigger import (
 )
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.embedding_service import get_embedding_service
-from agent.memory.models import MemoryElement, ConfidenceLevel
+from agent.memory.dag.models import MemoryElement, ConfidenceLevel
 
 
 def create_trigger_memory(trigger: Trigger, entry_id: str) -> MemoryElement:

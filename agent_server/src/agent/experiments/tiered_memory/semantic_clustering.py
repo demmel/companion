@@ -7,13 +7,12 @@ when they occurred. Uses hierarchical clustering to find natural topic groups.
 
 import logging
 import uuid
-from typing import List, Dict, Set, Tuple, Optional
-from collections import defaultdict
+from typing import List, Tuple, Optional
 import numpy as np
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.memory.models import MemoryElement, MemoryGraph
+from agent.memory.dag.models import MemoryElement, MemoryGraph
 from agent.embedding_service import get_embedding_service
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call

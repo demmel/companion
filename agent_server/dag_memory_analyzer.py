@@ -20,8 +20,8 @@ import sys
 
 sys.path.append(str(Path(__file__).parent / "src"))
 
-from agent.memory.action_log import MemoryActionLog
-from agent.memory.actions import (
+from agent.memory.dag.action_log import MemoryActionLog
+from agent.memory.dag.actions import (
     CheckpointAction,
     AddToContextAction,
     RemoveFromContextAction,

@@ -6,15 +6,11 @@ agent to select appropriate granularity levels for each query.
 """
 
 import logging
-from typing import List, Dict, Optional, Set
-from pydantic import BaseModel, Field
-from enum import Enum
+from typing import List, Dict
 
-from agent.memory.models import MemoryElement, MemoryGraph
+from agent.memory.dag.models import MemoryGraph
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.embedding_service import get_embedding_service
-from agent.llm import LLM, SupportedModel
-from agent.structured_llm import direct_structured_llm_call
 
 from .models import (
     ConversationBoundary,

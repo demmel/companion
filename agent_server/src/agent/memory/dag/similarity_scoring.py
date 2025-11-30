@@ -7,16 +7,13 @@ to rank memories for retrieval.
 
 from collections import defaultdict
 import logging
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Optional
 from dataclasses import dataclass
 
 from agent.embedding_service import get_embedding_service, EmbeddingService
-from agent.memory.memory_types import (
-    MemoryType,
-)
-from agent.memory.edge_types import GraphEdgeType
+from agent.memory.dag.edge_types import GraphEdgeType
 from .models import MemoryElement, MemoryGraph, MemoryEdge
-from .memory_retrieval import MemoryQuery, QueryType
+from ..query_extraction import MemoryQuery, QueryType
 
 logger = logging.getLogger(__name__)
 

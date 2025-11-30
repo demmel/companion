@@ -8,21 +8,20 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from agent.timeit import timeit
-from agent.memory import (
+from agent.memory.dag import (
     DagMemoryManager,
 )
-from agent.memory.action_log import MemoryActionLog
+from agent.memory.dag.action_log import MemoryActionLog
 
 from .state import State
 from .chain_of_action.trigger_history import (
     TriggerHistory,
     TriggerHistoryEntry,
-    SummaryRecord,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List
 
 

@@ -3,7 +3,7 @@ Functions for formatting context graphs for display in prompts.
 """
 
 from collections import defaultdict
-from agent.memory.edge_types import (
+from agent.memory.dag.edge_types import (
     REVERSE_MAPPING,
     EdgeType,
     get_edge_type_context_descrioptions,
@@ -95,7 +95,7 @@ def format_context(
         Formatted string representation of the context
     """
     if not context.elements:
-        return "No memories currently in context."
+        return ""
 
     lines = []
 

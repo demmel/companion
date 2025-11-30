@@ -14,22 +14,22 @@ from datetime import datetime
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
-from agent.memory.models import MemoryGraph, ContextGraph
-from agent.memory.actions import (
+from agent.memory.dag.models import MemoryGraph, ContextGraph
+from agent.memory.dag.actions import (
     CheckpointAction,
     AddMemoryAction,
     AddToContextAction,
     AddEdgeAction,
 )
-from agent.memory.models import MemoryElement, MemoryEdge
-from agent.memory.memory_types import MemoryType
-from agent.memory.edge_types import GraphEdgeType
-from agent.memory.models import ConfidenceLevel
-from agent.memory.action_log import MemoryActionLog
-from agent.memory.visualizer.action_processor import (
+from agent.memory.dag.models import MemoryElement, MemoryEdge
+from agent.memory.dag.memory_types import MemoryType
+from agent.memory.dag.edge_types import GraphEdgeType
+from agent.memory.dag.models import ConfidenceLevel
+from agent.memory.dag.action_log import MemoryActionLog
+from agent.memory.dag.visualizer.action_processor import (
     StepwiseGraphReconstructor,
 )
-from agent.memory.visualizer.graph_extractor import (
+from agent.memory.dag.visualizer.graph_extractor import (
     GraphExtractor,
 )
 

@@ -2,8 +2,6 @@ from typing import List, Literal, Optional
 from datetime import datetime
 import random
 
-from agent.memory.dag_memory_manager import DagMemoryManager
-from agent.memory.models import ContextGraph
 import nltk
 from nltk.corpus import words
 
@@ -295,7 +293,7 @@ def build_situational_analysis_prompt(
     trigger: Trigger,
     trigger_history: TriggerHistory,
     registry: ActionRegistry,
-    dag_memory_manager: DagMemoryManager,
+    formatted_memory_context: str,
 ) -> str:
     """Build the situational analysis prompt - first stage of decision making"""
     from .trigger import WakeupTrigger, UserInputTrigger
@@ -315,19 +313,11 @@ def build_situational_analysis_prompt(
         )
     )
 
-    # DAG-based context - single comprehensive section
-    from agent.memory.context_formatting import (
-        format_context,
-    )
-
-    dag_context_text = format_context(
-        dag_memory_manager.context_graph, dag_memory_manager.memory_graph
-    )
-    if dag_context_text:
+    if formatted_memory_context:
         sections.append(
             format_section(
                 "MY MEMORIES AND CONTEXT",
-                dag_context_text,
+                formatted_memory_context,
             )
         )
 

@@ -6,7 +6,7 @@ import logging
 from typing import List
 from collections import defaultdict
 
-from agent.memory.action_log import MemoryGraph
+from agent.memory.dag.action_log import MemoryGraph
 
 from .models import ContextGraph
 from .actions import RemoveFromContextAction

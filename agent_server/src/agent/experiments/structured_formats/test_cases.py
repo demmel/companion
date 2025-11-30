@@ -367,7 +367,7 @@ def create_memory_query_test_cases() -> List[TestCase]:
 
     Uses QueryExtractionResult from memory_retrieval.
     """
-    from agent.memory.memory_retrieval import (
+    from agent.memory.query_extraction import (
         QueryExtractionResult,
         MemoryQuery,
         QueryType,

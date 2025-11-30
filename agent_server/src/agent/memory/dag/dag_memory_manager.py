@@ -6,6 +6,10 @@ debugging and complete replay of memory graph evolution.
 """
 
 import logging
+from agent.config import Config
+from agent.llm.interface import ILLM
+from agent.memory.dag.context_formatting import format_context
+from agent.memory.memory import IMemory, MemoryQueries, MemoryQuery
 from agent.timeit import timeit
 from typing import Sequence
 
@@ -13,7 +17,7 @@ from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.trigger import Trigger
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.memory.memory_formation import (
+from agent.memory.dag.memory_formation import (
     extract_memories_as_actions,
 )
 from agent.llm import LLM, SupportedModel
@@ -55,11 +59,7 @@ def calculate_context_budget(
         trigger=UserInputTrigger(content="sample", user_name="User"),
         trigger_history=TriggerHistory(),
         registry=action_registry,
-        dag_memory_manager=DagMemoryManager(
-            memory_graph=MemoryGraph(),
-            context_graph=ContextGraph(),
-            trigger_history=TriggerHistory(),
-        ),
+        formatted_memory_context="",  # Empty for estimation
     )
     prompt_tokens = int(len(sa_prompt) / 3.4)
 
@@ -87,7 +87,7 @@ class DagMemoryData(BaseModel):
     context: ContextGraphData
 
 
-class DagMemoryManager:
+class DagMemoryManager(IMemory):
     """
     Action-based DAG memory management system with full observability.
 
@@ -140,6 +140,25 @@ class DagMemoryManager:
 
         return manager
 
+    def query(self, memory_queries: MemoryQueries) -> str:
+        self.preprocess_trigger(
+            queries=memory_queries,
+        )
+        return format_context(
+            self.context_graph, self.memory_graph, use_individual_formatting=True
+        )
+
+    def store(
+        self, trigger_history_entry: TriggerHistoryEntry, state: State, llm: LLM
+    ) -> None:
+        model_config = Config.get_model_config()
+        self.postprocess_trigger(
+            trigger=trigger_history_entry,
+            state=state,
+            llm=llm,
+            model=model_config.memory_formation_model,
+        )
+
     def dispatch_actions(self, actions: Sequence[MemoryAction]) -> None:
         """
         Dispatch a list of actions to update the memory graph and context.
@@ -159,12 +178,7 @@ class DagMemoryManager:
 
     def preprocess_trigger(
         self,
-        trigger: Trigger,
-        state: State,
-        llm: LLM,
-        model: SupportedModel,
-        token_budget: int,
-        action_registry: ActionRegistry,
+        queries: MemoryQueries,
     ) -> None:
         """
         Preprocess trigger by retrieving relevant memories and pruning context.
@@ -198,14 +212,10 @@ class DagMemoryManager:
 
         with timeit("Memory Retrieval"):
             retrieval_actions = retrieve_relevant_memories_as_actions(
+                queries=queries.queries,
                 memory_graph=self.memory_graph,
                 context_graph=self.context_graph,
-                state=state,
-                trigger=trigger,
-                llm=llm,
-                model=model,
                 max_retrieved_memories=5,
-                max_queries=6,
                 min_similarity_threshold=0.4,
             )
 
@@ -220,9 +230,7 @@ class DagMemoryManager:
 
         # STEP 3: Prune context to budget BEFORE reasoning
         with timeit("Context Pruning"):
-            context_budget = calculate_context_budget(
-                token_budget, state, action_registry
-            )
+            context_budget = queries.max_tokens
             pruning_actions = prune_context_to_budget_as_actions(
                 self.memory_graph, self.context_graph, context_budget
             )
@@ -247,8 +255,6 @@ class DagMemoryManager:
         state: State,
         llm: LLM,
         model: SupportedModel,
-        token_budget: int,
-        action_registry: ActionRegistry,
     ) -> None:
         """
         Postprocess trigger by extracting memories from the completed reasoning.

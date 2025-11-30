@@ -10,7 +10,8 @@ from agent.chain_of_action.action.actions.speak_action import SpeakProgressData
 from agent.event_emitter import EventEmitter
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.llm.models import ModelConfig
-from agent.memory.dag_memory_manager import DagMemoryManager
+from agent.memory.dag.dag_memory_manager import DagMemoryManager
+from agent.memory.memory import IMemory
 from pydantic import BaseModel
 
 from agent.api_types.actions import (
@@ -136,7 +137,8 @@ class Agent:
         self.state: Optional[State] = None
 
         # DAG memory system (initialized after first message if enabled)
-        self.dag_memory_manager = None
+        self.memory_context: str = ""
+        self.memory: Optional[IMemory] = None
 
         # Auto-wakeup timer functionality
         self.auto_wakeup_enabled = False
@@ -181,9 +183,10 @@ class Agent:
         assert (
             self.state is not None
         ), "Cannot save conversation without initialized state"
-        assert (
-            self.dag_memory_manager is not None
-        ), "Cannot save conversation without DAG memory manager"
+        assert self.memory is not None, "Cannot save conversation without memory"
+        assert isinstance(
+            self.memory, DagMemoryManager
+        ), "Memory must be DagMemoryManager to save conversation"
         logger.info(
             f"Saving conversation {self.conversation_id} with {len(self.trigger_history)} entries"
         )
@@ -191,7 +194,7 @@ class Agent:
             self.conversation_id,
             self.state,
             self.trigger_history,
-            dag_memory_manager=self.dag_memory_manager,
+            dag_memory_manager=self.memory,
         )
         logger.info(f"Successfully saved conversation {self.conversation_id}")
         return self.conversation_id
@@ -207,7 +210,7 @@ class Agent:
 
         self.state = agent_data.state
         self.trigger_history = agent_data.trigger_history
-        self.dag_memory_manager = agent_data.dag_memory_manager
+        self.memory = agent_data.dag_memory_manager
 
     def set_auto_wakeup_enabled(self, enabled: bool) -> None:
         """Enable or disable auto-wakeup timer"""
@@ -270,7 +273,7 @@ class Agent:
             trigger_history=self.trigger_history,
             action_registry=self.action_reasoning_loop.registry,
             summarize_at_tokens=self.auto_summarize_threshold,
-            dag_memory_manager=self.dag_memory_manager,
+            memory_context=self.memory_context,
         )
 
     def chat_stream(self, trigger: Trigger) -> None:
@@ -416,11 +419,11 @@ class Agent:
                 trigger.get_images(),
             )
 
-            from agent.memory import (
+            from agent.memory.dag import (
                 DagMemoryManager,
             )
 
-            self.dag_memory_manager = DagMemoryManager.create(
+            self.memory = DagMemoryManager.create(
                 initial_state=self.state,
                 token_budget=self.auto_summarize_threshold,
                 action_registry=self.action_reasoning_loop.registry,
@@ -621,14 +624,11 @@ class Agent:
         )
 
         # Process initial exchange memories if DAG enabled
-        if self.dag_memory_manager:
-            self.dag_memory_manager.postprocess_trigger(
-                trigger=self.initial_exchange,
-                state=self.state,
-                llm=self.llm,
-                model=model_config.memory_formation_model,
-                token_budget=self.auto_summarize_threshold,
-                action_registry=self.action_reasoning_loop.registry,
+        if self.memory:
+            self.memory.store(
+                self.initial_exchange,
+                self.state,
+                self.llm,
             )
 
         context_info = self.get_context_info()
@@ -800,19 +800,23 @@ class Agent:
         callback = StreamingCallback(self)
 
         assert self.state is not None, "State must be initialized before processing"
-        assert self.dag_memory_manager is not None, "DAG memory must be initialized"
+        assert self.memory is not None, "Memory must be initialized"
 
         # Process with trigger history integration
-        self.action_reasoning_loop.process_trigger(
+        _, memory_context = self.action_reasoning_loop.process_trigger(
             trigger=trigger,
             state=self.state,
             llm=self.llm,
             callback=callback,
             trigger_history=self.trigger_history,
             individual_trigger_compression=self.individual_trigger_compression,
-            dag_memory_manager=self.dag_memory_manager,
             token_budget=self.auto_summarize_threshold,
+            memory=self.memory,
+            previous_memory_context=self.memory_context,
         )
+
+        # Update agent's memory context
+        self.memory_context = memory_context
 
 
 def get_context_info(
@@ -820,10 +824,10 @@ def get_context_info(
     trigger_history: TriggerHistory,
     action_registry: ActionRegistry,
     summarize_at_tokens: int,
-    dag_memory_manager: Optional[DagMemoryManager] = None,
+    memory_context: str,
 ) -> ContextInfo:
     """Get information about current context usage based on action planning prompt size"""
-    if state is not None and dag_memory_manager is not None:
+    if state is not None:
         # Use situational analysis prompt for accurate estimation (typically the longest)
         from agent.chain_of_action.prompts import build_situational_analysis_prompt
         from agent.chain_of_action.trigger import UserInputTrigger
@@ -836,7 +840,7 @@ def get_context_info(
             trigger=sample_trigger,
             trigger_history=trigger_history,
             registry=action_registry,
-            dag_memory_manager=dag_memory_manager,
+            formatted_memory_context=memory_context,
         )
 
         # Calculate total prompt size

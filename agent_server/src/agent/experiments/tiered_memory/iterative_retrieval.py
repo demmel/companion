@@ -6,10 +6,10 @@ more detail on specific conversations/clusters until it has enough context.
 """
 
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict
 from pydantic import BaseModel, Field
 
-from agent.memory.models import MemoryGraph
+from agent.memory.dag.models import MemoryGraph
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call

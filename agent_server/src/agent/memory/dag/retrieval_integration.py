@@ -9,27 +9,20 @@ action types.
 import logging
 from typing import List
 
-from agent.chain_of_action.trigger import Trigger
-from agent.llm import LLM, SupportedModel
-from agent.state import State
+from agent.memory.memory import MemoryQuery
 
 from .models import MemoryGraph, ContextGraph
 from .actions import MemoryAction, AddToContextAction, AddEdgeToContextAction
-from .memory_retrieval import extract_memory_queries
 from .similarity_scoring import retrieve_top_candidates
 
 logger = logging.getLogger(__name__)
 
 
 def retrieve_relevant_memories_as_actions(
+    queries: list[MemoryQuery],
     memory_graph: MemoryGraph,
     context_graph: ContextGraph,
-    state: State,
-    trigger: Trigger,
-    llm: LLM,
-    model: SupportedModel,
     max_retrieved_memories: int,
-    max_queries: int,
     min_similarity_threshold: float,
 ) -> List[MemoryAction]:
     """
@@ -58,31 +51,11 @@ def retrieve_relevant_memories_as_actions(
     logger.info("Starting memory retrieval process")
 
     try:
-        # Step 1: Extract diverse queries from current context
-        logger.debug("Extracting memory queries from current context")
-        query_result = extract_memory_queries(
-            context=context_graph,
-            state=state,
-            llm=llm,
-            model=model,
-            max_queries=max_queries,
-            trigger=trigger,
-            memory_graph=memory_graph,
-        )
-
-        if not query_result.queries:
-            logger.warning("No queries extracted from context, skipping retrieval")
-            return []
-
-        logger.info(
-            f"Extracted {len(query_result.queries)} memory queries for retrieval"
-        )
-
-        # Step 2: Score all memories against queries
+        # Step 1: Score all memories against queries
         logger.debug("Scoring memories against queries")
         candidates = retrieve_top_candidates(
             memory_graph=memory_graph,
-            queries=query_result.queries,
+            queries=queries,
             top_k=max_retrieved_memories,
             min_similarity_threshold=min_similarity_threshold,
             combination_strategy="weighted_max",
@@ -98,7 +71,7 @@ def retrieve_relevant_memories_as_actions(
             f"Found {len(candidates)} memory candidates above threshold {min_similarity_threshold}"
         )
 
-        # Step 3: Use update chain expansion instead of minimal spanning
+        # Step 2: Use update chain expansion instead of minimal spanning
         logger.debug("Expanding memories with update chains")
         from .update_chain_connector import UpdateChainConnector
 

@@ -10,10 +10,8 @@ from agent.chain_of_action.action.action_data import (
     create_result_summary,
     WaitActionData,
 )
-from agent.llm.models import ModelConfig
-from agent.memory import (
-    DagMemoryManager,
-)
+from agent.memory.query_extraction import extract_memory_queries
+from agent.memory.memory import IMemory, MemoryQueries
 
 from .action_registry import ActionRegistry
 from .action_planner import ActionPlanner
@@ -47,9 +45,10 @@ class ActionBasedReasoningLoop:
         callback: ActionCallback,
         trigger_history: TriggerHistory,
         token_budget: int,
-        dag_memory_manager: DagMemoryManager,
+        memory: IMemory,
+        previous_memory_context: str,
         individual_trigger_compression: bool = True,
-    ) -> TriggerHistoryEntry:
+    ) -> tuple[TriggerHistoryEntry, str]:
         """
         Process user input through the action-based reasoning system.
 
@@ -83,13 +82,19 @@ class ActionBasedReasoningLoop:
         callback.on_trigger_started(entry_id, trigger)
 
         # PREPROCESS: Retrieve relevant memories BEFORE reasoning (but only for existing DAG, not during initial setup)
-        dag_memory_manager.preprocess_trigger(
+        memory_queries = extract_memory_queries(
             trigger=trigger,
             state=state,
+            context=previous_memory_context,
             llm=llm,
             model=model_config.memory_retrieval_model,
-            token_budget=token_budget,
-            action_registry=self.registry,
+            max_queries=6,
+        )
+        memory_context = memory.query(
+            MemoryQueries(
+                queries=memory_queries.queries,
+                max_tokens=token_budget,
+            )
         )
 
         # Perform situational analysis once before action planning loop
@@ -100,7 +105,7 @@ class ActionBasedReasoningLoop:
             trigger=trigger,
             trigger_history=trigger_history,
             registry=self.registry,
-            dag_memory_manager=dag_memory_manager,
+            formatted_memory_context=memory_context,
         )
 
         # Get images from trigger
@@ -214,19 +219,7 @@ class ActionBasedReasoningLoop:
         trigger_history.add_trigger_entry(trigger_entry)
 
         # POSTPROCESS: Extract memories from completed reasoning if DAG enabled
-        if dag_memory_manager:
-            assert (
-                token_budget is not None
-            ), "Token budget must be provided if using DAG"
-            dag_memory_manager.postprocess_trigger(
-                trigger=trigger_entry,
-                state=state,
-                llm=llm,
-                model=model_config.memory_formation_model,
-                token_budget=token_budget,
-                action_registry=self.registry,
-                # update_state=False,  # Agent manages its own state
-            )
+        memory.store(trigger_entry, state, llm)
 
         # Set the end timestamp now that processing is complete
         from datetime import datetime
@@ -245,7 +238,7 @@ class ActionBasedReasoningLoop:
             f"Executed {len(context.completed_actions)} total actions across {sequence_num} sequences"
         )
 
-        return trigger_entry
+        return trigger_entry, memory_context
 
 
 def _detect_llm_refusal(text: str) -> bool:

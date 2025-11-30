@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List
 
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
-from agent.memory.actions import (
+from agent.memory.dag.actions import (
     AddContainerAction,
     AddEdgeAction,
     AddEdgeToContextAction,
@@ -16,8 +16,8 @@ from agent.memory.actions import (
     AddToContextAction,
     MemoryAction,
 )
-from agent.memory.context_formatting import format_element
-from agent.memory.edge_types import (
+from agent.memory.dag.context_formatting import format_element
+from agent.memory.dag.edge_types import (
     AgentControlledEdgeType,
     GraphEdgeType,
     get_prompt_edge_type_list,
@@ -117,7 +117,7 @@ def extract_memories_as_actions(
         List of actions to apply for this interaction
     """
 
-    from agent.memory.memory_formation_automatic import (
+    from agent.memory.dag.memory_formation_automatic import (
         create_memories_from_trigger_entry,
     )
 
@@ -208,7 +208,7 @@ def extract_semantic_connections(
 
     from agent.structured_llm import direct_structured_llm_call
     from pydantic import BaseModel, Field
-    from agent.memory.context_formatting import format_context
+    from agent.memory.dag.context_formatting import format_context
     from agent.chain_of_action.prompts import format_section
 
     # Format new memories chronologically for the prompt
@@ -225,11 +225,11 @@ def extract_semantic_connections(
         ]
     )
 
-    dag_context_text = (
-        format_context(context, memory_graph, use_individual_formatting=True)
-        if context.elements
-        else "No existing memories in current context."
+    dag_context_text = format_context(
+        context, memory_graph, use_individual_formatting=True
     )
+    if not dag_context_text:
+        dag_context_text = "No existing memories in current context."
 
     prompt = f"""I'm {state.name}, {state.role}. I just had an experience and formed memories of what happened. Now I need to identify how these new memories connect to my existing memories and to each other.
 
