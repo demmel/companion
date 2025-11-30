@@ -1,5 +1,5 @@
 """
-Multi-query extraction system for DAG memory retrieval.
+Multi-query extraction system for memory retrieval.
 
 Extracts diverse, targeted search queries from current context to enable
 sophisticated memory retrieval beyond simple similarity search.
@@ -7,7 +7,6 @@ sophisticated memory retrieval beyond simple similarity search.
 
 import logging
 from typing import List
-from enum import Enum
 
 from agent.chain_of_action.trigger import Trigger, format_trigger_for_prompt
 from agent.llm import LLM, SupportedModel
@@ -17,7 +16,6 @@ from agent.structured_llm import direct_structured_llm_call
 from pydantic import BaseModel, Field
 from agent.chain_of_action.prompts import format_section
 
-from .dag.models import ContextGraph, MemoryGraph
 
 logger = logging.getLogger(__name__)
 

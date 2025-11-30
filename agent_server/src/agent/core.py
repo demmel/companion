@@ -10,7 +10,6 @@ from agent.chain_of_action.action.actions.speak_action import SpeakProgressData
 from agent.event_emitter import EventEmitter
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.llm.models import ModelConfig
-from agent.memory.dag.dag_memory_manager import DagMemoryManager
 from agent.memory.memory import IMemory
 from pydantic import BaseModel
 
@@ -48,7 +47,7 @@ from agent.chain_of_action.trigger import (
     WakeupTrigger,
 )
 from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 from agent.state import State
 
 from agent.chain_of_action.reasoning_loop import ActionBasedReasoningLoop
@@ -59,7 +58,7 @@ from agent.state import (
 )
 from agent.types import ToolCallError
 
-from .llm import LLM, SupportedModel
+from .llm import LLM
 
 from .types import (
     ImageGenerationToolContent,
@@ -422,9 +421,6 @@ class Agent:
             )
 
             self.memory = DagMemoryManager.create(
-                initial_state=self.state,
-                token_budget=self.auto_summarize_threshold,
-                action_registry=self.action_reasoning_loop.registry,
                 trigger_history=self.trigger_history,
             )
 

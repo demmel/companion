@@ -81,7 +81,6 @@ class ActionBasedReasoningLoop:
         # Notify callback about trigger start
         callback.on_trigger_started(entry_id, trigger)
 
-        # PREPROCESS: Retrieve relevant memories BEFORE reasoning (but only for existing DAG, not during initial setup)
         memory_queries = extract_memory_queries(
             trigger=trigger,
             state=state,
@@ -218,7 +217,6 @@ class ActionBasedReasoningLoop:
 
         trigger_history.add_trigger_entry(trigger_entry)
 
-        # POSTPROCESS: Extract memories from completed reasoning if DAG enabled
         memory.store(trigger_entry, state, llm)
 
         # Set the end timestamp now that processing is complete
