@@ -1,0 +1,6 @@
+- Use pydantic models for validation and serialization.  Use dataclasses for internal datatypes.  Only use dicts when keys must be dynamic.
+- Always run tests before claiming success
+- Don't use TYPE_CHECKING
+- Do not use Any
+- Also annotate types in function signatures
+- Do not use 'StringTypes'.  Always import types and structure code appropriately
