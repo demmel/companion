@@ -1,13 +1,18 @@
 import { css } from "@styled-system/css";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { TriggerHistoryEntry, TimelineEntry } from "@/types";
+import { TriggerHistoryEntry, TimelineEntry, Action } from "@/types";
 import { TriggerCard } from "./trigger/TriggerCard";
 import { ActionDisplay } from "./action/ActionDisplay";
 
 interface TimelineProps {
   entries: TimelineEntry[];
   isStreamActive: boolean;
+  updateAction: (
+    triggerId: string,
+    actionIndex: number,
+    updates: Partial<Action>,
+  ) => void;
 }
 
 interface TimelineEntryProps {
@@ -15,6 +20,11 @@ interface TimelineEntryProps {
   isActive?: boolean;
   isExpanded?: boolean;
   onToggleExpanded?: () => void;
+  updateAction: (
+    triggerId: string,
+    actionIndex: number,
+    updates: Partial<Action>,
+  ) => void;
 }
 
 function TimelineEntryView({
@@ -22,6 +32,7 @@ function TimelineEntryView({
   isActive = false,
   isExpanded = false,
   onToggleExpanded,
+  updateAction,
 }: TimelineEntryProps) {
   const hasActions = entry.actions_taken.length > 0;
   const streamingCount = entry.actions_taken.filter(
@@ -127,7 +138,12 @@ function TimelineEntryView({
                   mb: index < entry.actions_taken.length - 1 ? 3 : 0,
                 })}
               >
-                <ActionDisplay action={action} />
+                <ActionDisplay
+                  action={action}
+                  triggerId={entry.entry_id}
+                  actionIndex={index}
+                  updateAction={updateAction}
+                />
               </div>
             ))}
           </div>
@@ -142,6 +158,11 @@ interface TimelineItemProps {
   isActive?: boolean;
   isExpanded?: boolean;
   onToggleExpanded?: () => void;
+  updateAction: (
+    triggerId: string,
+    actionIndex: number,
+    updates: Partial<Action>,
+  ) => void;
 }
 
 function TimelineItem({
@@ -149,6 +170,7 @@ function TimelineItem({
   isActive,
   isExpanded,
   onToggleExpanded,
+  updateAction,
 }: TimelineItemProps) {
   return (
     <TimelineEntryView
@@ -156,11 +178,16 @@ function TimelineItem({
       isActive={isActive}
       isExpanded={isExpanded}
       onToggleExpanded={onToggleExpanded}
+      updateAction={updateAction}
     />
   );
 }
 
-export function Timeline({ entries, isStreamActive }: TimelineProps) {
+export function Timeline({
+  entries,
+  isStreamActive,
+  updateAction,
+}: TimelineProps) {
   const [collapsedEntries, setCollapsedEntries] = useState<Set<string>>(
     new Set(),
   );
@@ -215,6 +242,7 @@ export function Timeline({ entries, isStreamActive }: TimelineProps) {
               isActive={isActive}
               isExpanded={isExpanded}
               onToggleExpanded={onToggleExpanded}
+              updateAction={updateAction}
             />
           );
         })}

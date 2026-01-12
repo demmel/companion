@@ -1,6 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
 import { AgentClient } from "../client";
-import { TimelineEntry, TimelineResponse, PaginationInfo } from "../types";
+import {
+  TimelineEntry,
+  TimelineResponse,
+  PaginationInfo,
+  Action,
+} from "../types";
 
 export interface UseTimelineHistoryReturn {
   // Historical data
@@ -15,6 +20,11 @@ export interface UseTimelineHistoryReturn {
   loadInitialData: () => Promise<void>;
   loadMore: () => Promise<void>;
   clear: () => void;
+  updateAction: (
+    triggerId: string,
+    actionIndex: number,
+    updates: Partial<Action>,
+  ) => void;
 }
 
 export function useTimelineHistory(
@@ -99,6 +109,34 @@ export function useTimelineHistory(
     setHasLoadedAnyData(false);
   }, []);
 
+  const updateAction = useCallback(
+    (triggerId: string, actionIndex: number, updates: Partial<Action>) => {
+      setEntries((prev) =>
+        prev.map((timelineEntry) => {
+          if (
+            timelineEntry.type === "trigger" &&
+            timelineEntry.entry.entry_id === triggerId
+          ) {
+            return {
+              ...timelineEntry,
+              entry: {
+                ...timelineEntry.entry,
+                actions_taken: timelineEntry.entry.actions_taken.map(
+                  (action, index) =>
+                    index === actionIndex
+                      ? ({ ...action, ...updates } as Action)
+                      : action,
+                ),
+              },
+            };
+          }
+          return timelineEntry;
+        }),
+      );
+    },
+    [],
+  );
+
   return {
     entries,
     canLoadMore,
@@ -107,5 +145,6 @@ export function useTimelineHistory(
     loadInitialData,
     loadMore,
     clear,
+    updateAction,
   };
 }

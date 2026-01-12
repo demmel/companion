@@ -40,6 +40,11 @@ export interface UseTriggerEventsReturn {
   contextInfo: ContextInfo | null;
   setContextInfo: (context: ContextInfo) => void;
   clearStreamingData: () => void;
+  updateAction: (
+    triggerId: string,
+    actionIndex: number,
+    updates: Partial<Action>,
+  ) => void;
 }
 
 /**
@@ -174,6 +179,7 @@ export function useTriggerEvents(
           currentTrigger.actions.push({
             sequence_number: event.sequence_number,
             action_number: event.action_number,
+            trigger_id: event.entry_id,
             status: {
               type: "streaming",
               result: "",
@@ -340,11 +346,32 @@ export function useTriggerEvents(
     lastProcessedEventId.current = null;
   }, []);
 
+  const updateAction = useCallback(
+    (triggerId: string, actionIndex: number, updates: Partial<Action>) => {
+      setStreamingEntries((prev) =>
+        prev.map((entry) =>
+          entry.entry_id === triggerId
+            ? {
+                ...entry,
+                actions_taken: entry.actions_taken.map((action, index) =>
+                  index === actionIndex
+                    ? ({ ...action, ...updates } as Action)
+                    : action,
+                ),
+              }
+            : entry,
+        ),
+      );
+    },
+    [],
+  );
+
   return {
     streamingEntries: allStreamingEntries,
     isStreamActive,
     contextInfo,
     setContextInfo,
     clearStreamingData,
+    updateAction,
   };
 }

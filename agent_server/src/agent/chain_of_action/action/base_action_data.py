@@ -6,7 +6,7 @@ from abc import abstractmethod
 from datetime import datetime
 from typing import Generic, TypeVar
 from typing_extensions import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ActionOutput(BaseModel):
@@ -39,6 +39,8 @@ type ActionResult[T: ActionOutput] = ActionSuccessResult[T] | ActionFailureResul
 
 class BaseActionData(BaseModel, Generic[TInput, TOutput]):
     """Result of executing an action"""
+
+    model_config = ConfigDict(extra='ignore')
 
     reasoning: str
     input: TInput

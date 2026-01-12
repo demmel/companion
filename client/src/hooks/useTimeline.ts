@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { ClientAgentEvent } from "./useWebSocket";
 import { useTriggerEvents } from "./useTriggerEvents";
 import { useTimelineHistory } from "./useTimelineHistory";
@@ -8,6 +8,7 @@ import {
   TimelineEntryTrigger,
   ContextInfo,
   PaginationInfo,
+  Action,
 } from "../types";
 
 export interface UseTimelineReturn {
@@ -28,6 +29,11 @@ export interface UseTimelineReturn {
   // Actions
   loadInitialData: () => Promise<void>;
   clearData: () => void;
+  updateAction: (
+    triggerId: string,
+    actionIndex: number,
+    updates: Partial<Action>,
+  ) => void;
 }
 
 export function useTimeline(
@@ -83,6 +89,15 @@ export function useTimeline(
     streamingData.clearStreamingData();
   };
 
+  const updateAction = useCallback(
+    (triggerId: string, actionIndex: number, updates: Partial<Action>) => {
+      // Update both streaming and historical data
+      streamingData.updateAction(triggerId, actionIndex, updates);
+      historyData.updateAction(triggerId, actionIndex, updates);
+    },
+    [streamingData, historyData],
+  );
+
   return {
     // Combined data
     triggerEntries: combinedEntries,
@@ -101,5 +116,6 @@ export function useTimeline(
     // Actions
     loadInitialData: historyData.loadInitialData,
     clearData,
+    updateAction,
   };
 }

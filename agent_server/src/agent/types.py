@@ -16,6 +16,7 @@ class ImageGenerationToolContent(BaseModel):
 
     type: Literal["image_generated"] = "image_generated"
     prompt: str  # Final optimized prompt used
+    chunks: Optional[List[str]] = None  # Individual prompt chunks for regeneration
     image_path: str  # File system path to the generated image
     image_url: str
     width: int

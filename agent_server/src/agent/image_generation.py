@@ -631,12 +631,13 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
 
             image_content = ImageGenerationToolContent(
                 prompt=combined_prompt,
+                chunks=chunks,
                 image_path=str(image_path),
                 image_url=f"/generated_images/{image_path.name}",
                 width=width,
                 height=height,
-                num_inference_steps=30,
-                guidance_scale=5.0,
+                num_inference_steps=sdxl_model_config.num_inference_steps,
+                guidance_scale=sdxl_model_config.guidance_scale,
                 negative_prompt=negative_prompt if negative_prompt else None,
             )
 
@@ -654,6 +655,117 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                 }
             )
             return None
+
+    def _reconstruct_chunks_from_prompt(self, prompt: str) -> List[str]:
+        """
+        Reconstruct chunks from combined prompt by splitting on ", " and regrouping.
+        Used for backwards compatibility with images that don't have chunks stored.
+        """
+        # Split by ", " to get segments
+        segments = prompt.split(", ")
+
+        if len(segments) <= 4:
+            # If we have 4 or fewer segments, use them as-is
+            return segments
+
+        # Need to group segments into <=4 chunks with balanced token counts
+        # Get tokenizer to count tokens
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not loaded")
+
+        tokenizer = self._pipeline.tokenizer
+
+        # Count tokens for each segment
+        segment_token_counts = []
+        for segment in segments:
+            tokens = tokenizer(segment, return_tensors="pt")
+            token_count = len(tokens.input_ids[0])
+            segment_token_counts.append(token_count)
+
+        # Group segments into chunks using greedy bin-packing
+        chunks = []
+        current_chunk_segments = []
+        current_chunk_tokens = 0
+        total_tokens = sum(segment_token_counts)
+        target_tokens_per_chunk = total_tokens / 4  # Aim for 4 balanced chunks
+
+        for i, (segment, token_count) in enumerate(zip(segments, segment_token_counts)):
+            # Check if adding this segment would exceed 75 tokens
+            if current_chunk_tokens + token_count > 75:
+                # Save current chunk if not empty
+                if current_chunk_segments:
+                    chunks.append(", ".join(current_chunk_segments))
+                    current_chunk_segments = []
+                    current_chunk_tokens = 0
+
+            # Add segment to current chunk
+            current_chunk_segments.append(segment)
+            current_chunk_tokens += token_count
+
+            # Start new chunk if we've reached target and aren't on last segment
+            if (current_chunk_tokens >= target_tokens_per_chunk and
+                i < len(segments) - 1 and
+                len(chunks) < 3):  # Leave room for remaining segments
+                chunks.append(", ".join(current_chunk_segments))
+                current_chunk_segments = []
+                current_chunk_tokens = 0
+
+        # Add final chunk if not empty
+        if current_chunk_segments:
+            chunks.append(", ".join(current_chunk_segments))
+
+        logger.info(f"Reconstructed {len(chunks)} chunks from {len(segments)} segments")
+        return chunks
+
+    def regenerate_from_metadata(
+        self,
+        metadata: ImageGenerationToolContent,
+        progress_callback: Callable[[Any], None],
+    ) -> Optional[ImageGenerationToolContent]:
+        """
+        Regenerate image using existing metadata with new random seed.
+        Bypasses LLM optimization to save tokens.
+        """
+        # Load model if needed
+        if self._pipeline is None:
+            sdxl_model_config = MODELS[DEFAULT_MODEL]
+            self._load_model(progress_callback, sdxl_model_config)
+
+        # Get or reconstruct chunks
+        if metadata.chunks and len(metadata.chunks) > 0:
+            chunks = metadata.chunks
+            logger.info(f"Using stored chunks: {len(chunks)} chunks")
+        else:
+            logger.info(f"No chunks stored, reconstructing from prompt")
+            chunks = self._reconstruct_chunks_from_prompt(metadata.prompt)
+
+        # Get negative prompt
+        negative_prompt = metadata.negative_prompt or ""
+
+        # Determine layout from dimensions
+        if metadata.width == 768 and metadata.height == 1344:
+            layout = ImageLayout.PORTRAIT
+        elif metadata.width == 1344 and metadata.height == 768:
+            layout = ImageLayout.LANDSCAPE
+        else:
+            layout = ImageLayout.SQUARE
+
+        # Create a model config from the stored metadata
+        # This preserves the original generation parameters
+        sdxl_model_config = SDXLModelConfig(
+            file_name=MODELS[DEFAULT_MODEL].file_name,  # Use default model file
+            num_inference_steps=metadata.num_inference_steps,
+            guidance_scale=metadata.guidance_scale,
+        )
+
+        # Generate new image using existing method
+        return self._generate_image(
+            chunks=chunks,
+            negative_prompt=negative_prompt,
+            layout=layout,
+            progress_callback=progress_callback,
+            sdxl_model_config=sdxl_model_config,
+        )
 
     def generate_image_direct(
         self,

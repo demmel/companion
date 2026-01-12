@@ -67,6 +67,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
     isLoadingMore,
     loadMore,
     clearData,
+    updateAction,
   } = useTimeline(client, events, timelineEntries, paginationInfo);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -285,6 +286,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
             <Timeline
               entries={triggerEntries}
               isStreamActive={isStreamActive}
+              updateAction={updateAction}
             />
           </>
         )}

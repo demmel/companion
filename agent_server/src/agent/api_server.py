@@ -213,6 +213,21 @@ async def reset_agent():
     )
 
 
+class RegenerateImageRequest(BaseModel):
+    """Request to regenerate an image from existing metadata"""
+
+    trigger_id: str
+    action_index: int
+
+
+class RegenerateImageResponse(BaseModel):
+    """Response for image regeneration request"""
+
+    success: bool
+    new_image_url: Optional[str] = None
+    error: Optional[str] = None
+
+
 class ClientSendMessageRequest(BaseModel):
     """Message received from client over WebSocket"""
 
@@ -560,6 +575,109 @@ async def upload_image(file: UploadFile = File(...)):
         size=file_size,
         url=f"/uploaded_images/{new_filename}",
     )
+
+
+@app.post("/api/regenerate-image", response_model=RegenerateImageResponse)
+async def regenerate_image(request: RegenerateImageRequest):
+    """Regenerate an image using existing prompt with new random seed"""
+
+    manager: AgentEventManager = app.state.agent_manager
+    trigger_history = manager.get_trigger_history()
+
+    # Find the trigger entry
+    try:
+        entry = trigger_history.get_entry_by_id(request.trigger_id)
+    except Exception as e:
+        logger.error(f"Failed to find trigger: {e}")
+        return RegenerateImageResponse(
+            success=False,
+            error=f"Trigger not found: {request.trigger_id}"
+        )
+
+    # Get the action by index
+    if request.action_index < 0 or request.action_index >= len(entry.actions_taken):
+        return RegenerateImageResponse(
+            success=False,
+            error=f"Invalid action index: {request.action_index}"
+        )
+
+    action = entry.actions_taken[request.action_index]
+
+    # Extract ImageGenerationToolContent from action result
+    from agent.chain_of_action.action.base_action_data import ActionSuccessResult
+    from agent.types import ImageGenerationToolContent
+    from agent.chain_of_action.action.actions.visual_actions import (
+        UpdateAppearanceOutput,
+        UpdateEnvironmentOutput,
+    )
+
+    if action.result.type != "success":
+        return RegenerateImageResponse(
+            success=False,
+            error="Action did not complete successfully"
+        )
+
+    # Get the image result from the action output
+    result_content = action.result.content
+    image_result = None
+
+    if isinstance(result_content, (UpdateAppearanceOutput, UpdateEnvironmentOutput)):
+        image_result = result_content.image_result
+
+    if image_result is None or not isinstance(image_result, ImageGenerationToolContent):
+        return RegenerateImageResponse(
+            success=False,
+            error="Action does not contain image generation metadata"
+        )
+
+    # Get image generation service
+    from agent.image_generation import get_shared_image_generator
+
+    image_service = get_shared_image_generator()
+
+    # Progress callback (we don't stream progress for regeneration yet)
+    def progress_callback(progress_data):
+        logger.debug(f"Regeneration progress: {progress_data}")
+
+    # Regenerate the image
+    try:
+        new_image_content = image_service.regenerate_from_metadata(
+            metadata=image_result,
+            progress_callback=progress_callback,
+        )
+
+        if new_image_content is None:
+            return RegenerateImageResponse(
+                success=False,
+                error="Image generation failed"
+            )
+
+        # Update the action's result with new image
+        if isinstance(result_content, UpdateAppearanceOutput):
+            result_content.image_result = new_image_content
+            result_content.image_description = new_image_content.prompt
+        elif isinstance(result_content, UpdateEnvironmentOutput):
+            result_content.image_result = new_image_content
+            result_content.image_description = new_image_content.prompt
+
+        # Save conversation to persist changes
+        manager.agent.save_conversation()
+
+        logger.info(f"Successfully regenerated image for action at index {request.action_index}")
+
+        return RegenerateImageResponse(
+            success=True,
+            new_image_url=new_image_content.image_url
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to regenerate image: {e}")
+        import traceback
+        traceback.print_exc()
+        return RegenerateImageResponse(
+            success=False,
+            error=f"Image generation error: {str(e)}"
+        )
 
 
 @app.get("/api/health")

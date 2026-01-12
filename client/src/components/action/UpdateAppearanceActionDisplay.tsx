@@ -1,20 +1,64 @@
 import { css } from "@styled-system/css";
 import { Loader2, Image as ImageIcon } from "lucide-react";
-import { UpdateAppearanceAction } from "@/types";
+import { UpdateAppearanceAction, Action } from "@/types";
 import { ImageDisplay } from "../common/ImageDisplay";
+import { useState } from "react";
 
 interface UpdateAppearanceActionDisplayProps {
   action: UpdateAppearanceAction;
+  actionIndex: number;
+  updateAction: (
+    triggerId: string,
+    actionIndex: number,
+    updates: Partial<Action>,
+  ) => void;
 }
 
 export function UpdateAppearanceActionDisplay({
   action,
+  actionIndex,
+  updateAction,
 }: UpdateAppearanceActionDisplayProps) {
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const isStreaming = action.status.type === "streaming";
   const result =
     action.status.type === "error"
       ? `Error: ${action.status.error}`
       : action.status.result;
+
+  const handleRegenerate = async () => {
+    setIsRegenerating(true);
+    try {
+      const response = await fetch("/api/regenerate-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          trigger_id: action.trigger_id,
+          action_index: actionIndex,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        console.error("Failed to regenerate image:", data.error);
+        // TODO: Show error toast/notification
+      } else {
+        // Update the action with the new image URL
+        updateAction(action.trigger_id, actionIndex, {
+          image_url: data.new_image_url,
+        });
+      }
+    } catch (error) {
+      console.error("Error regenerating image:", error);
+      // TODO: Show error toast/notification
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   return (
     <div
       className={css({
@@ -58,12 +102,35 @@ export function UpdateAppearanceActionDisplay({
 
       {/* Show image if available */}
       {action.image_url ? (
-        <div className={css({ mb: 3 })}>
+        <div className={css({ mb: 3, position: "relative" })}>
+          {isRegenerating && (
+            <div
+              className={css({
+                position: "absolute",
+                inset: 0,
+                bg: "rgba(0, 0, 0, 0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 10,
+                rounded: "md",
+              })}
+            >
+              <Loader2
+                size={32}
+                className={css({
+                  animation: "spin 1s linear infinite",
+                  color: "white",
+                })}
+              />
+            </div>
+          )}
           <ImageDisplay
             src={action.image_url}
             alt={action.image_description || "Agent appearance"}
             maxWidth="100%"
             maxHeight="300px"
+            onRegenerate={handleRegenerate}
           />
         </div>
       ) : (

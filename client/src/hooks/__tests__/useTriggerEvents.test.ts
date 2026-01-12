@@ -60,7 +60,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_1",
         action: {
-          type: "speak",
+          type: "speak", trigger_id: "entry_1",
           context_given: "Respond warmly to the user's greeting",
           reasoning: "The user is asking about my well-being.",
           status: {
@@ -232,7 +232,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_3",
         action: {
-          type: "think",
+          type: "think", trigger_id: "test_trigger_id",
           context_given: "Consider the mood change",
           status: {
             type: "success",
@@ -250,7 +250,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_3",
         action: {
-          type: "update_mood",
+          type: "update_mood", trigger_id: "test_trigger_id",
           context_given: "Update mood to happy",
           status: {
             type: "success",
@@ -268,7 +268,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_3",
         action: {
-          type: "speak",
+          type: "speak", trigger_id: "test_trigger_id",
           context_given: "Acknowledge the mood change",
           status: {
             type: "success",
@@ -360,7 +360,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_4",
         action: {
-          type: "speak",
+          type: "speak", trigger_id: "test_trigger_id",
           context_given: "Second action",
           status: {
             type: "success",
@@ -378,7 +378,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_4",
         action: {
-          type: "think",
+          type: "think", trigger_id: "test_trigger_id",
           context_given: "First action",
           status: {
             type: "success",
@@ -466,7 +466,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_5",
         action: {
-          type: "think",
+          type: "think", trigger_id: "test_trigger_id",
           context_given: "First sequence thinking",
           status: {
             type: "success",
@@ -496,7 +496,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_5",
         action: {
-          type: "speak",
+          type: "speak", trigger_id: "test_trigger_id",
           context_given: "Second sequence speaking",
           status: {
             type: "success",
@@ -578,7 +578,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_6",
         action: {
-          type: "speak",
+          type: "speak", trigger_id: "test_trigger_id",
           context_given: "Test action",
           status: {
             type: "success",
@@ -660,7 +660,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_7",
         action: {
-          type: "speak",
+          type: "speak", trigger_id: "test_trigger_id",
           context_given: "Valid context",
           status: {
             type: "success",
@@ -787,7 +787,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_9",
         action: {
-          type: "update_appearance",
+          type: "update_appearance", trigger_id: "test_trigger_id",
           context_given: "Update appearance with new image",
           status: {
             type: "success",

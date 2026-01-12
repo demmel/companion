@@ -17,9 +17,21 @@ import { ChevronDown } from "lucide-react";
 
 interface ActionDisplayProps {
   action: Action;
+  triggerId: string;
+  actionIndex: number;
+  updateAction: (
+    triggerId: string,
+    actionIndex: number,
+    updates: Partial<Action>,
+  ) => void;
 }
 
-export function ActionDisplay({ action }: ActionDisplayProps) {
+export function ActionDisplay({
+  action,
+  triggerId,
+  actionIndex,
+  updateAction,
+}: ActionDisplayProps) {
   const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   const renderActionContent = () => {
@@ -29,9 +41,21 @@ export function ActionDisplay({ action }: ActionDisplayProps) {
       case "speak":
         return <SpeakActionDisplay action={action} />;
       case "update_appearance":
-        return <UpdateAppearanceActionDisplay action={action} />;
+        return (
+          <UpdateAppearanceActionDisplay
+            action={action}
+            actionIndex={actionIndex}
+            updateAction={updateAction}
+          />
+        );
       case "update_environment":
-        return <UpdateEnvironmentActionDisplay action={action} />;
+        return (
+          <UpdateEnvironmentActionDisplay
+            action={action}
+            actionIndex={actionIndex}
+            updateAction={updateAction}
+          />
+        );
       case "update_mood":
         return <UpdateMoodActionDisplay action={action} />;
       case "wait":
