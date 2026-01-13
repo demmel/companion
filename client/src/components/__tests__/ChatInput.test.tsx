@@ -62,7 +62,7 @@ describe("ChatInput", () => {
     const form = screen.getByRole("textbox").closest("form")!;
     fireEvent.submit(form);
 
-    expect(onSubmit).toHaveBeenCalledWith("test message");
+    expect(onSubmit).toHaveBeenCalledWith("test message", []);
   });
 
   it("should call onSubmit when send button is clicked", async () => {
@@ -73,10 +73,12 @@ describe("ChatInput", () => {
       <ChatInput {...defaultProps} value="test message" onSubmit={onSubmit} />,
     );
 
-    const sendButton = screen.getByRole("button");
+    const sendButton = screen
+      .getAllByRole("button")
+      .find((b) => b.getAttribute("type") === "submit")!;
     await user.click(sendButton);
 
-    expect(onSubmit).toHaveBeenCalledWith("test message");
+    expect(onSubmit).toHaveBeenCalledWith("test message", []);
   });
 
   it("should not submit empty or whitespace-only messages", async () => {
@@ -85,7 +87,9 @@ describe("ChatInput", () => {
 
     render(<ChatInput {...defaultProps} value="   " onSubmit={onSubmit} />);
 
-    const sendButton = screen.getByRole("button");
+    const sendButton = screen
+      .getAllByRole("button")
+      .find((b) => b.getAttribute("type") === "submit")!;
     await user.click(sendButton);
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -95,24 +99,30 @@ describe("ChatInput", () => {
     render(<ChatInput {...defaultProps} disabled={true} />);
 
     const input = screen.getByRole("textbox");
-    const button = screen.getByRole("button");
+    const submitButton = screen
+      .getAllByRole("button")
+      .find((b) => b.getAttribute("type") === "submit")!;
 
     expect(input).toBeDisabled();
-    expect(button).toBeDisabled();
+    expect(submitButton).toBeDisabled();
   });
 
   it("should disable button when value is empty", () => {
     render(<ChatInput {...defaultProps} value="" />);
 
-    const button = screen.getByRole("button");
-    expect(button).toBeDisabled();
+    const submitButton = screen
+      .getAllByRole("button")
+      .find((b) => b.getAttribute("type") === "submit")!;
+    expect(submitButton).toBeDisabled();
   });
 
   it("should enable button when value is not empty and not disabled", () => {
     render(<ChatInput {...defaultProps} value="test" />);
 
-    const button = screen.getByRole("button");
-    expect(button).not.toBeDisabled();
+    const submitButton = screen
+      .getAllByRole("button")
+      .find((b) => b.getAttribute("type") === "submit")!;
+    expect(submitButton).not.toBeDisabled();
   });
 
   it("should show clear button when onClear is provided", () => {

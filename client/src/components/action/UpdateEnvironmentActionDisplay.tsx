@@ -6,6 +6,9 @@ import { useState } from "react";
 
 interface UpdateEnvironmentActionDisplayProps {
   action: UpdateEnvironmentAction;
+  // TODO: Long-term, consider passing an onRegenerate callback instead of triggerId
+  // to improve encapsulation (action display shouldn't need to know about triggers)
+  triggerId: string;
   actionIndex: number;
   updateAction: (
     triggerId: string,
@@ -16,6 +19,7 @@ interface UpdateEnvironmentActionDisplayProps {
 
 export function UpdateEnvironmentActionDisplay({
   action,
+  triggerId,
   actionIndex,
   updateAction,
 }: UpdateEnvironmentActionDisplayProps) {
@@ -35,7 +39,7 @@ export function UpdateEnvironmentActionDisplay({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          trigger_id: action.trigger_id,
+          trigger_id: triggerId,
           action_index: actionIndex,
         }),
       });
@@ -47,7 +51,7 @@ export function UpdateEnvironmentActionDisplay({
         // TODO: Show error toast/notification
       } else {
         // Update the action with the new image URL
-        updateAction(action.trigger_id, actionIndex, {
+        updateAction(triggerId, actionIndex, {
           image_url: data.new_image_url,
         });
       }

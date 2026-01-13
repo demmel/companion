@@ -179,7 +179,6 @@ export function useTriggerEvents(
           currentTrigger.actions.push({
             sequence_number: event.sequence_number,
             action_number: event.action_number,
-            trigger_id: event.entry_id,
             status: {
               type: "streaming",
               result: "",

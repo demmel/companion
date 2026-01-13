@@ -44,6 +44,7 @@ export function ActionDisplay({
         return (
           <UpdateAppearanceActionDisplay
             action={action}
+            triggerId={triggerId}
             actionIndex={actionIndex}
             updateAction={updateAction}
           />
@@ -52,6 +53,7 @@ export function ActionDisplay({
         return (
           <UpdateEnvironmentActionDisplay
             action={action}
+            triggerId={triggerId}
             actionIndex={actionIndex}
             updateAction={updateAction}
           />

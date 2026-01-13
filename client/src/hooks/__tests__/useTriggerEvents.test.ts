@@ -60,7 +60,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_1",
         action: {
-          type: "speak", trigger_id: "entry_1",
+          type: "speak",
           context_given: "Respond warmly to the user's greeting",
           reasoning: "The user is asking about my well-being.",
           status: {
@@ -80,12 +80,23 @@ describe("useTriggerEvents", () => {
           entry_id: "entry_1",
           trigger: {
             type: "user_input",
-            content: "",
+            content: "Hello, how are you?",
             user_name: "TestUser",
-            timestamp: "",
+            timestamp: "2024-01-01T10:00:00Z",
           },
-          actions_taken: [],
-          timestamp: "",
+          actions_taken: [
+            {
+              type: "speak",
+              context_given: "Respond warmly to the user's greeting",
+              reasoning: "The user is asking about my well-being.",
+              status: {
+                type: "success",
+                result: "Hello! I'm doing well, thanks for asking!",
+              },
+              duration_ms: 1500,
+            },
+          ],
+          timestamp: "2024-01-01T10:00:00Z",
           situational_context: "Test situational context",
           compressed_summary: undefined,
         },
@@ -232,7 +243,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_3",
         action: {
-          type: "think", trigger_id: "test_trigger_id",
+          type: "think",
           context_given: "Consider the mood change",
           status: {
             type: "success",
@@ -250,7 +261,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_3",
         action: {
-          type: "update_mood", trigger_id: "test_trigger_id",
+          type: "update_mood",
           context_given: "Update mood to happy",
           status: {
             type: "success",
@@ -268,7 +279,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_3",
         action: {
-          type: "speak", trigger_id: "test_trigger_id",
+          type: "speak",
           context_given: "Acknowledge the mood change",
           status: {
             type: "success",
@@ -288,12 +299,43 @@ describe("useTriggerEvents", () => {
           entry_id: "entry_3",
           trigger: {
             type: "user_input",
-            content: "",
+            content: "Change your mood to happy",
             user_name: "TestUser",
-            timestamp: "",
+            timestamp: "2024-01-01T12:00:00Z",
           },
-          actions_taken: [],
-          timestamp: "",
+          actions_taken: [
+            {
+              type: "think",
+              context_given: "Consider the mood change",
+              status: {
+                type: "success",
+                result: "I should update my mood and let the user know",
+              },
+              duration_ms: 500,
+              reasoning: "I should update my mood and let the user know.",
+            },
+            {
+              type: "update_mood",
+              context_given: "Update mood to happy",
+              status: {
+                type: "success",
+                result: "Mood updated to happy",
+              },
+              duration_ms: 200,
+              reasoning: "I should update my mood to happy.",
+            },
+            {
+              type: "speak",
+              context_given: "Acknowledge the mood change",
+              status: {
+                type: "success",
+                result: "Great! I'm feeling happy now! 😊",
+              },
+              duration_ms: 800,
+              reasoning: "I want to acknowledge the user's mood change.",
+            },
+          ],
+          timestamp: "2024-01-01T12:00:00Z",
           situational_context: "Test situational context",
           compressed_summary: undefined,
         },
@@ -360,7 +402,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_4",
         action: {
-          type: "speak", trigger_id: "test_trigger_id",
+          type: "speak",
           context_given: "Second action",
           status: {
             type: "success",
@@ -378,7 +420,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_4",
         action: {
-          type: "think", trigger_id: "test_trigger_id",
+          type: "think",
           context_given: "First action",
           status: {
             type: "success",
@@ -398,12 +440,33 @@ describe("useTriggerEvents", () => {
           entry_id: "entry_4",
           trigger: {
             type: "user_input",
-            content: "",
+            content: "Do something complex",
             user_name: "TestUser",
-            timestamp: "",
+            timestamp: "2024-01-01T13:00:00Z",
           },
-          actions_taken: [],
-          timestamp: "",
+          actions_taken: [
+            {
+              type: "think",
+              context_given: "First action",
+              status: {
+                type: "success",
+                result: "First action result",
+              },
+              duration_ms: 800,
+              reasoning: "First action reasoning",
+            },
+            {
+              type: "speak",
+              context_given: "Second action",
+              status: {
+                type: "success",
+                result: "Second action result",
+              },
+              duration_ms: 300,
+              reasoning: "Second action reasoning",
+            },
+          ],
+          timestamp: "2024-01-01T13:00:00Z",
           situational_context: "Test situational context",
           compressed_summary: undefined,
         },
@@ -466,7 +529,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_5",
         action: {
-          type: "think", trigger_id: "test_trigger_id",
+          type: "think",
           context_given: "First sequence thinking",
           status: {
             type: "success",
@@ -496,7 +559,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_5",
         action: {
-          type: "speak", trigger_id: "test_trigger_id",
+          type: "speak",
           context_given: "Second sequence speaking",
           status: {
             type: "success",
@@ -516,12 +579,33 @@ describe("useTriggerEvents", () => {
           entry_id: "entry_5",
           trigger: {
             type: "user_input",
-            content: "",
+            content: "Multi-sequence task",
             user_name: "TestUser",
-            timestamp: "",
+            timestamp: "2024-01-01T14:00:00Z",
           },
-          actions_taken: [],
-          timestamp: "",
+          actions_taken: [
+            {
+              type: "think",
+              context_given: "First sequence thinking",
+              status: {
+                type: "success",
+                result: "First sequence thought",
+              },
+              duration_ms: 400,
+              reasoning: "First sequence reasoning",
+            },
+            {
+              type: "speak",
+              context_given: "Second sequence speaking",
+              status: {
+                type: "success",
+                result: "Second sequence response",
+              },
+              duration_ms: 600,
+              reasoning: "Second action reasoning",
+            },
+          ],
+          timestamp: "2024-01-01T14:00:00Z",
           situational_context: "Test situational context",
           compressed_summary: undefined,
         },
@@ -578,7 +662,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_6",
         action: {
-          type: "speak", trigger_id: "test_trigger_id",
+          type: "speak",
           context_given: "Test action",
           status: {
             type: "success",
@@ -597,12 +681,22 @@ describe("useTriggerEvents", () => {
           entry_id: "entry_6",
           trigger: {
             type: "user_input",
-            content: "",
+            content: "Test",
             user_name: "TestUser",
-            timestamp: "",
+            timestamp: "2024-01-01T15:00:00Z",
           },
-          actions_taken: [],
-          timestamp: "",
+          actions_taken: [
+            {
+              type: "speak",
+              context_given: "Test action",
+              status: {
+                type: "success",
+                result: "Test result",
+              },
+              duration_ms: 100,
+            },
+          ],
+          timestamp: "2024-01-01T15:00:00Z",
           situational_context: "Test situational context",
           compressed_summary: undefined,
         },
@@ -660,7 +754,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_7",
         action: {
-          type: "speak", trigger_id: "test_trigger_id",
+          type: "speak",
           context_given: "Valid context",
           status: {
             type: "success",
@@ -680,12 +774,23 @@ describe("useTriggerEvents", () => {
           entry_id: "entry_7",
           trigger: {
             type: "user_input",
-            content: "",
+            content: "Valid trigger",
             user_name: "TestUser",
-            timestamp: "",
+            timestamp: "2024-01-01T16:00:00Z",
           },
-          actions_taken: [],
-          timestamp: "",
+          actions_taken: [
+            {
+              type: "speak",
+              context_given: "Valid context",
+              status: {
+                type: "success",
+                result: "Valid result",
+              },
+              duration_ms: 200,
+              reasoning: "Valid reasoning",
+            },
+          ],
+          timestamp: "2024-01-01T16:00:00Z",
           situational_context: "Test situational context",
           compressed_summary: undefined,
         },
@@ -787,7 +892,7 @@ describe("useTriggerEvents", () => {
         type: "action_completed",
         entry_id: "entry_9",
         action: {
-          type: "update_appearance", trigger_id: "test_trigger_id",
+          type: "update_appearance",
           context_given: "Update appearance with new image",
           status: {
             type: "success",
@@ -809,12 +914,25 @@ describe("useTriggerEvents", () => {
           entry_id: "entry_9",
           trigger: {
             type: "user_input",
-            content: "",
+            content: "Update your appearance",
             user_name: "TestUser",
-            timestamp: "",
+            timestamp: "2024-01-01T18:00:00Z",
           },
-          actions_taken: [],
-          timestamp: "",
+          actions_taken: [
+            {
+              type: "update_appearance",
+              context_given: "Update appearance with new image",
+              status: {
+                type: "success",
+                result: "Appearance updated with new ethereal look",
+              },
+              duration_ms: 2000,
+              image_description: "An ethereal being with flowing robes",
+              image_url: "http://example.com/image.png",
+              reasoning: "Need to refresh appearance to match new theme.",
+            },
+          ],
+          timestamp: "2024-01-01T18:00:00Z",
           situational_context: "Test situational context",
           compressed_summary: undefined,
         },

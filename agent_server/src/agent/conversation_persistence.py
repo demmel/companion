@@ -81,7 +81,7 @@ class ConversationPersistence:
         """Save the state and trigger history for a conversation"""
         state_file = self._state_file_name(prefix)
         with timeit("Saving state to fiel"):
-            with open(state_file, "w") as f:
+            with open(state_file, "w", encoding="utf-8") as f:
                 f.write(state.model_dump_json(indent=2))
 
         trigger_file = self._trigger_file_name(prefix)
@@ -89,7 +89,7 @@ class ConversationPersistence:
             entries=trigger_history.entries,
         )
         with timeit("Saving trigger history to file"):
-            with open(trigger_file, "w") as f:
+            with open(trigger_file, "w", encoding="utf-8") as f:
                 f.write(trigger_data.model_dump_json(indent=2))
 
         save_memory(
@@ -112,13 +112,13 @@ class ConversationPersistence:
 
         # Load trigger history
         trigger_history = TriggerHistory()
-        with open(trigger_file, "r") as f:
+        with open(trigger_file, "r", encoding="utf-8") as f:
             trigger_data = ConversationData.model_validate(json.load(f))
             # Populate the trigger history
             trigger_history.entries = trigger_data.entries
 
         # Load state
-        with open(state_file, "r") as f:
+        with open(state_file, "r", encoding="utf-8") as f:
             state = State.model_validate(json.load(f))
 
         memory = load_memory(

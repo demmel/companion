@@ -118,7 +118,7 @@ class MemoryActionLog(BaseModel):
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(self.model_dump_json(indent=2))
 
         logger.info(f"Saved action log with {len(self.actions)} actions to {filepath}")
@@ -126,7 +126,7 @@ class MemoryActionLog(BaseModel):
     @classmethod
     def load_from_file(cls, filepath: str) -> "MemoryActionLog":
         """Load an action log from a JSON file."""
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         action_log = cls.model_validate(data)

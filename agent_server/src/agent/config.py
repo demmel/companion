@@ -46,7 +46,7 @@ class Config:
             config_path = Config.get_model_config_path()
             if config_path.exists():
                 try:
-                    with open(config_path, "r") as f:
+                    with open(config_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     # Convert string values back to SupportedModel enums
                     from agent.llm.models import SupportedModel
@@ -76,7 +76,7 @@ class Config:
         # Convert to dict with string values for JSON serialization
         data = {key: value.value for key, value in model_config.__dict__.items()}
 
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
     # ===== LLM Provider Configuration =====

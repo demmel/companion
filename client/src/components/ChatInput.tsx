@@ -109,6 +109,7 @@ export function ChatInput({
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
           placeholder={placeholder}
           rows={1}
           onKeyDown={(e) => {

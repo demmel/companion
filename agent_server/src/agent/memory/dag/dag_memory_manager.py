@@ -407,7 +407,7 @@ class DagMemoryManager(IMemory):
         """
 
         data = self.to_data()
-        with open(filepath, "w") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(data.model_dump_json(indent=2))
 
     @classmethod
@@ -421,7 +421,7 @@ class DagMemoryManager(IMemory):
             filepath: Path to load the memory graph from
         """
 
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             data = DagMemoryData.model_validate_json(f.read())
         return cls.from_data(data, trigger_history)
 
