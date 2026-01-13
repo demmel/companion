@@ -110,22 +110,13 @@ class DagMemoryManager(IMemory):
     @classmethod
     def create(
         cls,
-        initial_state: State,
-        token_budget: int,
-        action_registry: ActionRegistry,
         trigger_history: TriggerHistory,
     ) -> "DagMemoryManager":
         """
-        Create a new manager with initial state creation recorded as actions.
+        Create a new manager with empty state. Memories will be added via postprocess_trigger.
 
         Args:
-            initial_state: Initial agent state
-            backstory: Agent backstory for initial memories
-            token_budget: Token budget for context management
-            action_registry: Action registry for budget calculation
-            trigger_history: Trigger history
-            llm: LLM instance to use
-            model: Model to use for semantic connection extraction
+            trigger_history: Trigger history for replay functionality
         """
         # Start with completely empty state - memories will be added via postprocess_trigger
         manager = cls(
