@@ -72,19 +72,23 @@ class UpdateMoodAction(BaseAction[UpdateMoodInput, UpdateMoodOutput]):
         logger.debug(f"INTENSITY: {action_input.intensity}")
         logger.debug(f"REASON: {action_input.reason}")
 
-        old_mood = state.current_mood
-        old_intensity = state.mood_intensity
-
-        # Set the new mood to the absolute state provided
-        state.current_mood = action_input.new_mood
-        state.mood_intensity = action_input.intensity
-
-        return ActionSuccessResult(
-            content=UpdateMoodOutput(
-                old_mood=old_mood,
-                old_intensity=old_intensity,
-                new_mood=state.current_mood,
-                new_intensity=state.mood_intensity,
-                reason=action_input.reason,
-            )
+        output = UpdateMoodOutput(
+            old_mood=state.current_mood,
+            old_intensity=state.mood_intensity,
+            new_mood=action_input.new_mood,
+            new_intensity=action_input.intensity,
+            reason=action_input.reason,
         )
+
+        self.apply_state_change(state, action_input, output)
+        return ActionSuccessResult(content=output)
+
+    def apply_state_change(
+        self,
+        state: State,
+        action_input: UpdateMoodInput,
+        output: UpdateMoodOutput,
+    ) -> None:
+        """Apply mood changes from the output."""
+        state.current_mood = output.new_mood
+        state.mood_intensity = output.new_intensity

@@ -201,6 +201,15 @@ class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceO
             self.enable_image_generation,
         )
 
+    def apply_state_change(
+        self,
+        state: State,
+        action_input: UpdateAppearanceInput,
+        output: UpdateAppearanceOutput,
+    ) -> None:
+        """Apply appearance changes from the output."""
+        state.current_appearance = output.new_appearance
+
 
 class UpdateEnvironmentAction(
     BaseAction[UpdateEnvironmentInput, UpdateEnvironmentOutput]
@@ -237,6 +246,15 @@ class UpdateEnvironmentAction(
             progress_callback,
             self.enable_image_generation,
         )
+
+    def apply_state_change(
+        self,
+        state: State,
+        action_input: UpdateEnvironmentInput,
+        output: UpdateEnvironmentOutput,
+    ) -> None:
+        """Apply environment changes from the output."""
+        state.current_environment = output.new_environment
 
 
 # Shared execution logic

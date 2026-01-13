@@ -303,6 +303,32 @@ Is the new priority truly redundant (not just related) to any existing priority?
             )
         )
 
+    def apply_state_change(
+        self,
+        state: State,
+        action_input: AddPriorityInput,
+        output: AddPriorityOutput,
+    ) -> None:
+        """Apply priority addition from the output."""
+        # Check if the inner result indicates success (not duplicate)
+        if output.result.type != "success":
+            return
+
+        # Calculate insert position
+        insert_index = action_input.position.calculate_insert_index(state.current_priorities)
+
+        # Create new priority with the ID from the result
+        new_priority = Priority(
+            id=output.result.priority_id,
+            content=output.content,
+        )
+
+        state.current_priorities.insert(insert_index, new_priority)
+
+        # Update next_priority_id
+        priority_num = int(output.result.priority_id[1:])
+        state.next_priority_id = priority_num + 1
+
 
 class RemovePriorityInput(BaseModel):
     """Input for REMOVE_PRIORITY action"""
@@ -372,3 +398,15 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, RemovePriorityOutput]
             return ActionFailureResult(
                 error=f"Priority with ID '{action_input.priority_id}' not found"
             )
+
+    def apply_state_change(
+        self,
+        state: State,
+        action_input: RemovePriorityInput,
+        output: RemovePriorityOutput,
+    ) -> None:
+        """Apply priority removal from the output."""
+        state.current_priorities = [
+            p for p in state.current_priorities
+            if p.id != output.priority.id
+        ]

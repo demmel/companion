@@ -51,3 +51,29 @@ class BaseAction(ABC, Generic[TInput, TOutput]):
     ) -> ActionResult[TOutput]:
         """Execute the action and return result"""
         pass
+
+    def apply_state_change(
+        self,
+        state: State,
+        action_input: TInput,
+        output: TOutput,
+    ) -> None:
+        """
+        Apply state changes based on action input and output.
+
+        Mutates state in place. This separates state mutations from side effects,
+        enabling deterministic replay of conversations without re-executing LLM
+        calls or other side effects.
+
+        The default implementation does nothing. Actions that modify state should
+        override this method.
+
+        This method should be called by execute() after creating the output,
+        ensuring the same logic is used during execution and replay.
+
+        Args:
+            state: The state to mutate
+            action_input: The input that was passed to execute()
+            output: The successful output (caller should check for failure first)
+        """
+        pass
