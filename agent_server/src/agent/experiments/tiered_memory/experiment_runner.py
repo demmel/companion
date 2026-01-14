@@ -56,7 +56,7 @@ class TieredMemoryExperiment:
         # Load agent data using conversation persistence
         logger.info(f"Loading agent data from {conversation_prefix}")
         persistence = ConversationPersistence(conversations_dir=conversations_dir)
-        agent_data = persistence.load_agent_data(conversation_prefix)
+        agent_data = persistence.load_agent_data(conversation_prefix, use_individual_formatting=True)
 
         self.state = agent_data.state
         self.trigger_history = agent_data.trigger_history
