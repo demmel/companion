@@ -15,10 +15,10 @@ from .synthetic_scenarios import create_all_synthetic_scenarios
 from .data_models import EvalRun
 
 
-def create_memory_factory(name: str) -> MemoryFactory:
+def create_memory_factory(name: str, use_individual_formatting: bool) -> MemoryFactory:
     """Create a memory factory by name."""
     if name == "dag":
-        return lambda th: DagMemoryManager.create(th)
+        return lambda th: DagMemoryManager.create(th, use_individual_formatting)
     elif name.startswith("sliding:"):
         size = int(name.split(":")[1])
         return lambda th: SlidingWindowMemory(window_size=size)
@@ -101,6 +101,11 @@ def generate(output_dir: Path) -> None:
     default="llama",
     help="Model for query extraction (llama=fast, mistral=balanced, claude=production)",
 )
+@click.option(
+    "--individual-formatting/--compressed-formatting",
+    default=True,
+    help="Use individual memory formatting (default) or compressed container summaries",
+)
 def run(
     scenarios_dir: Path,
     scenario: Path | None,
@@ -108,6 +113,7 @@ def run(
     memory: tuple[str, ...],
     no_cache: bool,
     query_model: str,
+    individual_formatting: bool,
 ) -> None:
     """Run memory evaluation on scenarios."""
     # Map query model choice to SupportedModel
@@ -131,7 +137,7 @@ def run(
 
     factories: dict[str, MemoryFactory] = {}
     for name in memory:
-        factories[name] = create_memory_factory(name)
+        factories[name] = create_memory_factory(name, individual_formatting)
     click.echo(f"Testing {len(factories)} memory implementations: {list(factories.keys())}")
 
     llm = create_llm()

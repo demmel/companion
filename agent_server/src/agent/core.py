@@ -100,6 +100,7 @@ class Agent:
         auto_save: bool = True,
         enable_image_generation: bool = True,
         individual_trigger_compression: bool = True,
+        use_individual_memory_formatting: bool = True,
         auto_summarize_threshold: Optional[int] = None,
     ):
         self.llm = llm
@@ -117,6 +118,7 @@ class Agent:
             )
         self.enable_image_generation = enable_image_generation
         self.individual_trigger_compression = individual_trigger_compression
+        self.use_individual_memory_formatting = use_individual_memory_formatting
 
         # Conversation persistence
         self.auto_save = auto_save
@@ -201,7 +203,9 @@ class Agent:
 
         logger.info(f"Loading conversation {conversation_id}")
 
-        agent_data = self.persistence.load_agent_data(conversation_id)
+        agent_data = self.persistence.load_agent_data(
+            conversation_id, self.use_individual_memory_formatting
+        )
 
         self.reset_conversation()  # Clear existing history and state
 
@@ -425,6 +429,7 @@ class Agent:
 
             self.memory = DagMemoryManager.create(
                 trigger_history=self.trigger_history,
+                use_individual_formatting=self.use_individual_memory_formatting,
             )
 
             # Create and store the action result

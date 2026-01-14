@@ -117,7 +117,9 @@ def evaluate_scenario(
             MemoryQueries(
                 queries=query_result.queries,
                 max_tokens=token_budget,
-            )
+            ),
+            llm=llm,
+            model=query_extraction_model,
         )
 
         # Store after query
@@ -127,7 +129,7 @@ def evaluate_scenario(
     # Final query with test query is the one we evaluate
     print(f"  final query...", end=" ", flush=True)
     start_time = time.perf_counter()
-    output = memory.query(scenario.test_query)
+    output = memory.query(scenario.test_query, llm=llm, model=query_extraction_model)
     end_time = time.perf_counter()
     retrieval_time_ms = (end_time - start_time) * 1000
     print(f"{retrieval_time_ms:.0f}ms")

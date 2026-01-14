@@ -23,6 +23,7 @@ def load_memory(
     dir: Path,
     prefix: str,
     trigger_history: TriggerHistory,
+    use_individual_formatting: bool,
     resave: bool = False,
 ) -> IMemory:
     memory_type = infer_memory_type_from_files(dir, prefix)
@@ -34,6 +35,7 @@ def load_memory(
                 dir,
                 prefix,
                 trigger_history,
+                use_individual_formatting,
                 resave=resave,
             )
         case _:

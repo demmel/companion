@@ -34,8 +34,14 @@ class SlidingWindowMemory(IMemory):
         if len(self.entries) > self.window_size:
             self.entries = self.entries[-self.window_size :]
 
-    def query(self, memory_queries: MemoryQueries) -> str:
+    def query(
+        self,
+        memory_queries: MemoryQueries,
+        llm: LLM,
+        model: SupportedModel,
+    ) -> str:
         """Return all stored entries formatted as text."""
+        # llm and model unused - sliding window doesn't do token-based pruning
         return self._format_entries(self.entries)
 
     def _format_entries(self, entries: list[TriggerHistoryEntry]) -> str:

@@ -93,7 +93,9 @@ class ActionBasedReasoningLoop:
             MemoryQueries(
                 queries=memory_queries.queries,
                 max_tokens=token_budget,
-            )
+            ),
+            llm=llm,
+            model=model_config.memory_retrieval_model,
         )
 
         # Perform situational analysis once before action planning loop

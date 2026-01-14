@@ -153,6 +153,19 @@ class LLM:
         provider = self._get_provider(model)
         return provider.is_model_available(model)
 
+    def estimate_tokens(self, text: str, model: SupportedModel) -> int:
+        """
+        Estimate the number of tokens in a string for a given model.
+
+        Currently uses character-based estimation. Can be replaced with
+        actual tokenizer support in the future.
+        """
+        model_config = self._models[model]
+        chars_per_token = model_config.estimated_token_size
+
+        # TODO: When we add tokenizer support, replace this with actual tokenization
+        return int(len(text) / chars_per_token)
+
     def pull_model(self, model: SupportedModel) -> bool:
         """Pull a model, routing to appropriate provider"""
         provider = self._get_provider(model)

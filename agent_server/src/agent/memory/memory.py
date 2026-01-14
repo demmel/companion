@@ -43,7 +43,12 @@ class MemoryQueries(BaseModel):
 
 
 class IMemory(Protocol):
-    def query(self, memory_queries: MemoryQueries) -> str: ...
+    def query(
+        self,
+        memory_queries: MemoryQueries,
+        llm: LLM,
+        model: SupportedModel,
+    ) -> str: ...
 
     def store(
         self,

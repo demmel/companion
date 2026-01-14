@@ -5,3 +5,4 @@
 - Do not use Any
 - Also annotate types in function signatures
 - Do not use 'StringTypes'.  Always import types and structure code appropriately
+- Never use getattr - access attributes directly

@@ -98,7 +98,9 @@ class ConversationPersistence:
             memory,
         )
 
-    def load_agent_data(self, prefix: str) -> AgentData:
+    def load_agent_data(
+        self, prefix: str, use_individual_formatting: bool
+    ) -> AgentData:
         """Load agent data (state and trigger history) from conversation files with given prefix"""
 
         trigger_file = self._trigger_file_name(prefix)
@@ -125,6 +127,7 @@ class ConversationPersistence:
             self.conversations_dir,
             prefix,
             trigger_history,
+            use_individual_formatting,
             resave=False,
         )
 

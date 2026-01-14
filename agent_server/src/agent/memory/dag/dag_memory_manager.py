@@ -100,27 +100,34 @@ class DagMemoryManager(IMemory):
         memory_graph: MemoryGraph,
         context_graph: ContextGraph,
         trigger_history: TriggerHistory,
+        use_individual_formatting: bool,
     ):
         """Initialize with existing graph state and empty action log."""
         self.memory_graph = memory_graph
         self.context_graph = context_graph
         self.trigger_history = trigger_history
         self.action_log = MemoryActionLog()
+        self.use_individual_formatting = use_individual_formatting
 
     @classmethod
     def create(
         cls,
         trigger_history: TriggerHistory,
+        use_individual_formatting: bool,
     ) -> "DagMemoryManager":
         """
         Create a new manager with empty state. Memories will be added via postprocess_trigger.
 
         Args:
             trigger_history: Trigger history for replay functionality
+            use_individual_formatting: Whether to use individual memory formatting
         """
         # Start with completely empty state - memories will be added via postprocess_trigger
         manager = cls(
-            MemoryGraph(), ContextGraph(elements=[], edges=[]), trigger_history
+            MemoryGraph(),
+            ContextGraph(elements=[], edges=[]),
+            trigger_history,
+            use_individual_formatting,
         )
 
         # Record that we're starting with empty state
@@ -131,12 +138,19 @@ class DagMemoryManager(IMemory):
 
         return manager
 
-    def query(self, memory_queries: MemoryQueries) -> str:
+    def query(
+        self,
+        memory_queries: MemoryQueries,
+        llm: LLM,
+        model: SupportedModel,
+    ) -> str:
         self.preprocess_trigger(
             queries=memory_queries,
+            llm=llm,
+            model=model,
         )
         return format_context(
-            self.context_graph, self.memory_graph, use_individual_formatting=True
+            self.context_graph, self.memory_graph, self.use_individual_formatting
         )
 
     def store(
@@ -173,6 +187,8 @@ class DagMemoryManager(IMemory):
     def preprocess_trigger(
         self,
         queries: MemoryQueries,
+        llm: LLM,
+        model: SupportedModel,
     ) -> None:
         """
         Preprocess trigger by retrieving relevant memories and pruning context.
@@ -181,12 +197,9 @@ class DagMemoryManager(IMemory):
         to relevant retrieved memories during its reasoning process.
 
         Args:
-            trigger: The incoming trigger (not yet processed)
-            state: Current agent state
-            llm: LLM instance for memory operations
-            model: Model to use for decisions
-            token_budget: Token budget for context management
-            action_registry: Action registry for budget calculation
+            queries: Memory queries for retrieval
+            llm: LLM instance for token estimation
+            model: Model to use for token estimation
         """
         logger.info(f"Preprocessing trigger for memory retrieval")
 
@@ -226,7 +239,12 @@ class DagMemoryManager(IMemory):
         with timeit("Context Pruning"):
             context_budget = queries.max_tokens
             pruning_actions = prune_context_to_budget_as_actions(
-                self.memory_graph, self.context_graph, context_budget
+                graph=self.memory_graph,
+                context=self.context_graph,
+                budget=context_budget,
+                use_individual_formatting=self.use_individual_formatting,
+                llm=llm,
+                model=model,
             )
 
         if pruning_actions:
@@ -331,7 +349,10 @@ class DagMemoryManager(IMemory):
 
         # Create new manager with replayed state
         new_manager = DagMemoryManager(
-            memory_graph, context_graph, self.trigger_history
+            memory_graph,
+            context_graph,
+            self.trigger_history,
+            self.use_individual_formatting,
         )
 
         # Copy the action log up to the checkpoint
@@ -367,13 +388,18 @@ class DagMemoryManager(IMemory):
 
     @classmethod
     def from_data(
-        cls, data: DagMemoryData, trigger_history: TriggerHistory
+        cls,
+        data: DagMemoryData,
+        trigger_history: TriggerHistory,
+        use_individual_formatting: bool,
     ) -> "DagMemoryManager":
         """
         Create a DagMemoryManager from a serialized data object.
 
         Args:
             data: A DagMemoryData object containing the memory and context graphs
+            trigger_history: Trigger history for replay functionality
+            use_individual_formatting: Whether to use individual memory formatting
         Returns:
             A DagMemoryManager instance initialized with the provided data
         """
@@ -390,7 +416,7 @@ class DagMemoryManager(IMemory):
             ],
             edges=[memory_graph.edges[edge_id] for edge_id in data.context.edges],
         )
-        return cls(memory_graph, context_graph, trigger_history)
+        return cls(memory_graph, context_graph, trigger_history, use_individual_formatting)
 
     def save_to_file(self, filepath: str) -> None:
         """
@@ -406,18 +432,23 @@ class DagMemoryManager(IMemory):
 
     @classmethod
     def load_from_file(
-        cls, filepath: str, trigger_history: TriggerHistory
+        cls,
+        filepath: str,
+        trigger_history: TriggerHistory,
+        use_individual_formatting: bool,
     ) -> "DagMemoryManager":
         """
         Load a memory graph from a JSON file.
 
         Args:
             filepath: Path to load the memory graph from
+            trigger_history: Trigger history for replay functionality
+            use_individual_formatting: Whether to use individual memory formatting
         """
 
         with open(filepath, "r", encoding="utf-8") as f:
             data = DagMemoryData.model_validate_json(f.read())
-        return cls.from_data(data, trigger_history)
+        return cls.from_data(data, trigger_history, use_individual_formatting)
 
     def save_action_log(self, filepath: str) -> None:
         """Save the action log to a file."""
@@ -425,13 +456,18 @@ class DagMemoryManager(IMemory):
 
     @classmethod
     def load_from_action_log(
-        cls, filepath: str, trigger_history: TriggerHistory
+        cls,
+        filepath: str,
+        trigger_history: TriggerHistory,
+        use_individual_formatting: bool,
     ) -> "DagMemoryManager":
         """
         Create a manager by replaying an action log from file.
 
         Args:
             filepath: Path to the action log file
+            trigger_history: Trigger history for replay functionality
+            use_individual_formatting: Whether to use individual memory formatting
 
         Returns:
             Manager instance with state replayed from the action log
@@ -439,7 +475,7 @@ class DagMemoryManager(IMemory):
         action_log = MemoryActionLog.load_from_file(filepath)
         memory_graph, context_graph = action_log.replay_from_empty(trigger_history)
 
-        manager = cls(memory_graph, context_graph, trigger_history)
+        manager = cls(memory_graph, context_graph, trigger_history, use_individual_formatting)
         manager.action_log = action_log
 
         return manager

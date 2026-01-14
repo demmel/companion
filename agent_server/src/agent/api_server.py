@@ -67,8 +67,8 @@ def initialize_agent(load: bool) -> AgentEventManager:
         model_config=Config.get_model_config(),
         event_emitter=manager,
         enable_image_generation=True,
-        auto_summarize_threshold=16000,
-        individual_trigger_compression=True,
+        auto_summarize_threshold=32768,
+        individual_trigger_compression=False,
         auto_save=True,
     )
 
@@ -590,15 +590,13 @@ async def regenerate_image(request: RegenerateImageRequest):
     except Exception as e:
         logger.error(f"Failed to find trigger: {e}")
         return RegenerateImageResponse(
-            success=False,
-            error=f"Trigger not found: {request.trigger_id}"
+            success=False, error=f"Trigger not found: {request.trigger_id}"
         )
 
     # Get the action by index
     if request.action_index < 0 or request.action_index >= len(entry.actions_taken):
         return RegenerateImageResponse(
-            success=False,
-            error=f"Invalid action index: {request.action_index}"
+            success=False, error=f"Invalid action index: {request.action_index}"
         )
 
     action = entry.actions_taken[request.action_index]
@@ -613,8 +611,7 @@ async def regenerate_image(request: RegenerateImageRequest):
 
     if action.result.type != "success":
         return RegenerateImageResponse(
-            success=False,
-            error="Action did not complete successfully"
+            success=False, error="Action did not complete successfully"
         )
 
     # Get the image result from the action output
@@ -626,8 +623,7 @@ async def regenerate_image(request: RegenerateImageRequest):
 
     if image_result is None or not isinstance(image_result, ImageGenerationToolContent):
         return RegenerateImageResponse(
-            success=False,
-            error="Action does not contain image generation metadata"
+            success=False, error="Action does not contain image generation metadata"
         )
 
     # Get image generation service
@@ -648,8 +644,7 @@ async def regenerate_image(request: RegenerateImageRequest):
 
         if new_image_content is None:
             return RegenerateImageResponse(
-                success=False,
-                error="Image generation failed"
+                success=False, error="Image generation failed"
             )
 
         # Update the action's result with new image
@@ -663,20 +658,21 @@ async def regenerate_image(request: RegenerateImageRequest):
         # Save conversation to persist changes
         manager.agent.save_conversation()
 
-        logger.info(f"Successfully regenerated image for action at index {request.action_index}")
+        logger.info(
+            f"Successfully regenerated image for action at index {request.action_index}"
+        )
 
         return RegenerateImageResponse(
-            success=True,
-            new_image_url=new_image_content.image_url
+            success=True, new_image_url=new_image_content.image_url
         )
 
     except Exception as e:
         logger.error(f"Failed to regenerate image: {e}")
         import traceback
+
         traceback.print_exc()
         return RegenerateImageResponse(
-            success=False,
-            error=f"Image generation error: {str(e)}"
+            success=False, error=f"Image generation error: {str(e)}"
         )
 
 

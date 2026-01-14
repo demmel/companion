@@ -12,6 +12,19 @@ from .models import ContextElement, ContextGraph, MemoryEdge, MemoryGraph
 from agent.chain_of_action.trigger import format_trigger_for_prompt
 
 
+def format_forward_edge(edge: MemoryEdge) -> str:
+    """Format a forward edge: '  -[type]-> target'."""
+    target_id = edge.target_id[:8]
+    return f"  -[{edge.edge_type.value}]-> {target_id}"
+
+
+def format_backward_edge(edge: MemoryEdge) -> str:
+    """Format a backward edge: '  <-[reversed_type]- source'."""
+    source_id = edge.source_id[:8]
+    reversed_edge_type = REVERSE_MAPPING[EdgeType(edge.edge_type.value)]
+    return f"  <-[{reversed_edge_type.value}]- {source_id}"
+
+
 def format_element(
     element: ContextElement,
     forward_edges: list[MemoryEdge],
@@ -41,15 +54,11 @@ def format_element(
 
     # Format forward edges
     for edge in forward_edges:
-        target_id = edge.target_id[:8]
-        lines.append(f"  -[{edge.edge_type.value}]-> {target_id}")
+        lines.append(format_forward_edge(edge))
 
     # Format backward edges (reverse the edge type wording for clarity)
     for edge in backward_edges:
-        source_id = edge.source_id[:8]
-
-        reversed_edge_type = REVERSE_MAPPING[EdgeType(edge.edge_type.value)]
-        lines.append(f"  <-[{reversed_edge_type.value}]- {source_id}")
+        lines.append(format_backward_edge(edge))
 
     return "\n".join(lines)
 
@@ -76,10 +85,34 @@ def format_container(container_id: str, graph: MemoryGraph) -> str:
 {trigger_entry.compressed_summary}"""
 
 
+def format_individual_header() -> str:
+    """Format the header for individual memory formatting mode."""
+    lines = [
+        "## Memory System",
+        "",
+        "This is your memory graph showing important memories and their relationships.",
+        "Memories are ordered chronologically (oldest to newest).",
+        "Edges show relationships: -[edge_type]-> points to later memories, <-[edge_type]- points to earlier memories.",
+        "",
+        "**Confidence Levels:**",
+        "- `user_confirmed`: Direct user statements/confirmations - highest reliability",
+        "- `strong_inference`: High-confidence deductions from user input",
+        "- `reasonable_assumption`: Logical assumptions that could be wrong",
+        "- `speculative`: Uncertain inferences - use with caution",
+        "- `likely_error`: Probably incorrect but not confirmed",
+        "- `known_false`: Definitively corrected/contradicted - treat as false",
+        "",
+        *get_edge_type_context_descrioptions(),
+        "",
+        "## Memories",
+    ]
+    return "\n".join(lines)
+
+
 def format_context(
     context: ContextGraph,
     memory_graph: MemoryGraph,
-    use_individual_formatting: bool = False,
+    use_individual_formatting: bool,
 ) -> str:
     """
     Format a context graph for display in agent prompts.
@@ -100,27 +133,7 @@ def format_context(
     lines = []
 
     if use_individual_formatting:
-        lines.extend(
-            [
-                "## Memory System",
-                "",
-                "This is your memory graph showing important memories and their relationships.",
-                "Memories are ordered chronologically (oldest to newest).",
-                "Edges show relationships: -[edge_type]-> points to later memories, <-[edge_type]- points to earlier memories.",
-                "",
-                "**Confidence Levels:**",
-                "- `user_confirmed`: Direct user statements/confirmations - highest reliability",
-                "- `strong_inference`: High-confidence deductions from user input",
-                "- `reasonable_assumption`: Logical assumptions that could be wrong",
-                "- `speculative`: Uncertain inferences - use with caution",
-                "- `likely_error`: Probably incorrect but not confirmed",
-                "- `known_false`: Definitively corrected/contradicted - treat as false",
-                "",
-                *get_edge_type_context_descrioptions(),
-                "",
-                "## Memories",
-            ]
-        )
+        lines.append(format_individual_header())
 
         # Create edge lookups for O(1) access
         forward_edges_map = defaultdict(list)  # memory_id -> list of outgoing edges

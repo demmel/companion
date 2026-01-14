@@ -20,11 +20,12 @@ def load_dag_memory(
     dir: Path,
     prefix: str,
     trigger_history: TriggerHistory,
+    use_individual_formatting: bool,
     resave: bool = False,
 ) -> DagMemoryManager:
     with timeit("Loading DAG memory from file"):
         dag = DagMemoryManager.load_from_file(
-            _dag_file_name(dir, prefix), trigger_history
+            _dag_file_name(dir, prefix), trigger_history, use_individual_formatting
         )
     # with timeit("Loading DAG memory from action log file"):
     #     dag = DagMemoryManager.load_from_action_log(
