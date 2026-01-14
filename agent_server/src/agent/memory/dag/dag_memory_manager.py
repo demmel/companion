@@ -140,14 +140,17 @@ class DagMemoryManager(IMemory):
         )
 
     def store(
-        self, trigger_history_entry: TriggerHistoryEntry, state: State, llm: LLM
+        self,
+        trigger_history_entry: TriggerHistoryEntry,
+        state: State,
+        llm: LLM,
+        model: SupportedModel,
     ) -> None:
-        model_config = Config.get_model_config()
         self.postprocess_trigger(
             trigger=trigger_history_entry,
             state=state,
             llm=llm,
-            model=model_config.memory_formation_model,
+            model=model,
         )
 
     def dispatch_actions(self, actions: Sequence[MemoryAction]) -> None:

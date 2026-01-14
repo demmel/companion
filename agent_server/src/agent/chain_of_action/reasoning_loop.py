@@ -217,7 +217,7 @@ class ActionBasedReasoningLoop:
 
         trigger_history.add_trigger_entry(trigger_entry)
 
-        memory.store(trigger_entry, state, llm)
+        memory.store(trigger_entry, state, llm, model_config.memory_formation_model)
 
         # Set the end timestamp now that processing is complete
         from datetime import datetime

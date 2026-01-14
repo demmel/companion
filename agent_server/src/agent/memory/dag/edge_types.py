@@ -60,10 +60,10 @@ class AgentControlledEdgeType(str, Enum):
 def get_prompt_description(edge_type: AgentControlledEdgeType) -> str:
     """Get prompt description for edge type - statically exhaustive."""
     match edge_type:
-        case AgentControlledEdgeType.EXPLAINED_BY:
-            return "Existing memory provides context/explanation for new memory"
         case AgentControlledEdgeType.EXPLAINS:
-            return "Existing memory is explained/given context by new memory"
+            return "Existing memory provides context/explanation for new memory"
+        case AgentControlledEdgeType.EXPLAINED_BY:
+            return "Existing memory is given context/explanation by new memory"
         case AgentControlledEdgeType.CAUSED:
             return "Existing memory caused/led to new memory"
         case AgentControlledEdgeType.CONTRADICTED_BY:

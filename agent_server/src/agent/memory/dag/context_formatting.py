@@ -49,7 +49,7 @@ def format_element(
         source_id = edge.source_id[:8]
 
         reversed_edge_type = REVERSE_MAPPING[EdgeType(edge.edge_type.value)]
-        lines.append(f"  <-[{reversed_edge_type}]- {source_id}")
+        lines.append(f"  <-[{reversed_edge_type.value}]- {source_id}")
 
     return "\n".join(lines)
 

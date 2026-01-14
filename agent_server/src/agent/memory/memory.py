@@ -3,6 +3,7 @@ from typing import Protocol
 
 from agent.api_types.triggers import Trigger
 from agent.llm.router import LLM
+from agent.llm.models import SupportedModel
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
@@ -49,4 +50,5 @@ class IMemory(Protocol):
         trigger_history_entry: TriggerHistoryEntry,
         state: State,
         llm: LLM,
+        model: SupportedModel,
     ) -> None: ...

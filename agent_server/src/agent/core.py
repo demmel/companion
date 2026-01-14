@@ -626,6 +626,7 @@ class Agent:
                 self.initial_exchange,
                 self.state,
                 self.llm,
+                model_config.memory_formation_model,
             )
 
         context_info = self.get_context_info()

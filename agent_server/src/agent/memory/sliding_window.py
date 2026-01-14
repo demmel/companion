@@ -2,7 +2,7 @@
 
 from agent.chain_of_action.trigger_history import TriggerHistoryEntry
 from agent.chain_of_action.trigger import format_trigger_for_prompt
-from agent.llm import LLM
+from agent.llm import LLM, SupportedModel
 from agent.memory.memory import IMemory, MemoryQueries
 from agent.state import State
 
@@ -25,6 +25,7 @@ class SlidingWindowMemory(IMemory):
         trigger_history_entry: TriggerHistoryEntry,
         state: State,
         llm: LLM,
+        model: SupportedModel,
     ) -> None:
         """Store a new entry, keeping only the most recent N."""
         self.entries.append(trigger_history_entry)

@@ -121,7 +121,7 @@ def evaluate_scenario(
         )
 
         # Store after query
-        memory.store(entry, state, llm)
+        memory.store(entry, state, llm, query_extraction_model)
         print("done")
 
     # Final query with test query is the one we evaluate
