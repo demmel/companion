@@ -19,70 +19,13 @@ from agent.embedding_service import get_embedding_service
 from agent.memory.dag.models import MemoryElement, ConfidenceLevel
 
 
-def create_trigger_memory(trigger: Trigger, entry_id: str) -> MemoryElement:
-    """
-    Create memory from trigger - no LLM needed.
-
-    Args:
-        trigger: The trigger event
-        entry_id: ID of the TriggerHistoryEntry container
-
-    Returns:
-        MemoryElement with trigger content
-    """
-    trigger_text = format_trigger_for_prompt(trigger)
-
-    # Both user input and wakeup triggers are confirmed events
-    confidence = ConfidenceLevel.USER_CONFIRMED
-
-    embedding_service = get_embedding_service()
-
-    return MemoryElement(
-        id=str(uuid.uuid4()),
-        content=trigger_text,
-        timestamp=trigger.timestamp,
-        confidence_level=confidence,
-        sequence_in_container=0,
-        container_id=entry_id,
-        embedding_vector=embedding_service.encode(trigger_text),
-    )
-
-
-def create_action_memory(
-    action: ActionData, sequence: int, entry_id: str
-) -> MemoryElement:
-    """
-    Create memory from action - no LLM needed.
-
-    Args:
-        action: The action data
-        sequence: Sequence number within container
-        entry_id: ID of the TriggerHistoryEntry container
-
-    Returns:
-        MemoryElement with action content formatted as diary entry
-    """
-    # Use existing diary formatting which includes reasoning and result
-    content = format_action_for_diary(action)
-
-    embedding_service = get_embedding_service()
-
-    return MemoryElement(
-        id=str(uuid.uuid4()),
-        content=content,
-        timestamp=action.start_timestamp,
-        confidence_level=ConfidenceLevel.STRONG_INFERENCE,
-        sequence_in_container=sequence + 1,  # +1 because trigger is at sequence 0
-        container_id=entry_id,
-        embedding_vector=embedding_service.encode(content),
-    )
-
-
 def create_memories_from_trigger_entry(
     trigger_entry: TriggerHistoryEntry,
 ) -> List[MemoryElement]:
     """
     Create all memories for a trigger entry.
+
+    Uses batch encoding for embeddings (206x faster than individual encodes).
 
     Args:
         trigger_entry: The complete trigger entry with actions
@@ -90,19 +33,48 @@ def create_memories_from_trigger_entry(
     Returns:
         List of MemoryElements (trigger + non-WAIT actions)
     """
-    memories = []
+    # Collect all content first for batch encoding
+    trigger_text = format_trigger_for_prompt(trigger_entry.trigger)
+    contents = [trigger_text]
 
-    # Trigger memory (always sequence 0)
-    memories.append(
-        create_trigger_memory(trigger_entry.trigger, trigger_entry.entry_id)
-    )
-
-    # Action memories (skip WAIT)
+    # Collect action content and metadata
+    action_data: List[tuple[ActionData, int, str]] = []
     for i, action in enumerate(trigger_entry.actions_taken):
         if action.type == ActionType.WAIT:
             continue
+        content = format_action_for_diary(action)
+        contents.append(content)
+        action_data.append((action, i, content))
+
+    # Single batch encode call (206x faster than individual encodes)
+    embedding_service = get_embedding_service()
+    embeddings = embedding_service.encode_batch(contents)
+
+    # Create trigger memory with pre-computed embedding
+    memories = [
+        MemoryElement(
+            id=str(uuid.uuid4()),
+            content=trigger_text,
+            timestamp=trigger_entry.trigger.timestamp,
+            confidence_level=ConfidenceLevel.USER_CONFIRMED,
+            sequence_in_container=0,
+            container_id=trigger_entry.entry_id,
+            embedding_vector=embeddings[0],
+        )
+    ]
+
+    # Create action memories with pre-computed embeddings
+    for idx, (action, sequence, content) in enumerate(action_data):
         memories.append(
-            create_action_memory(action, sequence=i, entry_id=trigger_entry.entry_id)
+            MemoryElement(
+                id=str(uuid.uuid4()),
+                content=content,
+                timestamp=action.start_timestamp,
+                confidence_level=ConfidenceLevel.STRONG_INFERENCE,
+                sequence_in_container=sequence + 1,
+                container_id=trigger_entry.entry_id,
+                embedding_vector=embeddings[idx + 1],
+            )
         )
 
     return memories

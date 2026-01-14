@@ -6,7 +6,6 @@ debugging and complete replay of memory graph evolution.
 """
 
 import logging
-from agent.config import Config
 from agent.llm.interface import ILLM
 from agent.memory.dag.context_formatting import format_context
 from agent.memory.memory import IMemory, MemoryQueries, MemoryQuery
@@ -33,43 +32,6 @@ from .context_management import (
 from .reducer import apply_action
 
 logger = logging.getLogger(__name__)
-
-
-def calculate_context_budget(
-    token_budget: int,
-    state: State,
-    action_registry: ActionRegistry,
-) -> int:
-    """
-    Calculate available token budget for context after accounting for prompt overhead.
-
-    Args:
-        token_budget: Total token budget
-        state: Current agent state
-        action_registry: Action registry for building sample prompt
-
-    Returns:
-        Available tokens for context
-    """
-    from agent.chain_of_action.prompts import build_situational_analysis_prompt
-    from agent.chain_of_action.trigger import UserInputTrigger
-
-    sa_prompt = build_situational_analysis_prompt(
-        state=state,
-        trigger=UserInputTrigger(content="sample", user_name="User"),
-        trigger_history=TriggerHistory(),
-        registry=action_registry,
-        formatted_memory_context="",  # Empty for estimation
-    )
-    prompt_tokens = int(len(sa_prompt) / 3.4)
-
-    context_budget = token_budget - prompt_tokens
-
-    logger.info(
-        f"Context budget calculation: total={token_budget}, prompt={prompt_tokens} => context budget={context_budget}"
-    )
-
-    return context_budget
 
 
 class ContextElementData(BaseModel):
