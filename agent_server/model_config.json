@@ -1,13 +1,13 @@
 {
-  "state_initialization_model": "claude-sonnet-4-5-20250929",
-  "action_planning_model": "claude-sonnet-4-5-20250929",
-  "situational_analysis_model": "claude-sonnet-4-5-20250929",
+  "state_initialization_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
+  "action_planning_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
+  "situational_analysis_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
   "memory_retrieval_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "memory_formation_model": "claude-sonnet-4-5-20250929",
-  "trigger_compression_model": "claude-sonnet-4-5-20250929",
-  "think_action_model": "claude-sonnet-4-5-20250929",
-  "speak_action_model": "claude-sonnet-4-5-20250929",
+  "memory_formation_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
+  "trigger_compression_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
+  "think_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
+  "speak_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
   "visual_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "fetch_url_action_model": "claude-sonnet-4-5-20250929",
-  "evaluate_priorities_action_model": "claude-sonnet-4-5-20250929"
+  "fetch_url_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
+  "evaluate_priorities_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL"
 }
