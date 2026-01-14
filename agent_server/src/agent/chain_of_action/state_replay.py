@@ -42,8 +42,8 @@ def derive_initial_state(first_entry: TriggerHistoryEntry) -> State:
     """
     Derive the initial state from the first trigger entry.
 
-    Parses the THINK action output from the birth trigger to reconstruct
-    the initial state that was derived during conversation start.
+    First checks if the BirthTrigger has initial_state set directly (new format).
+    Falls back to parsing the THINK action output for backward compatibility.
 
     Args:
         first_entry: The first trigger history entry (should be a birth trigger)
@@ -52,12 +52,16 @@ def derive_initial_state(first_entry: TriggerHistoryEntry) -> State:
         The initial State for the conversation
 
     Raises:
-        ValueError: If the first trigger is not a BirthTrigger or has no THINK action
+        ValueError: If the first trigger is not a BirthTrigger or has no initial state
     """
     if not isinstance(first_entry.trigger, BirthTrigger):
         raise ValueError(
             f"First trigger must be a BirthTrigger, got {type(first_entry.trigger).__name__}"
         )
+
+    # New format: initial_state set directly on BirthTrigger
+    if first_entry.trigger.initial_state is not None:
+        return first_entry.trigger.initial_state
 
     # Find the THINK action that contains the derived state
     think_action = None

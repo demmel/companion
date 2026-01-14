@@ -21,6 +21,7 @@ class SupportedModel(str, Enum):
     MISTRAL_NEMO = "mistral-nemo:latest"
     DOLPHIN_MISTRAL_NEMO = "CognitiveComputations/dolphin-mistral-nemo:latest"
     LLAMA_8B = "llama3.1:8b"
+    LLAMA_3B = "llama3.2:3b"
     GEMMA_27B = "aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m"
     DEEPSEEK_R1_14B = "huihui_ai/deepseek-r1-abliterated:14b"
     RP_MAX = "technobyte/arliai-rpmax-12b-v1.1:q4_k_m"
@@ -92,6 +93,7 @@ _OLLAMA_MODELS = {
     SupportedModel.MISTRAL_NEMO,
     SupportedModel.DOLPHIN_MISTRAL_NEMO,
     SupportedModel.LLAMA_8B,
+    SupportedModel.LLAMA_3B,
     SupportedModel.GEMMA_27B,
     SupportedModel.DEEPSEEK_R1_14B,
     SupportedModel.RP_MAX,

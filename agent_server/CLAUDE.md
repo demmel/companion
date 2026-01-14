@@ -1,3 +1,4 @@
+- Use `uv run` to execute Python scripts (e.g., `uv run python script.py`)
 - Use pydantic models for validation and serialization.  Use dataclasses for internal datatypes.  Only use dicts when keys must be dynamic.
 - Always run tests before claiming success
 - Don't use TYPE_CHECKING

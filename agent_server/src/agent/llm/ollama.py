@@ -147,6 +147,9 @@ class OllamaLLM(ILLM):
 
 # Default Ollama model configurations
 DEFAULT_OLLAMA_MODELS = {
+    SupportedModel.LLAMA_3B: OllamaModelConfig(
+        model=SupportedModel.LLAMA_3B,
+    ),
     SupportedModel.LLAMA_8B: OllamaModelConfig(
         model=SupportedModel.LLAMA_8B,
     ),

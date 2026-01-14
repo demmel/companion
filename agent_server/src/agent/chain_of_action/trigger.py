@@ -2,9 +2,13 @@
 Trigger system for initiating action sequences.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Union, Literal, Optional, List, NewType, assert_never
+
+from agent.state import State
 
 # Domain type for image file paths
 ImageFilePath = NewType("ImageFilePath", str)
@@ -28,6 +32,7 @@ class BirthTrigger(BaseTrigger):
     content: str
     user_name: str
     image_paths: ImageFilePaths = None  # Paths to shared images
+    initial_state: State | None = None  # Initial state derived from character definition
 
 
 class UserInputTrigger(BaseTrigger):
