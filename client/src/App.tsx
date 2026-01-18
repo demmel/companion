@@ -12,7 +12,7 @@ function App() {
 
     if (isDev) {
       const host = import.meta.env.VITE_AGENT_HOST || "localhost";
-      const port = parseInt(import.meta.env.VITE_AGENT_PORT || "8000");
+      const port = parseInt(import.meta.env.VITE_AGENT_PORT || "8080");
       const client = new AgentClient({ host, port });
 
       // Log configuration in development for debugging

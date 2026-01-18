@@ -6,7 +6,7 @@ A sophisticated AI agent system built with a modern action-based architecture, f
 
 ### 🧠 Advanced Agent Architecture
 
-- **Action-Based Reasoning**: Structured action planning with think, speak, update_mood, update_appearance, and utility actions
+- **Action-Based Reasoning**: Structured action planning with 12 action types including cognitive, communication, state management, and information gathering
 - **Intent-Based Communication**: Intelligent separation between high-level communication intents and natural language generation
 - **Trigger-Based History**: Stream-of-consciousness approach that tracks stimuli and responses rather than simple conversation turns
 - **Autonomous Decision Making**: Agent makes authentic choices based on values, priorities, and emotional state
@@ -69,11 +69,13 @@ The agent uses a structured action system where each action has:
 
 ### Memory Architecture
 
+- **DAG-Based Memory Graph**: Memories stored as nodes in a directed acyclic graph with typed edges
+- **Edge Types**: Semantic relationships between memories (explains, caused, contradicts, clarifies, retracts, supersedes, corrects)
 - **Trigger-Based Storage**: Each interaction stored as trigger + agent response
 - **Embedding Generation**: Automatic semantic embeddings for all interactions
 - **Similarity Search**: Cosine similarity matching for relevant memory retrieval
 - **Temporal Filtering**: Time-based memory filtering with relative and absolute queries
-- **Compression Pipeline**: Intelligent summarization preserving key details
+- **Automatic Memory Formation**: New memories automatically connected to relevant existing memories
 
 ## 🚀 Getting Started
 
@@ -86,60 +88,20 @@ The agent uses a structured action system where each action has:
 
 ### Installation
 
-1. **Clone the repository**
+```bash
+git clone <repository-url>
+cd companion/agent_server
+cp .env.example .env   # Configure API keys
+uv sync
+```
 
-   ```bash
-   git clone <repository-url>
-   cd agent
-   ```
+### Running
 
-2. **Install Python dependencies**
+```bash
+uv run uvicorn agent.api_server:app --host 0.0.0.0 --port 8080
+```
 
-   ```bash
-   uv sync
-   ```
-
-3. **Install frontend dependencies**
-
-   ```bash
-   cd client
-   npm install
-   cd ..
-   ```
-
-4. **Set up Ollama models**
-
-   ```bash
-   # Install recommended models
-   ollama pull mistral-small3.2:latest
-   ollama pull mistral-nemo:latest
-   ```
-
-5. **Optional: Set up image generation**
-   - Download SDXL-compatible models to `models/` directory
-   - Supported formats: `.safetensors` files from Civitai or Hugging Face
-
-### Running the System
-
-1. **Start the backend server**
-
-   ```bash
-   uv run python -m agent.api_server
-   ```
-
-   Server runs on `http://localhost:8000`
-
-2. **Start the frontend** (in a new terminal)
-
-   ```bash
-   cd client
-   npm run dev
-   ```
-
-   Frontend runs on `http://localhost:5173`
-
-3. **Access the application**
-   Open `http://localhost:5173` in your browser
+Server runs on `http://localhost:8080`. See the top-level [README](../README.md) for full setup including the client build.
 
 ## 🎯 Usage Examples
 
@@ -177,113 +139,90 @@ Agent: [speaks] That sounds wonderful! I love creating warm, inviting spaces...
 
 ## 🛠️ Configuration
 
-### Environment Variables
+See [CONFIGURATION.md](CONFIGURATION.md) for detailed environment variables and settings including:
 
-The agent uses environment variables for configuration. See [CONFIGURATION.md](CONFIGURATION.md) for detailed documentation.
+- LLM providers (Anthropic Claude, Ollama)
+- Image generation (SDXL)
+- Text-to-speech (Chatterbox TTS)
+- Memory and embedding settings
 
-**Quick setup:**
-```bash
-# 1. Copy example file
-cp .env.example .env
+## 📡 API Reference
 
-# 2. Edit with your values
-nano .env
+### REST Endpoints
 
-# 3. Add your API keys and settings
-ANTHROPIC_API_KEY=sk-ant-...            # For Claude models
-OLLAMA_HOST=localhost:11434             # For local models
-LOG_LEVEL=INFO                          # Logging verbosity
-TTS_REFERENCE_AUDIO=reference_audio/voice.wav  # Voice cloning sample
+| Endpoint                                 | Method | Description                              |
+| ---------------------------------------- | ------ | ---------------------------------------- |
+| `/api/health`                            | GET    | Health check and system status           |
+| `/api/context`                           | GET    | Token usage and context information      |
+| `/api/timeline`                          | GET    | Paginated trigger history with actions   |
+| `/api/reset`                             | POST   | Reset agent state and history            |
+| `/api/auto-wakeup`                       | GET    | Get auto-wakeup scheduling status        |
+| `/api/auto-wakeup`                       | POST   | Configure auto-wakeup scheduling         |
+| `/api/supported-models`                  | GET    | List available LLM models                |
+| `/api/model-config`                      | GET    | Get current model assignments per action |
+| `/api/model-config`                      | POST   | Update model assignments per action      |
+| `/api/upload-image`                      | POST   | Upload image (max 10MB)                  |
+| `/api/regenerate-image`                  | POST   | Regenerate image with new seed           |
+| `/api/audio/{trigger_id}/{action_index}` | GET    | Fetch TTS audio for action               |
+
+### WebSocket
+
+| Endpoint    | Description                                                   |
+| ----------- | ------------------------------------------------------------- |
+| `/api/chat` | Real-time bidirectional communication for streaming responses |
+
+### Model Configuration
+
+The system supports per-action model assignment. Each action type can use a different model:
+
+```python
+# Action types that can have individual model assignments:
+# think, speak, update_mood, update_appearance, update_environment,
+# add_priority, remove_priority, evaluate_priorities,
+# fetch_url, search_web, wait, get_creative_inspiration
 ```
 
-**Running the server:**
-```bash
-# Development
-uvicorn agent.api_server:app --reload
+## 🎯 Available Actions
 
-# Production
-uvicorn agent.api_server:app --host 0.0.0.0 --port 8000
-```
-
-### LLM Models
-
-The system supports multiple providers through a unified interface (`src/agent/llm/`):
-
-**Ollama (Local):**
-- `mistral-small3.2:latest` (recommended)
-- `mistral-nemo:latest`
-- `llama3.1:8b`
-- Custom models via Ollama
-
-**Anthropic (API):**
-- `claude-sonnet-4-5-20250929` (Claude Sonnet 4.5) - Latest, most capable
-- `claude-opus-4-1-20250805` (Claude Opus 4.1) - Most powerful
-- `claude-haiku-4-5-20251001` (Claude Haiku 4.5) - Fastest, most efficient
-
-### Memory Settings
-
-- **Embedding Model**: `all-MiniLM-L6-v2` (configurable)
-- **Context Window**: 32k tokens (model-dependent)
-- **Memory Retrieval**: 5 similar memories by default
-- **Compression Trigger**: Automatic based on context usage
-
-### Image Generation
-
-- **Model Support**: SDXL-compatible `.safetensors` files
-- **Resolution**: Portrait (768x1024), Landscape (1024x768), Square (1024x1024)
-- **Optimization**: Multi-chunk prompt strategy for attention control
-- **Negative Prompts**: Automatic quality enhancement
-
-### Text-to-Speech (TTS)
-
-The agent supports voice synthesis using [Chatterbox TTS](https://github.com/resemble-ai/chatterbox) with voice cloning.
-
-**Setup:**
-1. Create a `reference_audio/` directory in the project root
-2. Add a short audio sample (5-15 seconds) of the voice you want to clone
-3. Configure the path in `.env`:
-   ```bash
-   TTS_REFERENCE_AUDIO=reference_audio/your_voice.wav
-   ```
-
-**Requirements:**
-- CUDA-compatible GPU (required for Chatterbox)
-- WAV format audio file (mono or stereo, any sample rate)
-- Clean audio with minimal background noise works best
-- ffmpeg installed for MP3 compression (automatically detected on system PATH, or set `FFMPEG_PATH` env var to override)
-
-**Features:**
-- Voice cloning from reference audio
-- Paralinguistic tags for expressive speech (`[laugh]`, `[sigh]`, `[whispering]`, etc.)
-- LLM-based text rewriting for natural prosody
-- On-demand rendering with automatic retry
-
-**Disable TTS:**
-To run without TTS, simply don't set `TTS_REFERENCE_AUDIO` in your `.env` file.
+| Action                     | Description                                         |
+| -------------------------- | --------------------------------------------------- |
+| `think`                    | Process emotional reactions and analyze situation   |
+| `speak`                    | Generate conversational response                    |
+| `update_mood`              | Change current emotional state                      |
+| `update_appearance`        | Generate visual changes (triggers image generation) |
+| `update_environment`       | Change setting/environment context                  |
+| `add_priority`             | Add new priority to track                           |
+| `remove_priority`          | Remove/complete a priority                          |
+| `evaluate_priorities`      | Holistically reevaluate all priorities              |
+| `search_web`               | Search the web for information                      |
+| `fetch_url`                | Fetch and analyze content from a URL                |
+| `wait`                     | Wait for user response before continuing            |
+| `get_creative_inspiration` | Get random words for creative stimulus              |
 
 ## 📁 Project Structure
 
 ```
-agent/
+agent_server/
 ├── src/agent/                  # Core agent system
 │   ├── chain_of_action/        # Action-based reasoning system
-│   │   ├── actions/            # Individual action implementations
+│   │   ├── action/             # Action implementations
+│   │   │   └── actions/        # Individual action classes
 │   │   ├── action_planner.py   # Plans action sequences
 │   │   └── reasoning_loop.py   # Main processing loop
 │   ├── memory/                 # Memory and retrieval system
-│   │   ├── embedding_service.py
-│   │   └── similarity_retrieval.py
-│   ├── tools/                  # External tools (image generation)
+│   │   ├── dag/                # DAG-based memory graph
+│   │   └── query_extraction.py # Memory query processing
+│   ├── llm/                    # LLM provider implementations
+│   │   ├── anthropic.py        # Anthropic Claude client
+│   │   ├── ollama.py           # Ollama client
+│   │   └── router.py           # Model routing
+│   ├── tts/                    # Text-to-speech system
+│   ├── api_types/              # API request/response models
 │   ├── api_server.py           # FastAPI backend
 │   ├── core.py                 # Main agent class
-│   └── llm.py                  # LLM client interface
-├── client/                     # React frontend
-│   ├── src/components/         # UI components
-│   ├── src/hooks/              # React hooks for WebSocket
-│   └── src/types.ts            # TypeScript definitions
+│   └── embedding_service.py    # Sentence transformer embeddings
 ├── conversations/              # Persistent conversation storage
 ├── generated_images/           # Generated images
-├── docs/                       # Documentation
 └── tests/                      # Test files
 ```
 
@@ -319,25 +258,18 @@ uv run python llm_performance_test.py
 
 ## 🔧 Development
 
-### Key Development Files
+### Key Directories
 
-- **Action Implementation**: Add new actions in `src/agent/chain_of_action/actions/`
-- **Memory System**: Extend memory capabilities in `src/agent/memory/`
-- **Frontend Components**: React components in `client/src/components/`
-- **API Endpoints**: Extend API in `src/agent/api_server.py`
+- `src/agent/chain_of_action/action/actions/` - Action implementations
+- `src/agent/memory/dag/` - DAG memory system
+- `src/agent/llm/` - LLM provider clients
+- `src/agent/api_server.py` - API endpoints
 
 ### Adding New Actions
 
-1. Create action class in `actions/` directory
+1. Create action class in `chain_of_action/action/actions/`
 2. Implement `execute()` method with typed inputs
 3. Register in `action_registry.py`
-4. Add frontend support in React components
-
-### Memory System Extension
-
-- Embedding models configurable in `embedding_service.py`
-- Retrieval strategies in `similarity_retrieval.py`
-- Memory extraction logic in `memory_extraction.py`
 
 ## 📊 Monitoring & Debugging
 
@@ -354,15 +286,6 @@ uv run python llm_performance_test.py
 - Memory retrieval timing
 - Image generation progress
 - WebSocket connection health
-
-## 🚧 Known Issues & Limitations
-
-See `docs/status.md` for detailed issue tracking including:
-
-- Image generation blocking (being addressed)
-- Context usage optimization opportunities
-- Action planning context staleness
-- Memory summarization improvements
 
 ## 🤝 Contributing
 

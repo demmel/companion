@@ -10,15 +10,15 @@ import {
 } from "./types";
 
 interface ClientConfig {
-  host?: string;
-  port?: number;
+  host: string;
+  port: number;
 }
 
 export class AgentClient {
   private host: string;
   private port: number;
 
-  constructor({ host = "localhost", port = 8000 }: ClientConfig = {}) {
+  constructor({ host, port }: ClientConfig) {
     this.host = host;
     this.port = port;
   }

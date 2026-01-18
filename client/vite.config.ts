@@ -15,11 +15,15 @@ export default defineConfig({
   server: {
     proxy: {
       '/generated_images': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/generated_audio': {
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
       '/uploaded_images': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
     },
