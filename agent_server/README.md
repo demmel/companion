@@ -250,6 +250,7 @@ The agent supports voice synthesis using [Chatterbox TTS](https://github.com/res
 - CUDA-compatible GPU (required for Chatterbox)
 - WAV format audio file (mono or stereo, any sample rate)
 - Clean audio with minimal background noise works best
+- ffmpeg installed for MP3 compression (automatically detected on system PATH, or set `FFMPEG_PATH` env var to override)
 
 **Features:**
 - Voice cloning from reference audio

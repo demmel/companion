@@ -20,6 +20,25 @@ from .text_processor import normalize_text_for_tts, split_into_paragraphs
 logger = logging.getLogger(__name__)
 
 
+def _convert_wav_to_mp3(wav_bytes: bytes) -> bytes:
+    """Convert WAV audio bytes to MP3.
+
+    Requires ffmpeg. By default, pydub finds ffmpeg on the system PATH.
+    Set FFMPEG_PATH env var to override with a custom path.
+    """
+    import os
+    from pydub import AudioSegment
+
+    ffmpeg_path = os.environ.get("FFMPEG_PATH")
+    if ffmpeg_path:
+        AudioSegment.converter = ffmpeg_path
+
+    audio = AudioSegment.from_wav(io.BytesIO(wav_bytes))
+    mp3_buffer = io.BytesIO()
+    audio.export(mp3_buffer, format="mp3", bitrate="128k")
+    return mp3_buffer.getvalue()
+
+
 def rewrite_for_tts(text: str, tone: str | None, llm: LLM, model: SupportedModel) -> str:
     """Use LLM to rewrite text for expressive TTS.
 
@@ -183,7 +202,7 @@ class TTSService:
         Returns:
             Path to the audio file if ready, None otherwise.
         """
-        audio_path = self.output_dir / f"{action_id}.wav"
+        audio_path = self.output_dir / f"{action_id}.mp3"
         if audio_path.exists():
             return audio_path
         return None
@@ -263,9 +282,12 @@ class TTSService:
                 logger.info(f"Splitting into {len(paragraphs)} paragraphs")
                 audio_data = self._generate_paragraphs(paragraphs)
 
-            # Save audio file
-            output_path = self.output_dir / f"{action_id}.wav"
-            output_path.write_bytes(audio_data)
+            # Convert WAV to MP3 for compression
+            mp3_data = _convert_wav_to_mp3(audio_data)
+
+            # Save MP3 file
+            output_path = self.output_dir / f"{action_id}.mp3"
+            output_path.write_bytes(mp3_data)
 
             # Update status
             with self._status_lock:
@@ -275,7 +297,7 @@ class TTSService:
 
             # Notify callback if set
             if self.on_audio_ready:
-                audio_url = f"/generated_audio/{action_id}.wav"
+                audio_url = f"/generated_audio/{action_id}.mp3"
                 self.on_audio_ready(action_id, audio_url)
 
         except Exception as e:

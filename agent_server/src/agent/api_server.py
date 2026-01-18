@@ -758,8 +758,8 @@ async def get_audio(trigger_id: str, action_index: int) -> Response:
         if audio_path is not None and audio_path.exists():
             return FileResponse(
                 path=str(audio_path),
-                media_type="audio/wav",
-                filename=f"{action_id}.wav",
+                media_type="audio/mpeg",
+                filename=f"{action_id}.mp3",
             )
         # File not found despite status being ready - treat as error
         return Response(status_code=404)
