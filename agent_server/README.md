@@ -190,9 +190,10 @@ cp .env.example .env
 nano .env
 
 # 3. Add your API keys and settings
-ANTHROPIC_API_KEY=sk-ant-...  # For Claude models
-OLLAMA_HOST=localhost:11434   # For local models
-LOG_LEVEL=INFO                # Logging verbosity
+ANTHROPIC_API_KEY=sk-ant-...            # For Claude models
+OLLAMA_HOST=localhost:11434             # For local models
+LOG_LEVEL=INFO                          # Logging verbosity
+TTS_REFERENCE_AUDIO=reference_audio/voice.wav  # Voice cloning sample
 ```
 
 **Running the server:**
@@ -232,6 +233,32 @@ The system supports multiple providers through a unified interface (`src/agent/l
 - **Resolution**: Portrait (768x1024), Landscape (1024x768), Square (1024x1024)
 - **Optimization**: Multi-chunk prompt strategy for attention control
 - **Negative Prompts**: Automatic quality enhancement
+
+### Text-to-Speech (TTS)
+
+The agent supports voice synthesis using [Chatterbox TTS](https://github.com/resemble-ai/chatterbox) with voice cloning.
+
+**Setup:**
+1. Create a `reference_audio/` directory in the project root
+2. Add a short audio sample (5-15 seconds) of the voice you want to clone
+3. Configure the path in `.env`:
+   ```bash
+   TTS_REFERENCE_AUDIO=reference_audio/your_voice.wav
+   ```
+
+**Requirements:**
+- CUDA-compatible GPU (required for Chatterbox)
+- WAV format audio file (mono or stereo, any sample rate)
+- Clean audio with minimal background noise works best
+
+**Features:**
+- Voice cloning from reference audio
+- Paralinguistic tags for expressive speech (`[laugh]`, `[sigh]`, `[whispering]`, etc.)
+- LLM-based text rewriting for natural prosody
+- On-demand rendering with automatic retry
+
+**Disable TTS:**
+To run without TTS, simply don't set `TTS_REFERENCE_AUDIO` in your `.env` file.
 
 ## 📁 Project Structure
 

@@ -73,6 +73,9 @@ from agent.api_types.events import (
     TriggerCompletedEvent,
     TriggerStartedEvent,
 )
+from agent.tts import TTSService
+from agent.tts.providers import ChatterboxProvider
+from agent.paths import agent_paths
 import logging
 
 logger = logging.getLogger(__name__)
@@ -99,6 +102,7 @@ class Agent:
         event_emitter: EventEmitter,
         auto_save: bool = True,
         enable_image_generation: bool = True,
+        enable_tts: bool = True,
         individual_trigger_compression: bool = True,
         use_individual_memory_formatting: bool = True,
         auto_summarize_threshold: Optional[int] = None,
@@ -117,6 +121,7 @@ class Agent:
                 * 0.7
             )
         self.enable_image_generation = enable_image_generation
+        self.enable_tts = enable_tts
         self.individual_trigger_compression = individual_trigger_compression
         self.use_individual_memory_formatting = use_individual_memory_formatting
 
@@ -141,6 +146,11 @@ class Agent:
         self.memory_context: str = ""
         self.memory: Optional[IMemory] = None
 
+        # TTS service (initialized lazily if enabled)
+        self.tts_service: Optional[TTSService] = None
+        if enable_tts:
+            self._init_tts_service()
+
         # Auto-wakeup timer functionality
         self.auto_wakeup_enabled = False
         self.auto_wakeup_timer: Optional[threading.Timer] = None
@@ -153,6 +163,35 @@ class Agent:
     def get_trigger_history(self) -> TriggerHistory:
         """Get the current trigger history"""
         return self.trigger_history
+
+    def _init_tts_service(self) -> None:
+        """Initialize the TTS service for audio generation."""
+        reference_audio = agent_paths.get_tts_reference_audio()
+        output_dir = agent_paths.get_generated_audio_dir()
+
+        if reference_audio is None:
+            logger.info("TTS not configured (set TTS_REFERENCE_AUDIO in .env)")
+            return
+
+        if not reference_audio.exists():
+            logger.warning(f"TTS reference audio not found: {reference_audio}")
+            logger.warning("TTS service will not be available")
+            return
+
+        try:
+            provider = ChatterboxProvider(device="cuda")
+            self.tts_service = TTSService(
+                provider=provider,
+                reference_audio=reference_audio,
+                output_dir=output_dir,
+                llm=self.llm,
+                tts_rewrite_model=self.model_config.tts_rewrite_model,
+            )
+            self.tts_service.start()
+            logger.info("TTS service initialized and started")
+        except Exception as e:
+            logger.error(f"Failed to initialize TTS service: {e}")
+            self.tts_service = None
 
     def reset_conversation(self):
         """Reset conversation history and agent's state"""
@@ -753,6 +792,7 @@ class Agent:
                 entry_id: str,
             ) -> None:
                 from datetime import datetime
+                from agent.chain_of_action.action.action_data import SpeakActionData
 
                 # Convert ActionResult to ActionDTO
                 try:
@@ -768,6 +808,40 @@ class Agent:
                         ),
                         should_yield=True,
                     )
+
+                    # Queue TTS rendering for successful speak actions
+                    # Use 0-indexed action_index to match frontend and API conventions
+                    if (
+                        action_type == ActionType.SPEAK
+                        and result.result.type == "success"
+                        and self.agent.tts_service is not None
+                        and isinstance(result, SpeakActionData)
+                    ):
+                        action_index = (
+                            action_number - 1
+                        )  # Convert 1-indexed to 0-indexed
+                        action_id = f"{entry_id}_{action_index}"
+                        text = result.result.content.response
+                        tone = result.input.tone
+                        self.agent.tts_service.queue_render(action_id, text, tone)
+                        logger.debug(f"Queued TTS render for speak action {action_id}")
+
+                    # Queue TTS rendering for successful think actions
+                    # Use 0-indexed action_index to match frontend and API conventions
+                    if (
+                        action_type == ActionType.THINK
+                        and result.result.type == "success"
+                        and self.agent.tts_service is not None
+                        and isinstance(result, ThinkActionData)
+                    ):
+                        action_index = (
+                            action_number - 1
+                        )  # Convert 1-indexed to 0-indexed
+                        action_id = f"{entry_id}_{action_index}"
+                        text = result.result.content.thoughts
+                        self.agent.tts_service.queue_render(action_id, text, None)
+                        logger.debug(f"Queued TTS render for think action {action_id}")
+
                 except Exception as e:
                     # If DTO conversion fails (e.g., for failed visual actions),
                     # emit an error event instead to ensure buffer clearing

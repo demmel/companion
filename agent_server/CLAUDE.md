@@ -1,4 +1,5 @@
-- Use `uv run` to execute Python scripts (e.g., `uv run python script.py`)
+- Always use `uv run` to execute Python scripts and modules (e.g., `uv run python script.py`, `uv run python -m agent.experiments.tts_evaluation`)
+- Use `uv add <package>` to add dependencies (not pip install)
 - Use pydantic models for validation and serialization.  Use dataclasses for internal datatypes.  Only use dicts when keys must be dynamic.
 - Always run tests before claiming success
 - Don't use TYPE_CHECKING

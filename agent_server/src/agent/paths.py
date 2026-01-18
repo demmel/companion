@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Optional
 
+from agent.config import Config
+
 
 class AgentPaths:
     """Centralized path management for the agent system"""
@@ -26,6 +28,18 @@ class AgentPaths:
         # Generated content directories
         self.generated_images_dir = base_path / "generated_images"
         self.uploaded_images_dir = base_path / "uploaded_images"
+        self.generated_audio_dir = base_path / "generated_audio"
+
+        # TTS reference audio (from config, or None if not configured)
+        self._tts_reference_audio: Optional[Path] = None
+        tts_audio_path = Config.tts_reference_audio()
+        if tts_audio_path:
+            path = Path(tts_audio_path)
+            # Support both absolute and relative paths
+            if path.is_absolute():
+                self._tts_reference_audio = path
+            else:
+                self._tts_reference_audio = base_path / path
 
         # Test and development paths
         self.tests_dir = base_path / "tests"
@@ -33,6 +47,7 @@ class AgentPaths:
         # Ensure necessary directories exist
         self.generated_images_dir.mkdir(exist_ok=True)
         self.uploaded_images_dir.mkdir(exist_ok=True)
+        self.generated_audio_dir.mkdir(exist_ok=True)
         self.logs_dir.mkdir(exist_ok=True)
 
     def get_base_path(self) -> Path:
@@ -74,6 +89,14 @@ class AgentPaths:
     def get_uploaded_images_dir(self) -> Path:
         """Get uploaded images directory path"""
         return self.uploaded_images_dir
+
+    def get_generated_audio_dir(self) -> Path:
+        """Get generated audio directory path"""
+        return self.generated_audio_dir
+
+    def get_tts_reference_audio(self) -> Optional[Path]:
+        """Get TTS reference audio path, or None if not configured"""
+        return self._tts_reference_audio
 
     def get_tests_dir(self) -> Path:
         """Get tests directory path"""

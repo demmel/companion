@@ -28,7 +28,7 @@ dependencies = [
     "uvicorn>=0.34.3",
     "websockets>=15.0.1",
     "pytest-asyncio>=1.0.0",
-    "diffusers>=0.34.0",
+    "diffusers>=0.29.0",  # relaxed for chatterbox-tts 0.1.3 compatibility
     "beautifulsoup4>=4.13.4",
     "markdownify>=1.2.0",
     "sentence-transformers>=5.1.0",
@@ -41,20 +41,33 @@ dependencies = [
     "python-multipart>=0.0.20",
     "flask>=3.1.0",
     "brotli>=1.1.0",
+    "chatterbox-tts>=0.1.5",  # Turbo model with working [laugh], [sigh] tags
 ]
 
 [tool.uv.sources]
 torch = [
-    { index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 torchvision = [
-    { index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 
 [[tool.uv.index]]
-name = "pytorch-cu121"
-url = "https://download.pytorch.org/whl/cu121"
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
 explicit = true
+
+[tool.uv]
+environments = ["sys_platform == 'win32'"]
+override-dependencies = [
+    "llvmlite>=0.43.0",
+    "numba>=0.60.0",
+    "numpy>=1.26.0,<2.4.0",  # >=1.26 for Python 3.12, <2.4 for numba
+    "ml-dtypes>=0.4.0",  # newer version that builds with numpy>=1.26
+]
+
+[tool.uv.extra-build-dependencies]
+pkuseg = ["numpy", "cython"]
 
 [project.scripts]
 agent = "main:main"

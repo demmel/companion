@@ -2,12 +2,20 @@ import { useState } from "react";
 import { css } from "@styled-system/css";
 import { Loader2, ChevronDown } from "lucide-react";
 import { ThinkAction } from "@/types";
+import { useActionAudio } from "@/hooks/useActionAudio";
+import { PlayButton } from "./PlayButton";
 
 interface ThinkActionDisplayProps {
   action: ThinkAction;
+  triggerId: string;
+  actionIndex: number;
 }
 
-export function ThinkActionDisplay({ action }: ThinkActionDisplayProps) {
+export function ThinkActionDisplay({
+  action,
+  triggerId,
+  actionIndex,
+}: ThinkActionDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const isStreaming = action.status.type === "streaming";
@@ -17,6 +25,14 @@ export function ThinkActionDisplay({ action }: ThinkActionDisplayProps) {
       : action.status.result;
   const hasContent = result?.trim().length > 0;
   const label = isStreaming ? "Thinking..." : "Thoughts";
+
+  const { playState, handlePlayClick } = useActionAudio({
+    triggerId,
+    actionIndex,
+  });
+
+  // Don't show play button while streaming
+  const showPlayButton = action.status.type === "success";
 
   return (
     <div
@@ -82,6 +98,14 @@ export function ThinkActionDisplay({ action }: ThinkActionDisplayProps) {
             borderColor: "gray.700",
           })}
         >
+          {/* Play button */}
+          {showPlayButton && (
+            <div className={css({ pt: 2, pb: 2 })}>
+              <PlayButton playState={playState} onClick={handlePlayClick} />
+            </div>
+          )}
+
+          {/* Thoughts content */}
           <div
             className={css({
               fontSize: "xl",
@@ -114,6 +138,10 @@ export function ThinkActionDisplay({ action }: ThinkActionDisplayProps) {
           @keyframes blink {
             0%, 50% { opacity: 1; }
             51%, 100% { opacity: 0; }
+          }
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
           }
         `}
       </style>

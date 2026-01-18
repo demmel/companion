@@ -98,6 +98,22 @@ class Config:
         """Logging level"""
         return os.getenv("LOG_LEVEL", "INFO")
 
+    # ===== TTS Configuration =====
+
+    @staticmethod
+    def tts_reference_audio() -> Optional[str]:
+        """Path to TTS reference audio file for voice cloning.
+
+        If not set, TTS will be disabled.
+        Can be absolute path or relative to project root.
+        """
+        return os.getenv("TTS_REFERENCE_AUDIO")
+
+    @staticmethod
+    def tts_enabled() -> bool:
+        """Whether TTS is enabled (requires reference audio)"""
+        return Config.tts_reference_audio() is not None
+
     # ===== Validation =====
 
     @staticmethod

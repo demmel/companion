@@ -37,9 +37,21 @@ export function ActionDisplay({
   const renderActionContent = () => {
     switch (action.type) {
       case "think":
-        return <ThinkActionDisplay action={action} />;
+        return (
+          <ThinkActionDisplay
+            action={action}
+            triggerId={triggerId}
+            actionIndex={actionIndex}
+          />
+        );
       case "speak":
-        return <SpeakActionDisplay action={action} />;
+        return (
+          <SpeakActionDisplay
+            action={action}
+            triggerId={triggerId}
+            actionIndex={actionIndex}
+          />
+        );
       case "update_appearance":
         return (
           <UpdateAppearanceActionDisplay

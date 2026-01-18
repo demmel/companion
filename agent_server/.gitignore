@@ -22,9 +22,13 @@ wheels/
 
 # Generated files and binary artifacts
 generated_images/
+generated_audio/
 uploaded_images/
 conversations/
 models/
+
+# TTS reference audio (user-specific voice samples)
+reference_audio/
 
 # Experiment results
 experiment_results/

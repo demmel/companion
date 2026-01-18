@@ -83,6 +83,9 @@ class ModelConfig:
     fetch_url_action_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
     evaluate_priorities_action_model: SupportedModel = SupportedModel.CLAUDE_SONNET_4_5
 
+    # TTS
+    tts_rewrite_model: SupportedModel = SupportedModel.MISTRAL_SMALL_3_2_Q4
+
 
 # Provider detection
 _OLLAMA_MODELS = {

@@ -34,10 +34,13 @@ from fastapi import (
     UploadFile,
     File,
     HTTPException,
+    Response,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+
+from agent.tts import RenderStatus
 
 from agent.core import Agent
 from agent.paths import agent_paths
@@ -691,6 +694,87 @@ async def health_check():
     }
 
 
+def _try_queue_tts_render(agent: Agent, trigger_id: str, action_index: int) -> bool:
+    """Try to queue TTS render for a historical action. Returns True if queued."""
+    from agent.chain_of_action.action.action_data import SpeakActionData, ThinkActionData
+
+    if agent.tts_service is None:
+        return False
+
+    try:
+        trigger_history = agent.get_trigger_history()
+        entry = trigger_history.get_entry_by_id(trigger_id)
+
+        if action_index < 0 or action_index >= len(entry.actions_taken):
+            return False
+
+        action = entry.actions_taken[action_index]
+
+        if action.result.type != "success":
+            return False
+
+        action_id = f"{trigger_id}_{action_index}"
+
+        if isinstance(action, SpeakActionData):
+            text = action.result.content.response
+            tone = action.input.tone
+            agent.tts_service.queue_render(action_id, text, tone)
+            logger.info(f"Queued on-demand TTS render for speak action {action_id}")
+            return True
+
+        elif isinstance(action, ThinkActionData):
+            text = action.result.content.thoughts
+            agent.tts_service.queue_render(action_id, text, None)
+            logger.info(f"Queued on-demand TTS render for think action {action_id}")
+            return True
+
+        return False
+    except Exception as e:
+        logger.error(f"Failed to queue TTS render: {e}")
+        return False
+
+
+@app.get("/api/audio/{trigger_id}/{action_index}")
+async def get_audio(trigger_id: str, action_index: int) -> Response:
+    """Fetch rendered audio for a speak or think action.
+
+    Returns:
+        - 200 with audio file if ready
+        - 202 Accepted if still rendering/pending or just queued
+        - 404 if not found or not a speak/think action
+        - 503 if TTS service not available
+    """
+    manager: AgentEventManager = app.state.agent_manager
+    agent: Agent = manager.agent
+
+    if agent.tts_service is None:
+        raise HTTPException(status_code=503, detail="TTS service not available")
+
+    action_id = f"{trigger_id}_{action_index}"
+    status = agent.tts_service.get_audio_status(action_id)
+
+    if status == RenderStatus.READY:
+        audio_path = agent.tts_service.get_audio_path(action_id)
+        if audio_path is not None and audio_path.exists():
+            return FileResponse(
+                path=str(audio_path),
+                media_type="audio/wav",
+                filename=f"{action_id}.wav",
+            )
+        # File not found despite status being ready - treat as error
+        return Response(status_code=404)
+
+    elif status in (RenderStatus.PENDING, RenderStatus.RENDERING):
+        # Not ready yet - client should retry
+        return Response(status_code=202)
+
+    else:
+        # ERROR status - try to queue on-demand rendering
+        if _try_queue_tts_render(agent, trigger_id, action_index):
+            return Response(status_code=202)  # Queued, client should poll
+        return Response(status_code=404)  # Not a speak/think action or not found
+
+
 # Static files configuration using centralized paths
 client_dist_dir = agent_paths.get_client_dist_dir()
 
@@ -716,6 +800,13 @@ if client_dist_dir.exists():
         "/uploaded_images",
         StaticFiles(directory=agent_paths.get_uploaded_images_dir()),
         name="uploaded_images",
+    )
+
+    # Mount generated audio directory
+    app.mount(
+        "/generated_audio",
+        StaticFiles(directory=agent_paths.get_generated_audio_dir()),
+        name="generated_audio",
     )
 
     # Catch-all route for React SPA (must be last!)
