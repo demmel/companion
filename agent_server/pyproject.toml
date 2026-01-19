@@ -42,6 +42,8 @@ dependencies = [
     "flask>=3.1.0",
     "brotli>=1.1.0",
     "chatterbox-tts>=0.1.5",  # Turbo model with working [laugh], [sigh] tags
+    "sqlmodel>=0.0.22",
+    "chromadb>=1.4.1",
 ]
 
 [tool.uv.sources]
