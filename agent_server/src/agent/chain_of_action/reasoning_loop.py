@@ -20,7 +20,8 @@ from .trigger import Trigger
 from .callbacks import ActionCallback, NoOpCallback
 from agent.state import State
 from agent.llm import LLM, SupportedModel
-from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
+from agent.storage import ITriggerHistory
 from agent.config import Config
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ class ActionBasedReasoningLoop:
         state: State,
         llm: LLM,
         callback: ActionCallback,
-        trigger_history: TriggerHistory,
+        trigger_history: ITriggerHistory,
         token_budget: int,
         memory: IMemory,
         previous_memory_context: str,
@@ -69,8 +70,6 @@ class ActionBasedReasoningLoop:
         logger.debug(f"TRIGGER_HISTORY: {trigger_history}")
 
         # Create trigger history entry (which generates the entry_id)
-        from .trigger_history import TriggerHistoryEntry
-
         trigger_entry = TriggerHistoryEntry(
             trigger=trigger,
             actions_taken=[],  # Will be populated as actions complete
@@ -217,7 +216,7 @@ class ActionBasedReasoningLoop:
             )
             _extract_memory_embedding(trigger_entry)
 
-        trigger_history.add_trigger_entry(trigger_entry)
+        trigger_history.add_entry(trigger_entry)
 
         memory.store(trigger_entry, state, llm, model_config.memory_formation_model)
 

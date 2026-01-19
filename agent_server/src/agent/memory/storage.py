@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.storage import ITriggerHistory
 from agent.memory.dag.dag_memory_manager import DagMemoryManager
 from agent.memory.memory import IMemory
 
@@ -22,7 +22,7 @@ def save_memory(
 def load_memory(
     dir: Path,
     prefix: str,
-    trigger_history: TriggerHistory,
+    trigger_history: ITriggerHistory,
     use_individual_formatting: bool,
     resave: bool = False,
 ) -> IMemory:

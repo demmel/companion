@@ -10,14 +10,15 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from agent.storage.interface import ITriggerHistory
 import chromadb
 from chromadb.config import Settings
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, col, create_engine, select
 from sqlalchemy import Engine
 
 from agent.chain_of_action.trigger import Trigger
 from agent.chain_of_action.action.action_data import ActionData
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.storage.models import TriggerEntryTable, ActionTable
 from agent.storage.serializers import TriggerSerializer, ActionSerializer
 
@@ -25,9 +26,9 @@ from agent.storage.serializers import TriggerSerializer, ActionSerializer
 logger = logging.getLogger(__name__)
 
 
-class TriggerHistorySQLite:
+class TriggerHistory(ITriggerHistory):
     """
-    SQLite-backed trigger history with query-based access.
+    SQLite + ChromaDB backed trigger history with query-based access.
 
     No caching - queries databases directly for all operations.
     Uses ChromaDB for efficient embedding similarity search.
@@ -140,7 +141,9 @@ class TriggerHistorySQLite:
             session.add(trigger_row)
 
         # Delete and re-insert actions
-        action_stmt = select(ActionTable).where(ActionTable.trigger_entry_id == entry.entry_id)
+        action_stmt = select(ActionTable).where(
+            ActionTable.trigger_entry_id == entry.entry_id
+        )
         old_actions = session.exec(action_stmt).all()
         for old_action in old_actions:
             session.delete(old_action)
@@ -153,41 +156,18 @@ class TriggerHistorySQLite:
     # Read Operations
     # ===================
 
-    def get_entry_by_id(self, entry_id: str) -> TriggerHistoryEntry | None:
-        """Get a single entry by ID."""
+    def get_entry_by_id(self, entry_id: str) -> TriggerHistoryEntry:
+        """Get a single entry by ID. Raises KeyError if not found."""
         with Session(self._engine) as session:
             row = session.get(TriggerEntryTable, entry_id)
             if not row:
-                return None
+                raise KeyError(f"Entry not found: {entry_id}")
             return self._row_to_entry(session, row)
-
-    def get_recent_entries(self, limit: int = 50) -> list[TriggerHistoryEntry]:
-        """Get the most recent entries."""
-        with Session(self._engine) as session:
-            stmt = (
-                select(TriggerEntryTable)
-                .order_by(TriggerEntryTable.timestamp.desc())
-                .limit(limit)
-            )
-            rows = session.exec(stmt).all()
-            return [self._row_to_entry(session, row) for row in reversed(rows)]
-
-    def get_entries_before(self, before_timestamp: datetime, limit: int = 100) -> list[TriggerHistoryEntry]:
-        """Get entries before a given timestamp."""
-        with Session(self._engine) as session:
-            stmt = (
-                select(TriggerEntryTable)
-                .where(TriggerEntryTable.timestamp < before_timestamp)
-                .order_by(TriggerEntryTable.timestamp.desc())
-                .limit(limit)
-            )
-            rows = session.exec(stmt).all()
-            return [self._row_to_entry(session, row) for row in reversed(rows)]
 
     def get_all_entries(self) -> list[TriggerHistoryEntry]:
         """Get all entries. Use sparingly - prefer paginated queries."""
         with Session(self._engine) as session:
-            stmt = select(TriggerEntryTable).order_by(TriggerEntryTable.timestamp)
+            stmt = select(TriggerEntryTable).order_by(col(TriggerEntryTable.timestamp))
             rows = session.exec(stmt).all()
             return [self._row_to_entry(session, row) for row in rows]
 
@@ -197,14 +177,31 @@ class TriggerHistorySQLite:
             stmt = select(TriggerEntryTable)
             return len(session.exec(stmt).all())
 
-    def _row_to_entry(self, session: Session, row: TriggerEntryTable) -> TriggerHistoryEntry:
+    def get_first_entry(self) -> TriggerHistoryEntry | None:
+        """Get the first (oldest) trigger entry."""
+        with Session(self._engine) as session:
+            stmt = (
+                select(TriggerEntryTable)
+                .order_by(col(TriggerEntryTable.timestamp))
+                .limit(1)
+            )
+            row = session.exec(stmt).first()
+            return self._row_to_entry(session, row) if row else None
+
+    def __len__(self) -> int:
+        """Return the total number of entries."""
+        return self.get_entry_count()
+
+    def _row_to_entry(
+        self, session: Session, row: TriggerEntryTable
+    ) -> TriggerHistoryEntry:
         """Convert database row to TriggerHistoryEntry."""
         trigger = TriggerSerializer.from_blob(row.trigger_blob)
 
         action_stmt = (
             select(ActionTable)
             .where(ActionTable.trigger_entry_id == row.id)
-            .order_by(ActionTable.sequence_order)
+            .order_by(col(ActionTable.sequence_order))
         )
         action_rows = session.exec(action_stmt).all()
         actions = [ActionSerializer.from_row(ar) for ar in action_rows]
@@ -212,9 +209,11 @@ class TriggerHistorySQLite:
         # Get embedding from ChromaDB if it exists
         embedding_vector: list[float] | None = None
         try:
-            result = self._embeddings_collection.get(ids=[row.id], include=["embeddings"])
+            result = self._embeddings_collection.get(
+                ids=[row.id], include=["embeddings"]
+            )
             if result["embeddings"] and len(result["embeddings"]) > 0:
-                embedding_vector = result["embeddings"][0]
+                embedding_vector = [float(x) for x in result["embeddings"][0]]
         except Exception:
             pass  # Entry may not have embedding
 
@@ -229,72 +228,17 @@ class TriggerHistorySQLite:
             embedding_vector=embedding_vector,
         )
 
-    # ===================
-    # Vector Search
-    # ===================
 
-    def search_similar_entries(
-        self,
-        query_vector: list[float],
-        limit: int = 10,
-    ) -> list[tuple[TriggerHistoryEntry, float]]:
-        """
-        Search for entries with similar embeddings.
-
-        Args:
-            query_vector: The embedding vector to search for.
-            limit: Maximum number of results to return.
-
-        Returns:
-            List of (entry, distance) tuples, sorted by distance (ascending).
-        """
-        results = self._embeddings_collection.query(
-            query_embeddings=[query_vector],
-            n_results=limit,
-            include=["distances"],
-        )
-
-        entries_with_distance = []
-        if results["ids"] and results["distances"]:
-            for entry_id, distance in zip(results["ids"][0], results["distances"][0]):
-                entry = self.get_entry_by_id(entry_id)
-                if entry:
-                    entries_with_distance.append((entry, distance))
-
-        return entries_with_distance
-
-    def search_similar_entry_ids(
-        self,
-        query_vector: list[float],
-        limit: int = 10,
-    ) -> list[tuple[str, float]]:
-        """
-        Search for entry IDs with similar embeddings (lightweight version).
-
-        Returns:
-            List of (entry_id, distance) tuples, sorted by distance.
-        """
-        results = self._embeddings_collection.query(
-            query_embeddings=[query_vector],
-            n_results=limit,
-            include=["distances"],
-        )
-
-        if results["ids"] and results["distances"]:
-            return list(zip(results["ids"][0], results["distances"][0]))
-        return []
-
-
-def create_trigger_history_sqlite(db_path: str | Path) -> TriggerHistorySQLite:
+def create_trigger_history(db_path: str | Path) -> TriggerHistory:
     """
-    Factory function to create and initialize a TriggerHistorySQLite instance.
+    Factory function to create and initialize a TriggerHistory instance.
 
     Args:
         db_path: Path to the SQLite database file.
 
     Returns:
-        Initialized TriggerHistorySQLite with database tables created.
+        Initialized TriggerHistory with database tables created.
     """
-    history = TriggerHistorySQLite(str(db_path))
+    history = TriggerHistory(str(db_path))
     history.initialize_db()
     return history

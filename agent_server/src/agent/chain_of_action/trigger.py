@@ -32,7 +32,9 @@ class BirthTrigger(BaseTrigger):
     content: str
     user_name: str
     image_paths: ImageFilePaths = None  # Paths to shared images
-    initial_state: State | None = None  # Initial state derived from character definition
+    initial_state: State | None = (
+        None  # Initial state derived from character definition
+    )
 
 
 class UserInputTrigger(BaseTrigger):

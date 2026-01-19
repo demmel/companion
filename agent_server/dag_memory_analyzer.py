@@ -18,6 +18,8 @@ import csv
 # Add the agent_server/src directory to the path for imports
 import sys
 
+from agent.memory.dag.dag_memory_manager import DagMemoryManager
+
 sys.path.append(str(Path(__file__).parent / "src"))
 
 from agent.memory.dag.action_log import MemoryActionLog
@@ -29,7 +31,7 @@ from agent.memory.dag.actions import (
     AddMemoryAction,
     AddContainerAction,
 )
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.storage.trigger_history import ITriggerHistory
 
 
 @dataclass
@@ -88,7 +90,7 @@ class TurnAnalysis:
 class DAGMemoryAnalyzer:
     """Analyzes DAG memory system performance and dynamics"""
 
-    def __init__(self, action_log: MemoryActionLog, trigger_history: TriggerHistory):
+    def __init__(self, action_log: MemoryActionLog, trigger_history: ITriggerHistory):
         self.action_log = action_log
         self.trigger_history = trigger_history
 
@@ -116,12 +118,16 @@ class DAGMemoryAnalyzer:
         print(f"Loading conversation data from {conversation_dir}/{file_prefix}")
 
         persistence = ConversationPersistence(str(conversation_dir))
-        agent_data = persistence.load_agent_data(file_prefix)
-        action_log = agent_data.dag_memory_manager.action_log
+        agent_data = persistence.load_agent_data(
+            file_prefix, use_individual_formatting=True
+        )
+        memory = agent_data.memory
+        assert isinstance(memory, DagMemoryManager)
+        action_log = memory.action_log
         trigger_history = agent_data.trigger_history
 
         print(f"Loaded {len(action_log.actions)} actions")
-        print(f"Loaded trigger history with {len(trigger_history.entries)} entries")
+        print(f"Loaded trigger history wit {trigger_history.get_entry_count()} entries")
 
         return cls(action_log, trigger_history)
 

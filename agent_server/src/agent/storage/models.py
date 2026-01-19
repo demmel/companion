@@ -16,7 +16,7 @@ class TriggerEntryTable(SQLModel, table=True):
     Stores the core trigger entry data with polymorphic trigger as compressed blob.
     """
 
-    __tablename__ = "trigger_entries"
+    __tablename__ = "trigger_entries"  # type: ignore
 
     id: str = Field(primary_key=True)  # entry_id (timestamp-based)
     timestamp: datetime = Field(index=True)
@@ -41,7 +41,7 @@ class ActionTable(SQLModel, table=True):
     for variable-length JSON data.
     """
 
-    __tablename__ = "actions"
+    __tablename__ = "actions"  # type: ignore
 
     id: int | None = Field(primary_key=True, default=None)
     trigger_entry_id: str = Field(foreign_key="trigger_entries.id", index=True)

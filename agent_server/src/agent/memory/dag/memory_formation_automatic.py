@@ -11,10 +11,9 @@ from agent.chain_of_action.action.action_data import ActionData
 from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.prompts import format_action_for_diary
 from agent.chain_of_action.trigger import (
-    Trigger,
     format_trigger_for_prompt,
 )
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.embedding_service import get_embedding_service
 from agent.memory.dag.models import MemoryElement, ConfidenceLevel
 

@@ -6,18 +6,14 @@ Storage module for trigger history storage.
 """
 
 from agent.storage.models import TriggerEntryTable, ActionTable
-from agent.storage.trigger_history_sqlite import TriggerHistorySQLite, create_trigger_history_sqlite
+from agent.storage.trigger_history import TriggerHistory, create_trigger_history
+from agent.storage.interface import ITriggerHistory
+from agent.storage.mirrored_trigger_history import MirroredTriggerHistory
 from agent.storage.serializers import (
     TriggerSerializer,
     ActionSerializer,
     compress_json,
     decompress_json,
-)
-from agent.storage.migration import (
-    TriggerHistoryMigrator,
-    migrate_conversation_directory,
-    load_trigger_history,
-    export_sqlite_to_json,
 )
 
 __all__ = [
@@ -25,16 +21,13 @@ __all__ = [
     "TriggerEntryTable",
     "ActionTable",
     # Main implementation
-    "TriggerHistorySQLite",
-    "create_trigger_history_sqlite",
+    "ITriggerHistory",
+    "TriggerHistory",
+    "MirroredTriggerHistory",
+    "create_trigger_history",
     # Serializers
     "TriggerSerializer",
     "ActionSerializer",
     "compress_json",
     "decompress_json",
-    # Migration
-    "TriggerHistoryMigrator",
-    "migrate_conversation_directory",
-    "load_trigger_history",
-    "export_sqlite_to_json",
 ]

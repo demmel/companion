@@ -2,13 +2,12 @@
 Callback system for chain_of_action streaming.
 """
 
-from typing import Protocol, Optional, Any
+from typing import Protocol, Any
 
 from agent.chain_of_action.action.action_data import ActionData
 from agent.chain_of_action.trigger import Trigger
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from .action.action_types import ActionType
-from .action.base_action_data import BaseActionData
 
 
 class ActionCallback(Protocol):

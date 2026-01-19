@@ -2,7 +2,7 @@
 Simple unified token allocation to prevent new/retrieved memories from crowding each other out.
 """
 
-from .models import MemoryType
+from .memory_types import MemoryType
 
 
 def get_base_tokens(memory_type: MemoryType) -> int:

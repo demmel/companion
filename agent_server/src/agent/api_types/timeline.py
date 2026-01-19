@@ -2,7 +2,7 @@
 from typing import Literal
 from agent.api_types.actions import Action, convert_action_to_dto
 from agent.api_types.triggers import Trigger, convert_trigger_to_dto
-from agent.chain_of_action.trigger_history import (
+from agent.chain_of_action.trigger_history_entry import (
     SummaryRecord,
     TriggerHistoryEntry as BackendTriggerHistoryEntry,
 )

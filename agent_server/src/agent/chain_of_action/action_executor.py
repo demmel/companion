@@ -3,18 +3,14 @@ Action executor for running action sequences.
 """
 
 import logging
-import time
 
 from typing import List
 
-from agent.chain_of_action.action.action_data import ActionData, create_action_data
-from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.action.base_action_data import (
-    ActionFailureResult,
     BaseActionData,
 )
-from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
-from agent.llm.models import ModelConfig
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
+from agent.storage.interface import ITriggerHistory
 
 from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
@@ -22,7 +18,7 @@ from .context import ExecutionContext
 from .callbacks import ActionCallback, NoOpCallback
 
 from agent.state import State
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +34,7 @@ class ActionExecutor:
         sequence: ActionSequence,
         context: ExecutionContext,
         state: State,
-        trigger_history: TriggerHistory,
+        trigger_history: ITriggerHistory,
         llm: LLM,
         sequence_number: int,
         callback: ActionCallback,

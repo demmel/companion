@@ -15,7 +15,7 @@ from agent.chain_of_action.action_plan import ActionPlan
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.callbacks import ActionCallback
 from agent.chain_of_action.context import ExecutionContext
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.state import State
 from agent.llm import LLM
 

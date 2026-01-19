@@ -6,9 +6,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from enum import Enum
 import uuid
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.memory.dag.edge_types import GraphEdgeType
-from agent.memory.dag.memory_types import MemoryType
 from pydantic import BaseModel, Field
 
 

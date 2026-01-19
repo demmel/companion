@@ -8,7 +8,8 @@ from typing import Optional, List
 from agent.core import Agent
 from agent.api_types.events import AgentEvent, EventEnvelope, AgentServerEvent
 from agent.chain_of_action.trigger import Trigger
-from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
+from agent.storage import ITriggerHistory
 
 
 class AgentEventManager:
@@ -172,7 +173,7 @@ class AgentEventManager:
         """Process a trigger and stream events"""
         self.agent.chat_stream(trigger)
 
-    def get_trigger_history(self) -> TriggerHistory:
+    def get_trigger_history(self) -> ITriggerHistory:
         """Get the current trigger history"""
         return self.agent.get_trigger_history()
 
@@ -200,14 +201,6 @@ class AgentEventManager:
     @property
     def state(self):
         return self.agent.state
-
-    @property
-    def auto_save(self):
-        return self.agent.auto_save
-
-    @auto_save.setter
-    def auto_save(self, value: bool):
-        self.agent.auto_save = value
 
     @property
     def wakeup_delay_seconds(self):

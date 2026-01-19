@@ -6,16 +6,13 @@ debugging and complete replay of memory graph evolution.
 """
 
 import logging
-from agent.llm.interface import ILLM
 from agent.memory.dag.context_formatting import format_context
-from agent.memory.memory import IMemory, MemoryQueries, MemoryQuery
+from agent.memory.memory import IMemory, MemoryQueries
 from agent.timeit import timeit
 from typing import Sequence
 
-from agent.chain_of_action.trigger_history import TriggerHistory
-from agent.chain_of_action.action_registry import ActionRegistry
-from agent.chain_of_action.trigger import Trigger
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
+from agent.storage import ITriggerHistory
 from agent.memory.dag.memory_formation import (
     extract_memories_as_actions,
 )
@@ -61,7 +58,7 @@ class DagMemoryManager(IMemory):
         self,
         memory_graph: MemoryGraph,
         context_graph: ContextGraph,
-        trigger_history: TriggerHistory,
+        trigger_history: ITriggerHistory,
         use_individual_formatting: bool,
     ):
         """Initialize with existing graph state and empty action log."""
@@ -74,7 +71,7 @@ class DagMemoryManager(IMemory):
     @classmethod
     def create(
         cls,
-        trigger_history: TriggerHistory,
+        trigger_history: ITriggerHistory,
         use_individual_formatting: bool,
     ) -> "DagMemoryManager":
         """
@@ -352,7 +349,7 @@ class DagMemoryManager(IMemory):
     def from_data(
         cls,
         data: DagMemoryData,
-        trigger_history: TriggerHistory,
+        trigger_history: ITriggerHistory,
         use_individual_formatting: bool,
     ) -> "DagMemoryManager":
         """
@@ -378,7 +375,9 @@ class DagMemoryManager(IMemory):
             ],
             edges=[memory_graph.edges[edge_id] for edge_id in data.context.edges],
         )
-        return cls(memory_graph, context_graph, trigger_history, use_individual_formatting)
+        return cls(
+            memory_graph, context_graph, trigger_history, use_individual_formatting
+        )
 
     def save_to_file(self, filepath: str) -> None:
         """
@@ -396,7 +395,7 @@ class DagMemoryManager(IMemory):
     def load_from_file(
         cls,
         filepath: str,
-        trigger_history: TriggerHistory,
+        trigger_history: ITriggerHistory,
         use_individual_formatting: bool,
     ) -> "DagMemoryManager":
         """
@@ -420,7 +419,7 @@ class DagMemoryManager(IMemory):
     def load_from_action_log(
         cls,
         filepath: str,
-        trigger_history: TriggerHistory,
+        trigger_history: ITriggerHistory,
         use_individual_formatting: bool,
     ) -> "DagMemoryManager":
         """
@@ -437,7 +436,9 @@ class DagMemoryManager(IMemory):
         action_log = MemoryActionLog.load_from_file(filepath)
         memory_graph, context_graph = action_log.replay_from_empty(trigger_history)
 
-        manager = cls(memory_graph, context_graph, trigger_history, use_individual_formatting)
+        manager = cls(
+            memory_graph, context_graph, trigger_history, use_individual_formatting
+        )
         manager.action_log = action_log
 
         return manager

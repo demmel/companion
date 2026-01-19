@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from typing import List
 
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.memory.dag.actions import (
     AddContainerAction,
     AddEdgeAction,

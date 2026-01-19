@@ -8,7 +8,7 @@ mutating them directly for efficiency while maintaining replayability through ac
 import logging
 from typing import assert_never
 
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.storage import ITriggerHistory
 from .models import (
     ContextElement,
     MemoryContainer,
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def apply_action(
-    trigger_history: TriggerHistory,
+    trigger_history: ITriggerHistory,
     graph: MemoryGraph,
     context: ContextGraph,
     action: MemoryAction,
@@ -237,12 +237,17 @@ def _apply_remove_from_context(
 
 
 def _apply_add_container(
-    trigger_history: TriggerHistory, graph: MemoryGraph, action: AddContainerAction
+    trigger_history: ITriggerHistory, graph: MemoryGraph, action: AddContainerAction
 ) -> None:
     """Add a memory container to the graph."""
+    try:
+        trigger = trigger_history.get_entry_by_id(action.container_id)
+    except KeyError:
+        logger.warning(f"Trigger entry not found for container {action.container_id}")
+        return
 
     container = MemoryContainer(
-        trigger=trigger_history.get_entry_by_id(action.container_id),
+        trigger=trigger,
         element_ids=action.element_ids,
     )
     graph.containers[action.container_id] = container

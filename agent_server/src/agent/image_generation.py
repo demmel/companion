@@ -703,9 +703,11 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
             current_chunk_tokens += token_count
 
             # Start new chunk if we've reached target and aren't on last segment
-            if (current_chunk_tokens >= target_tokens_per_chunk and
-                i < len(segments) - 1 and
-                len(chunks) < 3):  # Leave room for remaining segments
+            if (
+                current_chunk_tokens >= target_tokens_per_chunk
+                and i < len(segments) - 1
+                and len(chunks) < 3
+            ):  # Leave room for remaining segments
                 chunks.append(", ".join(current_chunk_segments))
                 current_chunk_segments = []
                 current_chunk_tokens = 0

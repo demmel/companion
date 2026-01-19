@@ -5,9 +5,8 @@ Action planner for generating action sequences from triggers.
 import logging
 from typing import List
 
-from agent.chain_of_action.action.action_data import ActionData
 from agent.chain_of_action.action.base_action_data import BaseActionData
-from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.storage import ITriggerHistory
 
 from .action_plan import ActionSequence
 from .action_registry import ActionRegistry
@@ -31,7 +30,7 @@ class ActionPlanner:
         trigger: BaseTrigger,
         completed_actions: List[BaseActionData],
         state: State,
-        trigger_history: TriggerHistory,
+        trigger_history: ITriggerHistory,
         llm: LLM,
         model: SupportedModel,
         situational_analysis: str,

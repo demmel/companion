@@ -11,7 +11,7 @@ from typing import List, Tuple, Optional
 
 from pydantic import BaseModel
 
-from agent.chain_of_action.trigger_history import TriggerHistory
+from agent.storage import ITriggerHistory
 from .models import MemoryGraph, ContextGraph
 from .actions import MemoryAction, CheckpointAction
 from .reducer import apply_action
@@ -80,13 +80,13 @@ class MemoryActionLog(BaseModel):
         return self.actions[checkpoint_idx + 1 :]
 
     def replay_from_empty(
-        self, trigger_history: TriggerHistory
+        self, trigger_history: ITriggerHistory
     ) -> Tuple[MemoryGraph, ContextGraph]:
         """Replay all actions from empty state to reconstruct current state."""
         return self.replay_actions(trigger_history, self.actions)
 
     def replay_to_checkpoint(
-        self, trigger_history: TriggerHistory, label: str
+        self, trigger_history: ITriggerHistory, label: str
     ) -> Tuple[MemoryGraph, ContextGraph]:
         """Replay actions up to and including a specific checkpoint."""
         checkpoint_idx = self.find_checkpoint_index(label)
@@ -97,7 +97,7 @@ class MemoryActionLog(BaseModel):
         return self.replay_actions(trigger_history, actions_to_replay)
 
     def replay_actions(
-        self, trigger_history: TriggerHistory, actions: List[MemoryAction]
+        self, trigger_history: ITriggerHistory, actions: List[MemoryAction]
     ) -> Tuple[MemoryGraph, ContextGraph]:
         """Replay a specific list of actions from empty state."""
         graph = MemoryGraph()

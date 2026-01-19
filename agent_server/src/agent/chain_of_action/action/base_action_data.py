@@ -40,7 +40,7 @@ type ActionResult[T: ActionOutput] = ActionSuccessResult[T] | ActionFailureResul
 class BaseActionData(BaseModel, Generic[TInput, TOutput]):
     """Result of executing an action"""
 
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra="ignore")
 
     reasoning: str
     input: TInput

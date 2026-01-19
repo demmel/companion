@@ -72,7 +72,6 @@ def initialize_agent(load: bool) -> AgentEventManager:
         enable_image_generation=True,
         auto_summarize_threshold=32768,
         individual_trigger_compression=False,
-        auto_save=True,
     )
 
     # Set the agent in the manager
@@ -182,9 +181,6 @@ async def reset_agent():
     if old_manager:
         # Disable wakeup timer scheduling and cancel any active timer
         old_manager.set_auto_wakeup_enabled(False)
-
-        # Disable auto-save to prevent the old agent from saving mid-reset
-        old_manager.auto_save = False
 
         # Get the current client queue to transfer to new manager
         with old_manager.client_queue_lock:
@@ -696,7 +692,10 @@ async def health_check():
 
 def _try_queue_tts_render(agent: Agent, trigger_id: str, action_index: int) -> bool:
     """Try to queue TTS render for a historical action. Returns True if queued."""
-    from agent.chain_of_action.action.action_data import SpeakActionData, ThinkActionData
+    from agent.chain_of_action.action.action_data import (
+        SpeakActionData,
+        ThinkActionData,
+    )
 
     if agent.tts_service is None:
         return False

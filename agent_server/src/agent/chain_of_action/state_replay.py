@@ -9,7 +9,7 @@ to reconstruct state at each point in the conversation.
 from typing import Iterator
 
 from agent.state import State, Priority, Value
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.chain_of_action.trigger import BirthTrigger
 from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.action.actions.update_mood_action import UpdateMoodAction
@@ -31,7 +31,9 @@ from agent.chain_of_action.action.action_data import ActionData
 _ACTION_CLASSES = {
     ActionType.UPDATE_MOOD: UpdateMoodAction(),
     ActionType.UPDATE_APPEARANCE: UpdateAppearanceAction(enable_image_generation=False),
-    ActionType.UPDATE_ENVIRONMENT: UpdateEnvironmentAction(enable_image_generation=False),
+    ActionType.UPDATE_ENVIRONMENT: UpdateEnvironmentAction(
+        enable_image_generation=False
+    ),
     ActionType.ADD_PRIORITY: AddPriorityAction(),
     ActionType.REMOVE_PRIORITY: RemovePriorityAction(),
     ActionType.EVALUATE_PRIORITIES: EvaluatePrioritiesAction(),
@@ -71,7 +73,9 @@ def derive_initial_state(first_entry: TriggerHistoryEntry) -> State:
             break
 
     if think_action is None or think_action.result.type != "success":
-        raise ValueError("Birth trigger must have a successful THINK action with derived state")
+        raise ValueError(
+            "Birth trigger must have a successful THINK action with derived state"
+        )
 
     # Parse the state from the thoughts text
     # Format from core.py:
@@ -132,8 +136,7 @@ def derive_initial_state(first_entry: TriggerHistoryEntry) -> State:
 
     # Create priorities with sequential IDs
     priority_objects = [
-        Priority(id=f"p{i}", content=content)
-        for i, content in enumerate(priorities, 1)
+        Priority(id=f"p{i}", content=content) for i, content in enumerate(priorities, 1)
     ]
 
     return State(

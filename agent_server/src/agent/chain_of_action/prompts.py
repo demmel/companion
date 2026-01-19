@@ -16,13 +16,14 @@ from agent.chain_of_action.trigger import (
     format_trigger_for_prompt,
     Trigger,
 )
-from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
+from agent.storage import ITriggerHistory
 from agent.state import State, build_agent_state_description
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.chain_of_action.action_plan import ActionPlan
 
 
-def build_temporal_context(trigger_history: TriggerHistory) -> str:
+def build_temporal_context(trigger_history: ITriggerHistory) -> str:
     """Build temporal context for prompts to enable accurate temporal reasoning"""
     from .trigger import UserInputTrigger
 
@@ -145,9 +146,10 @@ def format_trigger_entries(
     return "\n".join(parts)
 
 
-def format_trigger_history(trigger_history: TriggerHistory) -> Optional[str]:
+def format_trigger_history(trigger_history: ITriggerHistory) -> Optional[str]:
     """Format trigger history as stream of consciousness for prompts"""
-    triggers = trigger_history.get_recent_entries()
+    # TODO: This loads all entries which is not-scalable.  Need to change
+    triggers = trigger_history.get_all_entries()
 
     if not triggers:
         return None
@@ -291,7 +293,7 @@ I am"""
 def build_situational_analysis_prompt(
     state: State,
     trigger: Trigger,
-    trigger_history: TriggerHistory,
+    trigger_history: ITriggerHistory,
     registry: ActionRegistry,
     formatted_memory_context: str,
 ) -> str:
@@ -482,7 +484,7 @@ When planning priority-related actions (add_priority, remove_priority, evaluate_
 def build_memory_extraction_prompt(
     state: State,
     trigger: Trigger,
-    trigger_history: TriggerHistory,
+    trigger_history: ITriggerHistory,
 ) -> str:
     """Build prompt for extracting memory queries from current context"""
     state_desc = build_agent_state_description(state)

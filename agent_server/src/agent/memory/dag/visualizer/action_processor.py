@@ -10,8 +10,23 @@ from typing import List, Set, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 
-from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.chain_of_action.trigger import WakeupTrigger
+
+
+class MockTriggerHistory:
+    """Simple in-memory trigger history for visualization replay."""
+
+    def __init__(self) -> None:
+        self.entries: List[TriggerHistoryEntry] = []
+
+    def get_entry_by_id(self, entry_id: str) -> TriggerHistoryEntry:
+        for entry in self.entries:
+            if entry.entry_id == entry_id:
+                return entry
+        raise KeyError(f"Entry not found: {entry_id}")
+
+
 from ..models import MemoryGraph, ContextGraph
 from ..actions import MemoryAction, CheckpointAction
 from ..action_log import MemoryActionLog
@@ -64,7 +79,7 @@ class StepwiseGraphReconstructor:
     def load(self, file_path: str) -> None:
         """Load action log from JSON file."""
         action_log = MemoryActionLog.load_from_file(file_path)
-        trigger_history = TriggerHistory()
+        trigger_history = MockTriggerHistory()
         add_container_actions = [
             action.container_id
             for action in action_log.actions
@@ -100,8 +115,8 @@ class StepwiseGraphReconstructor:
             prev_edge_ids = set(memory_graph.edges.keys())
             prev_context_ids = {elem.memory.id for elem in context_graph.elements}
 
-            # Apply the action
-            apply_action(self.trigger_history, memory_graph, context_graph, action)
+            # Apply the action (MockTriggerHistory has get_entry_by_id which is all reducer needs)
+            apply_action(self.trigger_history, memory_graph, context_graph, action)  # type: ignore[arg-type]
 
             # Calculate deltas
             current_memory_ids = set(memory_graph.elements.keys())

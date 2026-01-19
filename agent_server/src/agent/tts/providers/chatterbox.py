@@ -4,6 +4,8 @@ import io
 import wave
 from pathlib import Path
 
+from chatterbox.tts_turbo import ChatterboxTurboTTS
+
 from ..base import TTSProvider, TTSResult
 
 
@@ -22,12 +24,11 @@ class ChatterboxProvider(TTSProvider):
             device: The device to run the model on ('cuda' or 'cpu').
         """
         self.device = device
-        self._model: object | None = None
+        self._model: ChatterboxTurboTTS | None = None
 
     def _ensure_model(self) -> None:
         """Lazy-load the model."""
         if self._model is None:
-            from chatterbox.tts_turbo import ChatterboxTurboTTS
 
             self._model = ChatterboxTurboTTS.from_pretrained(device=self.device)
 
@@ -41,7 +42,9 @@ class ChatterboxProvider(TTSProvider):
                 wav: "np.ndarray", sr: int, target_lufs: int = -27
             ) -> "np.ndarray":
                 result = original_norm(wav, sr, target_lufs)
-                return result.astype(np.float32) if result.dtype == np.float64 else result
+                return (
+                    result.astype(np.float32) if result.dtype == np.float64 else result
+                )
 
             self._model.norm_loudness = patched_norm
 

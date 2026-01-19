@@ -72,8 +72,7 @@ def _parse_initial_state_from_think(thoughts: str) -> State:
                 priorities.append(item)
 
     priority_objects = [
-        Priority(id=f"p{i}", content=content)
-        for i, content in enumerate(priorities, 1)
+        Priority(id=f"p{i}", content=content) for i, content in enumerate(priorities, 1)
     ]
 
     return State(
@@ -126,60 +125,3 @@ class TriggerHistoryEntry(BaseModel):
                 break
 
         return self
-
-
-class TriggerHistory:
-    """
-    Trigger-based history that tracks stimuli and agent responses instead of conversation turns.
-
-    This allows the agent to respond to various types of triggers (user input, timers,
-    self-reflection, etc.) in a more flexible stream of consciousness approach.
-    """
-
-    def __init__(self):
-        self.entries: List[TriggerHistoryEntry] = []
-
-    def add_trigger_response(
-        self, trigger: Trigger, situational_context: str, actions: List[ActionData]
-    ):
-        """Add a new trigger and the agent's response to it"""
-        entry = TriggerHistoryEntry(
-            trigger=trigger,
-            situational_context=situational_context,
-            actions_taken=actions,
-        )
-        self.entries.append(entry)
-
-    def add_trigger_entry(self, entry: TriggerHistoryEntry):
-        """Add a pre-built trigger history entry"""
-        self.entries.append(entry)
-
-    def get_entries(self) -> List[TriggerHistoryEntry]:
-        """Get all trigger history entries"""
-        return self.entries.copy()
-
-    def get_recent_entries(self) -> List[TriggerHistoryEntry]:
-        """Get the most recent trigger history entries"""
-        return self.entries
-
-    def get_old_entries(self) -> List[TriggerHistoryEntry]:
-        """Get entries that are not in the recent/stream of consciousness section"""
-        return self.entries
-
-    def get_entries_before_index(self, end_index: int) -> List[TriggerHistoryEntry]:
-        """Get all entries before the specified index for summarization"""
-        return self.entries[:end_index]
-
-    def get_all_entries(self) -> List[TriggerHistoryEntry]:
-        """Get all trigger history entries"""
-        return self.entries.copy()
-
-    def get_entry_by_id(self, entry_id: str) -> TriggerHistoryEntry:
-        """Get a trigger by its entry ID"""
-        for entry in self.entries:
-            if entry.entry_id == entry_id:
-                return entry
-        raise ValueError(f"TriggerHistoryEntry with ID {entry_id} not found")
-
-    def __len__(self) -> int:
-        return len(self.entries)

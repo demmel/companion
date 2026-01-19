@@ -315,7 +315,9 @@ Is the new priority truly redundant (not just related) to any existing priority?
             return
 
         # Calculate insert position
-        insert_index = action_input.position.calculate_insert_index(state.current_priorities)
+        insert_index = action_input.position.calculate_insert_index(
+            state.current_priorities
+        )
 
         # Create new priority with the ID from the result
         new_priority = Priority(
@@ -407,6 +409,5 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, RemovePriorityOutput]
     ) -> None:
         """Apply priority removal from the output."""
         state.current_priorities = [
-            p for p in state.current_priorities
-            if p.id != output.priority.id
+            p for p in state.current_priorities if p.id != output.priority.id
         ]

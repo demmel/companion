@@ -46,12 +46,12 @@ from agent.chain_of_action.trigger import (
     BirthTrigger,
     WakeupTrigger,
 )
-from agent.chain_of_action.trigger_history import TriggerHistory, TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
+from agent.storage import ITriggerHistory
 from agent.llm import LLM
 from agent.state import State
 
 from agent.chain_of_action.reasoning_loop import ActionBasedReasoningLoop
-from agent.chain_of_action.trigger_history import TriggerHistory
 from agent.conversation_persistence import ConversationPersistence
 from agent.state import (
     State,
@@ -100,7 +100,6 @@ class Agent:
         llm: LLM,
         model_config: ModelConfig,
         event_emitter: EventEmitter,
-        auto_save: bool = True,
         enable_image_generation: bool = True,
         enable_tts: bool = True,
         individual_trigger_compression: bool = True,
@@ -125,14 +124,11 @@ class Agent:
         self.individual_trigger_compression = individual_trigger_compression
         self.use_individual_memory_formatting = use_individual_memory_formatting
 
-        # Conversation persistence
-        self.auto_save = auto_save
+        # Conversation persistence - always persist
         self.persistence = ConversationPersistence()
-        self.conversation_id = (
-            self.persistence.generate_conversation_id() if auto_save else None
-        )
-
-        self.trigger_history = TriggerHistory()
+        context = self.persistence.new_conversation()
+        self.conversation_id = context.conversation_id
+        self.trigger_history: ITriggerHistory = context.trigger_history
 
         # Initialize reasoning system
         self.action_reasoning_loop = ActionBasedReasoningLoop(
@@ -160,7 +156,7 @@ class Agent:
         self.is_processing = False
         self.wakeup_delay_seconds = 5 * 60  # 5 minutes
 
-    def get_trigger_history(self) -> TriggerHistory:
+    def get_trigger_history(self) -> ITriggerHistory:
         """Get the current trigger history"""
         return self.trigger_history
 
@@ -195,30 +191,29 @@ class Agent:
 
     def reset_conversation(self):
         """Reset conversation history and agent's state"""
-        self.trigger_history = TriggerHistory()
         self.state = None  # Will be configured by next first message
+        self.memory = None
 
         # Reset LLM call statistics
         self.llm.reset_call_stats()
 
-        # Generate new conversation ID for the fresh conversation
-        if self.auto_save:
-            self.conversation_id = self.persistence.generate_conversation_id()
+        # Create new conversation with mirrored trigger history
+        context = self.persistence.new_conversation()
+        self.conversation_id = context.conversation_id
+        self.trigger_history = context.trigger_history
 
-    def save_conversation(self, title: Optional[str] = None) -> Optional[str]:
-        """Save the current conversation to disk
+    def save_conversation(self, title: Optional[str] = None) -> str:
+        """Save the current conversation state to disk.
+
+        Note: Trigger entries are persisted immediately on add_entry().
+        This method saves state and memory.
 
         Returns:
-            The conversation ID if saved, None if auto_save is disabled
+            The conversation ID
         """
         logger.info(
-            f"save_conversation called: auto_save={self.auto_save}, conversation_id={self.conversation_id}, state={self.state is not None}"
+            f"save_conversation called: conversation_id={self.conversation_id}, state={self.state is not None}"
         )
-        if not self.auto_save or not self.conversation_id:
-            logger.info(
-                f"Not saving: auto_save={self.auto_save}, conversation_id={self.conversation_id}"
-            )
-            return None
 
         assert (
             self.state is not None
@@ -242,15 +237,18 @@ class Agent:
 
         logger.info(f"Loading conversation {conversation_id}")
 
-        agent_data = self.persistence.load_agent_data(
+        # Load conversation with mirrored trigger history
+        context = self.persistence.load_conversation(
             conversation_id, self.use_individual_memory_formatting
         )
 
-        self.reset_conversation()  # Clear existing history and state
+        self.conversation_id = context.conversation_id
+        self.trigger_history = context.trigger_history
+        self.state = context.state
+        self.memory = context.memory
 
-        self.state = agent_data.state
-        self.trigger_history = agent_data.trigger_history
-        self.memory = agent_data.memory
+        # Reset LLM call statistics
+        self.llm.reset_call_stats()
 
     def set_auto_wakeup_enabled(self, enabled: bool) -> None:
         """Enable or disable auto-wakeup timer"""
@@ -344,11 +342,9 @@ class Agent:
                 # Use action-based reasoning with callback conversion
                 self._run_chain_of_action_with_streaming(trigger)
 
-            # Auto-save conversation after each turn
-            logger.info(f"Checking auto-save: auto_save={self.auto_save}")
-            if self.auto_save:
-                logger.info("Triggering auto-save after chat stream")
-                self.save_conversation()
+            # Save conversation state after each turn
+            logger.info("Saving conversation state after chat stream")
+            self.save_conversation()
 
             self.llm.log_stats_summary()
 
@@ -418,7 +414,7 @@ class Agent:
             situational_context="",  # No situational context for initial exchange
             actions_taken=[],
         )
-        self.trigger_history.entries.append(self.initial_exchange)
+        self.trigger_history.add_entry(self.initial_exchange)
 
         # Capture entry_id for use in nested callbacks
         entry_id = self.initial_exchange.entry_id
@@ -673,6 +669,9 @@ class Agent:
                 model_config.memory_formation_model,
             )
 
+        # Persist all modifications to the initial exchange entry
+        self.trigger_history.update_entry(self.initial_exchange)
+
         context_info = self.get_context_info()
         self.emit_event(
             TriggerCompletedEvent(
@@ -898,7 +897,7 @@ class Agent:
 
 def get_context_info(
     state: Optional[State],
-    trigger_history: TriggerHistory,
+    trigger_history: ITriggerHistory,
     action_registry: ActionRegistry,
     summarize_at_tokens: int,
     memory_context: str,
@@ -928,10 +927,8 @@ def get_context_info(
         estimated_tokens = 1000  # Base prompt overhead estimate
 
     return ContextInfo(
-        message_count=len(trigger_history.get_recent_entries()),
-        conversation_messages=len(
-            trigger_history.get_recent_entries()
-        ),  # Use trigger count instead
+        message_count=trigger_history.get_entry_count(),
+        conversation_messages=trigger_history.get_entry_count(),
         estimated_tokens=estimated_tokens,
         context_limit=summarize_at_tokens,  # Show summarization limit, not full window
         usage_percentage=(estimated_tokens / summarize_at_tokens) * 100,

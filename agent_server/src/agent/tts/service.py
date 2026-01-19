@@ -39,7 +39,9 @@ def _convert_wav_to_mp3(wav_bytes: bytes) -> bytes:
     return mp3_buffer.getvalue()
 
 
-def rewrite_for_tts(text: str, tone: str | None, llm: LLM, model: SupportedModel) -> str:
+def rewrite_for_tts(
+    text: str, tone: str | None, llm: LLM, model: SupportedModel
+) -> str:
     """Use LLM to rewrite text for expressive TTS.
 
     - Removes emojis (cannot be spoken)

@@ -14,7 +14,7 @@ from agent.chain_of_action.state_replay import (
     replay_state_from_birth,
     get_final_state,
 )
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.chain_of_action.trigger import BirthTrigger, UserInputTrigger, WakeupTrigger
 from agent.chain_of_action.action.action_types import ActionType
 from agent.chain_of_action.action.base_action_data import (

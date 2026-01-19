@@ -280,7 +280,9 @@ IMPORTANT GUIDELINES:
                     # Compute index from position if not stored (backwards compat)
                     new_index = op_result.new_index
                     if new_index is None:
-                        new_index = op.position.calculate_insert_index(state.current_priorities)
+                        new_index = op.position.calculate_insert_index(
+                            state.current_priorities
+                        )
                     new_priority = Priority(id=op_result.created_id, content=op.content)
                     state.current_priorities.insert(new_index, new_priority)
                     state.next_priority_id = int(op_result.created_id[1:]) + 1
@@ -299,15 +301,23 @@ IMPORTANT GUIDELINES:
                     first_pos = op_result.new_index
                     if first_pos is None:
                         first_pos = next(
-                            (i for i, p in enumerate(state.current_priorities) if p.id == op.priority_ids[0]),
-                            0
+                            (
+                                i
+                                for i, p in enumerate(state.current_priorities)
+                                if p.id == op.priority_ids[0]
+                            ),
+                            0,
                         )
                     # Remove all merged priorities
                     state.current_priorities = [
-                        p for p in state.current_priorities if p.id not in op.priority_ids
+                        p
+                        for p in state.current_priorities
+                        if p.id not in op.priority_ids
                     ]
                     # Insert merged priority at computed position
-                    merged = Priority(id=op_result.created_id, content=op_result.new_content)
+                    merged = Priority(
+                        id=op_result.created_id, content=op_result.new_content
+                    )
                     state.current_priorities.insert(first_pos, merged)
                     state.next_priority_id = int(op_result.created_id[1:]) + 1
 
@@ -332,7 +342,9 @@ IMPORTANT GUIDELINES:
                         # Compute index from position if not stored (backwards compat)
                         new_index = op_result.new_index
                         if new_index is None:
-                            new_index = op.new_position.calculate_insert_index(state.current_priorities)
+                            new_index = op.new_position.calculate_insert_index(
+                                state.current_priorities
+                            )
                         state.current_priorities.insert(new_index, priority)
 
 
@@ -360,11 +372,15 @@ def _compute_operation(
     """
     match op.type:
         case "add":
-            return _compute_add_operation(op, working_priorities, working_next_id, max_priorities)
+            return _compute_add_operation(
+                op, working_priorities, working_next_id, max_priorities
+            )
         case "remove":
             return _compute_remove_operation(op, working_priorities)
         case "merge":
-            return _compute_merge_operation(op, working_priorities, working_next_id, llm, model)
+            return _compute_merge_operation(
+                op, working_priorities, working_next_id, llm, model
+            )
         case "refine":
             return _compute_refine_operation(op, working_priorities, llm, model)
         case "reorder":
@@ -422,9 +438,7 @@ def _compute_remove_operation(
 ) -> OperationResult:
     """Compute remove operation result and update working priorities."""
     # Find the priority to get its content
-    priority = next(
-        (p for p in working_priorities if p.id == op.priority_id), None
-    )
+    priority = next((p for p in working_priorities if p.id == op.priority_id), None)
     if not priority:
         return OperationResult(
             operation_type="remove",
@@ -451,9 +465,7 @@ def _compute_merge_operation(
 ) -> OperationResult:
     """Compute merge operation result and update working priorities."""
     # Get priorities to merge
-    priorities_to_merge = [
-        p for p in working_priorities if p.id in op.priority_ids
-    ]
+    priorities_to_merge = [p for p in working_priorities if p.id in op.priority_ids]
     if len(priorities_to_merge) != len(op.priority_ids):
         missing = set(op.priority_ids) - {p.id for p in priorities_to_merge}
         return OperationResult(
@@ -586,9 +598,7 @@ def _compute_reorder_operation(
 
     # Validate position reference exists
     if op.new_position.relative_to_id:
-        if not any(
-            p.id == op.new_position.relative_to_id for p in working_priorities
-        ):
+        if not any(p.id == op.new_position.relative_to_id for p in working_priorities):
             # Restore priority to avoid corrupted state
             working_priorities.append(priority)
             return OperationResult(
