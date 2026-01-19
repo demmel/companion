@@ -113,7 +113,6 @@ class AgentEventManager:
         with self.buffer_lock:
             # Determine what to send based on client state
             trigger_history = self.agent.get_trigger_history()
-            all_entries = trigger_history.get_all_entries()
 
             # Params: pagination params for build_timeline_page and which buffer events to send
             page_size: int
@@ -133,17 +132,13 @@ class AgentEventManager:
                 buffer_filter_sequence = last_event_sequence or -1
             else:
                 # Case 3: trigger_id provided - find it in history
-                start_index = None
-                for i, entry in enumerate(all_entries):
-                    if entry.entry_id == last_trigger_id:
-                        start_index = i
-                        break
-
-                if start_index is None:
+                try:
+                    start_index = trigger_history.get_entry_index(last_trigger_id)
+                except KeyError:
                     raise ValueError(f"Invalid last_trigger_id: {last_trigger_id}")
 
                 # Found it - send all entries from there onwards (including matched) + full buffer
-                page_size = len(all_entries) - start_index
+                page_size = trigger_history.get_entry_count() - start_index
                 after_index = start_index
                 buffer_filter_sequence = -1
 
@@ -153,7 +148,7 @@ class AgentEventManager:
             # Add HydrationResponse if we have historical entries to send
             if page_size > 0:
                 timeline_entries, pagination = build_timeline_page(
-                    all_entries, page_size=page_size, after_index=after_index
+                    trigger_history, page_size=page_size, after_index=after_index
                 )
                 result.append(
                     HydrationResponse(entries=timeline_entries, pagination=pagination)

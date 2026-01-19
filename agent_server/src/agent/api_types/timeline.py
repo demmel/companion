@@ -1,4 +1,5 @@
 # Timeline pagination types
+import itertools
 from typing import Literal
 from agent.api_types.actions import Action, convert_action_to_dto
 from agent.api_types.triggers import Trigger, convert_trigger_to_dto
@@ -6,6 +7,7 @@ from agent.chain_of_action.trigger_history_entry import (
     SummaryRecord,
     TriggerHistoryEntry as BackendTriggerHistoryEntry,
 )
+from agent.storage.interface import ITriggerHistory
 from pydantic import BaseModel
 
 
@@ -88,7 +90,7 @@ def convert_trigger_history_entry_to_dto(
 
 
 def build_timeline_page(
-    all_entries: list[BackendTriggerHistoryEntry],
+    trigger_history: ITriggerHistory,
     page_size: int,
     before_index: int | None = None,
     after_index: int | None = None,
@@ -96,10 +98,12 @@ def build_timeline_page(
     """
     Build a page of timeline entries with pagination info.
 
+    Uses efficient queries to fetch only the needed entries.
+
     Used by both REST /api/timeline endpoint and WebSocket hydration.
 
     Args:
-        all_entries: All trigger history entries in chronological order
+        trigger_history: The trigger history to fetch entries from
         page_size: Number of items per page
         before_index: Get entries before this index (older entries)
         after_index: Get entries after this index (newer entries)
@@ -107,15 +111,9 @@ def build_timeline_page(
     Returns:
         Tuple of (timeline_entries, pagination_info)
     """
-    # Build timeline entries (currently just triggers, summaries removed)
-    timeline_entries: list[TimelineEntry] = []
-    for entry in all_entries:
-        entry_dto = convert_trigger_history_entry_to_dto(entry)
-        timeline_entries.append(TimelineEntryTrigger(entry=entry_dto))
+    total_items = trigger_history.get_entry_count()
 
-    total_items = len(timeline_entries)
-
-    # Handle pagination
+    # Calculate start and end indices based on cursors
     if before_index is not None:
         # Get entries before the specified index (older entries)
         end_index = min(before_index, total_items)
@@ -129,23 +127,31 @@ def build_timeline_page(
         start_index = max(0, total_items - page_size)
         end_index = total_items
 
-    # Get page of items
-    page_entries = timeline_entries[start_index:end_index]
+    # Fetch only the needed entries using iter_entries
+    fetch_count = end_index - start_index
+    entries = list(
+        itertools.islice(
+            trigger_history.iter_entries(reverse=False, start=start_index), fetch_count
+        )
+    )
+
+    # Convert to timeline entries
+    page_entries: list[TimelineEntry] = [
+        TimelineEntryTrigger(entry=convert_trigger_history_entry_to_dto(entry))
+        for entry in entries
+    ]
 
     # Calculate pagination info
     has_next = end_index < total_items
     has_previous = start_index > 0
-
-    next_cursor = str(end_index) if has_next else None
-    previous_cursor = str(start_index) if has_previous else None
 
     pagination = PaginationInfo(
         total_items=total_items,
         page_size=page_size,
         has_next=has_next,
         has_previous=has_previous,
-        next_cursor=next_cursor,
-        previous_cursor=previous_cursor,
+        next_cursor=str(end_index) if has_next else None,
+        previous_cursor=str(start_index) if has_previous else None,
     )
 
     return (page_entries, pagination)

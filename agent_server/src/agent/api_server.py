@@ -136,11 +136,10 @@ async def get_timeline(
 
     manager: AgentEventManager = app.state.agent_manager
     trigger_history = manager.get_trigger_history()
-    all_entries = trigger_history.get_all_entries()
 
     # Parse cursor indices
-    before_index = None
-    after_index = None
+    before_index: Optional[int] = None
+    after_index: Optional[int] = None
 
     if before is not None:
         try:
@@ -156,7 +155,7 @@ async def get_timeline(
 
     # Build timeline page using shared utility
     page_entries, pagination = build_timeline_page(
-        all_entries, page_size, before_index, after_index
+        trigger_history, page_size, before_index, after_index
     )
 
     logger.info(

@@ -1,5 +1,6 @@
 from typing import List, Literal, Optional
 from datetime import datetime
+import itertools
 import random
 
 import nltk
@@ -25,15 +26,13 @@ from agent.chain_of_action.action_plan import ActionPlan
 
 def build_temporal_context(trigger_history: ITriggerHistory) -> str:
     """Build temporal context for prompts to enable accurate temporal reasoning"""
-    from .trigger import UserInputTrigger
-
     now = datetime.now()
     current_time = now.strftime("%Y-%m-%d %H:%M")
 
-    # Get the first trigger to calculate conversation start time
-    all_entries = trigger_history.get_all_entries()
-    if all_entries:
-        conversation_start = all_entries[0].timestamp
+    # Get first and last entries using targeted queries instead of loading all
+    first_entry = trigger_history.get_first_entry()
+    if first_entry:
+        conversation_start = first_entry.timestamp
         duration = now - conversation_start
 
         # Format duration in a human-readable way
@@ -70,21 +69,21 @@ def build_temporal_context(trigger_history: ITriggerHistory) -> str:
 
         # Calculate time since last activity (most recent trigger of any type)
         # Use end_timestamp if available (when processing finished), otherwise use timestamp (when it started)
-        last_entry = all_entries[-1]
-        last_activity = (
-            last_entry.end_timestamp
-            if last_entry.end_timestamp
-            else last_entry.timestamp
-        )
-        time_since_activity = now - last_activity
-        time_since_activity_desc = format_time_delta(time_since_activity)
+        last_entry = trigger_history.get_last_entry()
+        if last_entry:
+            last_activity = (
+                last_entry.end_timestamp
+                if last_entry.end_timestamp
+                else last_entry.timestamp
+            )
+            time_since_activity = now - last_activity
+            time_since_activity_desc = format_time_delta(time_since_activity)
+        else:
+            time_since_activity_desc = "unknown"
 
         # Calculate time since last user input (most recent UserInputTrigger)
-        user_input_entries = [
-            e for e in all_entries if isinstance(e.trigger, UserInputTrigger)
-        ]
-        if user_input_entries:
-            last_user_entry = user_input_entries[-1]
+        last_user_entry = trigger_history.get_last_entry_by_trigger_type("user_input")
+        if last_user_entry:
             # Use end_timestamp if available (when processing finished), otherwise use timestamp (when it started)
             last_user_input = (
                 last_user_entry.end_timestamp
@@ -146,15 +145,22 @@ def format_trigger_entries(
     return "\n".join(parts)
 
 
+MAX_TRIGGER_HISTORY_ENTRIES = 50  # TODO: Replace with token budgeting later
+
+
 def format_trigger_history(trigger_history: ITriggerHistory) -> Optional[str]:
-    """Format trigger history as stream of consciousness for prompts"""
-    # TODO: This loads all entries which is not-scalable.  Need to change
-    triggers = trigger_history.get_all_entries()
-
-    if not triggers:
+    """Format recent trigger history for prompts."""
+    # Get last N entries in reverse, then reverse back to chronological
+    entries = list(
+        itertools.islice(
+            trigger_history.iter_entries(reverse=True, start=0),
+            MAX_TRIGGER_HISTORY_ENTRIES,
+        )
+    )
+    if not entries:
         return None
-
-    return format_trigger_entries(triggers)
+    entries.reverse()
+    return format_trigger_entries(entries)
 
 
 def format_single_trigger_entry(

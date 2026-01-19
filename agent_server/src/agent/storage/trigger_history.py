@@ -9,6 +9,7 @@ Query-based design - no caching, databases are the source of truth.
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Iterator
 
 from agent.storage.interface import ITriggerHistory
 import chromadb
@@ -164,18 +165,14 @@ class TriggerHistory(ITriggerHistory):
                 raise KeyError(f"Entry not found: {entry_id}")
             return self._row_to_entry(session, row)
 
-    def get_all_entries(self) -> list[TriggerHistoryEntry]:
-        """Get all entries. Use sparingly - prefer paginated queries."""
-        with Session(self._engine) as session:
-            stmt = select(TriggerEntryTable).order_by(col(TriggerEntryTable.timestamp))
-            rows = session.exec(stmt).all()
-            return [self._row_to_entry(session, row) for row in rows]
-
     def get_entry_count(self) -> int:
-        """Get total number of entries."""
+        """Get total number of entries using COUNT(*)."""
+        from sqlalchemy import func
+
         with Session(self._engine) as session:
-            stmt = select(TriggerEntryTable)
-            return len(session.exec(stmt).all())
+            stmt = select(func.count()).select_from(TriggerEntryTable)
+            count = session.exec(stmt).one()
+            return count
 
     def get_first_entry(self) -> TriggerHistoryEntry | None:
         """Get the first (oldest) trigger entry."""
@@ -188,9 +185,114 @@ class TriggerHistory(ITriggerHistory):
             row = session.exec(stmt).first()
             return self._row_to_entry(session, row) if row else None
 
+    def get_last_entry(self) -> TriggerHistoryEntry | None:
+        """Get the last (most recent) trigger entry."""
+        with Session(self._engine) as session:
+            stmt = (
+                select(TriggerEntryTable)
+                .order_by(col(TriggerEntryTable.timestamp).desc())
+                .limit(1)
+            )
+            row = session.exec(stmt).first()
+            return self._row_to_entry(session, row) if row else None
+
     def __len__(self) -> int:
         """Return the total number of entries."""
         return self.get_entry_count()
+
+    def iter_entries(self, reverse: bool, start: int) -> Iterator[TriggerHistoryEntry]:
+        """
+        Iterate over entries with optional reverse order and start position.
+
+        Args:
+            reverse: If True, iterate from newest to oldest
+            start: Starting position (0-indexed from beginning if not reverse,
+                   or from end if reverse)
+
+        Yields:
+            TriggerHistoryEntry objects in batches to avoid loading all into memory
+        """
+
+        BATCH_SIZE = 100
+        offset = start
+
+        while True:
+            with Session(self._engine) as session:
+                if reverse:
+                    stmt = (
+                        select(TriggerEntryTable)
+                        .order_by(col(TriggerEntryTable.timestamp).desc())
+                        .offset(offset)
+                        .limit(BATCH_SIZE)
+                    )
+                else:
+                    stmt = (
+                        select(TriggerEntryTable)
+                        .order_by(col(TriggerEntryTable.timestamp))
+                        .offset(offset)
+                        .limit(BATCH_SIZE)
+                    )
+
+                rows = session.exec(stmt).all()
+                if not rows:
+                    break
+
+                for row in rows:
+                    yield self._row_to_entry(session, row)
+
+            offset += BATCH_SIZE
+
+    def get_entry_index(self, entry_id: str) -> int:
+        """
+        Get the 0-based index position of an entry in chronological order.
+
+        Args:
+            entry_id: The entry ID to find
+
+        Returns:
+            The index position (0-indexed)
+
+        Raises:
+            KeyError: If entry not found
+        """
+        from sqlalchemy import func
+
+        with Session(self._engine) as session:
+            # First get the entry to find its timestamp
+            entry_row = session.get(TriggerEntryTable, entry_id)
+            if not entry_row:
+                raise KeyError(f"Entry not found: {entry_id}")
+
+            # Count entries with timestamp less than this entry's timestamp
+            stmt = (
+                select(func.count())
+                .select_from(TriggerEntryTable)
+                .where(col(TriggerEntryTable.timestamp) < entry_row.timestamp)
+            )
+            count = session.exec(stmt).one()
+            return count
+
+    def get_last_entry_by_trigger_type(
+        self, trigger_type: str
+    ) -> TriggerHistoryEntry | None:
+        """
+        Get the last (most recent) entry with the specified trigger type.
+
+        Args:
+            trigger_type: The trigger type to filter by (e.g., "user_input", "wakeup")
+
+        Returns:
+            The most recent entry of that type, or None if not found
+        """
+        with Session(self._engine) as session:
+            stmt = (
+                select(TriggerEntryTable)
+                .where(col(TriggerEntryTable.trigger_type) == trigger_type)
+                .order_by(col(TriggerEntryTable.timestamp).desc())
+                .limit(1)
+            )
+            row = session.exec(stmt).first()
+            return self._row_to_entry(session, row) if row else None
 
     def _row_to_entry(
         self, session: Session, row: TriggerEntryTable

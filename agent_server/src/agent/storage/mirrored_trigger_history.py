@@ -7,7 +7,7 @@ Dual-write architecture ensures data is always available in both locations:
 """
 
 from datetime import datetime
-from typing import Protocol
+from typing import Iterator, Protocol
 
 from agent.chain_of_action.trigger import Trigger
 from agent.chain_of_action.action.action_data import ActionData
@@ -55,13 +55,13 @@ class MirroredTriggerHistory(ITriggerHistory):
     # Read Operations (delegate to primary)
     # ===================
 
-    def get_all_entries(self) -> list[TriggerHistoryEntry]:
-        """Get all entries from primary storage."""
-        return self._primary.get_all_entries()
-
     def get_first_entry(self) -> TriggerHistoryEntry | None:
         """Get the first (oldest) trigger entry from primary storage."""
         return self._primary.get_first_entry()
+
+    def get_last_entry(self) -> TriggerHistoryEntry | None:
+        """Get the last (most recent) trigger entry from primary storage."""
+        return self._primary.get_last_entry()
 
     def get_entry_by_id(self, entry_id: str) -> TriggerHistoryEntry:
         """Get a single entry by ID from primary storage. Raises KeyError if not found."""
@@ -74,3 +74,17 @@ class MirroredTriggerHistory(ITriggerHistory):
     def __len__(self) -> int:
         """Return the total number of entries from primary storage."""
         return len(self._primary)
+
+    def iter_entries(self, reverse: bool, start: int) -> Iterator[TriggerHistoryEntry]:
+        """Iterate over entries from primary storage."""
+        return self._primary.iter_entries(reverse=reverse, start=start)
+
+    def get_entry_index(self, entry_id: str) -> int:
+        """Get the 0-based index position of an entry from primary storage."""
+        return self._primary.get_entry_index(entry_id)
+
+    def get_last_entry_by_trigger_type(
+        self, trigger_type: str
+    ) -> TriggerHistoryEntry | None:
+        """Get the last entry of a specific trigger type from primary storage."""
+        return self._primary.get_last_entry_by_trigger_type(trigger_type)
