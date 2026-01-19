@@ -188,10 +188,6 @@ class AgentEventManager:
         """Save the current conversation to disk"""
         return self.agent.save_conversation(title)
 
-    def load_conversation(self, conversation_id: str):
-        """Load a conversation from disk by its ID"""
-        self.agent.load_conversation(conversation_id)
-
     # Expose agent state properties
     @property
     def state(self):

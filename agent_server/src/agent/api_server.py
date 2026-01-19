@@ -64,28 +64,44 @@ def initialize_agent(load: bool) -> AgentEventManager:
     # Create manager first (it will be the event emitter)
     manager = AgentEventManager(agent=None)  # type: ignore - will set agent next
 
-    # Create agent with manager as event emitter
-    agent = Agent(
-        llm=llm,
-        model_config=Config.get_model_config(),
-        event_emitter=manager,
-        enable_image_generation=True,
-        auto_summarize_threshold=32768,
-        individual_trigger_compression=False,
-    )
-
-    # Set the agent in the manager
-    manager.agent = agent
-
+    # Create agent using factory methods
     if load:
         try:
-            agent.load_conversation("baseline")
+            agent = Agent.load(
+                conversation_id="baseline",
+                llm=llm,
+                model_config=Config.get_model_config(),
+                event_emitter=manager,
+                enable_image_generation=True,
+                auto_summarize_threshold=32768,
+                individual_trigger_compression=False,
+            )
         except Exception as e:
             import traceback
 
             logger.error(f"Failed to load conversation: {e}")
             logger.error(f"Full traceback:\n{traceback.format_exc()}")
             logger.info("Starting with a fresh agent instead")
+            agent = Agent.new(
+                llm=llm,
+                model_config=Config.get_model_config(),
+                event_emitter=manager,
+                enable_image_generation=True,
+                auto_summarize_threshold=32768,
+                individual_trigger_compression=False,
+            )
+    else:
+        agent = Agent.new(
+            llm=llm,
+            model_config=Config.get_model_config(),
+            event_emitter=manager,
+            enable_image_generation=True,
+            auto_summarize_threshold=32768,
+            individual_trigger_compression=False,
+        )
+
+    # Set the agent in the manager
+    manager.agent = agent
 
     return manager
 
@@ -186,6 +202,9 @@ async def reset_agent():
             current_client_queue = old_manager.current_client_queue
             # Clear the old manager's queue reference so it stops pushing events
             old_manager.current_client_queue = None
+
+        # Close old agent to release file handles before creating new one
+        old_manager.agent.close()
 
     # Reinitialize the agent manager
     new_manager = initialize_agent(

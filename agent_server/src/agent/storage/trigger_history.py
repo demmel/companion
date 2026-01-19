@@ -12,8 +12,6 @@ from pathlib import Path
 from typing import Iterator
 
 from agent.storage.interface import ITriggerHistory
-import chromadb
-from chromadb.config import Settings
 from sqlmodel import Session, SQLModel, col, create_engine, select
 from sqlalchemy import Engine
 
@@ -65,11 +63,10 @@ class TriggerHistory(ITriggerHistory):
         if chroma_path is None:
             chroma_path = str(self._db_path.parent / "chroma")
 
-        self._chroma_client = chromadb.PersistentClient(
-            path=chroma_path,
-            settings=Settings(anonymized_telemetry=False),
-        )
-        self._embeddings_collection = self._chroma_client.get_or_create_collection(
+        from agent.storage.chroma import ChromaClient
+
+        self._chroma_client = ChromaClient(path=chroma_path)
+        self._embeddings_collection = self._chroma_client.client().get_or_create_collection(
             name="trigger_embeddings",
             metadata={"hnsw:space": "cosine"},
         )
@@ -293,6 +290,11 @@ class TriggerHistory(ITriggerHistory):
             )
             row = session.exec(stmt).first()
             return self._row_to_entry(session, row) if row else None
+
+    def close(self) -> None:
+        """Close database connections and release file handles."""
+        self._engine.dispose()
+        self._chroma_client.close()
 
     def _row_to_entry(
         self, session: Session, row: TriggerEntryTable

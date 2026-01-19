@@ -8,6 +8,8 @@ Architecture:
 - Dual-write: every write goes to BOTH baseline and conversation_id simultaneously
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 import json
 import logging
@@ -38,6 +40,7 @@ class ConversationContext:
 
     conversation_id: str
     trigger_history: ITriggerHistory
+    persistence: ConversationPersistence
     state: State | None = None
     memory: IMemory | None = None
 
@@ -124,6 +127,18 @@ class ConversationPersistence:
         Writes go to both baseline/ and a new timestamped conversation_id/.
         Returns a ConversationContext with mirrored trigger history.
         """
+        # Clear baseline directory to start fresh (retry for Windows file locking)
+        baseline_dir = self.conversations_dir / self.BASELINE
+        if baseline_dir.exists():
+            for attempt in range(10):
+                try:
+                    shutil.rmtree(baseline_dir)
+                    break
+                except PermissionError:
+                    if attempt == 9:
+                        raise
+                    time.sleep(0.1 * (attempt + 1))
+
         conversation_id = self.generate_conversation_id()
         trigger_history = self._create_mirrored_history(conversation_id)
 
@@ -132,6 +147,7 @@ class ConversationPersistence:
         return ConversationContext(
             conversation_id=conversation_id,
             trigger_history=trigger_history,
+            persistence=self,
         )
 
     def load_conversation(
@@ -175,13 +191,12 @@ class ConversationPersistence:
         with open(state_file, "r", encoding="utf-8") as f:
             state = State.model_validate(json.load(f))
 
-        # Load memory from source (needs trigger history for replay)
-        # Use a temporary non-mirrored history for loading
-        source_trigger_history = self._create_trigger_history(conversation_id)
+        # Load memory from baseline (which now contains the source data)
+        baseline_dir = self.get_conversation_dir(self.BASELINE)
         memory = load_memory(
-            source_dir,
+            baseline_dir,
             "",  # Empty prefix - files are directly in conversation dir
-            source_trigger_history,
+            trigger_history._primary,
             use_individual_formatting,
             resave=False,
         )
@@ -191,6 +206,7 @@ class ConversationPersistence:
         return ConversationContext(
             conversation_id=new_id,
             trigger_history=trigger_history,
+            persistence=self,
             state=state,
             memory=memory,
         )

@@ -88,3 +88,8 @@ class MirroredTriggerHistory(ITriggerHistory):
     ) -> TriggerHistoryEntry | None:
         """Get the last entry of a specific trigger type from primary storage."""
         return self._primary.get_last_entry_by_trigger_type(trigger_type)
+
+    def close(self) -> None:
+        """Close both underlying trigger histories."""
+        self._primary.close()
+        self._mirror.close()

@@ -52,7 +52,7 @@ from agent.llm import LLM
 from agent.state import State
 
 from agent.chain_of_action.reasoning_loop import ActionBasedReasoningLoop
-from agent.conversation_persistence import ConversationPersistence
+from agent.conversation_persistence import ConversationPersistence, ConversationContext
 from agent.state import (
     State,
 )
@@ -100,6 +100,7 @@ class Agent:
         llm: LLM,
         model_config: ModelConfig,
         event_emitter: EventEmitter,
+        conversation_context: ConversationContext,
         enable_image_generation: bool = True,
         enable_tts: bool = True,
         individual_trigger_compression: bool = True,
@@ -124,23 +125,20 @@ class Agent:
         self.individual_trigger_compression = individual_trigger_compression
         self.use_individual_memory_formatting = use_individual_memory_formatting
 
-        # Conversation persistence - always persist
-        self.persistence = ConversationPersistence()
-        context = self.persistence.new_conversation()
-        self.conversation_id = context.conversation_id
-        self.trigger_history: ITriggerHistory = context.trigger_history
+        # Conversation context - provided by factory methods
+        self.persistence = conversation_context.persistence
+        self.conversation_id = conversation_context.conversation_id
+        self.trigger_history: ITriggerHistory = conversation_context.trigger_history
 
         # Initialize reasoning system
         self.action_reasoning_loop = ActionBasedReasoningLoop(
             enable_image_generation=enable_image_generation,
         )
 
-        # Initialize the agent's state system (None until configured by first message)
-        self.state: Optional[State] = None
-
-        # Memory system (initialized after first message if enabled)
+        # Initialize state and memory from context (may be None for new conversations)
+        self.state: Optional[State] = conversation_context.state
+        self.memory: Optional[IMemory] = conversation_context.memory
         self.memory_context: str = ""
-        self.memory: Optional[IMemory] = None
 
         # TTS service (initialized lazily if enabled)
         self.tts_service: Optional[TTSService] = None
@@ -156,9 +154,76 @@ class Agent:
         self.is_processing = False
         self.wakeup_delay_seconds = 5 * 60  # 5 minutes
 
+    @classmethod
+    def new(
+        cls,
+        llm: LLM,
+        model_config: ModelConfig,
+        event_emitter: EventEmitter,
+        enable_image_generation: bool = True,
+        enable_tts: bool = True,
+        individual_trigger_compression: bool = True,
+        use_individual_memory_formatting: bool = True,
+        auto_summarize_threshold: Optional[int] = None,
+    ) -> "Agent":
+        """Create agent with fresh conversation."""
+        persistence = ConversationPersistence()
+        context = persistence.new_conversation()
+        return cls(
+            llm=llm,
+            model_config=model_config,
+            event_emitter=event_emitter,
+            conversation_context=context,
+            enable_image_generation=enable_image_generation,
+            enable_tts=enable_tts,
+            individual_trigger_compression=individual_trigger_compression,
+            use_individual_memory_formatting=use_individual_memory_formatting,
+            auto_summarize_threshold=auto_summarize_threshold,
+        )
+
+    @classmethod
+    def load(
+        cls,
+        conversation_id: str,
+        llm: LLM,
+        model_config: ModelConfig,
+        event_emitter: EventEmitter,
+        enable_image_generation: bool = True,
+        enable_tts: bool = True,
+        individual_trigger_compression: bool = True,
+        use_individual_memory_formatting: bool = True,
+        auto_summarize_threshold: Optional[int] = None,
+    ) -> "Agent":
+        """Create agent by loading existing conversation."""
+        persistence = ConversationPersistence()
+        context = persistence.load_conversation(
+            conversation_id, use_individual_memory_formatting
+        )
+        return cls(
+            llm=llm,
+            model_config=model_config,
+            event_emitter=event_emitter,
+            conversation_context=context,
+            enable_image_generation=enable_image_generation,
+            enable_tts=enable_tts,
+            individual_trigger_compression=individual_trigger_compression,
+            use_individual_memory_formatting=use_individual_memory_formatting,
+            auto_summarize_threshold=auto_summarize_threshold,
+        )
+
     def get_trigger_history(self) -> ITriggerHistory:
         """Get the current trigger history"""
         return self.trigger_history
+
+    def close(self) -> None:
+        """Close agent resources to release file handles."""
+        # Stop TTS service if running
+        if self.tts_service is not None:
+            self.tts_service.stop()
+            self.tts_service = None
+
+        # Close trigger history (releases SQLite and ChromaDB handles)
+        self.trigger_history.close()
 
     def _init_tts_service(self) -> None:
         """Initialize the TTS service for audio generation."""
@@ -189,19 +254,6 @@ class Agent:
             logger.error(f"Failed to initialize TTS service: {e}")
             self.tts_service = None
 
-    def reset_conversation(self):
-        """Reset conversation history and agent's state"""
-        self.state = None  # Will be configured by next first message
-        self.memory = None
-
-        # Reset LLM call statistics
-        self.llm.reset_call_stats()
-
-        # Create new conversation with mirrored trigger history
-        context = self.persistence.new_conversation()
-        self.conversation_id = context.conversation_id
-        self.trigger_history = context.trigger_history
-
     def save_conversation(self, title: Optional[str] = None) -> str:
         """Save the current conversation state to disk.
 
@@ -231,24 +283,6 @@ class Agent:
         )
         logger.info(f"Successfully saved conversation {self.conversation_id}")
         return self.conversation_id
-
-    def load_conversation(self, conversation_id: str):
-        """Load a conversation from disk by its ID"""
-
-        logger.info(f"Loading conversation {conversation_id}")
-
-        # Load conversation with mirrored trigger history
-        context = self.persistence.load_conversation(
-            conversation_id, self.use_individual_memory_formatting
-        )
-
-        self.conversation_id = context.conversation_id
-        self.trigger_history = context.trigger_history
-        self.state = context.state
-        self.memory = context.memory
-
-        # Reset LLM call statistics
-        self.llm.reset_call_stats()
 
     def set_auto_wakeup_enabled(self, enabled: bool) -> None:
         """Enable or disable auto-wakeup timer"""
