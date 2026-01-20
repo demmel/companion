@@ -9,7 +9,7 @@ from typing import Dict
 from datetime import datetime
 
 from agent.memory.dag.models import MemoryGraph
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 
 from .models import (
     TieredRetrievalResults,

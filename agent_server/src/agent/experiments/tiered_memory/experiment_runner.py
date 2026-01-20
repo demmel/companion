@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 from agent.conversation_persistence import ConversationPersistence
 from agent.llm import create_llm, SupportedModel
+from agent.memory.dag.dag_memory_manager import DagMemoryManager
 from agent.state import State
 from agent.ui_output import ui_print
 
@@ -56,17 +57,23 @@ class TieredMemoryExperiment:
         # Load agent data using conversation persistence
         logger.info(f"Loading agent data from {conversation_prefix}")
         persistence = ConversationPersistence(conversations_dir=conversations_dir)
-        agent_data = persistence.load_agent_data(conversation_prefix, use_individual_formatting=True)
+        agent_data = persistence.load_agent_data(
+            conversation_prefix, use_individual_formatting=True
+        )
 
         self.state = agent_data.state
         self.trigger_history = agent_data.trigger_history
-        self.dag_manager = agent_data.dag_memory_manager
+
+        # The tiered memory experiment requires DAG memory specifically
+        if not isinstance(agent_data.memory, DagMemoryManager):
+            raise ValueError("Tiered memory experiment requires DAG memory type")
+        self.dag_manager = agent_data.memory
         self.memory_graph = self.dag_manager.get_memory_graph()
 
         logger.info(
             f"Loaded agent data: {len(self.memory_graph.elements)} elements, "
             f"{len(self.memory_graph.containers)} containers, "
-            f"{len(self.trigger_history.entries)} trigger entries"
+            f"{self.trigger_history.get_entry_count()} trigger entries"
         )
 
         self.tiered_graph: Optional[TieredMemoryGraph] = None
@@ -86,7 +93,9 @@ class TieredMemoryExperiment:
         logger.info("Building tier 3: Conversation boundaries")
 
         # Get all trigger entries
-        trigger_entries = self.trigger_history.get_all_entries()
+        trigger_entries = list(
+            self.trigger_history.iter_entries(reverse=False, start=0)
+        )
         logger.info(f"Processing {len(trigger_entries)} trigger entries")
 
         # Build lookup dict
@@ -188,7 +197,9 @@ class TieredMemoryExperiment:
             self.tiered_graph.conversations = {conv.id: conv for conv in conversations}
 
         # Build trigger_entries_dict (needed for retrieval formatting)
-        trigger_entries = self.trigger_history.get_all_entries()
+        trigger_entries = list(
+            self.trigger_history.iter_entries(reverse=False, start=0)
+        )
         self.trigger_entries_dict = {entry.entry_id: entry for entry in trigger_entries}
 
         logger.info(f"Loaded {len(conversations)} conversations from {tier3_file}")
@@ -238,7 +249,9 @@ class TieredMemoryExperiment:
 
         elif clustering_source == "triggers":
             # Cluster trigger entries directly
-            trigger_entries = self.trigger_history.get_all_entries()
+            trigger_entries = list(
+                self.trigger_history.iter_entries(reverse=False, start=0)
+            )
             clusters = create_semantic_clusters_from_trigger_entries(
                 trigger_entries=trigger_entries,
                 llm=self.llm,
@@ -348,7 +361,9 @@ class TieredMemoryExperiment:
         )
 
         results = {}
-        trigger_entries = self.trigger_history.get_all_entries()
+        trigger_entries = list(
+            self.trigger_history.iter_entries(reverse=False, start=0)
+        )
 
         for query in tqdm(
             test_queries, desc="Running retrieval experiments", file=sys.stdout

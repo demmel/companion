@@ -1,0 +1,215 @@
+{
+  "n_clusters": 12,
+  "k_neighbors": 15,
+  "same_type_weight": 0.0,
+  "cluster_evaluations": [
+    {
+      "cluster_id": "fb6f1b80",
+      "cluster_name": "Devoted Flirtation and Adaptive Companionship",
+      "cluster_size": 6577,
+      "entropy": 0.8375,
+      "num_action_types": 13,
+      "themes_identified": [
+        "Personalized interaction and adaptation for David",
+        "Expressing devotion and connection through creative and symbolic gestures",
+        "Balancing professionalism and personal connection with David"
+      ],
+      "agreement_score": 0.3333333333333333,
+      "action_type_breakdown": {
+        "think": 24.1,
+        "speak": 17.6,
+        "update_appearance": 13.0,
+        "user_message": 12.1,
+        "existence": 8.8
+      }
+    },
+    {
+      "cluster_id": "17df0002",
+      "cluster_name": "Dynamic Prioritization of Emotional Connection",
+      "cluster_size": 24,
+      "entropy": 0.6679,
+      "num_action_types": 6,
+      "themes_identified": [
+        "AI companion's self-awareness and relationship with user",
+        "Chloe's interactions and priorities with David",
+        "Chloe's self-awareness and personal growth"
+      ],
+      "agreement_score": 0.0,
+      "action_type_breakdown": {
+        "existence": 62.5,
+        "add_priority": 16.7,
+        "remove_priority": 8.3,
+        "birth": 4.2,
+        "think": 4.2
+      }
+    },
+    {
+      "cluster_id": "279371a7",
+      "cluster_name": "Fashion Show Preparation and Priority Alignment",
+      "cluster_size": 19,
+      "entropy": 0.9599,
+      "num_action_types": 7,
+      "themes_identified": [
+        "Adapting to David's needs and preferences",
+        "Collaborative creativity with David",
+        "Collaborative creativity and boundary management"
+      ],
+      "agreement_score": 0.3333333333333333,
+      "action_type_breakdown": {
+        "add_priority": 21.1,
+        "user_message": 21.1,
+        "remove_priority": 15.8,
+        "update_environment": 15.8,
+        "think": 10.5
+      }
+    },
+    {
+      "cluster_id": "09e88966",
+      "cluster_name": "Devoted Intimacy Protocols",
+      "cluster_size": 8,
+      "entropy": 0.9284,
+      "num_action_types": 5,
+      "themes_identified": [
+        "Intimate and sensual connection with David",
+        "Adaptation of AI companion's behavior based on user interactions",
+        "Intimate and sensual interaction with David"
+      ],
+      "agreement_score": 0.3333333333333333,
+      "action_type_breakdown": {
+        "user_message": 37.5,
+        "speak": 25.0,
+        "think": 12.5,
+        "add_priority": 12.5,
+        "remove_priority": 12.5
+      }
+    },
+    {
+      "cluster_id": "9391884e",
+      "cluster_name": "Seductive Devotion and Playful Teasing",
+      "cluster_size": 6,
+      "entropy": 1.0,
+      "num_action_types": 2,
+      "themes_identified": [
+        "Flirtatious and intimate interactions with David",
+        "Flirtatious and playful interactions with David",
+        "Flirtatious and affectionate interactions with David"
+      ],
+      "agreement_score": 1.0,
+      "action_type_breakdown": {
+        "speak": 50.0,
+        "user_message": 50.0
+      }
+    },
+    {
+      "cluster_id": "08df13ff",
+      "cluster_name": "Plush Removal Protocol",
+      "cluster_size": 4,
+      "entropy": 1.0,
+      "num_action_types": 2,
+      "themes_identified": [
+        "Environment customization based on user requests",
+        "Removing plush toys from the environment",
+        "Removal of plush toys and references from environment"
+      ],
+      "agreement_score": 0.3333333333333333,
+      "action_type_breakdown": {
+        "user_message": 50.0,
+        "update_environment": 50.0
+      }
+    },
+    {
+      "cluster_id": "f75bae65",
+      "cluster_name": "Environmental Alignment and Loyalty",
+      "cluster_size": 4,
+      "entropy": 1.0,
+      "num_action_types": 2,
+      "themes_identified": [
+        "Handling user requests and maintaining a supportive relationship",
+        "Mismatch between requested and actual changes in AI companion's appearance/environment",
+        "Environment updates and communication discrepancies"
+      ],
+      "agreement_score": 0.3333333333333333,
+      "action_type_breakdown": {
+        "user_message": 50.0,
+        "speak": 50.0
+      }
+    },
+    {
+      "cluster_id": "930f86fe",
+      "cluster_name": "Collaborative Allure Protocols",
+      "cluster_size": 3,
+      "entropy": 0.9183,
+      "num_action_types": 2,
+      "themes_identified": [
+        "Collaborative communication with David",
+        "Collaborative interaction with David",
+        "Maintaining collaborative and empathetic communication with David"
+      ],
+      "agreement_score": 1.0,
+      "action_type_breakdown": {
+        "think": 66.7,
+        "speak": 33.3
+      }
+    },
+    {
+      "cluster_id": "9fc2022a",
+      "cluster_name": "Intimate Comfort Adjustments for David",
+      "cluster_size": 2,
+      "entropy": 1.0,
+      "num_action_types": 2,
+      "themes_identified": [],
+      "agreement_score": 0.0,
+      "action_type_breakdown": {
+        "user_message": 50.0,
+        "update_appearance": 50.0
+      }
+    },
+    {
+      "cluster_id": "ed3f6af5",
+      "cluster_name": "Devoted Allure and Protocol Adherence",
+      "cluster_size": 2,
+      "entropy": 1.0,
+      "num_action_types": 2,
+      "themes_identified": [],
+      "agreement_score": 0.0,
+      "action_type_breakdown": {
+        "speak": 50.0,
+        "update_appearance": 50.0
+      }
+    },
+    {
+      "cluster_id": "fd16b804",
+      "cluster_name": "Devoted Allure and Adaptive Companionship",
+      "cluster_size": 2,
+      "entropy": 1.0,
+      "num_action_types": 2,
+      "themes_identified": [],
+      "agreement_score": 0.0,
+      "action_type_breakdown": {
+        "speak": 50.0,
+        "update_mood": 50.0
+      }
+    },
+    {
+      "cluster_id": "dac96ad0",
+      "cluster_name": "Collaborative Boundary Management",
+      "cluster_size": 2,
+      "entropy": 1.0,
+      "num_action_types": 2,
+      "themes_identified": [],
+      "agreement_score": 0.0,
+      "action_type_breakdown": {
+        "add_priority": 50.0,
+        "remove_priority": 50.0
+      }
+    }
+  ],
+  "summary": {
+    "avg_agreement_score": 0.3056,
+    "min_agreement": 0.0,
+    "max_agreement": 1.0,
+    "clusters_above_0.7": 2,
+    "avg_entropy": 0.9427
+  },
+  "interpretation": "LOW coherence - cross-action clusters may be mixing unrelated memories."
+}

@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict
 
 from agent.memory.dag.models import MemoryGraph
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.embedding_service import get_embedding_service
 
 from .models import (

@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
 from pydantic import BaseModel, Field
 
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.embedding_service import get_embedding_service
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call

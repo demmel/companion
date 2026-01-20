@@ -1,0 +1,14 @@
+{
+  "conversation_prefix": "conversation_20251024_083630_306692",
+  "total_memories": 6653,
+  "memories_with_embeddings": 6653,
+  "k": 12,
+  "timestamp": "2026-01-15T19:24:31.041648",
+  "key_findings": {
+    "baseline_entropy": 0.0875,
+    "residual_entropy": 0.3661,
+    "coherence_agreement": 0.75,
+    "predictability_ratio": 0.8858,
+    "naming_f1": 0.6339
+  }
+}

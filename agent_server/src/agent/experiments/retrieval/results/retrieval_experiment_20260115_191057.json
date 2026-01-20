@@ -1,0 +1,141 @@
+{
+  "timestamp": "2026-01-15T19:05:20.443632",
+  "experiment_1_classification": {
+    "accuracy": 0.6923076923076923,
+    "total_queries": 13,
+    "correct": 9,
+    "results": [
+      {
+        "query": "What are you wearing?",
+        "expected": "state",
+        "predicted": "state",
+        "confidence": 0.95,
+        "correct": true
+      },
+      {
+        "query": "What did you wear to work?",
+        "expected": "episodic",
+        "predicted": "episodic",
+        "confidence": 0.9,
+        "correct": true
+      },
+      {
+        "query": "Where do you live?",
+        "expected": "fact",
+        "predicted": "state",
+        "confidence": 0.9,
+        "correct": false
+      },
+      {
+        "query": "Where are you right now?",
+        "expected": "state",
+        "predicted": "state",
+        "confidence": 0.95,
+        "correct": true
+      },
+      {
+        "query": "How long have you lived in Seattle?",
+        "expected": "fact",
+        "predicted": "episodic",
+        "confidence": 0.9,
+        "correct": false
+      },
+      {
+        "query": "Who is Sarah?",
+        "expected": "relationship",
+        "predicted": "relationship",
+        "confidence": 0.95,
+        "correct": true
+      },
+      {
+        "query": "What does Sarah do for work?",
+        "expected": "fact",
+        "predicted": "fact",
+        "confidence": 0.9,
+        "correct": true
+      },
+      {
+        "query": "Remember when Sarah was stressed about her wedding?",
+        "expected": "episodic",
+        "predicted": "episodic",
+        "confidence": 0.95,
+        "correct": true
+      },
+      {
+        "query": "How are you feeling?",
+        "expected": "state",
+        "predicted": "state",
+        "confidence": 0.95,
+        "correct": true
+      },
+      {
+        "query": "What was making you anxious?",
+        "expected": "episodic",
+        "predicted": "state",
+        "confidence": 0.9,
+        "correct": false
+      },
+      {
+        "query": "What's my dog's name?",
+        "expected": "fact",
+        "predicted": "fact",
+        "confidence": 0.95,
+        "correct": true
+      },
+      {
+        "query": "Do I have any food allergies?",
+        "expected": "fact",
+        "predicted": "state",
+        "confidence": 0.9,
+        "correct": false
+      },
+      {
+        "query": "When is my birthday?",
+        "expected": "fact",
+        "predicted": "fact",
+        "confidence": 0.9,
+        "correct": true
+      }
+    ]
+  },
+  "experiment_2_temporal": {
+    "similarity": {
+      "mrr": 0.3333333333333333,
+      "num_queries": 3
+    },
+    "recency_weighted_0.3": {
+      "mrr": 0.7777777777777778,
+      "num_queries": 3
+    },
+    "recency_weighted_0.5": {
+      "mrr": 0.8333333333333334,
+      "num_queries": 3
+    },
+    "most_recent_similar": {
+      "mrr": 0.1111111111111111,
+      "num_queries": 3
+    }
+  },
+  "experiment_3_all_types": {
+    "state": {
+      "mrr": 0.2222222222222222,
+      "accuracy": 0.6666666666666666,
+      "count": 3
+    },
+    "episodic": {
+      "mrr": 1.0,
+      "accuracy": 1.0,
+      "count": 3
+    },
+    "fact": {
+      "mrr": 0.8055555555555555,
+      "accuracy": 1.0,
+      "count": 6
+    },
+    "relationship": {
+      "mrr": 1.0,
+      "accuracy": 1.0,
+      "count": 1
+    }
+  }
+}

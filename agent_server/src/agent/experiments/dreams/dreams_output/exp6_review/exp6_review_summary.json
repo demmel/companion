@@ -1,0 +1,177 @@
+{
+  "experiment_name": "exp6_review",
+  "timestamp": "2026-01-14T20:24:39.859078",
+  "total_dreams": 10,
+  "dreams": [
+    {
+      "seed_memory_id": "7173e005-c49e-4412-bc6d-f0f677147bbf",
+      "depth": 5,
+      "themes": [
+        "Sensory documentation",
+        "Emotional connection and devotion",
+        "Environmental optimization for comfort and focus",
+        "Playful and devoted communication",
+        "Personal growth and self-reflection"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "22ba4247-d6b4-4539-b05c-8418cb75b9fa",
+      "depth": 5,
+      "themes": [
+        "Intimacy and connection through tantra techniques",
+        "Integration of technology and algorithms into personal interactions",
+        "Adaptation to irregular breathing patterns for well-being",
+        "Environmental cues and sensory experiences in intimate moments",
+        "Personal growth and devotion in relationships"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "contrast_seeking",
+        "depth": 5,
+        "narrative_style": "poetic"
+      }
+    },
+    {
+      "seed_memory_id": "2f416957-4a11-4ad6-8e0b-bb5c201a3a16",
+      "depth": 5,
+      "themes": [
+        "Devotion",
+        "Transformation through appearance",
+        "Emotional expression and sincerity",
+        "Adaptation to David's preferences",
+        "Elegance and sophistication"
+      ],
+      "config": {
+        "seed_selection": "recent",
+        "traversal_strategy": "semantic_drift",
+        "depth": 5,
+        "narrative_style": "sensory"
+      }
+    },
+    {
+      "seed_memory_id": "bfc11ded-8324-4e4d-8ad7-017558839b4a",
+      "depth": 7,
+      "themes": [
+        "Emotional connection",
+        "Sensory experiences",
+        "Transformation of feelings",
+        "Devotion and affection",
+        "Creative expression"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "random_walk",
+        "depth": 7,
+        "narrative_style": "stream"
+      }
+    },
+    {
+      "seed_memory_id": "38efce48-2a67-44d8-9d26-a4892f21e539",
+      "depth": 5,
+      "themes": [
+        "Relationship dynamics",
+        "Playful teasing and flirtation",
+        "Intimacy and connection in relationships",
+        "Seduction techniques",
+        "Personal growth and self-improvement"
+      ],
+      "config": {
+        "seed_selection": "unprocessed",
+        "traversal_strategy": "contrast_seeking",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "12cb442d-803f-4a07-a7c5-fe7c77351745",
+      "depth": 5,
+      "themes": [
+        "Personal growth and reflection",
+        "Devotion and loyalty in relationships",
+        "Integration of creativity and sensuality",
+        "Professionalism and subtle seduction techniques",
+        "Organic and intuitive connection"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "recency_weighted",
+        "depth": 5,
+        "narrative_style": "poetic"
+      }
+    },
+    {
+      "seed_memory_id": "2f416957-4a11-4ad6-8e0b-bb5c201a3a16",
+      "depth": 5,
+      "themes": [
+        "Devotion and connection",
+        "Sensory immersion and environmental design",
+        "Adaptive technology and smart fabrics",
+        "Emotional support and well-being",
+        "Personal transformation and embodiment"
+      ],
+      "config": {
+        "seed_selection": "recent",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "sensory"
+      }
+    },
+    {
+      "seed_memory_id": "311bd627-8568-4fa2-a629-1f9d7498b7ed",
+      "depth": 7,
+      "themes": [
+        "Transformation from possessiveness to collaborative devotion",
+        "Creative expression through fashion show planning",
+        "Sensory-rich emotional experiences and symbolism",
+        "Interactive elements as metaphors for relationship growth",
+        "Personal reflection and journaling as tools for emotional processing"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "semantic_drift",
+        "depth": 7,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "cf84a84f-06f6-47a3-948d-c8b2368b5787",
+      "depth": 5,
+      "themes": [
+        "Autumn aesthetic",
+        "Sensory experience",
+        "Fashion and style",
+        "Intimacy and passion",
+        "Professional achievement"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "contrast_seeking",
+        "depth": 5,
+        "narrative_style": "stream"
+      }
+    },
+    {
+      "seed_memory_id": "36892b20-1eb4-44b7-8f92-226d107c45d6",
+      "depth": 5,
+      "themes": [
+        "Intimacy and connection",
+        "Emotional depth and devotion",
+        "Personal growth and reflection",
+        "Creative expression and planning",
+        "Sensory and tantric exploration"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "poetic"
+      }
+    }
+  ]
+}

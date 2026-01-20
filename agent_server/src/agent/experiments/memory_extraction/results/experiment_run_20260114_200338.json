@@ -1,0 +1,48 @@
+{
+  "timestamp": "2026-01-14T20:03:25.850972",
+  "experiment_1": {
+    "A": {
+      "avg_facts_per_memory": 0,
+      "avg_compression_ratio": 0
+    },
+    "B": {
+      "avg_facts_per_memory": 0,
+      "avg_compression_ratio": 0
+    },
+    "C": {
+      "avg_facts_per_memory": 0,
+      "avg_compression_ratio": 0
+    },
+    "D": {
+      "avg_facts_per_memory": 0,
+      "avg_compression_ratio": 0
+    },
+    "E": {
+      "avg_facts_per_memory": 0,
+      "avg_compression_ratio": 0
+    }
+  },
+  "experiment_2": {
+    "approach": "A",
+    "metrics": {
+      "total_facts": 0,
+      "correct_count": 0,
+      "hallucinated_count": 0,
+      "inferred_count": 0,
+      "total_omissions": 0,
+      "accuracy_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "inference_rate": 0.0,
+      "avg_omissions_per_memory": 0.0
+    },
+    "num_memories": 0
+  },
+  "experiment_3": {
+    "raw_mrr": 0.7083333333333334,
+    "extracted_mrr": 0.0,
+    "hybrid_mrr": 0.7083333333333334,
+    "raw_wins": 8,
+    "extracted_wins": 0,
+    "hybrid_wins": 0
+  }
+}

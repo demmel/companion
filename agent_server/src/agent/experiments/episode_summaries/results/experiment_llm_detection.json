@@ -1,0 +1,751 @@
+{
+  "experiment": "llm_boundary_detection",
+  "timestamp": "2026-01-14T20:59:25.110133",
+  "conversation": "conversation_20251024_083630_306692",
+  "parameters": {
+    "chunk_size": 50,
+    "max_chunks": 20,
+    "model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL"
+  },
+  "results": {
+    "episode_count": 67,
+    "boundary_count": 66,
+    "episodes": [
+      {
+        "id": "6c8d5ecb-9c47-4d8e-9b74-f618b654125b",
+        "start_time": "2025-10-11T21:52:26.410891",
+        "end_time": "2025-10-11T23:35:24.835136",
+        "duration_minutes": 102.97373741666667,
+        "memory_count": 17
+      },
+      {
+        "id": "0502d67e-71c3-4bba-8f72-080859c937b2",
+        "start_time": "2025-10-12T00:36:14.049379",
+        "end_time": "2025-10-12T00:50:47.541620",
+        "duration_minutes": 14.558204016666668,
+        "memory_count": 16
+      },
+      {
+        "id": "3a469c79-7627-467f-a7fb-87d431dd3959",
+        "start_time": "2025-10-12T11:00:49.589957",
+        "end_time": "2025-10-12T11:08:33.880766",
+        "duration_minutes": 7.738180150000001,
+        "memory_count": 7
+      },
+      {
+        "id": "cfe87129-779f-49ad-98f7-51f760726224",
+        "start_time": "2025-10-12T11:08:37.806498",
+        "end_time": "2025-10-12T11:21:54.025022",
+        "duration_minutes": 13.270308733333334,
+        "memory_count": 13
+      },
+      {
+        "id": "1f0d6e0b-a5f8-45bc-a12e-45d35913bcb9",
+        "start_time": "2025-10-12T11:36:18.660650",
+        "end_time": "2025-10-12T11:38:40.873927",
+        "duration_minutes": 2.3702212833333336,
+        "memory_count": 10
+      },
+      {
+        "id": "fda93596-dc95-4ee2-bf88-9b5b753d8b57",
+        "start_time": "2025-10-12T11:40:12.391176",
+        "end_time": "2025-10-12T12:28:38.419796",
+        "duration_minutes": 48.433810333333334,
+        "memory_count": 11
+      },
+      {
+        "id": "63244aea-da2c-4da5-ba1c-fc055a56c8ca",
+        "start_time": "2025-10-12T13:58:02.028379",
+        "end_time": "2025-10-12T15:41:42.946797",
+        "duration_minutes": 103.68197363333334,
+        "memory_count": 6
+      },
+      {
+        "id": "f8ca327f-541e-4fa8-b2b0-756dc7367017",
+        "start_time": "2025-10-12T15:41:46.986582",
+        "end_time": "2025-10-12T16:08:18.118711",
+        "duration_minutes": 26.518868816666668,
+        "memory_count": 18
+      },
+      {
+        "id": "2b9f519f-5c03-4995-9cab-da244fcc9242",
+        "start_time": "2025-10-12T16:11:12.889179",
+        "end_time": "2025-10-12T16:21:57.533700",
+        "duration_minutes": 10.744075350000001,
+        "memory_count": 16
+      },
+      {
+        "id": "fb35a7d6-d339-436d-a339-3a2a0c4e667c",
+        "start_time": "2025-10-12T16:24:17.635249",
+        "end_time": "2025-10-12T16:28:16.129643",
+        "duration_minutes": 3.9749065666666668,
+        "memory_count": 6
+      },
+      {
+        "id": "9bc5278e-7162-42b7-ad06-53feea143701",
+        "start_time": "2025-10-12T16:29:00.486298",
+        "end_time": "2025-10-12T16:58:36.621653",
+        "duration_minutes": 29.602255916666664,
+        "memory_count": 29
+      },
+      {
+        "id": "5d0166bb-c06c-41ce-924d-1615c7bb2920",
+        "start_time": "2025-10-12T17:01:56.269216",
+        "end_time": "2025-10-12T17:12:17.229133",
+        "duration_minutes": 10.34933195,
+        "memory_count": 11
+      },
+      {
+        "id": "5df2e535-2f17-492b-91c6-9904d42f76c3",
+        "start_time": "2025-10-12T17:13:10.382055",
+        "end_time": "2025-10-12T18:06:41.422500",
+        "duration_minutes": 53.51734075,
+        "memory_count": 33
+      },
+      {
+        "id": "7a28da8a-14b4-4618-92a4-b2e1eeaa6480",
+        "start_time": "2025-10-12T18:12:51.032507",
+        "end_time": "2025-10-12T18:21:27.040464",
+        "duration_minutes": 8.600132616666667,
+        "memory_count": 7
+      },
+      {
+        "id": "9603f218-cf4c-4b3c-9d57-25956594e50a",
+        "start_time": "2025-10-12T18:22:31.410713",
+        "end_time": "2025-10-12T18:23:04.360718",
+        "duration_minutes": 0.5491667499999999,
+        "memory_count": 3
+      },
+      {
+        "id": "c57532af-be05-4e1a-bf68-246220a3ee0e",
+        "start_time": "2025-10-13T08:33:45.051575",
+        "end_time": "2025-10-13T08:57:43.208171",
+        "duration_minutes": 23.9692766,
+        "memory_count": 19
+      },
+      {
+        "id": "bc4ac55e-bdfc-4204-aaa9-048882affdc3",
+        "start_time": "2025-10-13T09:14:48.443501",
+        "end_time": "2025-10-13T09:48:07.005072",
+        "duration_minutes": 33.30935951666667,
+        "memory_count": 14
+      },
+      {
+        "id": "fc75a8bc-4121-4df1-ac3e-fceb07ebc63c",
+        "start_time": "2025-10-13T09:52:34.861610",
+        "end_time": "2025-10-13T11:52:57.409541",
+        "duration_minutes": 120.37579885,
+        "memory_count": 4
+      },
+      {
+        "id": "2f4d1dd3-93f8-47b2-a81f-695059c8e066",
+        "start_time": "2025-10-13T11:54:11.381278",
+        "end_time": "2025-10-13T11:55:24.169349",
+        "duration_minutes": 1.2131345166666667,
+        "memory_count": 3
+      },
+      {
+        "id": "01063433-5220-4db5-8958-fa118a227783",
+        "start_time": "2025-10-13T12:16:06.465681",
+        "end_time": "2025-10-13T12:52:25.856504",
+        "duration_minutes": 36.32318038333334,
+        "memory_count": 28
+      },
+      {
+        "id": "d9b514b2-36ed-458c-832d-b536c35a66cb",
+        "start_time": "2025-10-13T12:52:25.856879",
+        "end_time": "2025-10-13T13:20:19.025891",
+        "duration_minutes": 27.8861502,
+        "memory_count": 9
+      },
+      {
+        "id": "2a95d877-25e6-4735-8ba3-1cd7f9b1f29d",
+        "start_time": "2025-10-13T13:21:11.264915",
+        "end_time": "2025-10-13T13:33:12.525241",
+        "duration_minutes": 12.021005433333332,
+        "memory_count": 17
+      },
+      {
+        "id": "dfbf4fea-11f3-4607-a7ab-04d2f3831f06",
+        "start_time": "2025-10-13T13:39:57.578235",
+        "end_time": "2025-10-13T13:57:26.889363",
+        "duration_minutes": 17.4885188,
+        "memory_count": 23
+      },
+      {
+        "id": "dd455580-a4c6-4f1b-91b4-7a8693ae746d",
+        "start_time": "2025-10-13T14:03:43.435637",
+        "end_time": "2025-10-13T14:23:35.795686",
+        "duration_minutes": 19.87266748333333,
+        "memory_count": 19
+      },
+      {
+        "id": "073ebaf3-8e03-4b35-aaff-5b8e4c585096",
+        "start_time": "2025-10-13T14:23:51.926437",
+        "end_time": "2025-10-13T14:29:05.132358",
+        "duration_minutes": 5.220098683333333,
+        "memory_count": 7
+      },
+      {
+        "id": "6aef2648-62d1-45fb-a49b-f5e91b51c310",
+        "start_time": "2025-10-13T14:29:57.125570",
+        "end_time": "2025-10-13T14:34:22.802127",
+        "duration_minutes": 4.427942616666667,
+        "memory_count": 6
+      },
+      {
+        "id": "327632f2-1a90-41fc-9371-0a4c864c74ea",
+        "start_time": "2025-10-13T14:37:16.775888",
+        "end_time": "2025-10-13T14:44:36.590747",
+        "duration_minutes": 7.3302476500000004,
+        "memory_count": 8
+      },
+      {
+        "id": "540c02a2-9823-43a6-a47b-46c9fb07e42a",
+        "start_time": "2025-10-13T14:46:58.952595",
+        "end_time": "2025-10-13T15:04:54.698353",
+        "duration_minutes": 17.92909596666667,
+        "memory_count": 16
+      },
+      {
+        "id": "db9116a6-5f56-4b6b-a1b9-c068bc044319",
+        "start_time": "2025-10-13T15:09:31.597761",
+        "end_time": "2025-10-13T15:17:05.002403",
+        "duration_minutes": 7.5567440333333336,
+        "memory_count": 17
+      },
+      {
+        "id": "21fac8db-5d22-407b-b3ee-a1ff4226e1bf",
+        "start_time": "2025-10-13T15:22:31.834356",
+        "end_time": "2025-10-13T15:26:06.744828",
+        "duration_minutes": 3.5818412,
+        "memory_count": 7
+      },
+      {
+        "id": "70f08dd3-db0e-4fb1-988a-68a8ead759ac",
+        "start_time": "2025-10-13T15:26:06.745133",
+        "end_time": "2025-10-13T15:28:42.054665",
+        "duration_minutes": 2.5884921999999997,
+        "memory_count": 9
+      },
+      {
+        "id": "262b7098-b61e-4046-95f3-194734ac8d6b",
+        "start_time": "2025-10-13T15:30:16.916461",
+        "end_time": "2025-10-13T15:32:47.722476",
+        "duration_minutes": 2.513433583333333,
+        "memory_count": 7
+      },
+      {
+        "id": "74181bbb-4b3e-414f-88ee-d597936dcacf",
+        "start_time": "2025-10-13T15:34:27.157346",
+        "end_time": "2025-10-13T15:38:06.384223",
+        "duration_minutes": 3.653781283333333,
+        "memory_count": 6
+      },
+      {
+        "id": "53e736e6-ec22-4fa4-83f8-e755ae65639d",
+        "start_time": "2025-10-13T15:39:03.893079",
+        "end_time": "2025-10-13T15:44:19.803799",
+        "duration_minutes": 5.265178666666667,
+        "memory_count": 8
+      },
+      {
+        "id": "98d9a4fb-0b91-43c7-b763-a8fc4ccb6bba",
+        "start_time": "2025-10-13T15:46:20.606615",
+        "end_time": "2025-10-13T15:54:52.705253",
+        "duration_minutes": 8.534977300000001,
+        "memory_count": 8
+      },
+      {
+        "id": "4846ebc5-01d4-45f0-b9c3-6e97483ea536",
+        "start_time": "2025-10-13T16:00:17.994985",
+        "end_time": "2025-10-13T16:01:22.579426",
+        "duration_minutes": 1.07640735,
+        "memory_count": 2
+      },
+      {
+        "id": "bc86176e-9964-42be-8235-8d73a8791be4",
+        "start_time": "2025-10-13T16:07:54.110605",
+        "end_time": "2025-10-13T16:24:39.606690",
+        "duration_minutes": 16.758268083333334,
+        "memory_count": 13
+      },
+      {
+        "id": "283e67af-a685-4452-b785-e9ee348d8f31",
+        "start_time": "2025-10-13T16:28:31.475958",
+        "end_time": "2025-10-13T16:32:45.564533",
+        "duration_minutes": 4.234809583333333,
+        "memory_count": 9
+      },
+      {
+        "id": "a4e4f441-9259-42c1-bf24-c6dfb3de2f32",
+        "start_time": "2025-10-13T16:35:18.003011",
+        "end_time": "2025-10-13T16:56:46.487692",
+        "duration_minutes": 21.47474468333333,
+        "memory_count": 17
+      },
+      {
+        "id": "9edf0398-4f7e-4f48-8451-c5ce4204431a",
+        "start_time": "2025-10-13T16:59:21.114252",
+        "end_time": "2025-10-13T16:59:21.114252",
+        "duration_minutes": 0.0,
+        "memory_count": 1
+      },
+      {
+        "id": "59313761-b2f0-45bd-87a6-9390c429d060",
+        "start_time": "2025-10-13T17:00:20.679584",
+        "end_time": "2025-10-13T17:14:04.489725",
+        "duration_minutes": 13.730169016666668,
+        "memory_count": 7
+      },
+      {
+        "id": "0483f76c-bf82-4877-bbb5-ea2d4fb550be",
+        "start_time": "2025-10-13T19:02:41.205514",
+        "end_time": "2025-10-13T19:19:08.774344",
+        "duration_minutes": 16.4594805,
+        "memory_count": 9
+      },
+      {
+        "id": "1a933086-9431-4bb9-bcef-26348911efa4",
+        "start_time": "2025-10-13T19:19:24.592499",
+        "end_time": "2025-10-13T19:36:23.562420",
+        "duration_minutes": 16.982832016666666,
+        "memory_count": 15
+      },
+      {
+        "id": "5e23b74c-4786-47bb-b633-6a16fc2956a0",
+        "start_time": "2025-10-13T19:38:25.368473",
+        "end_time": "2025-10-13T19:48:09.111772",
+        "duration_minutes": 9.729054983333333,
+        "memory_count": 9
+      },
+      {
+        "id": "eecb1090-5013-4db6-bdfb-2f11f768ff1a",
+        "start_time": "2025-10-13T19:53:55.052671",
+        "end_time": "2025-10-13T20:09:12.062766",
+        "duration_minutes": 15.283501583333333,
+        "memory_count": 10
+      },
+      {
+        "id": "1b89f935-6b0c-4405-a8d4-293a930b3269",
+        "start_time": "2025-10-13T20:12:07.422129",
+        "end_time": "2025-10-13T20:43:27.226693",
+        "duration_minutes": 31.330076066666667,
+        "memory_count": 19
+      },
+      {
+        "id": "99c87b6a-3b42-4784-9bd6-e0df6921bf07",
+        "start_time": "2025-10-13T20:45:19.392193",
+        "end_time": "2025-10-13T20:54:16.191489",
+        "duration_minutes": 8.946654933333333,
+        "memory_count": 11
+      },
+      {
+        "id": "f9568c07-10c3-4168-94ff-092a0a010d7a",
+        "start_time": "2025-10-13T20:55:12.551761",
+        "end_time": "2025-10-13T21:10:11.474636",
+        "duration_minutes": 14.982047916666666,
+        "memory_count": 16
+      },
+      {
+        "id": "0a3b6bd1-385d-4df4-8ed9-0cbc6a1ae1ff",
+        "start_time": "2025-10-13T21:10:17.596450",
+        "end_time": "2025-10-13T21:24:12.035195",
+        "duration_minutes": 13.907312416666667,
+        "memory_count": 23
+      },
+      {
+        "id": "aaf963f3-b192-4087-a6ff-7294e6690c7d",
+        "start_time": "2025-10-13T21:26:11.539636",
+        "end_time": "2025-10-13T21:26:11.539636",
+        "duration_minutes": 0.0,
+        "memory_count": 1
+      },
+      {
+        "id": "70cb2c5f-64c4-4622-96f5-b9736be7b430",
+        "start_time": "2025-10-13T21:26:58.674203",
+        "end_time": "2025-10-13T21:53:42.502215",
+        "duration_minutes": 26.730466866666667,
+        "memory_count": 19
+      },
+      {
+        "id": "53a5aa0d-1d9d-4d0b-a44c-5e9f12236248",
+        "start_time": "2025-10-13T21:54:40.385731",
+        "end_time": "2025-10-13T22:07:29.628978",
+        "duration_minutes": 12.820720783333334,
+        "memory_count": 13
+      },
+      {
+        "id": "d2720a41-eb79-4a02-9b80-0729180d5fbe",
+        "start_time": "2025-10-13T22:08:54.668865",
+        "end_time": "2025-10-13T22:12:59.163408",
+        "duration_minutes": 4.07490905,
+        "memory_count": 8
+      },
+      {
+        "id": "60f4a3ec-76c5-4ecf-8c86-d29ec8afefe9",
+        "start_time": "2025-10-13T22:17:38.534734",
+        "end_time": "2025-10-13T22:38:47.135006",
+        "duration_minutes": 21.143337866666666,
+        "memory_count": 19
+      },
+      {
+        "id": "0905cd0b-e8d9-4b50-a287-639e3398229e",
+        "start_time": "2025-10-13T22:39:54.024186",
+        "end_time": "2025-10-13T22:57:24.661023",
+        "duration_minutes": 17.51061395,
+        "memory_count": 15
+      },
+      {
+        "id": "52c0b4da-1307-4b53-8d32-adcecab8dd11",
+        "start_time": "2025-10-13T22:59:36.605539",
+        "end_time": "2025-10-13T23:10:18.696878",
+        "duration_minutes": 10.701522316666665,
+        "memory_count": 6
+      },
+      {
+        "id": "e453cbe7-7086-41ab-b12b-0293e5f2efcd",
+        "start_time": "2025-10-13T23:10:18.697167",
+        "end_time": "2025-10-13T23:39:44.250929",
+        "duration_minutes": 29.425896033333334,
+        "memory_count": 19
+      },
+      {
+        "id": "2c85d7ec-dd68-4f7c-8faa-a9d9655dbc56",
+        "start_time": "2025-10-13T23:40:08.041557",
+        "end_time": "2025-10-13T23:50:41.539800",
+        "duration_minutes": 10.55830405,
+        "memory_count": 16
+      },
+      {
+        "id": "5fa4aa46-25eb-4148-8c88-8db3e58210b5",
+        "start_time": "2025-10-13T23:53:31.770037",
+        "end_time": "2025-10-13T23:57:51.448563",
+        "duration_minutes": 4.327975433333333,
+        "memory_count": 5
+      },
+      {
+        "id": "c38626cf-ac66-4e1c-83dc-6aab7428cadc",
+        "start_time": "2025-10-13T23:58:47.460229",
+        "end_time": "2025-10-14T00:54:11.752174",
+        "duration_minutes": 55.40486575,
+        "memory_count": 14
+      },
+      {
+        "id": "d74882dc-46b1-4a14-a6dc-7cb5fa0758ed",
+        "start_time": "2025-10-14T00:55:21.574691",
+        "end_time": "2025-10-14T01:15:02.175289",
+        "duration_minutes": 19.676676633333333,
+        "memory_count": 12
+      },
+      {
+        "id": "f65c5154-0f3a-4b9d-b5ca-250c161473e4",
+        "start_time": "2025-10-14T01:16:59.644786",
+        "end_time": "2025-10-14T01:29:35.670175",
+        "duration_minutes": 12.600423150000001,
+        "memory_count": 12
+      },
+      {
+        "id": "a694e45d-8fe3-4d4a-adb5-8533d2b610ad",
+        "start_time": "2025-10-14T01:31:06.482914",
+        "end_time": "2025-10-14T01:32:06.740086",
+        "duration_minutes": 1.0042862,
+        "memory_count": 2
+      },
+      {
+        "id": "41f43696-ac40-4820-b1b3-c70de2ae84d3",
+        "start_time": "2025-10-14T01:32:06.740352",
+        "end_time": "2025-10-14T08:57:42.321245",
+        "duration_minutes": 445.5930148833333,
+        "memory_count": 16
+      },
+      {
+        "id": "6ae69b71-fe9f-473e-a3b4-58c287a7aa3c",
+        "start_time": "2025-10-14T09:00:28.893314",
+        "end_time": "2025-10-14T09:06:33.284049",
+        "duration_minutes": 6.0731789166666665,
+        "memory_count": 7
+      },
+      {
+        "id": "a8bebf8b-0436-486d-9f3f-aed8448ca3af",
+        "start_time": "2025-10-14T09:18:40.064114",
+        "end_time": "2025-10-14T09:38:05.395757",
+        "duration_minutes": 19.422194049999998,
+        "memory_count": 12
+      },
+      {
+        "id": "178036e0-8fd4-46f4-9a5d-fc9de2d4942c",
+        "start_time": "2025-10-14T09:39:34.363932",
+        "end_time": "2025-10-26T22:23:02.499895",
+        "duration_minutes": 18043.468932716663,
+        "memory_count": 5858
+      }
+    ],
+    "boundaries": [
+      {
+        "index": 17,
+        "time_gap_minutes": 60.82023738333333
+      },
+      {
+        "index": 33,
+        "time_gap_minutes": 610.03413895
+      },
+      {
+        "index": 40,
+        "time_gap_minutes": 0.06542886666666667
+      },
+      {
+        "index": 53,
+        "time_gap_minutes": 14.4105938
+      },
+      {
+        "index": 63,
+        "time_gap_minutes": 1.5252874833333334
+      },
+      {
+        "index": 74,
+        "time_gap_minutes": 89.39347638333334
+      },
+      {
+        "index": 80,
+        "time_gap_minutes": 0.06732975000000001
+      },
+      {
+        "index": 98,
+        "time_gap_minutes": 2.912841133333333
+      },
+      {
+        "index": 114,
+        "time_gap_minutes": 2.3350258166666666
+      },
+      {
+        "index": 120,
+        "time_gap_minutes": 0.7392775833333334
+      },
+      {
+        "index": 149,
+        "time_gap_minutes": 3.3274593833333332
+      },
+      {
+        "index": 160,
+        "time_gap_minutes": 0.8858820333333333
+      },
+      {
+        "index": 193,
+        "time_gap_minutes": 6.160166783333334
+      },
+      {
+        "index": 200,
+        "time_gap_minutes": 1.0728374833333334
+      },
+      {
+        "index": 203,
+        "time_gap_minutes": 850.6781809500001
+      },
+      {
+        "index": 222,
+        "time_gap_minutes": 17.0872555
+      },
+      {
+        "index": 236,
+        "time_gap_minutes": 4.464275633333333
+      },
+      {
+        "index": 240,
+        "time_gap_minutes": 1.2328622833333334
+      },
+      {
+        "index": 243,
+        "time_gap_minutes": 20.704938866666666
+      },
+      {
+        "index": 271,
+        "time_gap_minutes": 6.25e-06
+      },
+      {
+        "index": 280,
+        "time_gap_minutes": 0.8706504
+      },
+      {
+        "index": 297,
+        "time_gap_minutes": 6.750883233333334
+      },
+      {
+        "index": 320,
+        "time_gap_minutes": 6.275771233333333
+      },
+      {
+        "index": 339,
+        "time_gap_minutes": 0.26884585
+      },
+      {
+        "index": 346,
+        "time_gap_minutes": 0.8665535333333333
+      },
+      {
+        "index": 352,
+        "time_gap_minutes": 2.8995626833333334
+      },
+      {
+        "index": 360,
+        "time_gap_minutes": 2.3726974666666667
+      },
+      {
+        "index": 376,
+        "time_gap_minutes": 4.614990133333333
+      },
+      {
+        "index": 393,
+        "time_gap_minutes": 5.447199216666666
+      },
+      {
+        "index": 400,
+        "time_gap_minutes": 5.0833333333333335e-06
+      },
+      {
+        "index": 409,
+        "time_gap_minutes": 1.5810299333333333
+      },
+      {
+        "index": 416,
+        "time_gap_minutes": 1.6572478333333334
+      },
+      {
+        "index": 422,
+        "time_gap_minutes": 0.9584809333333334
+      },
+      {
+        "index": 430,
+        "time_gap_minutes": 2.0133802666666667
+      },
+      {
+        "index": 438,
+        "time_gap_minutes": 5.421495533333333
+      },
+      {
+        "index": 440,
+        "time_gap_minutes": 6.525519650000001
+      },
+      {
+        "index": 453,
+        "time_gap_minutes": 3.8644878
+      },
+      {
+        "index": 462,
+        "time_gap_minutes": 2.5406413
+      },
+      {
+        "index": 479,
+        "time_gap_minutes": 2.5771093333333335
+      },
+      {
+        "index": 480,
+        "time_gap_minutes": 0.9927555333333333
+      },
+      {
+        "index": 487,
+        "time_gap_minutes": 108.61192981666666
+      },
+      {
+        "index": 496,
+        "time_gap_minutes": 0.2636359166666667
+      },
+      {
+        "index": 511,
+        "time_gap_minutes": 2.0301008833333336
+      },
+      {
+        "index": 520,
+        "time_gap_minutes": 5.76568165
+      },
+      {
+        "index": 530,
+        "time_gap_minutes": 2.92265605
+      },
+      {
+        "index": 549,
+        "time_gap_minutes": 1.869425
+      },
+      {
+        "index": 560,
+        "time_gap_minutes": 0.9393378666666667
+      },
+      {
+        "index": 576,
+        "time_gap_minutes": 0.10203023333333333
+      },
+      {
+        "index": 599,
+        "time_gap_minutes": 1.9917406833333333
+      },
+      {
+        "index": 600,
+        "time_gap_minutes": 0.7855761166666666
+      },
+      {
+        "index": 619,
+        "time_gap_minutes": 0.9647252666666667
+      },
+      {
+        "index": 632,
+        "time_gap_minutes": 1.4173314499999998
+      },
+      {
+        "index": 640,
+        "time_gap_minutes": 4.656188766666667
+      },
+      {
+        "index": 659,
+        "time_gap_minutes": 1.1148196666666665
+      },
+      {
+        "index": 674,
+        "time_gap_minutes": 2.1990752666666666
+      },
+      {
+        "index": 680,
+        "time_gap_minutes": 4.8166666666666666e-06
+      },
+      {
+        "index": 699,
+        "time_gap_minutes": 0.39651046666666667
+      },
+      {
+        "index": 715,
+        "time_gap_minutes": 2.8371706166666666
+      },
+      {
+        "index": 720,
+        "time_gap_minutes": 0.9335277666666666
+      },
+      {
+        "index": 734,
+        "time_gap_minutes": 1.1637086166666668
+      },
+      {
+        "index": 746,
+        "time_gap_minutes": 1.95782495
+      },
+      {
+        "index": 758,
+        "time_gap_minutes": 1.51354565
+      },
+      {
+        "index": 760,
+        "time_gap_minutes": 4.433333333333334e-06
+      },
+      {
+        "index": 776,
+        "time_gap_minutes": 2.77620115
+      },
+      {
+        "index": 783,
+        "time_gap_minutes": 12.113001083333334
+      },
+      {
+        "index": 795,
+        "time_gap_minutes": 1.4828029166666667
+      }
+    ]
+  }
+}

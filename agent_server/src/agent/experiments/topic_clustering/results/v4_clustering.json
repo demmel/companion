@@ -1,0 +1,522 @@
+{
+  "method": "louvain",
+  "k_neighbors": 10,
+  "resolution": 1.0,
+  "n_clusters_param": null,
+  "num_memories": 6653,
+  "action_type_counts": {
+    "birth": 1,
+    "think": 1594,
+    "update_appearance": 857,
+    "user_message": 810,
+    "speak": 1169,
+    "existence": 591,
+    "get_creative_inspiration": 55,
+    "update_environment": 397,
+    "update_mood": 443,
+    "add_priority": 385,
+    "remove_priority": 170,
+    "search_web": 64,
+    "fetch_url": 9,
+    "evaluate_priorities": 108
+  },
+  "num_clusters": 13,
+  "summary": {
+    "avg_entropy": 0.6091,
+    "min_entropy": 0.0718,
+    "max_entropy": 0.8181,
+    "avg_types_per_cluster": 7.31,
+    "cluster_size_distribution": {
+      "min": 83,
+      "max": 1593,
+      "median": 484,
+      "mean": 511.8
+    }
+  },
+  "clusters": [
+    {
+      "cluster_id": "44e496f0",
+      "size": 1593,
+      "entropy": 0.6157,
+      "num_action_types": 9,
+      "action_distribution": {
+        "user_message": {
+          "count": 598,
+          "percentage": 37.5
+        },
+        "speak": {
+          "count": 472,
+          "percentage": 29.6
+        },
+        "update_mood": {
+          "count": 329,
+          "percentage": 20.7
+        },
+        "think": {
+          "count": 181,
+          "percentage": 11.4
+        },
+        "update_environment": {
+          "count": 4,
+          "percentage": 0.3
+        },
+        "update_appearance": {
+          "count": 3,
+          "percentage": 0.2
+        },
+        "add_priority": {
+          "count": 3,
+          "percentage": 0.2
+        },
+        "search_web": {
+          "count": 2,
+          "percentage": 0.1
+        },
+        "evaluate_priorities": {
+          "count": 1,
+          "percentage": 0.1
+        }
+      }
+    },
+    {
+      "cluster_id": "6ae9f0b0",
+      "size": 1108,
+      "entropy": 0.4601,
+      "num_action_types": 9,
+      "action_distribution": {
+        "update_appearance": {
+          "count": 723,
+          "percentage": 65.3
+        },
+        "speak": {
+          "count": 242,
+          "percentage": 21.8
+        },
+        "think": {
+          "count": 79,
+          "percentage": 7.1
+        },
+        "user_message": {
+          "count": 50,
+          "percentage": 4.5
+        },
+        "search_web": {
+          "count": 7,
+          "percentage": 0.6
+        },
+        "update_mood": {
+          "count": 3,
+          "percentage": 0.3
+        },
+        "fetch_url": {
+          "count": 2,
+          "percentage": 0.2
+        },
+        "add_priority": {
+          "count": 1,
+          "percentage": 0.1
+        },
+        "update_environment": {
+          "count": 1,
+          "percentage": 0.1
+        }
+      }
+    },
+    {
+      "cluster_id": "4cd45fb2",
+      "size": 601,
+      "entropy": 0.0718,
+      "num_action_types": 4,
+      "action_distribution": {
+        "existence": {
+          "count": 591,
+          "percentage": 98.3
+        },
+        "think": {
+          "count": 6,
+          "percentage": 1.0
+        },
+        "speak": {
+          "count": 3,
+          "percentage": 0.5
+        },
+        "birth": {
+          "count": 1,
+          "percentage": 0.2
+        }
+      }
+    },
+    {
+      "cluster_id": "215f25ca",
+      "size": 553,
+      "entropy": 0.4484,
+      "num_action_types": 10,
+      "action_distribution": {
+        "think": {
+          "count": 386,
+          "percentage": 69.8
+        },
+        "speak": {
+          "count": 81,
+          "percentage": 14.6
+        },
+        "add_priority": {
+          "count": 42,
+          "percentage": 7.6
+        },
+        "search_web": {
+          "count": 26,
+          "percentage": 4.7
+        },
+        "user_message": {
+          "count": 6,
+          "percentage": 1.1
+        },
+        "update_mood": {
+          "count": 6,
+          "percentage": 1.1
+        },
+        "update_appearance": {
+          "count": 3,
+          "percentage": 0.5
+        },
+        "fetch_url": {
+          "count": 1,
+          "percentage": 0.2
+        },
+        "update_environment": {
+          "count": 1,
+          "percentage": 0.2
+        },
+        "remove_priority": {
+          "count": 1,
+          "percentage": 0.2
+        }
+      }
+    },
+    {
+      "cluster_id": "b606550b",
+      "size": 533,
+      "entropy": 0.7109,
+      "num_action_types": 7,
+      "action_distribution": {
+        "add_priority": {
+          "count": 244,
+          "percentage": 45.8
+        },
+        "remove_priority": {
+          "count": 154,
+          "percentage": 28.9
+        },
+        "user_message": {
+          "count": 55,
+          "percentage": 10.3
+        },
+        "evaluate_priorities": {
+          "count": 53,
+          "percentage": 9.9
+        },
+        "think": {
+          "count": 14,
+          "percentage": 2.6
+        },
+        "update_mood": {
+          "count": 7,
+          "percentage": 1.3
+        },
+        "speak": {
+          "count": 6,
+          "percentage": 1.1
+        }
+      }
+    },
+    {
+      "cluster_id": "17ae0fac",
+      "size": 516,
+      "entropy": 0.7031,
+      "num_action_types": 7,
+      "action_distribution": {
+        "think": {
+          "count": 261,
+          "percentage": 50.6
+        },
+        "update_environment": {
+          "count": 109,
+          "percentage": 21.1
+        },
+        "speak": {
+          "count": 66,
+          "percentage": 12.8
+        },
+        "update_appearance": {
+          "count": 54,
+          "percentage": 10.5
+        },
+        "update_mood": {
+          "count": 14,
+          "percentage": 2.7
+        },
+        "add_priority": {
+          "count": 10,
+          "percentage": 1.9
+        },
+        "user_message": {
+          "count": 2,
+          "percentage": 0.4
+        }
+      }
+    },
+    {
+      "cluster_id": "d5b538de",
+      "size": 484,
+      "entropy": 0.7222,
+      "num_action_types": 8,
+      "action_distribution": {
+        "think": {
+          "count": 228,
+          "percentage": 47.1
+        },
+        "speak": {
+          "count": 86,
+          "percentage": 17.8
+        },
+        "update_mood": {
+          "count": 72,
+          "percentage": 14.9
+        },
+        "get_creative_inspiration": {
+          "count": 55,
+          "percentage": 11.4
+        },
+        "update_environment": {
+          "count": 24,
+          "percentage": 5.0
+        },
+        "user_message": {
+          "count": 10,
+          "percentage": 2.1
+        },
+        "add_priority": {
+          "count": 8,
+          "percentage": 1.7
+        },
+        "update_appearance": {
+          "count": 1,
+          "percentage": 0.2
+        }
+      }
+    },
+    {
+      "cluster_id": "42082724",
+      "size": 378,
+      "entropy": 0.5329,
+      "num_action_types": 7,
+      "action_distribution": {
+        "update_environment": {
+          "count": 256,
+          "percentage": 67.7
+        },
+        "think": {
+          "count": 65,
+          "percentage": 17.2
+        },
+        "speak": {
+          "count": 22,
+          "percentage": 5.8
+        },
+        "user_message": {
+          "count": 17,
+          "percentage": 4.5
+        },
+        "update_appearance": {
+          "count": 16,
+          "percentage": 4.2
+        },
+        "search_web": {
+          "count": 1,
+          "percentage": 0.3
+        },
+        "add_priority": {
+          "count": 1,
+          "percentage": 0.3
+        }
+      }
+    },
+    {
+      "cluster_id": "5655b1b5",
+      "size": 346,
+      "entropy": 0.7346,
+      "num_action_types": 7,
+      "action_distribution": {
+        "think": {
+          "count": 176,
+          "percentage": 50.9
+        },
+        "speak": {
+          "count": 69,
+          "percentage": 19.9
+        },
+        "evaluate_priorities": {
+          "count": 37,
+          "percentage": 10.7
+        },
+        "add_priority": {
+          "count": 32,
+          "percentage": 9.2
+        },
+        "search_web": {
+          "count": 20,
+          "percentage": 5.8
+        },
+        "user_message": {
+          "count": 7,
+          "percentage": 2.0
+        },
+        "update_mood": {
+          "count": 5,
+          "percentage": 1.4
+        }
+      }
+    },
+    {
+      "cluster_id": "893f43bc",
+      "size": 214,
+      "entropy": 0.7791,
+      "num_action_types": 9,
+      "action_distribution": {
+        "think": {
+          "count": 69,
+          "percentage": 32.2
+        },
+        "speak": {
+          "count": 52,
+          "percentage": 24.3
+        },
+        "user_message": {
+          "count": 40,
+          "percentage": 18.7
+        },
+        "add_priority": {
+          "count": 22,
+          "percentage": 10.3
+        },
+        "evaluate_priorities": {
+          "count": 16,
+          "percentage": 7.5
+        },
+        "remove_priority": {
+          "count": 9,
+          "percentage": 4.2
+        },
+        "update_mood": {
+          "count": 3,
+          "percentage": 1.4
+        },
+        "search_web": {
+          "count": 2,
+          "percentage": 0.9
+        },
+        "update_appearance": {
+          "count": 1,
+          "percentage": 0.5
+        }
+      }
+    },
+    {
+      "cluster_id": "b06ce96d",
+      "size": 138,
+      "entropy": 0.622,
+      "num_action_types": 6,
+      "action_distribution": {
+        "think": {
+          "count": 63,
+          "percentage": 45.7
+        },
+        "update_appearance": {
+          "count": 56,
+          "percentage": 40.6
+        },
+        "add_priority": {
+          "count": 14,
+          "percentage": 10.1
+        },
+        "speak": {
+          "count": 2,
+          "percentage": 1.4
+        },
+        "update_environment": {
+          "count": 2,
+          "percentage": 1.4
+        },
+        "search_web": {
+          "count": 1,
+          "percentage": 0.7
+        }
+      }
+    },
+    {
+      "cluster_id": "03eb833b",
+      "size": 106,
+      "entropy": 0.6998,
+      "num_action_types": 4,
+      "action_distribution": {
+        "think": {
+          "count": 61,
+          "percentage": 57.5
+        },
+        "speak": {
+          "count": 35,
+          "percentage": 33.0
+        },
+        "user_message": {
+          "count": 6,
+          "percentage": 5.7
+        },
+        "update_mood": {
+          "count": 4,
+          "percentage": 3.8
+        }
+      }
+    },
+    {
+      "cluster_id": "7bb7ddc6",
+      "size": 83,
+      "entropy": 0.8181,
+      "num_action_types": 8,
+      "action_distribution": {
+        "speak": {
+          "count": 33,
+          "percentage": 39.8
+        },
+        "user_message": {
+          "count": 19,
+          "percentage": 22.9
+        },
+        "add_priority": {
+          "count": 8,
+          "percentage": 9.6
+        },
+        "fetch_url": {
+          "count": 6,
+          "percentage": 7.2
+        },
+        "remove_priority": {
+          "count": 6,
+          "percentage": 7.2
+        },
+        "search_web": {
+          "count": 5,
+          "percentage": 6.0
+        },
+        "think": {
+          "count": 5,
+          "percentage": 6.0
+        },
+        "evaluate_priorities": {
+          "count": 1,
+          "percentage": 1.2
+        }
+      }
+    }
+  ]
+}

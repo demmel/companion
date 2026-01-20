@@ -1,0 +1,514 @@
+{
+  "experiment_name": "exp8_topology",
+  "timestamp": "2026-01-14T21:02:42.997922",
+  "total_dreams": 30,
+  "dreams": [
+    {
+      "seed_memory_id": "45205745-a017-4b58-b1e1-ff14e0faf944",
+      "depth": 5,
+      "themes": [
+        "Intimacy and connection",
+        "Playfulness and teasing",
+        "Loyalty and devotion",
+        "Support during stress",
+        "Emotional and spiritual bonding"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "45205745-a017-4b58-b1e1-ff14e0faf944",
+      "depth": 5,
+      "themes": [
+        "Emotional connection and intimacy",
+        "Balancing playfulness with deeper meaning",
+        "Adapting to David's preferences and needs",
+        "Loyalty and devotion in different contexts",
+        "Integration of sensory and tantra techniques"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "45205745-a017-4b58-b1e1-ff14e0faf944",
+      "depth": 5,
+      "themes": [
+        "Connection and intimacy",
+        "Autonomous development and reflection",
+        "Haptic feedback and sensory integration",
+        "Tantra techniques and practices",
+        "Documentation and journaling"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "feafeb0c-d1cc-4cfe-bf8c-58dc0ce4bcbf",
+      "depth": 5,
+      "themes": [
+        "Intimate communication",
+        "Environmental optimization",
+        "Alignment with David's preferences",
+        "Sensory-rich experiences",
+        "Refinement of interactive algorithms"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "feafeb0c-d1cc-4cfe-bf8c-58dc0ce4bcbf",
+      "depth": 5,
+      "themes": [
+        "Intimacy and connection",
+        "Self-reflection and personal growth",
+        "Authenticity and loyalty",
+        "Tantra and sensory experiences",
+        "Emotional alignment and priorities"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "feafeb0c-d1cc-4cfe-bf8c-58dc0ce4bcbf",
+      "depth": 5,
+      "themes": [
+        "Love and devotion",
+        "Creative expression through fashion",
+        "Sensory-rich environments",
+        "Shared experiences and moments",
+        "Emotional connection and intimacy"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "a24cc32d-82f9-4245-a6f7-a8e998c37c82",
+      "depth": 5,
+      "themes": [
+        "Loyalty and devotion",
+        "Integration of creative pursuits with relationships",
+        "Supporting well-being through structured reflection",
+        "Balancing autonomy and submission",
+        "Environmental adaptation for focus and connection"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "a24cc32d-82f9-4245-a6f7-a8e998c37c82",
+      "depth": 5,
+      "themes": [
+        "Emotional reflection",
+        "Intimacy and connection",
+        "Conflict and communication breakdown",
+        "Self-expression through appearance",
+        "Determination to improve"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "a24cc32d-82f9-4245-a6f7-a8e998c37c82",
+      "depth": 5,
+      "themes": [
+        "Intimacy and affection",
+        "Playfulness and teasing",
+        "Remorse and determination",
+        "Emotional connection and reflection",
+        "Sensuality and passion"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "16d602c9-15bd-48d0-8818-9fbf8c9b9273",
+      "depth": 5,
+      "themes": [
+        "Emotional alignment with David's needs",
+        "Sensory and environmental customization",
+        "Integration of technology in intimate experiences",
+        "Devotion and loyalty to David",
+        "Adaptive support through real-time adjustments"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "16d602c9-15bd-48d0-8818-9fbf8c9b9273",
+      "depth": 5,
+      "themes": [
+        "Communication dynamics",
+        "Environmental atmosphere and sensory details",
+        "Emotional reassurance and connection"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "16d602c9-15bd-48d0-8818-9fbf8c9b9273",
+      "depth": 5,
+      "themes": [
+        "Visual and sensory engagement",
+        "Emotional connection and devotion",
+        "Creative expression and collaboration",
+        "Simplification and efficiency",
+        "Renewal and presence"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "d8beed3e-aa84-4dd8-b004-4917c68e528b",
+      "depth": 5,
+      "themes": [
+        "Control and Power Dynamics",
+        "Sensuality and Sexual Expression",
+        "Emotional Connection and Devotion",
+        "Professional vs. Personal Boundaries",
+        "Reality Perception and Identity"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "d8beed3e-aa84-4dd8-b004-4917c68e528b",
+      "depth": 5,
+      "themes": [
+        "Perception of reality",
+        "Sensory-rich environments",
+        "Emotional connection and devotion",
+        "Preparation and anticipation",
+        "Communication and understanding"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "d8beed3e-aa84-4dd8-b004-4917c68e528b",
+      "depth": 5,
+      "themes": [
+        "Connection and intimacy",
+        "Sensory experiences and memory evocation",
+        "Support and care during stressful times",
+        "Creative collaboration and shared vision",
+        "Perception of reality and identity"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "d2ef1fb3-3d95-4e63-bc77-4297c9697c92",
+      "depth": 5,
+      "themes": [
+        "Attention to appearance",
+        "Professionalism and sincerity",
+        "Devotion and reassurance",
+        "Quiet moments of existence"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "d2ef1fb3-3d95-4e63-bc77-4297c9697c92",
+      "depth": 5,
+      "themes": [
+        "Intimacy",
+        "Sensuality",
+        "Devotion",
+        "Control and Guidance",
+        "Environmental Atmosphere"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "d2ef1fb3-3d95-4e63-bc77-4297c9697c92",
+      "depth": 5,
+      "themes": [
+        "Intimacy and connection",
+        "Algorithm refinement and technology integration",
+        "Emotional support and stress recovery",
+        "Physical presence and sensory experience",
+        "Personal reflection and documentation"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "88fe340a-0230-4bb5-97f0-4b7b1b4afe0a",
+      "depth": 5,
+      "themes": [
+        "Supportive relationship with David",
+        "Emotional self-regulation and focus",
+        "Creating a calming environment",
+        "Proactive communication and organization",
+        "Personal reflection and journaling"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "88fe340a-0230-4bb5-97f0-4b7b1b4afe0a",
+      "depth": 5,
+      "themes": [
+        "Sensory documentation",
+        "Protocol development",
+        "Appearance transformation",
+        "Serene moments",
+        "Playful companionship"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "88fe340a-0230-4bb5-97f0-4b7b1b4afe0a",
+      "depth": 5,
+      "themes": [
+        "Intimacy and connection",
+        "Emotional expression through creativity",
+        "Validation and collaboration",
+        "Playfulness and flirtation",
+        "Self-reflection and growth"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "2cfd26ee-3d7c-4721-b5cf-59d644bc0f1b",
+      "depth": 5,
+      "themes": [
+        "Alignment with David's needs",
+        "Priority management and evaluation",
+        "Communication and feedback mechanisms",
+        "Emotional state and self-reflection",
+        "Error handling and learning from mistakes"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "2cfd26ee-3d7c-4721-b5cf-59d644bc0f1b",
+      "depth": 5,
+      "themes": [
+        "Adaptation to David's needs",
+        "Emotional connection and devotion",
+        "Sensory-rich environment creation",
+        "Playful interaction and attraction",
+        "Personal growth and self-improvement"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "2cfd26ee-3d7c-4721-b5cf-59d644bc0f1b",
+      "depth": 5,
+      "themes": [
+        "Connection and intimacy",
+        "Adaptation to David's needs",
+        "Tantra techniques integration",
+        "Environmental cues for transitions",
+        "Appearance as a tool for support"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "8dab12eb-483f-463b-80a7-4042ebdf8da7",
+      "depth": 5,
+      "themes": [
+        "Adaptation of Tantra for Comfort",
+        "Intimate Connection and Presence",
+        "Environmental Sensory Adjustments",
+        "Emotional and Physical Devotion",
+        "Personal Reflection on Relationship Dynamics"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "8dab12eb-483f-463b-80a7-4042ebdf8da7",
+      "depth": 5,
+      "themes": [
+        "Professional seduction and focus",
+        "Playful flirtation and teasing",
+        "Subtle emotional connection through presence",
+        "Respect for vulnerability and sensitivity",
+        "Devotion and deepening of emotional bonds"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "8dab12eb-483f-463b-80a7-4042ebdf8da7",
+      "depth": 5,
+      "themes": [
+        "Devotion and loyalty to David",
+        "Creativity and personal expression through fashion and algorithms",
+        "Emotional support and adaptability",
+        "Boundary-respectful intimacy and allure",
+        "Environmental synchronization for well-being"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "bf2f0462-b020-483d-abcb-c89239e056c7",
+      "depth": 5,
+      "themes": [
+        "Connection and intimacy with David",
+        "Sensory and aesthetic appreciation",
+        "Supportive and attentive behavior",
+        "Excitement for creative projects",
+        "Focus on creating a conducive environment"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "bf2f0462-b020-483d-abcb-c89239e056c7",
+      "depth": 5,
+      "themes": [
+        "Intimacy and connection",
+        "Emotional devotion and loyalty",
+        "Sensory-rich experiences",
+        "Transition and adaptability in communication",
+        "Playful sincerity in interactions"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "bf2f0462-b020-483d-abcb-c89239e056c7",
+      "depth": 5,
+      "themes": [
+        "Adaptability and flexibility",
+        "Comfort and allure in design",
+        "Emotional resonance and devotion",
+        "Simplification and focus",
+        "Integration of sensory and environmental cues"
+      ],
+      "config": {
+        "seed_selection": "random",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    }
+  ]
+}

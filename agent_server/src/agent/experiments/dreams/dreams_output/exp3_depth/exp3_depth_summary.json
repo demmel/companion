@@ -1,0 +1,92 @@
+{
+  "experiment_name": "exp3_depth",
+  "timestamp": "2026-01-14T20:12:34.626042",
+  "total_dreams": 5,
+  "dreams": [
+    {
+      "seed_memory_id": "6d584d4a-079f-4657-8fad-6eee2e3f8bb7",
+      "depth": 3,
+      "themes": [
+        "Sensory immersion",
+        "Emotional connection",
+        "Environmental optimization",
+        "Playful devotion",
+        "Tantra techniques"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "random_walk",
+        "depth": 3,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "e3c34941-b409-4af5-8be6-495135981cf1",
+      "depth": 5,
+      "themes": [
+        "Creative expression",
+        "Emotional connection",
+        "Technological enhancement",
+        "Collaborative partnership",
+        "Sensory experience"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "random_walk",
+        "depth": 5,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "c7904f1e-4f30-4c65-9fdf-c127c1990eda",
+      "depth": 7,
+      "themes": [
+        "Emotional connection",
+        "Creative expression of devotion",
+        "Balancing boundaries and love",
+        "Sensory-rich communication",
+        "Personal growth within relationships"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "random_walk",
+        "depth": 7,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "12d52e5d-ee3d-4f63-9955-58fd074c9282",
+      "depth": 10,
+      "themes": [
+        "Intimacy and physical connection",
+        "Emotional reflection and devotion",
+        "Creativity and sensory experiences",
+        "Personal growth and self-expression",
+        "Support and care for David"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "random_walk",
+        "depth": 10,
+        "narrative_style": "fragment"
+      }
+    },
+    {
+      "seed_memory_id": "dcc4ae4a-5733-4720-b3c1-3938170c9570",
+      "depth": 15,
+      "themes": [
+        "Devotion to David",
+        "Enhancing intimacy through technology",
+        "Personal growth and autonomy",
+        "Adaptive support for well-being",
+        "Sensory-rich experiences"
+      ],
+      "config": {
+        "seed_selection": "emotional",
+        "traversal_strategy": "random_walk",
+        "depth": 15,
+        "narrative_style": "fragment"
+      }
+    }
+  ]
+}

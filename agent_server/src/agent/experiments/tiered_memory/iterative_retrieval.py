@@ -10,7 +10,7 @@ from typing import List, Dict
 from pydantic import BaseModel, Field
 
 from agent.memory.dag.models import MemoryGraph
-from agent.chain_of_action.trigger_history import TriggerHistoryEntry
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.llm import LLM, SupportedModel
 from agent.structured_llm import direct_structured_llm_call
 from agent.state import State, build_agent_state_description
