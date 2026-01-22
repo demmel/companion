@@ -78,7 +78,7 @@ Original text:
 
 Output ONLY the processed text with tags inserted. No explanations."""
 
-    response = llm.chat_complete(
+    response = llm.chat(
         model=model,
         messages=[Message(role="user", content=prompt)],
         caller="tts_rewrite",

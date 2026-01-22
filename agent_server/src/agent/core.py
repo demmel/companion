@@ -117,7 +117,9 @@ class Agent:
         else:
             # Default to 70% of context window of situational analysis model
             self.auto_summarize_threshold = int(
-                self.llm.models[model_config.situational_analysis_model].context_window
+                self.llm.models()[
+                    model_config.situational_analysis_model
+                ].context_window
                 * 0.7
             )
         self.enable_image_generation = enable_image_generation

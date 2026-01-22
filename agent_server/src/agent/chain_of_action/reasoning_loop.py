@@ -112,7 +112,7 @@ class ActionBasedReasoningLoop:
         trigger_images = trigger.get_images()
 
         # Use configured model for situational analysis
-        situational_analysis = llm.generate_complete(
+        situational_analysis = llm.generate(
             model_config.situational_analysis_model,
             situational_analysis_prompt,
             caller="situational_analysis",
@@ -415,7 +415,7 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
 
         for attempt in range(max_retries):
             # Use current model (may escalate if refusals detected)
-            compressed_summary = llm.generate_complete(
+            compressed_summary = llm.generate(
                 current_model,
                 prompt,
                 caller=f"compress_trigger_entry_attempt_{attempt+1}",

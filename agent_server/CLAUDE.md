@@ -7,3 +7,4 @@
 - Also annotate types in function signatures
 - Do not use 'StringTypes'.  Always import types and structure code appropriately
 - Never use getattr - access attributes directly
+- Only use @property when needed for backward compatibility; otherwise use regular methods or attributes

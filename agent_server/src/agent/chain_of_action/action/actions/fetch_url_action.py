@@ -194,19 +194,19 @@ I just read something interesting. Let me capture the key details I learned...
 
 This was about"""
 
-            used_context = (len(prefix) + len(suffix)) / llm.models[
-                context.fetch_url_action_model
-            ].estimated_token_size
+            used_context = llm.estimate_tokens(
+                prefix + suffix, context.fetch_url_action_model
+            )
 
             # Truncate content to account for the prompt size and needed response tokens
             max_tokens = (
-                llm.models[context.fetch_url_action_model].context_window
+                llm.models()[context.fetch_url_action_model].context_window
                 - used_context
                 - 4096
             )
-            max_chars = (
+            max_chars = int(
                 max_tokens
-                * llm.models[context.fetch_url_action_model].estimated_token_size
+                * llm.models()[context.fetch_url_action_model].estimated_token_size
             )
             if len(content) > max_chars:
                 content = (
@@ -227,7 +227,7 @@ This was about"""
 
             # Use LLM to summarize the content
             try:
-                summary_response = llm.generate_complete(
+                summary_response = llm.generate(
                     context.fetch_url_action_model,
                     summarization_prompt,
                     caller="fetch_url_action",

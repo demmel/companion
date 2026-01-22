@@ -99,12 +99,12 @@ class StructuredLLMClient:
         for attempt in range(self.max_retries + 1):
             try:
                 # Make LLM call through manager
-                response = self.llm.chat_complete(
+                response = self.llm.chat(
                     model=self.model,
                     messages=messages,
+                    caller=caller,
                     temperature=temperature,
                     num_predict=4096,
-                    caller=caller,
                 )
 
                 response_text = response or ""
@@ -469,12 +469,12 @@ def direct_structured_llm_call(
         response_text = ""  # Initialize to avoid unbound variable
         try:
             # Use direct generation instead of chat template
-            response_text = llm.generate_complete(
+            response_text = llm.generate(
                 model=model,
                 prompt=full_prompt,
+                caller=caller,
                 temperature=temperature,
                 num_predict=4096,
-                caller=caller,
                 images=images,
             )
 

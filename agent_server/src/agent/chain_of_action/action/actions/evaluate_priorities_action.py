@@ -484,7 +484,7 @@ Reasoning: {op.reasoning}
 
 Output ONLY the merged priority text itself - no explanations, no meta-commentary, just the single merged priority statement:"""
 
-    merged_content = llm.generate_complete(
+    merged_content = llm.generate(
         model, merge_prompt, caller="merge_priorities"
     ).strip()
 
@@ -552,7 +552,7 @@ Refinement guidance: {op.refinement_guidance}
 
 Output ONLY the refined priority text itself - no explanations, no meta-commentary, no preamble, just the single refined priority statement:"""
 
-    refined_content = llm.generate_complete(
+    refined_content = llm.generate(
         model, refine_prompt, caller="refine_priority"
     ).strip()
 

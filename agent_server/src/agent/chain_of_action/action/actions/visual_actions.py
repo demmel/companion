@@ -119,7 +119,7 @@ Convert to third-person and combine into a coherent image description suitable f
 
 Image description:"""
 
-    response = llm.generate_complete(
+    response = llm.generate(
         model, prompt, caller="build_image_description", images=images
     )
     return response.strip()

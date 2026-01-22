@@ -20,7 +20,7 @@ from ..base_action_data import (
 
 
 from agent.state import State, build_agent_state_description
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
 
@@ -185,20 +185,18 @@ When something happens, I process it through my own unique perspective, drawing 
 
             # Use streaming generation with progress callback
             full_response = ""
-            for response_chunk in llm.generate_streaming(
+            for chunk_text in llm.generate_streaming(
                 context.think_action_model,
                 direct_prompt,
                 caller="think_action",
                 images=trigger_images,
             ):
-                if "response" in response_chunk:
-                    chunk_text = response_chunk["response"]
-                    full_response += chunk_text
+                full_response += chunk_text
 
-                    # Call progress callback with strongly typed data
-                    progress_callback(
-                        ThinkProgressData(text=chunk_text, is_partial=True)
-                    )
+                # Call progress callback with strongly typed data
+                progress_callback(
+                    ThinkProgressData(text=chunk_text, is_partial=True)
+                )
 
             # Signal completion
             progress_callback(ThinkProgressData(text="", is_partial=False))
