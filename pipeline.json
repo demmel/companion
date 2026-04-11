@@ -1,0 +1,25 @@
+{
+  "steps": [
+    {
+      "name": "install",
+      "label": "Install",
+      "command": "cmd /c \"uv sync --directory agent_server --python 3.12.2 && npm --prefix client install --include=dev\""
+    },
+    {
+      "name": "build",
+      "label": "Build",
+      "command": "npm run build"
+    },
+    {
+      "name": "test",
+      "label": "Tests",
+      "command": "npm test"
+    },
+    {
+      "name": "deploy",
+      "label": "Deploy",
+      "command": "uv run --directory agent_server uvicorn agent.api_server:app --host 0.0.0.0 --port {PORT}",
+      "healthPath": "/health"
+    }
+  ]
+}

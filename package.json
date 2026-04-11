@@ -1,0 +1,9 @@
+{
+  "name": "companion",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "npm --prefix client run build",
+    "test": "uv run --directory agent_server pytest tests"
+  }
+}

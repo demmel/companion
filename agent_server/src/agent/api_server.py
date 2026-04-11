@@ -2,12 +2,13 @@
 FastAPI server for single-user agent system
 """
 
+from contextlib import asynccontextmanager
 from agent.logging_config import setup_logging
 
 setup_logging()
 
 import logging
-from typing import Literal
+from typing import Callable, Literal
 import uuid
 import shutil
 from pathlib import Path
@@ -34,6 +35,7 @@ from fastapi import (
     UploadFile,
     File,
     HTTPException,
+    Request,
     Response,
 )
 from fastapi.middleware.cors import CORSMiddleware
@@ -106,15 +108,117 @@ def initialize_agent(load: bool) -> AgentEventManager:
     return manager
 
 
-app = FastAPI(
-    title="Agent API",
-    description="Single-User Streaming AI Agent API",
-    version="1.0.0",
-)
+def _set_agent_manager(app: FastAPI, manager: AgentEventManager | None) -> None:
+    app.state.agent_manager = manager
+    app.state.agent_startup_error = None
 
-app.state.agent_manager = initialize_agent(
-    load=True  # Set to True to load specific conversation for development
-)
+
+def _record_agent_startup_error(app: FastAPI, exc: Exception) -> None:
+    logger.error("Agent startup failed: %s", exc, exc_info=True)
+    app.state.agent_manager = None
+    app.state.agent_startup_error = str(exc)
+
+
+def _get_agent_manager(app: FastAPI) -> AgentEventManager:
+    manager = getattr(app.state, "agent_manager", None)
+    if manager is None:
+        startup_error = getattr(app.state, "agent_startup_error", None)
+        detail = "Agent is unavailable"
+        if startup_error:
+            detail = f"{detail}: {startup_error}"
+        raise HTTPException(status_code=503, detail=detail)
+    return manager
+
+
+def _configure_static_routes(app: FastAPI) -> None:
+    # Static files configuration using centralized paths
+    client_dist_dir = agent_paths.get_client_dist_dir()
+
+    if client_dist_dir.exists():
+        logger.info(f"Serving React client from: {client_dist_dir}")
+
+        app.mount(
+            "/assets",
+            StaticFiles(directory=agent_paths.get_client_assets_dir()),
+            name="assets",
+        )
+        app.mount(
+            "/generated_images",
+            StaticFiles(directory=agent_paths.get_generated_images_dir()),
+            name="generated_images",
+        )
+        app.mount(
+            "/uploaded_images",
+            StaticFiles(directory=agent_paths.get_uploaded_images_dir()),
+            name="uploaded_images",
+        )
+        app.mount(
+            "/generated_audio",
+            StaticFiles(directory=agent_paths.get_generated_audio_dir()),
+            name="generated_audio",
+        )
+
+        @app.get("/{path:path}")
+        async def serve_spa(path: str):
+            """Serve React SPA, fallback to index.html for client-side routing"""
+
+            file_path = client_dist_dir / path
+            if file_path.is_file():
+                return FileResponse(file_path)
+
+            index_html_path = agent_paths.get_client_index_html()
+            if index_html_path.exists():
+                return FileResponse(index_html_path)
+
+            return {"message": "React client not built. Run 'cd client && npm run build'"}
+
+        return
+
+    logger.warning(f"React client not found at: {client_dist_dir}")
+    logger.warning("Run 'cd client && npm run build' to build the client first")
+
+    @app.get("/")
+    async def no_client():
+        return {
+            "message": "Agent API Server",
+            "client_status": "not_built",
+            "instructions": "Run 'cd client && npm run build' to enable web interface",
+        }
+
+
+def create_app(
+    *,
+    agent_manager_factory: Callable[[], AgentEventManager] = lambda: initialize_agent(
+        load=True
+    ),
+    initialize_on_startup: bool = True,
+) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        _set_agent_manager(app, None)
+
+        if initialize_on_startup:
+            try:
+                _set_agent_manager(app, agent_manager_factory())
+            except Exception as exc:
+                _record_agent_startup_error(app, exc)
+
+        yield
+
+        manager = getattr(app.state, "agent_manager", None)
+        if manager is not None:
+            manager.agent.close()
+
+    app = FastAPI(
+        title="Agent API",
+        description="Single-User Streaming AI Agent API",
+        version="1.0.0",
+        lifespan=lifespan,
+    )
+    return app
+
+
+app = create_app()
 
 # Add CORS middleware for local network access (phone, etc.)
 app.add_middleware(
@@ -127,9 +231,9 @@ app.add_middleware(
 
 
 @app.get("/api/context")
-async def get_context_info():
+async def get_context_info(request: Request):
     """Get current context information"""
-    manager: AgentEventManager = app.state.agent_manager
+    manager = _get_agent_manager(request.app)
     context_info = manager.get_context_info()
     return {
         "message_count": context_info.message_count,
@@ -150,7 +254,7 @@ async def get_timeline(
     """Get paginated timeline in chronological order, defaulting to most recent page"""
     from agent.api_types.timeline import build_timeline_page
 
-    manager: AgentEventManager = app.state.agent_manager
+    manager = _get_agent_manager(app)
     trigger_history = manager.get_trigger_history()
 
     # Parse cursor indices
@@ -190,7 +294,7 @@ async def reset_agent():
     """Reset the agent"""
 
     # Get the old manager to transfer state and clean up resources
-    old_manager: AgentEventManager | None = app.state.agent_manager
+    old_manager: AgentEventManager | None = getattr(app.state, "agent_manager", None)
     current_client_queue = None
 
     if old_manager:
@@ -222,7 +326,7 @@ async def reset_agent():
 
         new_manager.set_client_queue(current_client_queue)
 
-    app.state.agent_manager = new_manager
+    _set_agent_manager(app, new_manager)
 
     return ResetResponse(
         message="Agent reset successfully",
@@ -276,7 +380,7 @@ async def websocket_chat(websocket: WebSocket):
     import queue as queue_module
 
     # Create client-specific queue and register with manager (replaces any existing client)
-    manager: AgentEventManager = app.state.agent_manager
+    manager = _get_agent_manager(app)
     client_queue: queue_module.Queue[EventEnvelope] = queue_module.Queue()
     manager.set_client_queue(client_queue)
 
@@ -439,7 +543,7 @@ async def websocket_chat(websocket: WebSocket):
 @app.get("/api/auto-wakeup", response_model=AutoWakeupStatusResponse)
 async def get_auto_wakeup_status():
     """Get current auto-wakeup status"""
-    manager: AgentEventManager = app.state.agent_manager
+    manager = _get_agent_manager(app)
     return AutoWakeupStatusResponse(
         enabled=manager.get_auto_wakeup_enabled(),
         delay_seconds=manager.wakeup_delay_seconds,
@@ -449,7 +553,7 @@ async def get_auto_wakeup_status():
 @app.post("/api/auto-wakeup", response_model=AutoWakeupSetResponse)
 async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
     """Set auto-wakeup enabled state"""
-    manager: AgentEventManager = app.state.agent_manager
+    manager = _get_agent_manager(app)
     manager.set_auto_wakeup_enabled(request.enabled)
 
     return AutoWakeupSetResponse(
@@ -512,7 +616,7 @@ async def update_model_config(request: ModelConfigUpdateRequest):
 
         # Save the configuration
         Config.set_model_config(new_config)
-        agent: Agent = app.state.agent_manager.agent
+        agent: Agent = _get_agent_manager(app).agent
         if agent:
             agent.model_config = new_config
 
@@ -598,7 +702,7 @@ async def upload_image(file: UploadFile = File(...)):
 async def regenerate_image(request: RegenerateImageRequest):
     """Regenerate an image using existing prompt with new random seed"""
 
-    manager: AgentEventManager = app.state.agent_manager
+    manager = _get_agent_manager(app)
     trigger_history = manager.get_trigger_history()
 
     # Find the trigger entry
@@ -694,18 +798,26 @@ async def regenerate_image(request: RegenerateImageRequest):
 
 
 @app.get("/api/health")
-async def health_check():
+async def health_check(request: Request):
     """Health check endpoint"""
 
     logger.info("Health check requested")
 
-    manager: AgentEventManager = app.state.agent_manager
+    manager = getattr(request.app.state, "agent_manager", None)
+    startup_error = getattr(request.app.state, "agent_startup_error", None)
     return {
-        "status": "healthy",
+        "status": "healthy" if manager is not None else "degraded",
         "agent_initialized": manager is not None,
-        "agent_name": manager.state.name if manager.state else None,
+        "agent_name": manager.state.name if manager and manager.state else None,
+        "startup_error": startup_error,
         "timestamp": datetime.now().isoformat(),
     }
+
+
+@app.get("/health")
+async def root_health_check(request: Request):
+    """Root health check for deployment probes."""
+    return await health_check(request)
 
 
 def _try_queue_tts_render(agent: Agent, trigger_id: str, action_index: int) -> bool:
@@ -761,7 +873,7 @@ async def get_audio(trigger_id: str, action_index: int) -> Response:
         - 404 if not found or not a speak/think action
         - 503 if TTS service not available
     """
-    manager: AgentEventManager = app.state.agent_manager
+    manager = _get_agent_manager(app)
     agent: Agent = manager.agent
 
     if agent.tts_service is None:

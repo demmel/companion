@@ -53,6 +53,7 @@ def make_birth_entry() -> TriggerHistoryEntry:
         trigger=BirthTrigger(
             content="Hello!",
             user_name="User",
+            initial_state=create_default_agent_state(),
         ),
         situational_context="Being born",
         actions_taken=[],
@@ -373,6 +374,7 @@ class TestGetFinalState:
     def test_applies_all_actions(self):
         """All actions across all entries should be applied."""
         state = create_default_agent_state()
+        initial_priority_count = len(state.current_priorities)
 
         # Multiple entries with multiple actions
         entries = [
@@ -388,4 +390,4 @@ class TestGetFinalState:
 
         assert final.current_mood == "happy"
         assert final.mood_intensity == "high"
-        assert len(final.current_priorities) == len(state.current_priorities) + 1
+        assert len(final.current_priorities) == initial_priority_count + 1
