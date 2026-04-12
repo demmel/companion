@@ -3,9 +3,11 @@ import {
   AutoWakeupStatusResponse,
   AutoWakeupSetResponse,
   ImageUploadResponse,
+  InstalledOllamaModelsResponse,
   ModelConfigResponse,
   ModelConfigUpdateRequest,
   ModelConfigUpdateResponse,
+  OllamaModelMutationResponse,
   SupportedModelsResponse,
 } from "./types";
 
@@ -37,6 +39,22 @@ export class AgentClient {
 
   get resetUrl(): string {
     return `${this.httpBaseUrl}/api/reset`;
+  }
+
+  private async buildErrorMessage(
+    response: Response,
+    fallback: string,
+  ): Promise<string> {
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (payload.detail) {
+        return `${fallback}: ${payload.detail}`;
+      }
+    } catch {
+      // Fall back to the HTTP status text when the response is not JSON.
+    }
+
+    return `${fallback}: ${response.statusText}`;
   }
 
   async reset(): Promise<void> {
@@ -140,6 +158,56 @@ export class AgentClient {
     if (!response.ok) {
       throw new Error(
         `Failed to get supported models: ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  async getInstalledOllamaModels(): Promise<InstalledOllamaModelsResponse> {
+    const response = await fetch(`${this.httpBaseUrl}/api/ollama/models`);
+
+    if (!response.ok) {
+      throw new Error(
+        await this.buildErrorMessage(
+          response,
+          "Failed to get installed Ollama models",
+        ),
+      );
+    }
+
+    return response.json();
+  }
+
+  async pullOllamaModel(name: string): Promise<OllamaModelMutationResponse> {
+    const response = await fetch(`${this.httpBaseUrl}/api/ollama/models/pull`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        await this.buildErrorMessage(response, "Failed to pull Ollama model"),
+      );
+    }
+
+    return response.json();
+  }
+
+  async deleteOllamaModel(name: string): Promise<OllamaModelMutationResponse> {
+    const response = await fetch(
+      `${this.httpBaseUrl}/api/ollama/models/${encodeURIComponent(name)}`,
+      {
+        method: "DELETE",
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        await this.buildErrorMessage(response, "Failed to delete Ollama model"),
       );
     }
 

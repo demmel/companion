@@ -13,9 +13,13 @@ import { debug } from "@/utils/debug";
 
 interface ChatInterfaceProps {
   client: AgentClient;
+  onNavigateToOllamaModels: () => void;
 }
 
-export function ChatInterface({ client }: ChatInterfaceProps) {
+export function ChatInterface({
+  client,
+  onNavigateToOllamaModels,
+}: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("");
   const { username } = useUsername();
 
@@ -146,6 +150,7 @@ export function ChatInterface({ client }: ChatInterfaceProps) {
         isConnected={isConnected}
         isConnecting={isConnecting}
         client={client}
+        onNavigateToOllamaModels={onNavigateToOllamaModels}
       />
 
       {/* Show orphaned event notification */}

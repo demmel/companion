@@ -11,9 +11,10 @@ interface ChatHeaderProps {
   isConnected?: boolean;
   isConnecting?: boolean;
   client: AgentClient;
+  onNavigateToOllamaModels: () => void;
 }
 
-export function ChatHeader({ client }: ChatHeaderProps) {
+export function ChatHeader({ client, onNavigateToOllamaModels }: ChatHeaderProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showModelSettings, setShowModelSettings] = useState(false);
@@ -112,6 +113,27 @@ export function ChatHeader({ client }: ChatHeaderProps) {
               >
                 <Settings size={16} />
                 Settings
+              </button>
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  onNavigateToOllamaModels();
+                }}
+                className={css({
+                  w: "full",
+                  px: 4,
+                  py: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  color: "gray.300",
+                  _hover: { bg: "gray.700", color: "white" },
+                  transition: "colors",
+                  textAlign: "left",
+                })}
+              >
+                <Cpu size={16} />
+                Manage Ollama Models
               </button>
               <button
                 onClick={() => {

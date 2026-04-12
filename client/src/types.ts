@@ -206,6 +206,7 @@ export interface ModelConfigResponse {
   visual_action_model: string;
   fetch_url_action_model: string;
   evaluate_priorities_action_model: string;
+  tts_rewrite_model: string;
 }
 
 export interface ModelConfigUpdateRequest {
@@ -220,6 +221,7 @@ export interface ModelConfigUpdateRequest {
   visual_action_model: string;
   fetch_url_action_model: string;
   evaluate_priorities_action_model: string;
+  tts_rewrite_model: string;
 }
 
 export interface ModelConfigUpdateResponse {
@@ -229,4 +231,23 @@ export interface ModelConfigUpdateResponse {
 
 export interface SupportedModelsResponse {
   models: string[];
+  ollama_models: string[];
+}
+
+export interface InstalledOllamaModel {
+  name: string;
+  size: number | null;
+  modified_at: string | null;
+  digest: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface InstalledOllamaModelsResponse {
+  models: InstalledOllamaModel[];
+}
+
+export interface OllamaModelMutationResponse {
+  name: string;
+  message: string;
+  timestamp: string;
 }

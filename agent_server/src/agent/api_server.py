@@ -3,6 +3,7 @@ FastAPI server for single-user agent system
 """
 
 from contextlib import asynccontextmanager
+from collections.abc import Callable as AbcCallable
 from agent.logging_config import setup_logging
 
 setup_logging()
@@ -18,15 +19,21 @@ from agent.api_types.api import (
     AutoWakeupSetResponse,
     AutoWakeupStatusResponse,
     ImageUploadResponse,
+    InstalledOllamaModelResponse,
+    InstalledOllamaModelsResponse,
     ModelConfigResponse,
     ModelConfigUpdateRequest,
     ModelConfigUpdateResponse,
+    OllamaModelMutationResponse,
+    PullOllamaModelRequest,
     ResetResponse,
     SupportedModelsResponse,
 )
 from agent.llm import create_llm, SupportedModel
 from typing import List, Optional, Union
 from datetime import datetime
+import ollama
+from ollama import _types as ollama_types
 
 from fastapi import (
     FastAPI,
@@ -52,7 +59,7 @@ from agent.api_types.timeline import (
     TimelineResponse,
 )
 from agent.config import Config
-from agent.llm.models import ModelConfig
+from agent.llm.models import ModelConfig, is_ollama_model
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 
@@ -186,12 +193,55 @@ def _configure_static_routes(app: FastAPI) -> None:
         }
 
 
+def _set_ollama_client_factory(
+    app: FastAPI, factory: AbcCallable[[], ollama.Client]
+) -> None:
+    app.state.ollama_client_factory = factory
+
+
+def _get_ollama_client(app: FastAPI) -> ollama.Client:
+    factory = app.state.ollama_client_factory
+    if factory is None:
+        raise HTTPException(status_code=500, detail="Ollama client is unavailable")
+    return factory()
+
+
+def _normalize_ollama_model(
+    model: ollama_types.ListResponse.Model,
+) -> InstalledOllamaModelResponse:
+    return InstalledOllamaModelResponse(
+        name=model.model,
+        size=model.size,
+        modified_at=model.modified_at.isoformat() if model.modified_at else None,
+        digest=model.digest,
+        details=model.details.model_dump(exclude_none=True) if model.details else {},
+    )
+
+
+def _map_ollama_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, ollama.ResponseError):
+        status_code = exc.status_code if exc.status_code > 0 else 502
+        return HTTPException(status_code=status_code, detail=exc.error)
+    return HTTPException(status_code=502, detail=f"Failed to reach Ollama: {exc}")
+
+
+def _get_model_config_references(model_name: str) -> list[str]:
+    configured_fields: list[str] = []
+    for field_name, value in Config.get_model_config().__dict__.items():
+        if value.value == model_name:
+            configured_fields.append(field_name)
+    return configured_fields
+
+
 def create_app(
     *,
     agent_manager_factory: Callable[[], AgentEventManager] = lambda: initialize_agent(
         load=True
     ),
     initialize_on_startup: bool = True,
+    ollama_client_factory: AbcCallable[[], ollama.Client] = lambda: ollama.Client(
+        host=Config.ollama_host()
+    ),
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -215,6 +265,7 @@ def create_app(
         version="1.0.0",
         lifespan=lifespan,
     )
+    _set_ollama_client_factory(app, ollama_client_factory)
     return app
 
 
@@ -566,7 +617,73 @@ async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
 @app.get("/api/supported-models", response_model=SupportedModelsResponse)
 async def get_supported_models():
     """Get list of all supported models"""
-    return SupportedModelsResponse(models=[model.value for model in SupportedModel])
+    ollama_models = [model.value for model in SupportedModel if is_ollama_model(model)]
+    return SupportedModelsResponse(
+        models=[model.value for model in SupportedModel],
+        ollama_models=ollama_models,
+    )
+
+
+@app.get("/api/ollama/models", response_model=InstalledOllamaModelsResponse)
+async def get_installed_ollama_models(request: Request):
+    """Get the list of models currently installed in Ollama."""
+    try:
+        response = _get_ollama_client(request.app).list()
+    except Exception as exc:
+        raise _map_ollama_error(exc)
+
+    models = response.models
+    normalized_models = sorted(
+        (_normalize_ollama_model(model) for model in models),
+        key=lambda model: model.name.lower(),
+    )
+    return InstalledOllamaModelsResponse(models=normalized_models)
+
+
+@app.post(
+    "/api/ollama/models/pull",
+    response_model=OllamaModelMutationResponse,
+)
+async def pull_ollama_model(request: PullOllamaModelRequest, http_request: Request):
+    """Pull an Ollama model by name."""
+    try:
+        _get_ollama_client(http_request.app).pull(request.name)
+    except Exception as exc:
+        raise _map_ollama_error(exc)
+
+    return OllamaModelMutationResponse(
+        name=request.name,
+        message=f"Pulled Ollama model '{request.name}'",
+        timestamp=datetime.now().isoformat(),
+    )
+
+
+@app.delete(
+    "/api/ollama/models/{model_name:path}",
+    response_model=OllamaModelMutationResponse,
+)
+async def delete_ollama_model(model_name: str, request: Request):
+    """Delete an installed Ollama model by name."""
+    configured_fields = _get_model_config_references(model_name)
+    if configured_fields:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Cannot delete Ollama model '{model_name}' because it is still "
+                f"configured for: {', '.join(configured_fields)}"
+            ),
+        )
+
+    try:
+        _get_ollama_client(request.app).delete(model_name)
+    except Exception as exc:
+        raise _map_ollama_error(exc)
+
+    return OllamaModelMutationResponse(
+        name=model_name,
+        message=f"Deleted Ollama model '{model_name}'",
+        timestamp=datetime.now().isoformat(),
+    )
 
 
 @app.get("/api/model-config", response_model=ModelConfigResponse)
@@ -586,6 +703,7 @@ async def get_model_config():
         visual_action_model=model_config.visual_action_model.value,
         fetch_url_action_model=model_config.fetch_url_action_model.value,
         evaluate_priorities_action_model=model_config.evaluate_priorities_action_model.value,
+        tts_rewrite_model=model_config.tts_rewrite_model.value,
     )
 
 
@@ -612,6 +730,7 @@ async def update_model_config(request: ModelConfigUpdateRequest):
             evaluate_priorities_action_model=SupportedModel(
                 request.evaluate_priorities_action_model
             ),
+            tts_rewrite_model=SupportedModel(request.tts_rewrite_model),
         )
 
         # Save the configuration
@@ -636,6 +755,7 @@ async def update_model_config(request: ModelConfigUpdateRequest):
                 visual_action_model=new_config.visual_action_model.value,
                 fetch_url_action_model=new_config.fetch_url_action_model.value,
                 evaluate_priorities_action_model=new_config.evaluate_priorities_action_model.value,
+                tts_rewrite_model=new_config.tts_rewrite_model.value,
             ),
         )
     except ValueError as e:

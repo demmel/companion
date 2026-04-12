@@ -3,7 +3,7 @@
     {
       "name": "install",
       "label": "Install",
-      "command": "cmd /c \"uv sync --directory agent_server --python 3.12.2 && npm --prefix client install --include=dev\""
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install_managed_env.ps1"
     },
     {
       "name": "build",

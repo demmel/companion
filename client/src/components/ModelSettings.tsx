@@ -22,6 +22,7 @@ const MODEL_LABELS: Record<string, string> = {
   visual_action_model: "Visual Actions",
   fetch_url_action_model: "Fetch URL Action",
   evaluate_priorities_action_model: "Evaluate Priorities",
+  tts_rewrite_model: "TTS Rewrite",
 };
 
 export function ModelSettings({ isOpen, onClose, client }: ModelSettingsProps) {
