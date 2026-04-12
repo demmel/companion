@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterator, List, Dict, Optional
 from agent.llm.interface import Message, ImagesInput
-from agent.llm.models import SupportedModel, is_ollama_model, is_anthropic_model, OllamaModelConfig, AnthropicModelConfig
+from agent.llm.models import SupportedModel, is_anthropic_model, OllamaModelConfig, AnthropicModelConfig
 from agent.llm.ollama import SerializedOllamaLLM, create_ollama_llm
 from agent.llm.anthropic import AnthropicLLM, create_anthropic_llm
 from agent.config import config
@@ -32,11 +32,9 @@ class LLM:
         self._call_stats: Dict[str, CallStats] = {}
 
     def _get_provider(self, model: SupportedModel) -> SerializedOllamaLLM | AnthropicLLM:
-        if is_ollama_model(model):
-            return self._ollama
-        elif is_anthropic_model(model):
+        if is_anthropic_model(model):
             return self._anthropic
-        raise ValueError(f"Unknown model: {model}")
+        return self._ollama
 
     def _track_call(self, caller: str, duration: float) -> None:
         if caller not in self._call_stats:

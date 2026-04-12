@@ -59,7 +59,12 @@ from agent.api_types.timeline import (
     TimelineResponse,
 )
 from agent.config import Config
-from agent.llm.models import ModelConfig, is_ollama_model
+from agent.llm.models import (
+    KNOWN_ANTHROPIC_MODELS,
+    KNOWN_OLLAMA_MODELS,
+    ModelConfig,
+    is_anthropic_model,
+)
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 
@@ -127,9 +132,9 @@ def _record_agent_startup_error(app: FastAPI, exc: Exception) -> None:
 
 
 def _get_agent_manager(app: FastAPI) -> AgentEventManager:
-    manager = getattr(app.state, "agent_manager", None)
+    manager = app.state.agent_manager
     if manager is None:
-        startup_error = getattr(app.state, "agent_startup_error", None)
+        startup_error = app.state.agent_startup_error
         detail = "Agent is unavailable"
         if startup_error:
             detail = f"{detail}: {startup_error}"
@@ -228,9 +233,40 @@ def _map_ollama_error(exc: Exception) -> HTTPException:
 def _get_model_config_references(model_name: str) -> list[str]:
     configured_fields: list[str] = []
     for field_name, value in Config.get_model_config().__dict__.items():
-        if value.value == model_name:
+        if str(value) == model_name:
             configured_fields.append(field_name)
     return configured_fields
+
+
+def _serialize_model_config(model_config: ModelConfig) -> ModelConfigResponse:
+    return ModelConfigResponse(
+        state_initialization_model=str(model_config.state_initialization_model),
+        action_planning_model=str(model_config.action_planning_model),
+        situational_analysis_model=str(model_config.situational_analysis_model),
+        memory_retrieval_model=str(model_config.memory_retrieval_model),
+        memory_formation_model=str(model_config.memory_formation_model),
+        trigger_compression_model=str(model_config.trigger_compression_model),
+        think_action_model=str(model_config.think_action_model),
+        speak_action_model=str(model_config.speak_action_model),
+        visual_action_model=str(model_config.visual_action_model),
+        fetch_url_action_model=str(model_config.fetch_url_action_model),
+        evaluate_priorities_action_model=str(model_config.evaluate_priorities_action_model),
+        tts_rewrite_model=str(model_config.tts_rewrite_model),
+    )
+
+
+def _validate_model_name(model_name: str) -> SupportedModel:
+    model_name = model_name.strip()
+    if not model_name:
+        raise ValueError("model name cannot be empty")
+    model = SupportedModel(model_name)
+    if is_anthropic_model(model):
+        return model
+    if model_name.startswith("claude-"):
+        raise ValueError(
+            f"{model_name!r} is not a known Anthropic model; use one of the supported Claude model IDs"
+        )
+    return model
 
 
 def create_app(
@@ -255,9 +291,8 @@ def create_app(
 
         yield
 
-        manager = getattr(app.state, "agent_manager", None)
-        if manager is not None:
-            manager.agent.close()
+        if app.state.agent_manager is not None:
+            app.state.agent_manager.agent.close()
 
     app = FastAPI(
         title="Agent API",
@@ -265,6 +300,9 @@ def create_app(
         version="1.0.0",
         lifespan=lifespan,
     )
+    # Initialise state attributes eagerly so they can always be accessed directly
+    app.state.agent_manager = None
+    app.state.agent_startup_error = None
     _set_ollama_client_factory(app, ollama_client_factory)
     return app
 
@@ -615,11 +653,21 @@ async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
 
 
 @app.get("/api/supported-models", response_model=SupportedModelsResponse)
-async def get_supported_models():
-    """Get list of all supported models"""
-    ollama_models = [model.value for model in SupportedModel if is_ollama_model(model)]
+async def get_supported_models(request: Request):
+    """Get list of supported models: all known Anthropic models plus currently installed Ollama models."""
+    try:
+        response = _get_ollama_client(request.app).list()
+        ollama_models = sorted(
+            [m.model for m in response.models if m.model],
+            key=str.lower,
+        )
+    except Exception:
+        # Ollama unavailable – fall back to known model suggestions
+        ollama_models = [str(m) for m in KNOWN_OLLAMA_MODELS]
+
+    anthropic_models = [str(m) for m in KNOWN_ANTHROPIC_MODELS]
     return SupportedModelsResponse(
-        models=[model.value for model in SupportedModel],
+        models=[*anthropic_models, *ollama_models],
         ollama_models=ollama_models,
     )
 
@@ -691,46 +739,28 @@ async def get_model_config():
     """Get current model configuration for all action types"""
     model_config = Config.get_model_config()
 
-    return ModelConfigResponse(
-        state_initialization_model=model_config.state_initialization_model.value,
-        action_planning_model=model_config.action_planning_model.value,
-        situational_analysis_model=model_config.situational_analysis_model.value,
-        memory_retrieval_model=model_config.memory_retrieval_model.value,
-        memory_formation_model=model_config.memory_formation_model.value,
-        trigger_compression_model=model_config.trigger_compression_model.value,
-        think_action_model=model_config.think_action_model.value,
-        speak_action_model=model_config.speak_action_model.value,
-        visual_action_model=model_config.visual_action_model.value,
-        fetch_url_action_model=model_config.fetch_url_action_model.value,
-        evaluate_priorities_action_model=model_config.evaluate_priorities_action_model.value,
-        tts_rewrite_model=model_config.tts_rewrite_model.value,
-    )
+    return _serialize_model_config(model_config)
 
 
 @app.post("/api/model-config", response_model=ModelConfigUpdateResponse)
 async def update_model_config(request: ModelConfigUpdateRequest):
     """Update model configuration for all action types"""
     try:
-        # Validate that all provided models are valid SupportedModel values
         new_config = ModelConfig(
-            state_initialization_model=SupportedModel(
-                request.state_initialization_model
-            ),
-            action_planning_model=SupportedModel(request.action_planning_model),
-            situational_analysis_model=SupportedModel(
-                request.situational_analysis_model
-            ),
-            memory_retrieval_model=SupportedModel(request.memory_retrieval_model),
-            memory_formation_model=SupportedModel(request.memory_formation_model),
-            trigger_compression_model=SupportedModel(request.trigger_compression_model),
-            think_action_model=SupportedModel(request.think_action_model),
-            speak_action_model=SupportedModel(request.speak_action_model),
-            visual_action_model=SupportedModel(request.visual_action_model),
-            fetch_url_action_model=SupportedModel(request.fetch_url_action_model),
-            evaluate_priorities_action_model=SupportedModel(
+            state_initialization_model=_validate_model_name(request.state_initialization_model),
+            action_planning_model=_validate_model_name(request.action_planning_model),
+            situational_analysis_model=_validate_model_name(request.situational_analysis_model),
+            memory_retrieval_model=_validate_model_name(request.memory_retrieval_model),
+            memory_formation_model=_validate_model_name(request.memory_formation_model),
+            trigger_compression_model=_validate_model_name(request.trigger_compression_model),
+            think_action_model=_validate_model_name(request.think_action_model),
+            speak_action_model=_validate_model_name(request.speak_action_model),
+            visual_action_model=_validate_model_name(request.visual_action_model),
+            fetch_url_action_model=_validate_model_name(request.fetch_url_action_model),
+            evaluate_priorities_action_model=_validate_model_name(
                 request.evaluate_priorities_action_model
             ),
-            tts_rewrite_model=SupportedModel(request.tts_rewrite_model),
+            tts_rewrite_model=_validate_model_name(request.tts_rewrite_model),
         )
 
         # Save the configuration
@@ -743,20 +773,7 @@ async def update_model_config(request: ModelConfigUpdateRequest):
         return ModelConfigUpdateResponse(
             message="Model configuration updated successfully",
             timestamp=datetime.now().isoformat(),
-            config=ModelConfigResponse(
-                state_initialization_model=new_config.state_initialization_model.value,
-                action_planning_model=new_config.action_planning_model.value,
-                situational_analysis_model=new_config.situational_analysis_model.value,
-                memory_retrieval_model=new_config.memory_retrieval_model.value,
-                memory_formation_model=new_config.memory_formation_model.value,
-                trigger_compression_model=new_config.trigger_compression_model.value,
-                think_action_model=new_config.think_action_model.value,
-                speak_action_model=new_config.speak_action_model.value,
-                visual_action_model=new_config.visual_action_model.value,
-                fetch_url_action_model=new_config.fetch_url_action_model.value,
-                evaluate_priorities_action_model=new_config.evaluate_priorities_action_model.value,
-                tts_rewrite_model=new_config.tts_rewrite_model.value,
-            ),
+            config=_serialize_model_config(new_config),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid model name: {str(e)}")

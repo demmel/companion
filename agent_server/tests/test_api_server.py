@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from pathlib import Path
 
 import ollama
 from fastapi.testclient import TestClient
@@ -130,6 +131,168 @@ def test_get_installed_ollama_models_returns_sorted_models():
             },
         ]
     }
+
+
+def test_get_supported_models_returns_installed_ollama_models():
+    ollama_client = DummyOllamaClient(
+        models=[
+            {
+                "model": "installed-model:latest",
+                "size": 100,
+                "details": {},
+            },
+        ]
+    )
+    app = create_app(
+        initialize_on_startup=False,
+        ollama_client_factory=lambda: ollama_client,
+    )
+    app.router.routes.extend(production_app.router.routes)
+
+    with TestClient(app) as client:
+        response = client.get("/api/supported-models")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "installed-model:latest" in payload["ollama_models"]
+    assert "claude-sonnet-4-5-20250929" in payload["models"]
+    assert "claude-sonnet-4-5-20250929" not in payload["ollama_models"]
+
+
+def test_get_supported_models_falls_back_to_known_ollama_models_when_ollama_unavailable():
+    ollama_client = DummyOllamaClient(list_error=RuntimeError("connection refused"))
+    app = create_app(
+        initialize_on_startup=False,
+        ollama_client_factory=lambda: ollama_client,
+    )
+    app.router.routes.extend(production_app.router.routes)
+
+    with TestClient(app) as client:
+        response = client.get("/api/supported-models")
+
+    assert response.status_code == 200
+    payload = response.json()
+    # Falls back to hardcoded known ollama model suggestions
+    assert "mistral-small3.2:latest" in payload["ollama_models"]
+    assert "claude-sonnet-4-5-20250929" in payload["models"]
+    assert "claude-sonnet-4-5-20250929" not in payload["ollama_models"]
+
+
+def test_update_model_config_accepts_arbitrary_ollama_model_names(tmp_path: Path):
+    original_model_config = Config._model_config
+    original_model_config_path = Config._model_config_path
+    original_agent_manager = production_app.state.agent_manager
+    original_startup_error = production_app.state.agent_startup_error
+    Config._model_config = None
+    Config._model_config_path = tmp_path / "model_config.json"
+    production_app.state.agent_manager = DummyManager()
+    production_app.state.agent_startup_error = None
+
+    payload = {
+        "state_initialization_model": "custom-org/custom-reasoner:latest",
+        "action_planning_model": "claude-sonnet-4-5-20250929",
+        "situational_analysis_model": "claude-sonnet-4-5-20250929",
+        "memory_retrieval_model": "claude-sonnet-4-5-20250929",
+        "memory_formation_model": "claude-sonnet-4-5-20250929",
+        "trigger_compression_model": "claude-sonnet-4-5-20250929",
+        "think_action_model": "custom-org/custom-reasoner:latest",
+        "speak_action_model": "custom-org/custom-reasoner:latest",
+        "visual_action_model": "custom-org/custom-reasoner:latest",
+        "fetch_url_action_model": "claude-sonnet-4-5-20250929",
+        "evaluate_priorities_action_model": "claude-sonnet-4-5-20250929",
+        "tts_rewrite_model": "custom-org/custom-reasoner:latest",
+    }
+
+    try:
+        with TestClient(production_app) as client:
+            response = client.post("/api/model-config", json=payload)
+            follow_up = client.get("/api/model-config")
+    finally:
+        Config._model_config = original_model_config
+        Config._model_config_path = original_model_config_path
+        production_app.state.agent_manager = original_agent_manager
+        production_app.state.agent_startup_error = original_startup_error
+
+    assert response.status_code == 200
+    assert response.json()["config"]["state_initialization_model"] == payload["state_initialization_model"]
+    assert follow_up.status_code == 200
+    assert follow_up.json()["think_action_model"] == payload["think_action_model"]
+
+
+def test_update_model_config_rejects_unknown_claude_model_names(tmp_path: Path):
+    original_model_config = Config._model_config
+    original_model_config_path = Config._model_config_path
+    original_agent_manager = production_app.state.agent_manager
+    original_startup_error = production_app.state.agent_startup_error
+    Config._model_config = None
+    Config._model_config_path = tmp_path / "model_config.json"
+    production_app.state.agent_manager = DummyManager()
+    production_app.state.agent_startup_error = None
+
+    payload = {
+        "state_initialization_model": "claude-unknown-next",
+        "action_planning_model": "claude-sonnet-4-5-20250929",
+        "situational_analysis_model": "claude-sonnet-4-5-20250929",
+        "memory_retrieval_model": "claude-sonnet-4-5-20250929",
+        "memory_formation_model": "claude-sonnet-4-5-20250929",
+        "trigger_compression_model": "claude-sonnet-4-5-20250929",
+        "think_action_model": "claude-sonnet-4-5-20250929",
+        "speak_action_model": "claude-sonnet-4-5-20250929",
+        "visual_action_model": "claude-sonnet-4-5-20250929",
+        "fetch_url_action_model": "claude-sonnet-4-5-20250929",
+        "evaluate_priorities_action_model": "claude-sonnet-4-5-20250929",
+        "tts_rewrite_model": "mistral-small3.2:latest",
+    }
+
+    try:
+        with TestClient(production_app) as client:
+            response = client.post("/api/model-config", json=payload)
+    finally:
+        Config._model_config = original_model_config
+        Config._model_config_path = original_model_config_path
+        production_app.state.agent_manager = original_agent_manager
+        production_app.state.agent_startup_error = original_startup_error
+
+    assert response.status_code == 400
+    assert "not a known Anthropic model" in response.json()["detail"]
+
+
+def test_update_model_config_rejects_whitespace_padded_claude_model_names(tmp_path: Path):
+    original_model_config = Config._model_config
+    original_model_config_path = Config._model_config_path
+    original_agent_manager = production_app.state.agent_manager
+    original_startup_error = production_app.state.agent_startup_error
+    Config._model_config = None
+    Config._model_config_path = tmp_path / "model_config.json"
+    production_app.state.agent_manager = DummyManager()
+    production_app.state.agent_startup_error = None
+
+    payload = {
+        "state_initialization_model": " claude-unknown-next",  # leading space bypasses naive prefix check
+        "action_planning_model": "claude-sonnet-4-5-20250929",
+        "situational_analysis_model": "claude-sonnet-4-5-20250929",
+        "memory_retrieval_model": "claude-sonnet-4-5-20250929",
+        "memory_formation_model": "claude-sonnet-4-5-20250929",
+        "trigger_compression_model": "claude-sonnet-4-5-20250929",
+        "think_action_model": "claude-sonnet-4-5-20250929",
+        "speak_action_model": "claude-sonnet-4-5-20250929",
+        "visual_action_model": "claude-sonnet-4-5-20250929",
+        "fetch_url_action_model": "claude-sonnet-4-5-20250929",
+        "evaluate_priorities_action_model": "claude-sonnet-4-5-20250929",
+        "tts_rewrite_model": "mistral-small3.2:latest",
+    }
+
+    try:
+        with TestClient(production_app) as client:
+            response = client.post("/api/model-config", json=payload)
+    finally:
+        Config._model_config = original_model_config
+        Config._model_config_path = original_model_config_path
+        production_app.state.agent_manager = original_agent_manager
+        production_app.state.agent_startup_error = original_startup_error
+
+    assert response.status_code == 400
+    assert "not a known Anthropic model" in response.json()["detail"]
 
 
 def test_pull_and_delete_ollama_model_routes_delegate_to_client():

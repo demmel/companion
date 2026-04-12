@@ -48,12 +48,9 @@ class Config:
                 try:
                     with open(config_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                    # Convert string values back to SupportedModel enums
                     from agent.llm.models import SupportedModel
 
-                    model_kwargs = {
-                        key: SupportedModel(value) for key, value in data.items()
-                    }
+                    model_kwargs = {key: SupportedModel(value) for key, value in data.items()}
                     Config._model_config = ModelConfig(**model_kwargs)
                 except Exception as e:
                     import logging
@@ -73,8 +70,7 @@ class Config:
         Config._model_config = model_config
         config_path = Config.get_model_config_path()
 
-        # Convert to dict with string values for JSON serialization
-        data = {key: value.value for key, value in model_config.__dict__.items()}
+        data = {key: str(value) for key, value in model_config.__dict__.items()}
 
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)

@@ -428,7 +428,7 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
             if _detect_llm_refusal(compressed_summary):
                 refusal_count += 1
                 logger.warning(
-                    f"LLM refused to compress trigger on attempt {attempt+1} with {current_model.value}. "
+                    f"LLM refused to compress trigger on attempt {attempt+1} with {current_model}. "
                     f"Refusal detected: {compressed_summary[:200]}..."
                 )
 
@@ -466,7 +466,7 @@ CRITICAL: I will write ONLY my compressed stream of consciousness entry - no hea
             )
 
             logger.debug(
-                f"Compression attempt {attempt+1} ({current_model.value}): {compressed_size} chars ({compression_ratio:.1%} of original {original_size} chars)"
+                f"Compression attempt {attempt+1} ({current_model}): {compressed_size} chars ({compression_ratio:.1%} of original {original_size} chars)"
             )
 
             # Keep track of the best (smallest) summary

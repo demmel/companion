@@ -496,7 +496,7 @@ export function OllamaModelsPage({ client, onBack }: OllamaModelsPageProps) {
                 Pull Models
               </h2>
               <p className={css({ color: "gray.400", fontSize: "sm", mb: 4 })}>
-                Install a supported Ollama model or paste any model identifier you
+                Install a suggested Ollama model or paste any model identifier you
                 want Ollama to fetch. Pulls complete before the page refreshes.
               </p>
 
@@ -549,7 +549,7 @@ export function OllamaModelsPage({ client, onBack }: OllamaModelsPageProps) {
 
               <div className={css({ display: "grid", gap: 2 })}>
                 <h3 className={css({ fontSize: "sm", color: "gray.300" })}>
-                  Supported Ollama models
+                  Suggested Ollama models
                 </h3>
                 {availableSupportedModels.length === 0 ? (
                   <div
@@ -564,7 +564,7 @@ export function OllamaModelsPage({ client, onBack }: OllamaModelsPageProps) {
                       fontSize: "sm",
                     })}
                   >
-                    All supported Ollama models are already installed.
+                    All suggested Ollama models are already installed.
                   </div>
                 ) : (
                   availableSupportedModels.map((modelName) => {

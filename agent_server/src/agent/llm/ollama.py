@@ -9,7 +9,10 @@ import queue
 from typing import Callable, Iterator, List, Dict, Optional, TypeVar, Union, cast
 
 from agent.llm.interface import ILLM, Message, ImagesInput
-from agent.llm.models import SupportedModel, OllamaModelConfig
+from agent.llm.models import (
+    OllamaModelConfig,
+    SupportedModel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +29,9 @@ class OllamaLLM(ILLM):
         self.models = models
 
     def _get_config(self, model: SupportedModel) -> OllamaModelConfig:
-        if model not in self.models:
-            raise ValueError(
-                f"Model {model} not configured. Available: {list(self.models.keys())}"
-            )
-        return self.models[model]
+        if model in self.models:
+            return self.models[model]
+        return OllamaModelConfig(model=model)
 
     def _build_options(
         self,
@@ -61,7 +62,7 @@ class OllamaLLM(ILLM):
         message_dicts = [{"role": msg.role, "content": msg.content} for msg in messages]
 
         response = self.client.chat(
-            model=model.value,
+            model=str(model),
             messages=message_dicts,
             stream=False,
             options=options,
@@ -81,7 +82,7 @@ class OllamaLLM(ILLM):
         message_dicts = [{"role": msg.role, "content": msg.content} for msg in messages]
 
         for chunk in self.client.chat(
-            model=model.value,
+            model=str(model),
             messages=message_dicts,
             stream=True,
             options=options,
@@ -103,7 +104,7 @@ class OllamaLLM(ILLM):
         options = self._build_options(config, temperature, num_predict)
 
         response = self.client.generate(
-            model=model.value,
+            model=str(model),
             prompt=prompt,
             stream=False,
             options=options,
@@ -124,7 +125,7 @@ class OllamaLLM(ILLM):
         options = self._build_options(config, temperature, num_predict)
 
         for chunk in self.client.generate(
-            model=model.value,
+            model=str(model),
             prompt=prompt,
             stream=True,
             options=options,
@@ -137,15 +138,14 @@ class OllamaLLM(ILLM):
 
     def is_model_available(self, model: SupportedModel) -> bool:
         try:
-            models = self.client.list()
-            model_names = [m["name"] for m in models["models"]]
-            return model.value in model_names
+            response = self.client.list()
+            return str(model) in [m.model for m in response.models]
         except Exception:
             return False
 
     def pull_model(self, model: SupportedModel) -> bool:
         try:
-            self.client.pull(model.value)
+            self.client.pull(str(model))
             return True
         except Exception as e:
             logger.error(f"Error pulling model {model}: {e}")

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { X, Cpu } from "lucide-react";
 import { css } from "@styled-system/css";
 import { AgentClient } from "@/client";
-import { ModelConfigResponse } from "@/types";
+import { ModelConfigResponse, SupportedModelsResponse } from "@/types";
 
 interface ModelSettingsProps {
   isOpen: boolean;
@@ -27,10 +27,11 @@ const MODEL_LABELS: Record<string, string> = {
 
 export function ModelSettings({ isOpen, onClose, client }: ModelSettingsProps) {
   const [config, setConfig] = useState<ModelConfigResponse | null>(null);
-  const [supportedModels, setSupportedModels] = useState<string[]>([]);
+  const [supportedModels, setSupportedModels] = useState<SupportedModelsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const modelSuggestions = supportedModels?.models ?? [];
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +48,7 @@ export function ModelSettings({ isOpen, onClose, client }: ModelSettingsProps) {
         client.getSupportedModels(),
       ]);
       setConfig(modelConfig);
-      setSupportedModels(modelsResponse.models);
+      setSupportedModels(modelsResponse);
     } catch (err) {
       setError(`Failed to load configuration: ${err}`);
     } finally {
@@ -205,7 +206,13 @@ export function ModelSettings({ isOpen, onClose, client }: ModelSettingsProps) {
                       },
                     })}
                   >
-                    {supportedModels.map((model) => (
+                    {/* Ensure the currently configured value is always selectable */}
+                    {!modelSuggestions.includes(config[field]) && (
+                      <option key={config[field]} value={config[field]}>
+                        {config[field]}
+                      </option>
+                    )}
+                    {modelSuggestions.map((model) => (
                       <option key={model} value={model}>
                         {model}
                       </option>
@@ -279,7 +286,9 @@ export function ModelSettings({ isOpen, onClose, client }: ModelSettingsProps) {
                 color: "gray.500",
               })}
             >
-              Changes take effect on the next user message.
+              Choose from installed Ollama models or known Anthropic models.
+              Install additional Ollama models from the Models page. Changes
+              take effect on the next user message.
             </p>
           </div>
         </>

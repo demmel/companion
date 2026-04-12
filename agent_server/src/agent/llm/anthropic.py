@@ -147,7 +147,7 @@ class AnthropicLLM(ILLM):
     ) -> anthropic.types.Message:
         config = self._get_config(model)
         params: Dict[str, object] = {
-            "model": model.value,
+            "model": str(model),
             "messages": messages,
             "max_tokens": num_predict or config.max_tokens,
             "temperature": temperature if temperature is not None else config.default_temperature,
@@ -167,7 +167,7 @@ class AnthropicLLM(ILLM):
     ) -> anthropic.MessageStream:
         config = self._get_config(model)
         params: Dict[str, object] = {
-            "model": model.value,
+            "model": str(model),
             "messages": messages,
             "max_tokens": num_predict or config.max_tokens,
             "temperature": temperature if temperature is not None else config.default_temperature,
