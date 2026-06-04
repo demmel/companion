@@ -23,6 +23,9 @@ class SupportedModel(str):
     GEMMA_27B: ClassVar["SupportedModel"]
     DEEPSEEK_R1_14B: ClassVar["SupportedModel"]
     RP_MAX: ClassVar["SupportedModel"]
+    QWEN3_VL_30B: ClassVar["SupportedModel"]
+    QWEN3_VL_30B_THINKING: ClassVar["SupportedModel"]
+    CYDONIA_24B_VISION: ClassVar["SupportedModel"]
     # Anthropic model constants
     CLAUDE_SONNET_4_5: ClassVar["SupportedModel"]
     CLAUDE_OPUS_4_1: ClassVar["SupportedModel"]
@@ -62,6 +65,16 @@ SupportedModel.LLAMA_3B = SupportedModel("llama3.2:3b")
 SupportedModel.GEMMA_27B = SupportedModel("aqualaguna/gemma-3-27b-it-abliterated-GGUF:q4_k_m")
 SupportedModel.DEEPSEEK_R1_14B = SupportedModel("huihui_ai/deepseek-r1-abliterated:14b")
 SupportedModel.RP_MAX = SupportedModel("technobyte/arliai-rpmax-12b-v1.1:q4_k_m")
+# Bake-off candidates (vision-capable, uncensored, fit a 24GB GPU at Q4)
+SupportedModel.QWEN3_VL_30B = SupportedModel(
+    "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct"
+)
+SupportedModel.QWEN3_VL_30B_THINKING = SupportedModel(
+    "huihui_ai/qwen3-vl-abliterated:30b-a3b-Thinking"
+)
+SupportedModel.CYDONIA_24B_VISION = SupportedModel(
+    "Fermi/Cydonia-24B-v4.3-heretic-vision:Q4_K_M"
+)
 
 # Anthropic models
 SupportedModel.CLAUDE_SONNET_4_5 = SupportedModel("claude-sonnet-4-5-20250929")
@@ -80,6 +93,9 @@ KNOWN_OLLAMA_MODELS: tuple[SupportedModel, ...] = (
     SupportedModel.GEMMA_27B,
     SupportedModel.DEEPSEEK_R1_14B,
     SupportedModel.RP_MAX,
+    SupportedModel.QWEN3_VL_30B,
+    SupportedModel.QWEN3_VL_30B_THINKING,
+    SupportedModel.CYDONIA_24B_VISION,
 )
 
 KNOWN_ANTHROPIC_MODELS: tuple[SupportedModel, ...] = (
@@ -101,6 +117,28 @@ class OllamaModelConfig:
     default_num_predict: int = 4096
     context_window: int = 32768
     estimated_token_size: float = 3.4
+
+    # GPU residency. ollama's num_gpu is the number of layers to offload to the
+    # GPU; -1 means "auto", which lets ollama silently offload layers to CPU when
+    # its (conservative) estimator thinks the model + KV cache won't fit, tanking
+    # throughput. A large value forces every layer onto the GPU. Lower this only
+    # for a model that genuinely does not fit in VRAM so the offload is a
+    # deliberate choice rather than a silent surprise. Pair with a quantized KV
+    # cache (OLLAMA_KV_CACHE_TYPE=q8_0) + OLLAMA_FLASH_ATTENTION=1 on the server
+    # to keep the full context window resident on a 24GB GPU.
+    num_gpu: int = 999
+    num_thread: int = 32
+
+    # Anti-repetition samplers. Defaults preserve prior behavior: penalties off,
+    # repeat_last_n at ollama's default, mirostat disabled. ollama does not expose
+    # DRY/XTC, so frequency/presence penalties + mirostat are the available levers
+    # for the companion's repetitive-output problem.
+    default_repeat_last_n: int = 64
+    default_frequency_penalty: float = 0.0
+    default_presence_penalty: float = 0.0
+    default_mirostat: int = 0
+    default_mirostat_tau: float = 5.0
+    default_mirostat_eta: float = 0.1
 
 
 @dataclass

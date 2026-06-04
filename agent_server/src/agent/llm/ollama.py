@@ -40,13 +40,19 @@ class OllamaLLM(ILLM):
         num_predict: Optional[int],
     ) -> Dict[str, object]:
         return {
-            "num_gpu": -1,
-            "num_thread": 32,
+            "num_gpu": config.num_gpu,
+            "num_thread": config.num_thread,
             "num_ctx": config.context_window,
             "temperature": temperature if temperature is not None else config.default_temperature,
             "top_p": config.default_top_p,
             "top_k": config.default_top_k,
             "repeat_penalty": config.default_repeat_penalty,
+            "repeat_last_n": config.default_repeat_last_n,
+            "frequency_penalty": config.default_frequency_penalty,
+            "presence_penalty": config.default_presence_penalty,
+            "mirostat": config.default_mirostat,
+            "mirostat_tau": config.default_mirostat_tau,
+            "mirostat_eta": config.default_mirostat_eta,
             "num_predict": num_predict if num_predict is not None else config.default_num_predict,
         }
 
@@ -304,6 +310,26 @@ DEFAULT_OLLAMA_MODELS = {
         default_top_p=0.95,
     ),
     SupportedModel.RP_MAX: OllamaModelConfig(model=SupportedModel.RP_MAX),
+    # Bake-off candidates. Sampling defaults follow each model's documented
+    # recommendations. Qwen3-VL is MoE (~3B active) so it stays fast on a 24GB GPU.
+    SupportedModel.QWEN3_VL_30B: OllamaModelConfig(
+        model=SupportedModel.QWEN3_VL_30B,
+        default_temperature=0.7,
+        default_top_p=0.8,
+        default_top_k=20,
+    ),
+    SupportedModel.QWEN3_VL_30B_THINKING: OllamaModelConfig(
+        model=SupportedModel.QWEN3_VL_30B_THINKING,
+        default_temperature=0.6,
+        default_top_p=0.95,
+        default_top_k=20,
+        default_num_predict=8192,  # leave headroom for reasoning tokens
+    ),
+    SupportedModel.CYDONIA_24B_VISION: OllamaModelConfig(
+        model=SupportedModel.CYDONIA_24B_VISION,
+        estimated_token_size=3.4,
+        default_temperature=0.7,
+    ),
 }
 
 
