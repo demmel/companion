@@ -1,14 +1,14 @@
 {
-  "state_initialization_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "action_planning_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "situational_analysis_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "memory_retrieval_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "memory_formation_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "trigger_compression_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "think_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "speak_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "visual_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "fetch_url_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "evaluate_priorities_action_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL",
-  "tts_rewrite_model": "hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:UD-Q4_K_XL"
+  "state_initialization_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "action_planning_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "situational_analysis_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "memory_retrieval_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "memory_formation_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "trigger_compression_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "think_action_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "speak_action_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "visual_action_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "fetch_url_action_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "evaluate_priorities_action_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct",
+  "tts_rewrite_model": "huihui_ai/qwen3-vl-abliterated:30b-a3b-instruct"
 }
