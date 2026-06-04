@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-RESULTS_DIR = Path("src/agent/experiments/retrieval/results")
+RESULTS_DIR = Path(__file__).parent / "output" / "results"
 
 
 def run_experiment_1_classification(

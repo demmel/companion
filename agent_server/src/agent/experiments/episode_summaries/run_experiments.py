@@ -44,7 +44,7 @@ DEFAULT_CONVERSATION_PREFIX = "conversation_20251024_083630_306692"
 DEFAULT_CONVERSATIONS_DIR = (
     Path(__file__).parent.parent.parent.parent.parent / "conversations"
 )
-RESULTS_DIR = Path(__file__).parent / "results"
+RESULTS_DIR = Path(__file__).parent / "output" / "results"
 
 
 def load_memories(
@@ -66,7 +66,7 @@ def load_memories(
 
 def save_results(filename: str, data: dict) -> Path:
     """Save results to JSON file."""
-    RESULTS_DIR.mkdir(exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     filepath = RESULTS_DIR / filename
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)

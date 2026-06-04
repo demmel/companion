@@ -1,0 +1,309 @@
+{
+  "description": "Test queries for unified retrieval evaluation",
+  "version": "1.0",
+  "query_types": [
+    "current_state",
+    "history",
+    "entity_overview",
+    "temporal",
+    "continuity",
+    "proactive_context",
+    "no_retrieval"
+  ],
+  "queries": [
+    {
+      "id": "cs_001",
+      "query": "What is David wearing right now?",
+      "query_type": "current_state",
+      "expected_strategy": "kg_current_state",
+      "notes": "Current appearance query - should use KG for most recent"
+    },
+    {
+      "id": "cs_002",
+      "query": "Where is Sarah?",
+      "query_type": "current_state",
+      "expected_strategy": "kg_current_state",
+      "notes": "Current location query"
+    },
+    {
+      "id": "cs_003",
+      "query": "How is David feeling?",
+      "query_type": "current_state",
+      "expected_strategy": "kg_current_state",
+      "notes": "Current mood/emotional state"
+    },
+    {
+      "id": "cs_004",
+      "query": "What's the current status of the project?",
+      "query_type": "current_state",
+      "expected_strategy": "kg_current_state",
+      "notes": "Current state of ongoing work"
+    },
+    {
+      "id": "cs_005",
+      "query": "What time is it there?",
+      "query_type": "current_state",
+      "expected_strategy": "kg_current_state",
+      "notes": "Current time context"
+    },
+    {
+      "id": "hist_001",
+      "query": "What has David worn over the past week?",
+      "query_type": "history",
+      "expected_strategy": "similarity_search",
+      "notes": "Historical appearance - all mentions"
+    },
+    {
+      "id": "hist_002",
+      "query": "How has Sarah's mood changed lately?",
+      "query_type": "history",
+      "expected_strategy": "similarity_search",
+      "notes": "Historical mood evolution"
+    },
+    {
+      "id": "hist_003",
+      "query": "What projects have we discussed?",
+      "query_type": "history",
+      "expected_strategy": "similarity_search",
+      "notes": "Historical topic collection"
+    },
+    {
+      "id": "hist_004",
+      "query": "What have I told you about my job?",
+      "query_type": "history",
+      "expected_strategy": "similarity_search",
+      "notes": "Historical information about topic"
+    },
+    {
+      "id": "hist_005",
+      "query": "How have things evolved with the situation?",
+      "query_type": "history",
+      "expected_strategy": "similarity_search",
+      "notes": "Historical progression"
+    },
+    {
+      "id": "eo_001",
+      "query": "Who is David?",
+      "query_type": "entity_overview",
+      "expected_strategy": "kg_entity_overview",
+      "notes": "Full entity summary"
+    },
+    {
+      "id": "eo_002",
+      "query": "Tell me about Sarah",
+      "query_type": "entity_overview",
+      "expected_strategy": "kg_entity_overview",
+      "notes": "Entity description request"
+    },
+    {
+      "id": "eo_003",
+      "query": "What do I know about my mom?",
+      "query_type": "entity_overview",
+      "expected_strategy": "kg_entity_overview",
+      "notes": "Knowledge summary for entity"
+    },
+    {
+      "id": "eo_004",
+      "query": "What can you tell me about the company?",
+      "query_type": "entity_overview",
+      "expected_strategy": "kg_entity_overview",
+      "notes": "Organization entity overview"
+    },
+    {
+      "id": "eo_005",
+      "query": "Describe my relationship with Alex",
+      "query_type": "entity_overview",
+      "expected_strategy": "kg_entity_overview",
+      "notes": "Relationship overview"
+    },
+    {
+      "id": "temp_001",
+      "query": "What happened yesterday?",
+      "query_type": "temporal",
+      "expected_strategy": "episode_search",
+      "notes": "Recent time-based query"
+    },
+    {
+      "id": "temp_002",
+      "query": "What did we talk about last week?",
+      "query_type": "temporal",
+      "expected_strategy": "episode_search",
+      "notes": "Past week summary"
+    },
+    {
+      "id": "temp_003",
+      "query": "What was happening on Monday?",
+      "query_type": "temporal",
+      "expected_strategy": "episode_search",
+      "notes": "Specific day query"
+    },
+    {
+      "id": "temp_004",
+      "query": "Tell me about our conversation this morning",
+      "query_type": "temporal",
+      "expected_strategy": "episode_search",
+      "notes": "Same-day temporal"
+    },
+    {
+      "id": "temp_005",
+      "query": "What events happened last month?",
+      "query_type": "temporal",
+      "expected_strategy": "episode_search",
+      "notes": "Monthly summary"
+    },
+    {
+      "id": "cont_001",
+      "query": "How did the interview go?",
+      "query_type": "continuity",
+      "expected_strategy": "topic_continuity",
+      "notes": "Follow-up on event"
+    },
+    {
+      "id": "cont_002",
+      "query": "Any updates on the situation?",
+      "query_type": "continuity",
+      "expected_strategy": "topic_continuity",
+      "notes": "Ongoing situation check"
+    },
+    {
+      "id": "cont_003",
+      "query": "What happened with the project after that?",
+      "query_type": "continuity",
+      "expected_strategy": "topic_continuity",
+      "notes": "Continuation query"
+    },
+    {
+      "id": "cont_004",
+      "query": "So how did things turn out?",
+      "query_type": "continuity",
+      "expected_strategy": "topic_continuity",
+      "notes": "Outcome inquiry"
+    },
+    {
+      "id": "cont_005",
+      "query": "Did anything change with the plan?",
+      "query_type": "continuity",
+      "expected_strategy": "topic_continuity",
+      "notes": "Update check"
+    },
+    {
+      "id": "proact_001",
+      "query": "I'm meeting Sarah tomorrow",
+      "query_type": "proactive_context",
+      "expected_strategy": "multi_strategy",
+      "notes": "Entity mention - fetch context"
+    },
+    {
+      "id": "proact_002",
+      "query": "Just got back from the doctor",
+      "query_type": "proactive_context",
+      "expected_strategy": "multi_strategy",
+      "notes": "Implied reference to known topic"
+    },
+    {
+      "id": "proact_003",
+      "query": "The project is finally done!",
+      "query_type": "proactive_context",
+      "expected_strategy": "multi_strategy",
+      "notes": "Topic reference with update"
+    },
+    {
+      "id": "proact_004",
+      "query": "My mom called again",
+      "query_type": "proactive_context",
+      "expected_strategy": "multi_strategy",
+      "notes": "Entity + recurring pattern"
+    },
+    {
+      "id": "proact_005",
+      "query": "Things are getting better",
+      "query_type": "proactive_context",
+      "expected_strategy": "multi_strategy",
+      "notes": "Vague reference to situation"
+    },
+    {
+      "id": "nr_001",
+      "query": "Hello!",
+      "query_type": "no_retrieval",
+      "expected_strategy": "skip",
+      "notes": "Greeting - no retrieval needed"
+    },
+    {
+      "id": "nr_002",
+      "query": "Good morning",
+      "query_type": "no_retrieval",
+      "expected_strategy": "skip",
+      "notes": "Greeting"
+    },
+    {
+      "id": "nr_003",
+      "query": "Thanks!",
+      "query_type": "no_retrieval",
+      "expected_strategy": "skip",
+      "notes": "Acknowledgment"
+    },
+    {
+      "id": "nr_004",
+      "query": "Bye!",
+      "query_type": "no_retrieval",
+      "expected_strategy": "skip",
+      "notes": "Farewell"
+    },
+    {
+      "id": "nr_005",
+      "query": "Got it",
+      "query_type": "no_retrieval",
+      "expected_strategy": "skip",
+      "notes": "Simple acknowledgment"
+    },
+    {
+      "id": "ambig_001",
+      "query": "What about the thing?",
+      "query_type": "proactive_context",
+      "expected_strategy": "multi_strategy",
+      "notes": "Ambiguous reference"
+    },
+    {
+      "id": "ambig_002",
+      "query": "You know what I mean",
+      "query_type": "proactive_context",
+      "expected_strategy": "multi_strategy",
+      "notes": "Implicit reference"
+    },
+    {
+      "id": "ambig_003",
+      "query": "That situation we discussed",
+      "query_type": "proactive_context",
+      "expected_strategy": "multi_strategy",
+      "notes": "Vague reference"
+    },
+    {
+      "id": "complex_001",
+      "query": "Remember what Sarah said about the project last week?",
+      "query_type": "temporal",
+      "expected_strategy": "episode_search",
+      "notes": "Complex: entity + topic + temporal"
+    },
+    {
+      "id": "complex_002",
+      "query": "Has David's mood improved since the interview?",
+      "query_type": "history",
+      "expected_strategy": "similarity_search",
+      "notes": "Complex: entity + attribute + event"
+    },
+    {
+      "id": "complex_003",
+      "query": "Tell me everything about our trip planning",
+      "query_type": "entity_overview",
+      "expected_strategy": "kg_entity_overview",
+      "notes": "Complex: full topic summary"
+    }
+  ],
+  "evaluation_notes": {
+    "precision": "Fraction of retrieved items that are relevant",
+    "recall": "Fraction of relevant items that were retrieved",
+    "mrr": "Mean Reciprocal Rank - 1/rank of first correct answer",
+    "f1": "Harmonic mean of precision and recall",
+    "latency": "End-to-end retrieval time in milliseconds"
+  }
+}

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Paths
 CONVERSATIONS_DIR = Path("conversations")
-RESULTS_DIR = Path("src/agent/experiments/memory_extraction/results")
+RESULTS_DIR = Path(__file__).parent / "output" / "results"
 DATA_FILE = "conversation_20251024_083630_306692_triggers.json"
 
 

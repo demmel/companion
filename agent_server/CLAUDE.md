@@ -8,3 +8,4 @@
 - Do not use 'StringTypes'.  Always import types and structure code appropriately
 - Never use getattr - access attributes directly
 - Only use @property when needed for backward compatibility; otherwise use regular methods or attributes
+- Experiments live in `src/agent/experiments/<name>/`. Write ALL generated artifacts to that experiment's `output/` dir (gitignored); keep only code, `PLAN.md`, and `FINDINGS.md` tracked. See `src/agent/experiments/README.md` for the convention.

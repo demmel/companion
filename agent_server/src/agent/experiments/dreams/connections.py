@@ -90,7 +90,7 @@ Respond ONLY with the JSON array, no other text."""
         Message(role="user", content=prompt),
     ]
 
-    response = llm.chat_complete(model, messages, caller="dream_discover_connections")
+    response = llm.chat(model, messages, caller="dream_discover_connections")
 
     # Parse the response
     connections: list[DiscoveredConnection] = []

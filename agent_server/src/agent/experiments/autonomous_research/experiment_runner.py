@@ -62,7 +62,7 @@ class ExperimentConfig:
         self.retrieval_strategy = retrieval_strategy
         self.research_config = research_config
         self.extraction_config = extraction_config
-        self.output_dir = output_dir or Path(__file__).parent / "results"
+        self.output_dir = output_dir or Path(__file__).parent / "output"
 
 
 class ExperimentRunner:

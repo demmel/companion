@@ -98,7 +98,7 @@ def generate_episode_summary(
 Generate your response now:"""
 
     # Call LLM
-    response = llm.generate_complete(
+    response = llm.generate(
         model=model,
         prompt=prompt,
         caller="episode_summarization",
@@ -122,7 +122,7 @@ def generate_episode_title(
 
 Title:"""
 
-    response = llm.generate_complete(
+    response = llm.generate(
         model=model,
         prompt=prompt,
         caller="episode_title_generation",
@@ -217,7 +217,7 @@ def generate_summary_at_detail_level(
 
 Summary:"""
 
-    response = llm.generate_complete(
+    response = llm.generate(
         model=model,
         prompt=prompt,
         caller=f"episode_summary_{detail_level}",

@@ -128,7 +128,7 @@ Output format (one question per line):
 """
 
         try:
-            response = self.llm.chat_complete(
+            response = self.llm.chat(
                 model=RESEARCH_MODEL,
                 messages=[Message(role="user", content=prompt)],
                 caller="generate_questions",
@@ -187,7 +187,7 @@ Output format (one question per line):
 ..."""
 
         try:
-            response = self.llm.chat_complete(
+            response = self.llm.chat(
                 model=RESEARCH_MODEL,
                 messages=[Message(role="user", content=prompt)],
                 caller="generate_followup",

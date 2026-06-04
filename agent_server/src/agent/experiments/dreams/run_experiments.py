@@ -902,7 +902,7 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = Path(__file__).parent / "dreams_output"
+        output_dir = Path(__file__).parent / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     ui_print("=" * 60)

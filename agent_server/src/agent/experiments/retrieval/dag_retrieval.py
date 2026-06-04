@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 CONVERSATIONS_DIR = Path("conversations")
 DAG_FILE = "archive/conversation_20251024_083630_306692/conversation_20251024_083630_306692_dag.json"
-CACHE_DIR = Path("src/agent/experiments/retrieval/cache")
+CACHE_DIR = Path(__file__).parent / "output" / "cache"
 
 
 # =============================================================================

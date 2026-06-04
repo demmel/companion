@@ -853,7 +853,7 @@ Example output:
 
 Episodes:"""
 
-    response = llm.generate_complete(
+    response = llm.generate(
         model=model,
         prompt=prompt,
         caller="episode_boundary_detection",
@@ -1190,7 +1190,7 @@ Format: [{{"starts_at": 0, "about": "description"}}, {{"starts_at": N, "about": 
 
 JSON:"""
 
-    response = llm.generate_complete(
+    response = llm.generate(
         model=model,
         prompt=prompt,
         caller="episode_boundary_detection_json",

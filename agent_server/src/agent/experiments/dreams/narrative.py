@@ -52,7 +52,7 @@ Example of fragment style:
 Now generate a dream from these memories. Only output the dream narrative, nothing else."""
 
     messages = [Message(role="user", content=prompt)]
-    result = llm.chat_complete(model, messages, caller="dream_narrative_fragment")
+    result = llm.chat(model, messages, caller="dream_narrative_fragment")
     return result or ""
 
 
@@ -93,7 +93,7 @@ and then the coffee and the light and the way he said my name becoming something
 Now generate a dream from these memories. Only output the dream narrative, nothing else."""
 
     messages = [Message(role="user", content=prompt)]
-    result = llm.chat_complete(model, messages, caller="dream_narrative_stream")
+    result = llm.chat(model, messages, caller="dream_narrative_stream")
     return result or ""
 
 
@@ -140,7 +140,7 @@ The coffee grows cold
 Now generate a dream from these memories. Only output the dream narrative, nothing else."""
 
     messages = [Message(role="user", content=prompt)]
-    result = llm.chat_complete(model, messages, caller="dream_narrative_poetic")
+    result = llm.chat(model, messages, caller="dream_narrative_poetic")
     return result or ""
 
 
@@ -187,7 +187,7 @@ the light changes - now golden, now cold
 Now generate a dream from these memories. Only output the dream narrative, nothing else."""
 
     messages = [Message(role="user", content=prompt)]
-    result = llm.chat_complete(model, messages, caller="dream_narrative_sensory")
+    result = llm.chat(model, messages, caller="dream_narrative_sensory")
     return result or ""
 
 
@@ -242,7 +242,7 @@ Memories:
 List 3-5 themes that connect these memories. Output only the themes, one per line, no numbering or explanation."""
 
     messages = [Message(role="user", content=prompt)]
-    result = llm.chat_complete(model, messages, caller="dream_themes")
+    result = llm.chat(model, messages, caller="dream_themes")
 
     if not result:
         return []

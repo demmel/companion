@@ -65,7 +65,7 @@ class TopicClusteringExperiment:
         self,
         conversation_prefix: str,
         conversations_dir: str = "conversations",
-        output_dir: str = "./topic_clustering_results",
+        output_dir: str = str(Path(__file__).parent / "output" / "results"),
     ):
         self.conversation_prefix = conversation_prefix
         self.output_dir = Path(output_dir)
@@ -562,7 +562,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="./topic_clustering_results",
+        default=str(Path(__file__).parent / "output" / "results"),
         help="Directory to save results",
     )
     parser.add_argument(
