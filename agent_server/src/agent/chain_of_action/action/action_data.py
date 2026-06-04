@@ -22,14 +22,12 @@ import agent.chain_of_action.action.actions  # noqa: F401
 from .base_action_data import BaseActionData, _ACTION_DATA_TYPES
 
 
-# Static type used in annotations. Concrete values are FooActionData instances; code
-# narrows to a specific action via ``isinstance(x, FooActionData)`` imported from the
-# action's own module.
-ActionData = BaseActionData
-
 # Runtime discriminated union (members carry distinct Literal ``type`` discriminators),
-# derived from the collected per-action classes. Used by the storage TypeAdapter.
+# derived from the collected per-action classes. This must also be the annotation used
+# by persisted Pydantic models, otherwise they deserialize into BaseActionData and lose
+# the concrete output type.
 ACTION_DATA_UNION = functools.reduce(operator.or_, _ACTION_DATA_TYPES)
+ActionData = ACTION_DATA_UNION
 
 # type -> concrete data class, derived from the collected classes.
 _ACTION_DATA_CONSTRUCTORS: dict[ActionType, type[BaseActionData]] = {

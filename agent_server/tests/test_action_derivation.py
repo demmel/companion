@@ -35,11 +35,14 @@ from agent.chain_of_action.action.base_action_data import (
     BaseActionData,
 )
 from agent.chain_of_action.action.action_data import (
+    ActionData,
     ACTION_DATA_UNION,
     _ACTION_DATA_CONSTRUCTORS,
     create_action_data,
     create_result_summary,
 )
+from agent.chain_of_action.trigger import UserInputTrigger
+from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.chain_of_action.action_registry import ActionRegistry
 from agent.storage.serializers import ActionSerializer, _ACTION_DATA_ADAPTER
 
@@ -217,6 +220,9 @@ class TestGetInputTypeDerivation:
 
 
 class TestActionDataUnionDerivation:
+    def test_action_data_annotation_is_runtime_union(self) -> None:
+        assert typing.get_args(ActionData) == typing.get_args(ACTION_DATA_UNION)
+
     def test_union_has_one_member_per_action_type(self) -> None:
         assert len(typing.get_args(ACTION_DATA_UNION)) == len(ActionType)
         assert len(_ACTION_DATA_TYPES) == len(ActionType)
@@ -357,6 +363,24 @@ class TestBackwardCompatibility:
             blob = action.model_dump_json().encode("utf-8")
             restored = _ACTION_DATA_ADAPTER.validate_json(blob)
             assert type(restored) is cls
+
+    def test_trigger_history_entry_json_restores_concrete_action_data(self) -> None:
+        action = _make(
+            ActionType.THINK,
+            ThinkInput(focus="x"),
+            ActionSuccessResult(content=ThinkOutput(thoughts="deep thought")),
+        )
+        entry = TriggerHistoryEntry(
+            trigger=UserInputTrigger(content="hello", user_name="User"),
+            actions_taken=[action],
+            situational_context="User said hello",
+        )
+
+        restored = TriggerHistoryEntry.model_validate_json(entry.model_dump_json())
+
+        assert isinstance(restored.actions_taken[0], ThinkActionData)
+        assert restored.actions_taken[0].result.type == "success"
+        assert restored.actions_taken[0].result.content.thoughts == "deep thought"
 
 
 class TestRegistryCanPerform:
