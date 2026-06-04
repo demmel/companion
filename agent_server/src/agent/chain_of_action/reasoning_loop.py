@@ -8,8 +8,8 @@ import uuid
 from agent.chain_of_action.action.action_data import (
     cast_base_action_data_to_action_data,
     create_result_summary,
-    WaitActionData,
 )
+from agent.chain_of_action.action.actions.wait_action import WaitActionData
 from agent.memory.query_extraction import extract_memory_queries
 from agent.memory.memory import IMemory, MemoryQueries
 

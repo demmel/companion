@@ -210,9 +210,17 @@ def format_action_for_diary(action: BaseActionData) -> str:
     """
     Temporary formatting method until we implement format_for_diary() on action classes.
     """
-    from agent.chain_of_action.action.action_types import ActionType
     from agent.chain_of_action.action.action_data import (
         cast_base_action_data_to_action_data,
+    )
+    from agent.chain_of_action.action.actions.think_action import ThinkActionData
+    from agent.chain_of_action.action.actions.speak_action import SpeakActionData
+    from agent.chain_of_action.action.actions.wait_action import WaitActionData
+    from agent.chain_of_action.action.actions.visual_actions import (
+        UpdateAppearanceActionData,
+    )
+    from agent.chain_of_action.action.actions.update_mood_action import (
+        UpdateMoodActionData,
     )
 
     action = cast_base_action_data_to_action_data(action)
@@ -224,26 +232,27 @@ def format_action_for_diary(action: BaseActionData) -> str:
         status = "[x]"
 
     action_parts = []
-    if action.type == ActionType.THINK:
-        action_parts.append(f'{status} I thought about "{action.input.focus}"')
-    elif action.type == ActionType.SPEAK:
-        tone_part = f" with {action.input.tone} tone" if action.input.tone else ""
-        action_parts.append(
-            f'{status} I responded to "{action.input.intent}"{tone_part}:'
-        )
-    elif action.type == ActionType.WAIT:
-        action_parts.append(f"{status} I waited to {action.input.reason}.")
-    elif action.type == ActionType.UPDATE_APPEARANCE:
-        action_parts.append(
-            f"{status} I updated my appearance ({action.input.change_description}):"
-        )
-    elif action.type == ActionType.UPDATE_MOOD:
-        action_parts.append(
-            f"{status} My mood changed {action.input.new_mood} ({action.input.intensity}):"
-        )
-    else:
-        context_given = create_context_given(action)
-        action_parts.append(f'{status} I {action.type.value} "{context_given}":')
+    match action:
+        case ThinkActionData():
+            action_parts.append(f'{status} I thought about "{action.input.focus}"')
+        case SpeakActionData():
+            tone_part = f" with {action.input.tone} tone" if action.input.tone else ""
+            action_parts.append(
+                f'{status} I responded to "{action.input.intent}"{tone_part}:'
+            )
+        case WaitActionData():
+            action_parts.append(f"{status} I waited to {action.input.reason}.")
+        case UpdateAppearanceActionData():
+            action_parts.append(
+                f"{status} I updated my appearance ({action.input.change_description}):"
+            )
+        case UpdateMoodActionData():
+            action_parts.append(
+                f"{status} My mood changed {action.input.new_mood} ({action.input.intensity}):"
+            )
+        case _:
+            context_given = create_context_given(action)
+            action_parts.append(f'{status} I {action.type.value} "{context_given}":')
 
     action_parts.append("  <content>")
     result_summary = create_result_summary(action)

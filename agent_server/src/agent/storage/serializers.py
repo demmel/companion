@@ -10,7 +10,7 @@ from typing import TypeVar
 from pydantic import BaseModel, TypeAdapter
 
 from agent.chain_of_action.trigger import Trigger
-from agent.chain_of_action.action.action_data import ActionData
+from agent.chain_of_action.action.action_data import ActionData, ACTION_DATA_UNION
 from agent.chain_of_action.action.action_types import ActionType
 from agent.storage.models import ActionTable
 
@@ -18,9 +18,10 @@ from agent.storage.models import ActionTable
 T = TypeVar("T", bound=BaseModel)
 
 
-# Type adapters for polymorphic deserialization
+# Type adapters for polymorphic deserialization. ACTION_DATA_UNION is the discriminated
+# union derived from the action registry; the static type is the ActionData base.
 _TRIGGER_ADAPTER: TypeAdapter[Trigger] = TypeAdapter(Trigger)
-_ACTION_DATA_ADAPTER: TypeAdapter[ActionData] = TypeAdapter(ActionData)
+_ACTION_DATA_ADAPTER: TypeAdapter[ActionData] = TypeAdapter(ACTION_DATA_UNION)
 
 
 def compress_json(obj: BaseModel) -> bytes:

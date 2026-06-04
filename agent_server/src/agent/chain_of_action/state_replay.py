@@ -11,33 +11,14 @@ from typing import Iterator
 from agent.state import State, Priority, Value
 from agent.chain_of_action.trigger_history_entry import TriggerHistoryEntry
 from agent.chain_of_action.trigger import BirthTrigger
-from agent.chain_of_action.action.action_types import ActionType
-from agent.chain_of_action.action.actions.update_mood_action import UpdateMoodAction
-from agent.chain_of_action.action.actions.visual_actions import (
-    UpdateAppearanceAction,
-    UpdateEnvironmentAction,
-)
-from agent.chain_of_action.action.actions.priority_actions import (
-    AddPriorityAction,
-    RemovePriorityAction,
-)
-from agent.chain_of_action.action.actions.evaluate_priorities_action import (
-    EvaluatePrioritiesAction,
-)
+from agent.chain_of_action.action.actions.think_action import ThinkActionData
 from agent.chain_of_action.action.action_data import ActionData
+from agent.chain_of_action.action_registry import ActionRegistry
 
 
-# Map action types to their action classes for apply_state_change
-_ACTION_CLASSES = {
-    ActionType.UPDATE_MOOD: UpdateMoodAction(),
-    ActionType.UPDATE_APPEARANCE: UpdateAppearanceAction(enable_image_generation=False),
-    ActionType.UPDATE_ENVIRONMENT: UpdateEnvironmentAction(
-        enable_image_generation=False
-    ),
-    ActionType.ADD_PRIORITY: AddPriorityAction(),
-    ActionType.REMOVE_PRIORITY: RemovePriorityAction(),
-    ActionType.EVALUATE_PRIORITIES: EvaluatePrioritiesAction(),
-}
+# Registry used to obtain action instances for apply_state_change during replay.
+# Image generation is disabled - replay only applies recorded state changes.
+_REGISTRY = ActionRegistry(enable_image_generation=False)
 
 
 def derive_initial_state(first_entry: TriggerHistoryEntry) -> State:
@@ -68,7 +49,7 @@ def derive_initial_state(first_entry: TriggerHistoryEntry) -> State:
     # Find the THINK action that contains the derived state
     think_action = None
     for action in first_entry.actions_taken:
-        if action.type == ActionType.THINK:
+        if isinstance(action, ThinkActionData):
             think_action = action
             break
 
@@ -192,13 +173,9 @@ def apply_action_state_change(state: State, action_data: ActionData) -> None:
     if action_data.result.type != "success":
         return
 
-    action_type = action_data.type
-    action_instance = _ACTION_CLASSES.get(action_type)
-
-    if action_instance is None:
-        # Action doesn't modify state (THINK, SPEAK, etc.)
-        return
-
+    # Actions that don't modify state (THINK, SPEAK, ...) use the base no-op
+    # apply_state_change, so it is safe to call for every action type.
+    action_instance = _REGISTRY.create_action(action_data.type)
     action_instance.apply_state_change(
         state=state,
         action_input=action_data.input,

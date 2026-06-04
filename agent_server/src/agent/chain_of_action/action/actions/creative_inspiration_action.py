@@ -3,19 +3,20 @@ GET_CREATIVE_INSPIRATION action implementation.
 """
 
 import logging
-from typing import Type, Optional, List
+from typing import Literal, Optional, List
 
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 
 from agent.state import State
@@ -45,20 +46,15 @@ class CreativeInspirationOutput(ActionOutput):
         return f"Creative inspiration words: {', '.join(self.words)}"
 
 
+@register_action(ActionType.GET_CREATIVE_INSPIRATION)
 class CreativeInspirationAction(
     BaseAction[CreativeInspirationInput, CreativeInspirationOutput]
 ):
     """Get random words for creative inspiration"""
 
-    action_type = ActionType.GET_CREATIVE_INSPIRATION
-
     @classmethod
     def get_action_description(cls) -> str:
         return "Get random words to spark creative ideas and new directions"
-
-    @classmethod
-    def get_input_type(cls) -> Type[CreativeInspirationInput]:
-        return CreativeInspirationInput
 
     def execute(
         self,
@@ -82,3 +78,11 @@ class CreativeInspirationAction(
             return ActionFailureResult(
                 error=f"Unexpected error during GET_CREATIVE_INSPIRATION action: {str(e)}"
             )
+
+
+class CreativeInspirationActionData(
+    BaseActionData[CreativeInspirationInput, CreativeInspirationOutput]
+):
+    type: Literal[ActionType.GET_CREATIVE_INSPIRATION] = (
+        ActionType.GET_CREATIVE_INSPIRATION
+    )

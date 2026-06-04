@@ -24,15 +24,15 @@ from agent.api_types.timeline import (
 )
 from agent.chain_of_action.action.action_data import (
     ActionData,
-    ThinkActionData,
-    UpdateAppearanceActionData,
 )
 from agent.chain_of_action.action.actions.think_action import (
+    ThinkActionData,
     ThinkInput,
     ThinkOutput,
     ThinkProgressData,
 )
 from agent.chain_of_action.action.actions.visual_actions import (
+    UpdateAppearanceActionData,
     UpdateAppearanceInput,
     UpdateAppearanceOutput,
 )
@@ -827,7 +827,9 @@ class Agent:
                 entry_id: str,
             ) -> None:
                 from datetime import datetime
-                from agent.chain_of_action.action.action_data import SpeakActionData
+                from agent.chain_of_action.action.actions.speak_action import (
+                    SpeakActionData,
+                )
 
                 # Convert ActionResult to ActionDTO
                 try:

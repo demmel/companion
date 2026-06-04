@@ -36,7 +36,7 @@ class ExecutionContext(BaseModel):
 
     def get_thoughts_summary(self) -> str:
         """Get summary of all THINK action results"""
-        from agent.chain_of_action.action.action_data import ThinkActionData
+        from agent.chain_of_action.action.actions.think_action import ThinkActionData
 
         thoughts = [
             r.result.content.result_summary()

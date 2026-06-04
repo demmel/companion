@@ -10,7 +10,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 
 from agent.chain_of_action.action.action_data import ActionData
-from agent.chain_of_action.action.action_types import ActionType
+from agent.chain_of_action.action.actions.think_action import ThinkActionData
 from agent.chain_of_action.trigger import Trigger, BirthTrigger
 from agent.state import State, Priority, Value
 
@@ -119,7 +119,7 @@ class TriggerHistoryEntry(BaseModel):
 
         # Find THINK action and parse initial state
         for action in self.actions_taken:
-            if action.type == ActionType.THINK and action.result.type == "success":
+            if isinstance(action, ThinkActionData) and action.result.type == "success":
                 thoughts = action.result.content.thoughts
                 self.trigger.initial_state = _parse_initial_state_from_think(thoughts)
                 break

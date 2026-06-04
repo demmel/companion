@@ -3,19 +3,20 @@ SPEAK action implementation.
 """
 
 import logging
-from typing import Type, Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 
 from agent.state import State, build_agent_state_description
@@ -52,18 +53,13 @@ class SpeakProgressData(BaseModel):
     is_partial: bool
 
 
+@register_action(ActionType.SPEAK)
 class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):
     """Generate conversational response to communicate with the user"""
-
-    action_type = ActionType.SPEAK
 
     @classmethod
     def get_action_description(cls) -> str:
         return "Generate natural conversational response based on communication intent"
-
-    @classmethod
-    def get_input_type(cls) -> Type[SpeakInput]:
-        return SpeakInput
 
     def execute(
         self,
@@ -110,8 +106,6 @@ class SpeakAction(BaseAction[SpeakInput, SpeakOutput]):
         )
 
         # Check if there are previous speak actions in this turn
-        from agent.chain_of_action.action.action_data import SpeakActionData
-
         previous_speaks = [
             action
             for action in context.completed_actions
@@ -266,3 +260,7 @@ Now I'll elaborate on my communication intent and respond naturally as myself:""
             return ActionFailureResult(
                 error=f"Unexpected error during SPEAK action: {str(e)}"
             )
+
+
+class SpeakActionData(BaseActionData[SpeakInput, SpeakOutput]):
+    type: Literal[ActionType.SPEAK] = ActionType.SPEAK

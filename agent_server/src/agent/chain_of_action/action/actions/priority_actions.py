@@ -4,19 +4,20 @@ Priority management actions implementation.
 
 import time
 import logging
-from typing import Literal, Type, Union, Optional, List
+from typing import Literal, Union, Optional, List
 
 from pydantic import BaseModel, Field, model_validator
 
 from agent.state import Priority
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 from agent.chain_of_action.context import ExecutionContext
 
@@ -130,10 +131,9 @@ class AddPriorityOutput(ActionOutput):
                 return "Unknown result type"
 
 
+@register_action(ActionType.ADD_PRIORITY)
 class AddPriorityAction(BaseAction[AddPriorityInput, AddPriorityOutput]):
     """Add a new priority that the agent wants to focus on"""
-
-    action_type = ActionType.ADD_PRIORITY
 
     @classmethod
     def can_perform(cls, state: State) -> bool:
@@ -213,10 +213,6 @@ Is the new priority truly redundant (not just related) to any existing priority?
     @classmethod
     def get_action_description(cls) -> str:
         return "Add a new priority - something I consciously choose to focus on"
-
-    @classmethod
-    def get_input_type(cls) -> Type[AddPriorityInput]:
-        return AddPriorityInput
 
     def execute(
         self,
@@ -353,10 +349,9 @@ class RemovePriorityOutput(ActionOutput):
         return f"Removed priority '{self.priority.content}' (id: {self.priority.id}) because {self.reason}"
 
 
+@register_action(ActionType.REMOVE_PRIORITY)
 class RemovePriorityAction(BaseAction[RemovePriorityInput, RemovePriorityOutput]):
     """Remove a priority that is no longer relevant"""
-
-    action_type = ActionType.REMOVE_PRIORITY
 
     @classmethod
     def can_perform(cls, state: State) -> bool:
@@ -365,10 +360,6 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, RemovePriorityOutput]
     @classmethod
     def get_action_description(cls) -> str:
         return "Remove a priority that is no longer relevant or has been completed"
-
-    @classmethod
-    def get_input_type(cls) -> Type[RemovePriorityInput]:
-        return RemovePriorityInput
 
     def execute(
         self,
@@ -411,3 +402,13 @@ class RemovePriorityAction(BaseAction[RemovePriorityInput, RemovePriorityOutput]
         state.current_priorities = [
             p for p in state.current_priorities if p.id != output.priority.id
         ]
+
+
+class AddPriorityActionData(BaseActionData[AddPriorityInput, AddPriorityOutput]):
+    type: Literal[ActionType.ADD_PRIORITY] = ActionType.ADD_PRIORITY
+
+
+class RemovePriorityActionData(
+    BaseActionData[RemovePriorityInput, RemovePriorityOutput]
+):
+    type: Literal[ActionType.REMOVE_PRIORITY] = ActionType.REMOVE_PRIORITY

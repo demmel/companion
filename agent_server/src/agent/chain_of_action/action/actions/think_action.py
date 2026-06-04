@@ -3,19 +3,20 @@ THINK action implementation.
 """
 
 import logging
-from typing import Type
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 
 
@@ -49,18 +50,13 @@ class ThinkProgressData(BaseModel):
     is_partial: bool
 
 
+@register_action(ActionType.THINK)
 class ThinkAction(BaseAction[ThinkInput, ThinkOutput]):
     """Process emotional reactions and analyze the situation"""
-
-    action_type = ActionType.THINK
 
     @classmethod
     def get_action_description(cls) -> str:
         return "Think through a specific question, decision, or situation that needs internal processing"
-
-    @classmethod
-    def get_input_type(cls) -> Type[ThinkInput]:
-        return ThinkInput
 
     def execute(
         self,
@@ -210,3 +206,7 @@ When something happens, I process it through my own unique perspective, drawing 
             return ActionFailureResult(
                 error=f"Unexpected error during THINK action: {str(e)}"
             )
+
+
+class ThinkActionData(BaseActionData[ThinkInput, ThinkOutput]):
+    type: Literal[ActionType.THINK] = ActionType.THINK

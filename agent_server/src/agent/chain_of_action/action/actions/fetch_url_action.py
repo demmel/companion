@@ -3,7 +3,7 @@ FETCH_URL action implementation.
 """
 
 import logging
-from typing import Type
+from typing import Literal
 import requests
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
@@ -15,12 +15,13 @@ from pydantic import BaseModel, Field, validator
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 
 from agent.state import State, build_agent_state_description
@@ -62,18 +63,13 @@ class FetchUrlOutput(ActionOutput):
         return self.content_summary
 
 
+@register_action(ActionType.FETCH_URL)
 class FetchUrlAction(BaseAction[FetchUrlInput, FetchUrlOutput]):
     """Fetch content from a web URL to learn about something the user shared"""
-
-    action_type = ActionType.FETCH_URL
 
     @classmethod
     def get_action_description(cls) -> str:
         return "Fetch content from a web URL to learn about something the user shared"
-
-    @classmethod
-    def get_input_type(cls) -> Type[FetchUrlInput]:
-        return FetchUrlInput
 
     def execute(
         self,
@@ -255,3 +251,7 @@ This was about"""
             error_msg = f"Unexpected error: {str(e)}"
 
             return ActionFailureResult(error=error_msg)
+
+
+class FetchUrlActionData(BaseActionData[FetchUrlInput, FetchUrlOutput]):
+    type: Literal[ActionType.FETCH_URL] = ActionType.FETCH_URL

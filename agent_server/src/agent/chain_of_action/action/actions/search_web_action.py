@@ -3,7 +3,7 @@ SEARCH_WEB action implementation.
 """
 
 import logging
-from typing import Type, List, Dict, Any
+from typing import Literal, List, Dict, Any
 import requests
 import re
 from urllib.parse import quote_plus
@@ -13,12 +13,13 @@ from pydantic import BaseModel, Field
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 
 from agent.state import State
@@ -68,18 +69,13 @@ class SearchWebOutput(ActionOutput):
         return results_summary
 
 
+@register_action(ActionType.SEARCH_WEB)
 class SearchWebAction(BaseAction[SearchWebInput, SearchWebOutput]):
     """Search the web for information using DuckDuckGo"""
-
-    action_type = ActionType.SEARCH_WEB
 
     @classmethod
     def get_action_description(cls) -> str:
         return "Search the web for information using DuckDuckGo search engine"
-
-    @classmethod
-    def get_input_type(cls) -> Type[SearchWebInput]:
-        return SearchWebInput
 
     def _parse_duckduckgo_results(self, html_content: str) -> List[SearchResult]:
         """Parse search results from DuckDuckGo HTML"""
@@ -198,3 +194,7 @@ class SearchWebAction(BaseAction[SearchWebInput, SearchWebOutput]):
             error_msg = f"Unexpected error during web search: {str(e)}"
             logger.error(error_msg)
             return ActionFailureResult(error=error_msg)
+
+
+class SearchWebActionData(BaseActionData[SearchWebInput, SearchWebOutput]):
+    type: Literal[ActionType.SEARCH_WEB] = ActionType.SEARCH_WEB

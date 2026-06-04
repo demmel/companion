@@ -3,18 +3,19 @@ UPDATE_MOOD action implementation.
 """
 
 import logging
-from typing import Type
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 
 from agent.state import State
@@ -46,18 +47,13 @@ class UpdateMoodOutput(ActionOutput):
         return f"Updated mood from '{self.old_mood} ({self.old_intensity})' to '{self.new_mood} ({self.new_intensity})' because {self.reason}"
 
 
+@register_action(ActionType.UPDATE_MOOD)
 class UpdateMoodAction(BaseAction[UpdateMoodInput, UpdateMoodOutput]):
     """Update the agent's mood based on the current situation"""
-
-    action_type = ActionType.UPDATE_MOOD
 
     @classmethod
     def get_action_description(cls) -> str:
         return "Update my current mood to reflect how I'm feeling"
-
-    @classmethod
-    def get_input_type(cls) -> Type[UpdateMoodInput]:
-        return UpdateMoodInput
 
     def execute(
         self,
@@ -92,3 +88,7 @@ class UpdateMoodAction(BaseAction[UpdateMoodInput, UpdateMoodOutput]):
         """Apply mood changes from the output."""
         state.current_mood = output.new_mood
         state.mood_intensity = output.new_intensity
+
+
+class UpdateMoodActionData(BaseActionData[UpdateMoodInput, UpdateMoodOutput]):
+    type: Literal[ActionType.UPDATE_MOOD] = ActionType.UPDATE_MOOD

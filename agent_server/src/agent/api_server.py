@@ -959,10 +959,8 @@ async def root_health_check(request: Request):
 
 def _try_queue_tts_render(agent: Agent, trigger_id: str, action_index: int) -> bool:
     """Try to queue TTS render for a historical action. Returns True if queued."""
-    from agent.chain_of_action.action.action_data import (
-        SpeakActionData,
-        ThinkActionData,
-    )
+    from agent.chain_of_action.action.actions.speak_action import SpeakActionData
+    from agent.chain_of_action.action.actions.think_action import ThinkActionData
 
     if agent.tts_service is None:
         return False
@@ -981,18 +979,18 @@ def _try_queue_tts_render(agent: Agent, trigger_id: str, action_index: int) -> b
 
         action_id = f"{trigger_id}_{action_index}"
 
-        if isinstance(action, SpeakActionData):
-            text = action.result.content.response
-            tone = action.input.tone
-            agent.tts_service.queue_render(action_id, text, tone)
-            logger.info(f"Queued on-demand TTS render for speak action {action_id}")
-            return True
-
-        elif isinstance(action, ThinkActionData):
-            text = action.result.content.thoughts
-            agent.tts_service.queue_render(action_id, text, None)
-            logger.info(f"Queued on-demand TTS render for think action {action_id}")
-            return True
+        match action:
+            case SpeakActionData():
+                text = action.result.content.response
+                tone = action.input.tone
+                agent.tts_service.queue_render(action_id, text, tone)
+                logger.info(f"Queued on-demand TTS render for speak action {action_id}")
+                return True
+            case ThinkActionData():
+                text = action.result.content.thoughts
+                agent.tts_service.queue_render(action_id, text, None)
+                logger.info(f"Queued on-demand TTS render for think action {action_id}")
+                return True
 
         return False
     except Exception as e:

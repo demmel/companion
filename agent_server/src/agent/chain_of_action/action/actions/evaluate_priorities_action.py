@@ -3,7 +3,7 @@ Priority evaluation action - holistic reevaluation of priorities.
 """
 
 import logging
-from typing import List, Literal, Type, Union
+from typing import List, Literal, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -12,12 +12,13 @@ from agent.llm import LLM, SupportedModel
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 from .priority_actions import RelativePosition
 
@@ -129,20 +130,15 @@ class EvaluatePrioritiesOutput(ActionOutput):
 
 
 # Action implementation
+@register_action(ActionType.EVALUATE_PRIORITIES)
 class EvaluatePrioritiesAction(
     BaseAction[EvaluatePrioritiesInput, EvaluatePrioritiesOutput]
 ):
     """Holistically reevaluate priorities"""
 
-    action_type = ActionType.EVALUATE_PRIORITIES
-
     @classmethod
     def get_action_description(cls) -> str:
         return "Holistically reevaluate my priorities - refine, merge, reorder, add, or remove to align with current situation"
-
-    @classmethod
-    def get_input_type(cls) -> Type[EvaluatePrioritiesInput]:
-        return EvaluatePrioritiesInput
 
     def execute(
         self,
@@ -621,3 +617,9 @@ def _compute_reorder_operation(
         summary=f"- Moved [{op.priority_id}] to {position_desc} (reasoning: {op.reasoning})",
         new_index=new_index,
     )
+
+
+class EvaluatePrioritiesActionData(
+    BaseActionData[EvaluatePrioritiesInput, EvaluatePrioritiesOutput]
+):
+    type: Literal[ActionType.EVALUATE_PRIORITIES] = ActionType.EVALUATE_PRIORITIES

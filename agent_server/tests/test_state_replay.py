@@ -21,29 +21,30 @@ from agent.chain_of_action.action.base_action_data import (
     ActionSuccessResult,
     ActionFailureResult,
 )
-from agent.chain_of_action.action.action_data import (
-    UpdateMoodActionData,
-    UpdateAppearanceActionData,
-    AddPriorityActionData,
-    RemovePriorityActionData,
-    ThinkActionData,
-)
 from agent.chain_of_action.action.actions.update_mood_action import (
+    UpdateMoodActionData,
     UpdateMoodInput,
     UpdateMoodOutput,
 )
 from agent.chain_of_action.action.actions.visual_actions import (
+    UpdateAppearanceActionData,
     UpdateAppearanceInput,
     UpdateAppearanceOutput,
 )
 from agent.chain_of_action.action.actions.priority_actions import (
+    AddPriorityActionData,
     AddPriorityInput,
     AddPriorityOutput,
     AddPrioritySuccessOutput,
+    RemovePriorityActionData,
     RemovePriorityInput,
     RemovePriorityOutput,
 )
-from agent.chain_of_action.action.actions.think_action import ThinkInput, ThinkOutput
+from agent.chain_of_action.action.actions.think_action import (
+    ThinkActionData,
+    ThinkInput,
+    ThinkOutput,
+)
 from agent.types import ImageGenerationToolContent
 
 

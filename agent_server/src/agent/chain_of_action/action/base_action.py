@@ -3,7 +3,7 @@ Base action classes.
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Any, Generic, TypeVar, Type
+from typing import Callable, Any, Generic, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel
 
@@ -16,12 +16,33 @@ from agent.llm import LLM, SupportedModel
 
 TInput = TypeVar("TInput", bound=BaseModel)
 TOutput = TypeVar("TOutput", bound=ActionOutput)
+TAction = TypeVar("TAction", bound="BaseAction")
+
+
+# Registry of action type -> action class, populated by @register_action at import time.
+# This replaces the old hand-maintained ActionRegistry._register_default_actions().
+_ACTION_REGISTRY: dict[ActionType, type["BaseAction"]] = {}
+
+
+def register_action(
+    action_type: ActionType,
+) -> Callable[[type[TAction]], type[TAction]]:
+    """Register an action class under its ActionType.
+
+    The ActionType lives in exactly one place: this decorator call, co-located with
+    the action class. The decorator returns the class unchanged so static analysis
+    treats the action exactly as before.
+    """
+
+    def deco(cls: type[TAction]) -> type[TAction]:
+        _ACTION_REGISTRY[action_type] = cls
+        return cls
+
+    return deco
 
 
 class BaseAction(ABC, Generic[TInput, TOutput]):
     """Base class for all actions"""
-
-    action_type: ActionType
 
     @classmethod
     @abstractmethod
@@ -30,10 +51,19 @@ class BaseAction(ABC, Generic[TInput, TOutput]):
         pass
 
     @classmethod
-    @abstractmethod
-    def get_input_type(cls) -> Type[TInput]:
-        """Get the Pydantic model class for this action's input"""
-        pass
+    def get_input_type(cls) -> type[TInput]:
+        """Get the Pydantic model class for this action's input.
+
+        Derived from the generic parameter (`BaseAction[Input, Output]`), so concrete
+        actions never have to declare it.
+        """
+        for base in cls.__orig_bases__:
+            origin = get_origin(base)
+            if origin is not None and isinstance(origin, type) and issubclass(origin, BaseAction):
+                return get_args(base)[0]
+        raise TypeError(
+            f"{cls.__name__} must parameterize BaseAction[Input, Output] to derive its input type"
+        )
 
     @classmethod
     def can_perform(cls, state: State) -> bool:

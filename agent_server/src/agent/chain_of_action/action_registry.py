@@ -5,63 +5,25 @@ Action registry for discovering and managing available actions.
 from typing import Dict, List, Type
 import logging
 
-from agent.chain_of_action.action.actions.creative_inspiration_action import (
-    CreativeInspirationAction,
-)
-from agent.chain_of_action.action.actions.fetch_url_action import FetchUrlAction
-from agent.chain_of_action.action.actions.priority_actions import (
-    AddPriorityAction,
-    RemovePriorityAction,
-)
-from agent.chain_of_action.action.actions.evaluate_priorities_action import (
-    EvaluatePrioritiesAction,
-)
-from agent.chain_of_action.action.actions.search_web_action import SearchWebAction
-from agent.chain_of_action.action.actions.speak_action import SpeakAction
-from agent.chain_of_action.action.actions.think_action import ThinkAction
-from agent.chain_of_action.action.actions.visual_actions import (
-    UpdateAppearanceAction,
-    UpdateEnvironmentAction,
-)
-from agent.chain_of_action.action.actions.update_mood_action import UpdateMoodAction
-from agent.chain_of_action.action.actions.wait_action import WaitAction
+# Importing the actions package runs every action module, whose @register_action
+# decorators populate _ACTION_REGISTRY. This is the single import site that makes the
+# registry the source of truth for available actions.
+from agent.chain_of_action.action import actions as _actions  # noqa: F401
 from agent.state import State
 
 from .action.action_types import ActionType
-from .action.base_action import BaseAction
+from .action.base_action import BaseAction, _ACTION_REGISTRY
 
 
 logger = logging.getLogger(__name__)
 
 
 class ActionRegistry:
-    """Registry for all available actions"""
+    """Registry for all available actions, backed by the @register_action registry."""
 
     def __init__(self, enable_image_generation: bool = True):
-        self._actions: Dict[ActionType, Type[BaseAction]] = {}
+        self._actions: Dict[ActionType, Type[BaseAction]] = dict(_ACTION_REGISTRY)
         self.enable_image_generation = enable_image_generation
-        self._register_default_actions()
-
-    def _register_default_actions(self):
-        """Register the core actions"""
-        self.register(ThinkAction)
-        self.register(WaitAction)
-        self.register(SpeakAction)
-        self.register(UpdateMoodAction)
-        self.register(UpdateAppearanceAction)
-        self.register(UpdateEnvironmentAction)
-        self.register(FetchUrlAction)
-        self.register(SearchWebAction)
-        self.register(AddPriorityAction)
-        self.register(RemovePriorityAction)
-        self.register(EvaluatePrioritiesAction)
-        self.register(CreativeInspirationAction)
-        # etc.
-
-    def register(self, action_class: Type[BaseAction]):
-        """Register an action class"""
-        self._actions[action_class.action_type] = action_class
-        logger.debug(f"Registered action: {action_class.action_type}")
 
     def get_action(self, action_type: ActionType) -> Type[BaseAction]:
         """Get action class by type"""
@@ -82,19 +44,21 @@ class ActionRegistry:
 
     def create_action(self, action_type: ActionType) -> BaseAction:
         """Create an action instance for the given action type"""
-        action_class = self.get_action(action_type)
+        from agent.chain_of_action.action.actions.visual_actions import (
+            UpdateAppearanceAction,
+            UpdateEnvironmentAction,
+        )
 
-        # Pass enable_image_generation flag to UpdateAppearanceAction and UpdateEnvironmentAction
-        if action_class == UpdateAppearanceAction:
+        # Pass enable_image_generation flag to the visual actions, which need it.
+        if action_type == ActionType.UPDATE_APPEARANCE:
             return UpdateAppearanceAction(
                 enable_image_generation=self.enable_image_generation
             )
-        elif action_class == UpdateEnvironmentAction:
+        if action_type == ActionType.UPDATE_ENVIRONMENT:
             return UpdateEnvironmentAction(
                 enable_image_generation=self.enable_image_generation
             )
-        else:
-            return action_class()
+        return self.get_action(action_type)()
 
     def get_available_actions_for_state(self, state: State) -> List[ActionType]:
         """Get actions that can be performed in current state"""

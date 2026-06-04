@@ -5,18 +5,19 @@ Visual state update actions - appearance and environment updates.
 from __future__ import annotations
 
 import logging
-from typing import Type, Optional
+from typing import Literal, Optional
 
 from agent.chain_of_action.context import ExecutionContext
 from agent.types import ImageGenerationToolContent, ToolCallError
 
 from ..action_types import ActionType
-from ..base_action import BaseAction
+from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
     ActionOutput,
     ActionResult,
     ActionSuccessResult,
+    BaseActionData,
 )
 
 from agent.state import State
@@ -167,10 +168,9 @@ def _generate_image_if_enabled(
 
 
 # Action implementations
+@register_action(ActionType.UPDATE_APPEARANCE)
 class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceOutput]):
     """Update the agent's appearance and generate a new image"""
-
-    action_type = ActionType.UPDATE_APPEARANCE
 
     def __init__(self, enable_image_generation: bool = True):
         self.enable_image_generation = enable_image_generation
@@ -178,10 +178,6 @@ class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceO
     @classmethod
     def get_action_description(cls) -> str:
         return "Update my appearance (posture, expression, hair, clothing) and generate a new image"
-
-    @classmethod
-    def get_input_type(cls) -> Type[UpdateAppearanceInput]:
-        return UpdateAppearanceInput
 
     def execute(
         self,
@@ -211,12 +207,11 @@ class UpdateAppearanceAction(BaseAction[UpdateAppearanceInput, UpdateAppearanceO
         state.current_appearance = output.new_appearance
 
 
+@register_action(ActionType.UPDATE_ENVIRONMENT)
 class UpdateEnvironmentAction(
     BaseAction[UpdateEnvironmentInput, UpdateEnvironmentOutput]
 ):
     """Update the agent's environment and generate a new image"""
-
-    action_type = ActionType.UPDATE_ENVIRONMENT
 
     def __init__(self, enable_image_generation: bool = True):
         self.enable_image_generation = enable_image_generation
@@ -224,10 +219,6 @@ class UpdateEnvironmentAction(
     @classmethod
     def get_action_description(cls) -> str:
         return "Update my environment (setting, location, surroundings) and generate a new image"
-
-    @classmethod
-    def get_input_type(cls) -> Type[UpdateEnvironmentInput]:
-        return UpdateEnvironmentInput
 
     def execute(
         self,
@@ -467,3 +458,15 @@ The result should be a natural evolution of my current environment with the requ
     except Exception as e:
         logger.error(f"Failed to update environment: {e}")
         return ActionFailureResult(error=f"Failed to update environment: {str(e)}")
+
+
+class UpdateAppearanceActionData(
+    BaseActionData[UpdateAppearanceInput, UpdateAppearanceOutput]
+):
+    type: Literal[ActionType.UPDATE_APPEARANCE] = ActionType.UPDATE_APPEARANCE
+
+
+class UpdateEnvironmentActionData(
+    BaseActionData[UpdateEnvironmentInput, UpdateEnvironmentOutput]
+):
+    type: Literal[ActionType.UPDATE_ENVIRONMENT] = ActionType.UPDATE_ENVIRONMENT
