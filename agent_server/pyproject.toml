@@ -44,6 +44,8 @@ dependencies = [
     "chatterbox-tts>=0.1.5",  # Turbo model with working [laugh], [sigh] tags
     "sqlmodel>=0.0.22",
     "chromadb>=1.4.1",
+    "dateparser>=1.2.2",
+    "sortedcontainers>=2.4.0",
 ]
 
 [tool.uv.sources]
