@@ -1,11 +1,9 @@
 # Timeline pagination types
 import itertools
 from typing import Literal
-from agent.api_types.actions import Action, convert_action_to_dto
-from agent.api_types.triggers import Trigger, convert_trigger_to_dto
 from agent.chain_of_action.trigger_history_entry import (
     SummaryRecord,
-    TriggerHistoryEntry as BackendTriggerHistoryEntry,
+    TriggerHistoryEntry,
 )
 from agent.storage.interface import ITriggerHistory
 from pydantic import BaseModel
@@ -17,17 +15,6 @@ class Summary(BaseModel):
     summary_text: str
     insert_at_index: int
     created_at: str
-
-
-class TriggerHistoryEntry(BaseModel):
-    """DTO for complete trigger-response entries"""
-
-    trigger: Trigger
-    actions_taken: list[Action]
-    timestamp: str
-    entry_id: str
-    situational_context: str
-    compressed_summary: str | None = None
 
 
 class TimelineEntryTrigger(BaseModel):
@@ -72,20 +59,6 @@ def convert_summary_to_dto(summary: SummaryRecord) -> Summary:
         summary_text=summary.summary_text,
         insert_at_index=summary.insert_at_index,
         created_at=summary.created_at.isoformat(),
-    )
-
-
-def convert_trigger_history_entry_to_dto(
-    entry: BackendTriggerHistoryEntry,
-) -> TriggerHistoryEntry:
-    """Convert backend TriggerHistoryEntry to DTO"""
-    return TriggerHistoryEntry(
-        trigger=convert_trigger_to_dto(entry.trigger),
-        actions_taken=[convert_action_to_dto(action) for action in entry.actions_taken],
-        timestamp=entry.timestamp.isoformat(),
-        entry_id=entry.entry_id,
-        situational_context=entry.situational_context,
-        compressed_summary=entry.compressed_summary,
     )
 
 
@@ -136,10 +109,7 @@ def build_timeline_page(
     )
 
     # Convert to timeline entries
-    page_entries: list[TimelineEntry] = [
-        TimelineEntryTrigger(entry=convert_trigger_history_entry_to_dto(entry))
-        for entry in entries
-    ]
+    page_entries: list[TimelineEntry] = [TimelineEntryTrigger(entry=entry) for entry in entries]
 
     # Calculate pagination info
     has_next = end_index < total_items

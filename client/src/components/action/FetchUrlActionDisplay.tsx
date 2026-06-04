@@ -2,6 +2,7 @@ import { useState } from "react";
 import { css } from "@styled-system/css";
 import { Loader2, ExternalLink, ChevronDown } from "lucide-react";
 import { FetchUrlAction } from "@/types";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface FetchUrlActionDisplayProps {
   action: FetchUrlAction;
@@ -10,11 +11,8 @@ interface FetchUrlActionDisplayProps {
 export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(action.result, (content) => content.content_summary);
   const hasContent = result?.trim().length > 0;
 
   return (
@@ -49,7 +47,7 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
           <div className={css({ color: "purple.300", fontWeight: "medium" })}>
             {isStreaming ? "Fetching content..." : "Fetched URL"}
           </div>
-          {action.url && (
+          {"input" in action && action.input.url && (
             <div
               className={css({
                 color: "purple.200",
@@ -58,7 +56,7 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
               })}
             >
               <a
-                href={action.url}
+                href={action.input.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={css({
@@ -67,7 +65,7 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
                   _hover: { color: "purple.100" },
                 })}
               >
-                {action.url}
+                {action.input.url}
               </a>
             </div>
           )}
@@ -75,7 +73,7 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
       </div>
 
       {/* Looking for context */}
-      {action.looking_for && (
+      {"input" in action && action.input.looking_for && (
         <div
           className={css({
             color: "purple.400",
@@ -83,7 +81,7 @@ export function FetchUrlActionDisplay({ action }: FetchUrlActionDisplayProps) {
             fontStyle: "italic",
           })}
         >
-          Looking for: {action.looking_for}
+          Looking for: {action.input.looking_for}
         </div>
       )}
 

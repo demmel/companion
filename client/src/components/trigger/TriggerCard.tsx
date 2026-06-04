@@ -25,6 +25,10 @@ export function TriggerCard({ entry }: TriggerCardProps) {
         return <User size={16} className={css({ color: "blue.500" })} />;
       case "wakeup":
         return <Coffee size={16} className={css({ color: "orange.500" })} />;
+      case "birth":
+        return (
+          <MessageCircle size={16} className={css({ color: "purple.500" })} />
+        );
       default:
         return (
           <MessageCircle size={16} className={css({ color: "gray.500" })} />
@@ -38,6 +42,8 @@ export function TriggerCard({ entry }: TriggerCardProps) {
         return trigger.user_name;
       case "wakeup":
         return "Wakeup";
+      case "birth":
+        return trigger.user_name;
       default:
         const _exhaustiveCheck: never = trigger;
         return _exhaustiveCheck;
@@ -50,6 +56,8 @@ export function TriggerCard({ entry }: TriggerCardProps) {
         return trigger.content;
       case "wakeup":
         return "Continuing to exist and experience...";
+      case "birth":
+        return trigger.content;
       default:
         return "";
     }
@@ -102,8 +110,8 @@ export function TriggerCard({ entry }: TriggerCardProps) {
 
       {/* Images */}
       {trigger.type === "user_input" &&
-        trigger.image_urls &&
-        trigger.image_urls.length > 0 && (
+        trigger.image_paths &&
+        trigger.image_paths.length > 0 && (
           <div
             className={css({
               mt: 3,
@@ -112,7 +120,7 @@ export function TriggerCard({ entry }: TriggerCardProps) {
               gap: 2,
             })}
           >
-            {trigger.image_urls.map((imageUrl, index) => {
+            {trigger.image_paths.map((imageUrl, index) => {
               return (
                 <ImageDisplay
                   key={index}

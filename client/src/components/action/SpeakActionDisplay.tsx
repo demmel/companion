@@ -2,6 +2,7 @@ import { css } from "@styled-system/css";
 import { SpeakAction } from "@/types";
 import { useActionAudio } from "@/hooks/useActionAudio";
 import { PlayButton } from "./PlayButton";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface SpeakActionDisplayProps {
   action: SpeakAction;
@@ -14,11 +15,8 @@ export function SpeakActionDisplay({
   triggerId,
   actionIndex,
 }: SpeakActionDisplayProps) {
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(action.result, (content) => content.response);
 
   const { playState, handlePlayClick } = useActionAudio({
     triggerId,
@@ -26,7 +24,7 @@ export function SpeakActionDisplay({
   });
 
   // Don't show play button while streaming
-  const showPlayButton = action.status.type === "success";
+  const showPlayButton = action.result.type === "success";
 
   return (
     <div>
@@ -43,7 +41,7 @@ export function SpeakActionDisplay({
           p: 3,
           fontSize: "xl",
           lineHeight: "relaxed",
-          color: action.status.type === "error" ? "red.300" : "gray.200",
+          color: action.result.type === "failure" ? "red.300" : "gray.200",
           whiteSpace: "pre-wrap",
         })}
       >

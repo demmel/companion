@@ -30,7 +30,12 @@ export function SummaryCard({
     });
   };
 
-  const isInProgress = summary.status === "in_progress";
+  const summaryWithProgress = summary as Summary & {
+    status?: "in_progress" | "completed";
+    messages_to_summarize?: number;
+    recent_messages_kept?: number;
+  };
+  const isInProgress = summaryWithProgress.status === "in_progress";
 
   return (
     <div
@@ -137,7 +142,7 @@ export function SummaryCard({
             })}
           >
             {isInProgress
-              ? `Summarizing ${summary.messages_to_summarize} messages (keeping ${summary.recent_messages_kept} recent)...`
+              ? `Summarizing ${summaryWithProgress.messages_to_summarize ?? 0} messages (keeping ${summaryWithProgress.recent_messages_kept ?? 0} recent)...`
               : summary.summary_text}
           </div>
         )}

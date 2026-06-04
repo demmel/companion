@@ -8,8 +8,9 @@ interface CreativeInspirationActionDisplayProps {
 export function CreativeInspirationActionDisplay({
   action,
 }: CreativeInspirationActionDisplayProps) {
-  const isSuccess = action.status.type === "success";
-  const isError = action.status.type === "error";
+  const isError = action.result.type === "failure";
+  const words =
+    action.result.type === "success" ? action.result.content.words : [];
 
   return (
     <div
@@ -31,9 +32,9 @@ export function CreativeInspirationActionDisplay({
         💡 Creative Inspiration
       </div>
 
-      {isSuccess && action.words && action.words.length > 0 && (
+      {action.result.type === "success" && words.length > 0 && (
         <div className={css({ display: "flex", flexWrap: "wrap", gap: 2 })}>
-          {action.words.map((word, index) => (
+          {words.map((word, index) => (
             <span
               key={index}
               className={css({
@@ -55,9 +56,9 @@ export function CreativeInspirationActionDisplay({
 
       {isError && (
         <div className={css({ color: "red.400", fontSize: "sm" })}>
-          {action.status.type === "error"
-            ? action.status.error || "Failed to generate inspiration words"
-            : "Failed to generate inspiration words"}
+          {action.result.type === "failure"
+            ? action.result.error
+            : ""}
         </div>
       )}
     </div>

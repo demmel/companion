@@ -70,9 +70,3 @@ def create_result_summary(action_data: BaseActionData) -> str:
     if action_data.result.type == "success":
         return action_data.result.content.result_summary()
     return action_data.result.error
-
-
-def create_context_given(action_data: BaseActionData) -> str:
-    """Create a context given for the given action data."""
-    data = action_data.input.model_dump(mode="json")
-    return ", ".join(f"{key}: {value}" for key, value in data.items())

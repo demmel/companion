@@ -1,6 +1,7 @@
 import { css } from "@styled-system/css";
 import { Loader2, Heart } from "lucide-react";
 import { UpdateMoodAction } from "@/types";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface UpdateMoodActionDisplayProps {
   action: UpdateMoodAction;
@@ -9,11 +10,12 @@ interface UpdateMoodActionDisplayProps {
 export function UpdateMoodActionDisplay({
   action,
 }: UpdateMoodActionDisplayProps) {
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(
+    action.result,
+    (content) =>
+      `Mood changed from ${content.old_mood} (${content.old_intensity}) to ${content.new_mood} (${content.new_intensity}): ${content.reason}`,
+  );
   return (
     <div
       className={css({
@@ -43,7 +45,7 @@ export function UpdateMoodActionDisplay({
       <div className={css({ flex: 1, color: "blue.300" })}>
         {isStreaming ? (
           <span className={css({ fontStyle: "italic" })}>
-            {action.context_given || "Adjusting mood..."}
+            Adjusting mood...
           </span>
         ) : (
           <span>{result}</span>

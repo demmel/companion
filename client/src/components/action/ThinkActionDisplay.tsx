@@ -4,6 +4,7 @@ import { Loader2, ChevronDown } from "lucide-react";
 import { ThinkAction } from "@/types";
 import { useActionAudio } from "@/hooks/useActionAudio";
 import { PlayButton } from "./PlayButton";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface ThinkActionDisplayProps {
   action: ThinkAction;
@@ -18,11 +19,8 @@ export function ThinkActionDisplay({
 }: ThinkActionDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(action.result, (content) => content.thoughts);
   const hasContent = result?.trim().length > 0;
   const label = isStreaming ? "Thinking..." : "Thoughts";
 
@@ -32,7 +30,7 @@ export function ThinkActionDisplay({
   });
 
   // Don't show play button while streaming
-  const showPlayButton = action.status.type === "success";
+  const showPlayButton = action.result.type === "success";
 
   return (
     <div

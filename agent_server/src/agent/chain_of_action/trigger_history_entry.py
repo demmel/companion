@@ -106,7 +106,10 @@ class TriggerHistoryEntry(BaseModel):
     entry_id: str = Field(default_factory=lambda: str(datetime.now().timestamp()))
     situational_context: str
     compressed_summary: Optional[str] = Field(default=None)
-    embedding_vector: Optional[List[float]] = Field(default=None)
+    # Excluded from serialization: embeddings live in ChromaDB and are reattached
+    # in-memory on load; serializing them would bloat the client wire payload and
+    # dag.json without being read back from either.
+    embedding_vector: Optional[List[float]] = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def populate_birth_trigger_initial_state(self) -> "TriggerHistoryEntry":

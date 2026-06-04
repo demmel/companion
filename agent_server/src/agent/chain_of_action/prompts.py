@@ -7,7 +7,6 @@ import nltk
 from nltk.corpus import words
 
 from agent.chain_of_action.action.action_data import (
-    create_context_given,
     create_result_summary,
 )
 from agent.chain_of_action.action.base_action_data import BaseActionData
@@ -251,7 +250,10 @@ def format_action_for_diary(action: BaseActionData) -> str:
                 f"{status} My mood changed {action.input.new_mood} ({action.input.intensity}):"
             )
         case _:
-            context_given = create_context_given(action)
+            input_data = action.input.model_dump(mode="json")
+            context_given = ", ".join(
+                f"{key}: {value}" for key, value in input_data.items()
+            )
             action_parts.append(f'{status} I {action.type.value} "{context_given}":')
 
     action_parts.append("  <content>")

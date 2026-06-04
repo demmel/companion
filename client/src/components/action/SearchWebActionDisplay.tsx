@@ -2,6 +2,7 @@ import { useState } from "react";
 import { css } from "@styled-system/css";
 import { Loader2, Search, ChevronDown, ExternalLink } from "lucide-react";
 import { SearchWebAction } from "@/types";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface SearchWebActionDisplayProps {
   action: SearchWebAction;
@@ -12,14 +13,15 @@ export function SearchWebActionDisplay({
 }: SearchWebActionDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(
+    action.result,
+    (content) => `Found ${content.total_results_found} results for "${content.query_used}"`,
+  );
+  const searchResults =
+    action.result.type === "success" ? action.result.content.search_results : [];
   const hasContent =
-    result?.trim().length > 0 ||
-    (action.search_results && action.search_results.length > 0);
+    result?.trim().length > 0 || searchResults.length > 0;
 
   return (
     <div
@@ -53,11 +55,11 @@ export function SearchWebActionDisplay({
           <div className={css({ color: "blue.300", fontWeight: "medium" })}>
             {isStreaming
               ? "Searching web..."
-              : action.status.type === "error"
+              : action.result.type === "failure"
                 ? "Search failed"
-                : `Found ${action.search_results?.length || 0} results`}
+                : `Found ${searchResults.length} results`}
           </div>
-          {action.query && (
+          {"input" in action && action.input.query && (
             <div
               className={css({
                 color: "blue.200",
@@ -65,14 +67,14 @@ export function SearchWebActionDisplay({
                 truncate: true,
               })}
             >
-              "{action.query}"
+              "{action.input.query}"
             </div>
           )}
         </div>
       </div>
 
       {/* Purpose context */}
-      {action.purpose && (
+      {"input" in action && action.input.purpose && (
         <div
           className={css({
             color: "blue.400",
@@ -80,7 +82,7 @@ export function SearchWebActionDisplay({
             fontStyle: "italic",
           })}
         >
-          Purpose: {action.purpose}
+          Purpose: {action.input.purpose}
         </div>
       )}
 
@@ -130,8 +132,8 @@ export function SearchWebActionDisplay({
                 mb: 2,
               })}
             >
-              {action.status.type === "error" ? (
-                result?.trim() || "Search failed"
+              {action.result.type === "failure" ? (
+                result
               ) : isStreaming ? (
                 <div>
                   Searching for results...
@@ -144,7 +146,7 @@ export function SearchWebActionDisplay({
                     ▍
                   </span>
                 </div>
-              ) : action.search_results && action.search_results.length > 0 ? (
+              ) : searchResults.length > 0 ? (
                 <div
                   className={css({
                     display: "flex",
@@ -152,7 +154,7 @@ export function SearchWebActionDisplay({
                     gap: 3,
                   })}
                 >
-                  {action.search_results.map((searchResult, index) => (
+                  {searchResults.map((searchResult, index) => (
                     <div
                       key={index}
                       className={css({

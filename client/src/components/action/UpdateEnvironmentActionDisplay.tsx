@@ -1,8 +1,9 @@
 import { css } from "@styled-system/css";
 import { Loader2, MapPin } from "lucide-react";
-import { UpdateEnvironmentAction, Action } from "@/types";
+import { UpdateEnvironmentAction, Action, ActionData } from "@/types";
 import { ImageDisplay } from "../common/ImageDisplay";
 import { useState } from "react";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface UpdateEnvironmentActionDisplayProps {
   action: UpdateEnvironmentAction;
@@ -17,6 +18,29 @@ interface UpdateEnvironmentActionDisplayProps {
   ) => void;
 }
 
+type CompletedUpdateEnvironmentAction = Extract<
+  ActionData,
+  { type: "update_environment" }
+>;
+type SuccessfulUpdateEnvironmentAction = CompletedUpdateEnvironmentAction & {
+  result: Extract<
+    CompletedUpdateEnvironmentAction["result"],
+    { type: "success" }
+  >;
+};
+
+interface RegenerateImageResponse {
+  success: boolean;
+  new_image_url?: string;
+  error?: string;
+}
+
+function isCompletedUpdateEnvironmentAction(
+  action: UpdateEnvironmentAction,
+): action is SuccessfulUpdateEnvironmentAction {
+  return "input" in action && action.result.type === "success";
+}
+
 export function UpdateEnvironmentActionDisplay({
   action,
   triggerId,
@@ -24,11 +48,18 @@ export function UpdateEnvironmentActionDisplay({
   updateAction,
 }: UpdateEnvironmentActionDisplayProps) {
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(
+    action.result,
+    (content) =>
+      `Environment updated: ${content.new_environment} (reason: ${content.reason})`,
+  );
+  const image =
+    action.result.type === "success" ? action.result.content.image_result : null;
+  const imageDescription =
+    action.result.type === "success"
+      ? action.result.content.image_description
+      : "";
 
   const handleRegenerate = async () => {
     setIsRegenerating(true);
@@ -44,16 +75,29 @@ export function UpdateEnvironmentActionDisplay({
         }),
       });
 
-      const data = await response.json();
+      const data: RegenerateImageResponse = await response.json();
 
       if (!data.success) {
         console.error("Failed to regenerate image:", data.error);
         // TODO: Show error toast/notification
       } else {
         // Update the action with the new image URL
-        updateAction(triggerId, actionIndex, {
-          image_url: data.new_image_url,
-        });
+        if (data.new_image_url && isCompletedUpdateEnvironmentAction(action)) {
+          const updatedAction: SuccessfulUpdateEnvironmentAction = {
+            ...action,
+            result: {
+              ...action.result,
+              content: {
+                ...action.result.content,
+                image_result: {
+                  ...action.result.content.image_result,
+                  image_url: data.new_image_url,
+                },
+              },
+            },
+          };
+          updateAction(triggerId, actionIndex, updatedAction);
+        }
       }
     } catch (error) {
       console.error("Error regenerating image:", error);
@@ -105,7 +149,7 @@ export function UpdateEnvironmentActionDisplay({
       </div>
 
       {/* Show image if available */}
-      {action.image_url ? (
+      {image?.image_url ? (
         <div className={css({ mb: 3, position: "relative" })}>
           {isRegenerating && (
             <div
@@ -130,8 +174,8 @@ export function UpdateEnvironmentActionDisplay({
             </div>
           )}
           <ImageDisplay
-            src={action.image_url}
-            alt={action.image_description || "Agent environment"}
+            src={image.image_url}
+            alt={imageDescription || "Agent environment"}
             maxWidth="100%"
             maxHeight="300px"
             onRegenerate={handleRegenerate}
@@ -175,7 +219,7 @@ export function UpdateEnvironmentActionDisplay({
       >
         {isStreaming && !result ? (
           <div className={css({ fontStyle: "italic" })}>
-            {action.context_given || "Generating new environment..."}
+            Generating new environment...
           </div>
         ) : (
           result

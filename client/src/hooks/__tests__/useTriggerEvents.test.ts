@@ -2,6 +2,24 @@ import { renderHook } from "@testing-library/react";
 import { useTriggerEvents } from "../useTriggerEvents";
 import { ClientAgentEvent } from "../useWebSocket";
 
+const imageResult = {
+  type: "image_generated" as const,
+  prompt: "An ethereal being with flowing robes",
+  chunks: null,
+  image_path: "generated.png",
+  image_url: "http://example.com/image.png",
+  width: 512,
+  height: 512,
+  num_inference_steps: 20,
+  guidance_scale: 7.5,
+  negative_prompt: null,
+  original_description: null,
+  optimization_confidence: null,
+  camera_angle: null,
+  viewpoint: null,
+  optimization_notes: null,
+};
+
 describe("useTriggerEvents", () => {
   it("should start with empty streaming entries", () => {
     const { result } = renderHook(() => useTriggerEvents([]));
@@ -20,6 +38,7 @@ describe("useTriggerEvents", () => {
           content: "Hello, how are you?",
           user_name: "TestUser",
           timestamp: "2024-01-01T10:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_1",
         timestamp: "2024-01-01T10:00:00Z",
@@ -29,7 +48,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_1",
         action_type: "speak",
-        context_given: "Respond warmly to the user's greeting",
         sequence_number: 1,
         action_number: 1,
         reasoning: "The user is asking about my well-being.",
@@ -61,13 +79,19 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_1",
         action: {
           type: "speak",
-          context_given: "Respond warmly to the user's greeting",
           reasoning: "The user is asking about my well-being.",
-          status: {
+          input: {
+            intent: "Respond warmly to the user's greeting",
+            tone: null,
+          },
+          result: {
             type: "success",
-            result: "Hello! I'm doing well, thanks for asking!",
+            content: {
+              response: "Hello! I'm doing well, thanks for asking!",
+            },
           },
           duration_ms: 1500,
+          start_timestamp: "2024-01-01T10:00:01Z",
         },
         sequence_number: 1,
         action_number: 1,
@@ -83,23 +107,30 @@ describe("useTriggerEvents", () => {
             content: "Hello, how are you?",
             user_name: "TestUser",
             timestamp: "2024-01-01T10:00:00Z",
+            image_paths: null,
           },
           actions_taken: [
             {
               type: "speak",
-              context_given: "Respond warmly to the user's greeting",
               reasoning: "The user is asking about my well-being.",
-              status: {
+              input: {
+                intent: "Respond warmly to the user's greeting",
+                tone: null,
+              },
+              result: {
                 type: "success",
-                result: "Hello! I'm doing well, thanks for asking!",
+                content: {
+                  response: "Hello! I'm doing well, thanks for asking!",
+                },
               },
               duration_ms: 1500,
+              start_timestamp: "2024-01-01T10:00:01Z",
             },
           ],
           timestamp: "2024-01-01T10:00:00Z",
+          end_timestamp: null,
           situational_context: "Test situational context",
-          compressed_summary: undefined,
-        },
+          compressed_summary: null,        },
         estimated_tokens: 50,
         context_limit: 500,
         usage_percentage: 10,
@@ -121,11 +152,10 @@ describe("useTriggerEvents", () => {
     expect(trigger.actions_taken).toHaveLength(1);
 
     const action = trigger.actions_taken[0];
-    console.log(action);
     expect(action.type).toBe("speak");
-    expect(action.status.type).toBe("success");
-    if (action.status.type === "success") {
-      expect(action.status.result).toBe(
+    expect(action.result.type).toBe("success");
+    if (action.type === "speak" && action.result.type === "success") {
+      expect(action.result.content.response).toBe(
         "Hello! I'm doing well, thanks for asking!",
       );
     }
@@ -142,6 +172,7 @@ describe("useTriggerEvents", () => {
           content: "Tell me about yourself",
           user_name: "TestUser",
           timestamp: "2024-01-01T11:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_2",
         timestamp: "2024-01-01T11:00:00Z",
@@ -151,7 +182,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_2",
         action_type: "think",
-        context_given: "Consider what to share about myself",
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T11:00:01Z",
@@ -183,9 +213,9 @@ describe("useTriggerEvents", () => {
 
     const activeAction = activeTrigger.actions_taken[0];
     expect(activeAction.type).toBe("think");
-    expect(activeAction.status.type).toBe("streaming");
-    if (activeAction.status.type === "streaming") {
-      expect(activeAction.status.result).toBe(
+    expect(activeAction.result.type).toBe("streaming");
+    if (activeAction.result.type === "streaming") {
+      expect(activeAction.result.result).toBe(
         "I should be authentic and friendly...",
       );
     }
@@ -201,6 +231,7 @@ describe("useTriggerEvents", () => {
           content: "Change your mood to happy",
           user_name: "TestUser",
           timestamp: "2024-01-01T12:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_3",
         timestamp: "2024-01-01T12:00:00Z",
@@ -210,7 +241,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_3",
         action_type: "think",
-        context_given: "Consider the mood change",
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T12:00:01Z",
@@ -221,7 +251,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_3",
         action_type: "update_mood",
-        context_given: "Update mood to happy",
         sequence_number: 1,
         action_number: 2,
         timestamp: "2024-01-01T12:00:02Z",
@@ -232,7 +261,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_3",
         action_type: "speak",
-        context_given: "Acknowledge the mood change",
         sequence_number: 1,
         action_number: 3,
         timestamp: "2024-01-01T12:00:03Z",
@@ -244,13 +272,14 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_3",
         action: {
           type: "think",
-          context_given: "Consider the mood change",
-          status: {
+          reasoning: "I should update my mood and let the user know.",
+          input: { focus: "Consider the mood change" },
+          result: {
             type: "success",
-            result: "I should update my mood and let the user know",
+            content: { thoughts: "I should update my mood and let the user know" },
           },
           duration_ms: 500,
-          reasoning: "I should update my mood and let the user know.",
+          start_timestamp: "2024-01-01T12:00:01Z",
         },
         sequence_number: 1,
         action_number: 1,
@@ -262,13 +291,24 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_3",
         action: {
           type: "update_mood",
-          context_given: "Update mood to happy",
-          status: {
+          reasoning: "I should update my mood to happy.",
+          input: {
+            reason: "Update mood to happy",
+            new_mood: "happy",
+            intensity: "medium",
+          },
+          result: {
             type: "success",
-            result: "Mood updated to happy",
+            content: {
+              old_mood: "neutral",
+              old_intensity: "medium",
+              new_mood: "happy",
+              new_intensity: "medium",
+              reason: "Mood updated to happy",
+            },
           },
           duration_ms: 200,
-          reasoning: "I should update my mood to happy.",
+          start_timestamp: "2024-01-01T12:00:02Z",
         },
         sequence_number: 1,
         action_number: 2,
@@ -280,13 +320,14 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_3",
         action: {
           type: "speak",
-          context_given: "Acknowledge the mood change",
-          status: {
+          reasoning: "I want to acknowledge the user's mood change.",
+          input: { intent: "Acknowledge the mood change", tone: null },
+          result: {
             type: "success",
-            result: "Great! I'm feeling happy now! 😊",
+            content: { response: "Great! I'm feeling happy now!" },
           },
           duration_ms: 800,
-          reasoning: "I want to acknowledge the user's mood change.",
+          start_timestamp: "2024-01-01T12:00:03Z",
         },
         sequence_number: 1,
         action_number: 3,
@@ -302,43 +343,59 @@ describe("useTriggerEvents", () => {
             content: "Change your mood to happy",
             user_name: "TestUser",
             timestamp: "2024-01-01T12:00:00Z",
+            image_paths: null,
           },
           actions_taken: [
             {
               type: "think",
-              context_given: "Consider the mood change",
-              status: {
+              reasoning: "I should update my mood and let the user know.",
+              input: { focus: "Consider the mood change" },
+              result: {
                 type: "success",
-                result: "I should update my mood and let the user know",
+                content: {
+                  thoughts: "I should update my mood and let the user know",
+                },
               },
               duration_ms: 500,
-              reasoning: "I should update my mood and let the user know.",
+              start_timestamp: "2024-01-01T12:00:01Z",
             },
             {
               type: "update_mood",
-              context_given: "Update mood to happy",
-              status: {
+              reasoning: "I should update my mood to happy.",
+              input: {
+                reason: "Update mood to happy",
+                new_mood: "happy",
+                intensity: "medium",
+              },
+              result: {
                 type: "success",
-                result: "Mood updated to happy",
+                content: {
+                  old_mood: "neutral",
+                  old_intensity: "medium",
+                  new_mood: "happy",
+                  new_intensity: "medium",
+                  reason: "Mood updated to happy",
+                },
               },
               duration_ms: 200,
-              reasoning: "I should update my mood to happy.",
+              start_timestamp: "2024-01-01T12:00:02Z",
             },
             {
               type: "speak",
-              context_given: "Acknowledge the mood change",
-              status: {
+              reasoning: "I want to acknowledge the user's mood change.",
+              input: { intent: "Acknowledge the mood change", tone: null },
+              result: {
                 type: "success",
-                result: "Great! I'm feeling happy now! 😊",
+                content: { response: "Great! I'm feeling happy now!" },
               },
               duration_ms: 800,
-              reasoning: "I want to acknowledge the user's mood change.",
+              start_timestamp: "2024-01-01T12:00:03Z",
             },
           ],
           timestamp: "2024-01-01T12:00:00Z",
+          end_timestamp: null,
           situational_context: "Test situational context",
-          compressed_summary: undefined,
-        },
+          compressed_summary: null,        },
         estimated_tokens: 100,
         context_limit: 1000,
         usage_percentage: 10,
@@ -370,6 +427,7 @@ describe("useTriggerEvents", () => {
           content: "Do something complex",
           user_name: "TestUser",
           timestamp: "2024-01-01T13:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_4",
         timestamp: "2024-01-01T13:00:00Z",
@@ -379,7 +437,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_4",
         action_type: "think",
-        context_given: "First action",
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T13:00:01Z",
@@ -390,7 +447,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_4",
         action_type: "speak",
-        context_given: "Second action",
         sequence_number: 1,
         action_number: 2,
         timestamp: "2024-01-01T13:00:02Z",
@@ -403,13 +459,14 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_4",
         action: {
           type: "speak",
-          context_given: "Second action",
-          status: {
+          reasoning: "Second action reasoning",
+          input: { intent: "Second action", tone: null },
+          result: {
             type: "success",
-            result: "Second action result",
+            content: { response: "Second action result" },
           },
           duration_ms: 300,
-          reasoning: "Second action reasoning",
+          start_timestamp: "2024-01-01T13:00:02Z",
         },
         sequence_number: 1,
         action_number: 2,
@@ -421,13 +478,14 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_4",
         action: {
           type: "think",
-          context_given: "First action",
-          status: {
+          reasoning: "First action reasoning",
+          input: { focus: "First action" },
+          result: {
             type: "success",
-            result: "First action result",
+            content: { thoughts: "First action result" },
           },
           duration_ms: 800,
-          reasoning: "First action reasoning",
+          start_timestamp: "2024-01-01T13:00:01Z",
         },
         sequence_number: 1,
         action_number: 1,
@@ -443,33 +501,36 @@ describe("useTriggerEvents", () => {
             content: "Do something complex",
             user_name: "TestUser",
             timestamp: "2024-01-01T13:00:00Z",
+            image_paths: null,
           },
           actions_taken: [
             {
               type: "think",
-              context_given: "First action",
-              status: {
+              reasoning: "First action reasoning",
+              input: { focus: "First action" },
+              result: {
                 type: "success",
-                result: "First action result",
+                content: { thoughts: "First action result" },
               },
               duration_ms: 800,
-              reasoning: "First action reasoning",
+              start_timestamp: "2024-01-01T13:00:01Z",
             },
             {
               type: "speak",
-              context_given: "Second action",
-              status: {
+              reasoning: "Second action reasoning",
+              input: { intent: "Second action", tone: null },
+              result: {
                 type: "success",
-                result: "Second action result",
+                content: { response: "Second action result" },
               },
               duration_ms: 300,
-              reasoning: "Second action reasoning",
+              start_timestamp: "2024-01-01T13:00:02Z",
             },
           ],
           timestamp: "2024-01-01T13:00:00Z",
+          end_timestamp: null,
           situational_context: "Test situational context",
-          compressed_summary: undefined,
-        },
+          compressed_summary: null,        },
         estimated_tokens: 50,
         context_limit: 500,
         usage_percentage: 10,
@@ -490,11 +551,11 @@ describe("useTriggerEvents", () => {
 
     const firstAction = trigger.actions_taken[0];
     const secondAction = trigger.actions_taken[1];
-    if (firstAction.status.type === "success") {
-      expect(firstAction.status.result).toBe("First action result");
+    if (firstAction.type === "think" && firstAction.result.type === "success") {
+      expect(firstAction.result.content.thoughts).toBe("First action result");
     }
-    if (secondAction.status.type === "success") {
-      expect(secondAction.status.result).toBe("Second action result");
+    if (secondAction.type === "speak" && secondAction.result.type === "success") {
+      expect(secondAction.result.content.response).toBe("Second action result");
     }
   });
 
@@ -508,6 +569,7 @@ describe("useTriggerEvents", () => {
           content: "Multi-sequence task",
           user_name: "TestUser",
           timestamp: "2024-01-01T14:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_5",
         timestamp: "2024-01-01T14:00:00Z",
@@ -518,7 +580,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_5",
         action_type: "think",
-        context_given: "First sequence thinking",
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T14:00:01Z",
@@ -530,13 +591,14 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_5",
         action: {
           type: "think",
-          context_given: "First sequence thinking",
-          status: {
+          reasoning: "First sequence reasoning",
+          input: { focus: "First sequence thinking" },
+          result: {
             type: "success",
-            result: "First sequence thought",
+            content: { thoughts: "First sequence thought" },
           },
           duration_ms: 400,
-          reasoning: "First sequence reasoning",
+          start_timestamp: "2024-01-01T14:00:01Z",
         },
         sequence_number: 1,
         action_number: 1,
@@ -548,7 +610,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_5",
         action_type: "speak",
-        context_given: "Second sequence speaking",
         sequence_number: 2,
         action_number: 1,
         timestamp: "2024-01-01T14:00:03Z",
@@ -560,13 +621,14 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_5",
         action: {
           type: "speak",
-          context_given: "Second sequence speaking",
-          status: {
+          reasoning: "Second action reasoning",
+          input: { intent: "Second sequence speaking", tone: null },
+          result: {
             type: "success",
-            result: "Second sequence response",
+            content: { response: "Second sequence response" },
           },
           duration_ms: 600,
-          reasoning: "Second action reasoning",
+          start_timestamp: "2024-01-01T14:00:03Z",
         },
         sequence_number: 2,
         action_number: 1,
@@ -582,33 +644,36 @@ describe("useTriggerEvents", () => {
             content: "Multi-sequence task",
             user_name: "TestUser",
             timestamp: "2024-01-01T14:00:00Z",
+            image_paths: null,
           },
           actions_taken: [
             {
               type: "think",
-              context_given: "First sequence thinking",
-              status: {
+              reasoning: "First sequence reasoning",
+              input: { focus: "First sequence thinking" },
+              result: {
                 type: "success",
-                result: "First sequence thought",
+                content: { thoughts: "First sequence thought" },
               },
               duration_ms: 400,
-              reasoning: "First sequence reasoning",
+              start_timestamp: "2024-01-01T14:00:01Z",
             },
             {
               type: "speak",
-              context_given: "Second sequence speaking",
-              status: {
+              reasoning: "Second action reasoning",
+              input: { intent: "Second sequence speaking", tone: null },
+              result: {
                 type: "success",
-                result: "Second sequence response",
+                content: { response: "Second sequence response" },
               },
               duration_ms: 600,
-              reasoning: "Second action reasoning",
+              start_timestamp: "2024-01-01T14:00:03Z",
             },
           ],
           timestamp: "2024-01-01T14:00:00Z",
+          end_timestamp: null,
           situational_context: "Test situational context",
-          compressed_summary: undefined,
-        },
+          compressed_summary: null,        },
         estimated_tokens: 75,
         context_limit: 750,
         usage_percentage: 10,
@@ -629,6 +694,11 @@ describe("useTriggerEvents", () => {
   });
 
   it("should ignore unknown event types", () => {
+    const unknownEvent: ClientAgentEvent = {
+      // @ts-expect-error Deliberately invalid event to preserve this runtime behavior test.
+      type: "unknown_event",
+      id: 1,
+    };
     const events: ClientAgentEvent[] = [
       {
         id: 0,
@@ -638,24 +708,22 @@ describe("useTriggerEvents", () => {
           content: "Test",
           user_name: "TestUser",
           timestamp: "2024-01-01T15:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_6",
         timestamp: "2024-01-01T15:00:00Z",
       },
       // Unknown event type
-      {
-        id: 1,
-        type: "unknown_event" as any,
-      } as any,
+      unknownEvent,
       {
         id: 2,
         type: "action_started",
         entry_id: "entry_6",
         action_type: "speak",
-        context_given: "Test action",
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T15:00:01Z",
+        reasoning: "",
       },
       {
         id: 3,
@@ -663,12 +731,14 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_6",
         action: {
           type: "speak",
-          context_given: "Test action",
-          status: {
+          reasoning: "",
+          input: { intent: "Test action", tone: null },
+          result: {
             type: "success",
-            result: "Test result",
+            content: { response: "Test result" },
           },
           duration_ms: 100,
+          start_timestamp: "2024-01-01T15:00:01Z",
         },
         sequence_number: 1,
         action_number: 1,
@@ -684,22 +754,25 @@ describe("useTriggerEvents", () => {
             content: "Test",
             user_name: "TestUser",
             timestamp: "2024-01-01T15:00:00Z",
+            image_paths: null,
           },
           actions_taken: [
             {
               type: "speak",
-              context_given: "Test action",
-              status: {
+              reasoning: "",
+              input: { intent: "Test action", tone: null },
+              result: {
                 type: "success",
-                result: "Test result",
+                content: { response: "Test result" },
               },
               duration_ms: 100,
+              start_timestamp: "2024-01-01T15:00:01Z",
             },
           ],
           timestamp: "2024-01-01T15:00:00Z",
+          end_timestamp: null,
           situational_context: "Test situational context",
-          compressed_summary: undefined,
-        },
+          compressed_summary: null,        },
         estimated_tokens: 100,
         context_limit: 1000,
         usage_percentage: 10,
@@ -723,6 +796,7 @@ describe("useTriggerEvents", () => {
           content: "Valid trigger",
           user_name: "TestUser",
           timestamp: "2024-01-01T16:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_7",
         timestamp: "2024-01-01T16:00:00Z",
@@ -732,7 +806,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_7",
         action_type: "speak",
-        context_given: "Valid action",
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T16:00:01Z",
@@ -755,13 +828,14 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_7",
         action: {
           type: "speak",
-          context_given: "Valid context",
-          status: {
+          reasoning: "Valid reasoning",
+          input: { intent: "Valid context", tone: null },
+          result: {
             type: "success",
-            result: "Valid result",
+            content: { response: "Valid result" },
           },
           duration_ms: 200,
-          reasoning: "Valid reasoning",
+          start_timestamp: "2024-01-01T16:00:01Z",
         },
         sequence_number: 1,
         action_number: 1,
@@ -777,23 +851,25 @@ describe("useTriggerEvents", () => {
             content: "Valid trigger",
             user_name: "TestUser",
             timestamp: "2024-01-01T16:00:00Z",
+            image_paths: null,
           },
           actions_taken: [
             {
               type: "speak",
-              context_given: "Valid context",
-              status: {
+              reasoning: "Valid reasoning",
+              input: { intent: "Valid context", tone: null },
+              result: {
                 type: "success",
-                result: "Valid result",
+                content: { response: "Valid result" },
               },
               duration_ms: 200,
-              reasoning: "Valid reasoning",
+              start_timestamp: "2024-01-01T16:00:01Z",
             },
           ],
           timestamp: "2024-01-01T16:00:00Z",
+          end_timestamp: null,
           situational_context: "Test situational context",
-          compressed_summary: undefined,
-        },
+          compressed_summary: null,        },
         estimated_tokens: 100,
         context_limit: 1000,
         usage_percentage: 10,
@@ -822,6 +898,7 @@ describe("useTriggerEvents", () => {
           content: "Test duplicate handling",
           user_name: "TestUser",
           timestamp: "2024-01-01T17:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_8",
         timestamp: "2024-01-01T17:00:00Z",
@@ -831,7 +908,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_8",
         action_type: "speak",
-        context_given: "Test action",
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T17:00:01Z",
@@ -872,6 +948,7 @@ describe("useTriggerEvents", () => {
           content: "Update your appearance",
           user_name: "TestUser",
           timestamp: "2024-01-01T18:00:00Z",
+          image_paths: null,
         },
         entry_id: "entry_9",
         timestamp: "2024-01-01T18:00:00Z",
@@ -881,7 +958,6 @@ describe("useTriggerEvents", () => {
         type: "action_started",
         entry_id: "entry_9",
         action_type: "update_appearance",
-        context_given: "Update appearance with new image",
         sequence_number: 1,
         action_number: 1,
         timestamp: "2024-01-01T18:00:01Z",
@@ -893,15 +969,23 @@ describe("useTriggerEvents", () => {
         entry_id: "entry_9",
         action: {
           type: "update_appearance",
-          context_given: "Update appearance with new image",
-          status: {
+          reasoning: "Need to refresh appearance to match new theme.",
+          input: {
+            reason: "Update appearance with new image",
+            change_description: "An ethereal being with flowing robes",
+          },
+          result: {
             type: "success",
-            result: "Appearance updated with new ethereal look",
+            content: {
+              image_description: "An ethereal being with flowing robes",
+              old_appearance: "Previous appearance",
+              new_appearance: "Appearance updated with new ethereal look",
+              reason: "Update appearance with new image",
+              image_result: imageResult,
+            },
           },
           duration_ms: 2000,
-          image_description: "An ethereal being with flowing robes",
-          image_url: "http://example.com/image.png",
-          reasoning: "Need to refresh appearance to match new theme.",
+          start_timestamp: "2024-01-01T18:00:01Z",
         },
         sequence_number: 1,
         action_number: 1,
@@ -917,25 +1001,34 @@ describe("useTriggerEvents", () => {
             content: "Update your appearance",
             user_name: "TestUser",
             timestamp: "2024-01-01T18:00:00Z",
+            image_paths: null,
           },
           actions_taken: [
             {
               type: "update_appearance",
-              context_given: "Update appearance with new image",
-              status: {
+              reasoning: "Need to refresh appearance to match new theme.",
+              input: {
+                reason: "Update appearance with new image",
+                change_description: "An ethereal being with flowing robes",
+              },
+              result: {
                 type: "success",
-                result: "Appearance updated with new ethereal look",
+                content: {
+                  image_description: "An ethereal being with flowing robes",
+                  old_appearance: "Previous appearance",
+                  new_appearance: "Appearance updated with new ethereal look",
+                  reason: "Update appearance with new image",
+                  image_result: imageResult,
+                },
               },
               duration_ms: 2000,
-              image_description: "An ethereal being with flowing robes",
-              image_url: "http://example.com/image.png",
-              reasoning: "Need to refresh appearance to match new theme.",
+              start_timestamp: "2024-01-01T18:00:01Z",
             },
           ],
           timestamp: "2024-01-01T18:00:00Z",
+          end_timestamp: null,
           situational_context: "Test situational context",
-          compressed_summary: undefined,
-        },
+          compressed_summary: null,        },
         estimated_tokens: 100,
         context_limit: 1000,
         usage_percentage: 10,
@@ -949,12 +1042,16 @@ describe("useTriggerEvents", () => {
     const trigger = result.current.streamingEntries[0];
 
     expect(trigger.actions_taken).toHaveLength(1);
-    const action = trigger.actions_taken[0] as any;
+    const action = trigger.actions_taken[0];
 
     expect(action.type).toBe("update_appearance");
-    expect(action.image_description).toBe(
-      "An ethereal being with flowing robes",
-    );
-    expect(action.image_url).toBe("http://example.com/image.png");
+    if (action.type === "update_appearance" && action.result.type === "success") {
+      expect(action.result.content.image_description).toBe(
+        "An ethereal being with flowing robes",
+      );
+      expect(action.result.content.image_result.image_url).toBe(
+        "http://example.com/image.png",
+      );
+    }
   });
 });

@@ -8,13 +8,14 @@ import {
   RefreshCw,
   ArrowUpDown,
 } from "lucide-react";
-import { EvaluatePrioritiesAction, PriorityOperationResult } from "@/types";
+import { EvaluatePrioritiesAction, OperationResult } from "@/types";
+import { isStreamingResult } from "./actionResult";
 
 interface EvaluatePrioritiesActionDisplayProps {
   action: EvaluatePrioritiesAction;
 }
 
-function OperationIcon({ type }: { type: PriorityOperationResult["operation_type"] }) {
+function OperationIcon({ type }: { type: OperationResult["operation_type"] }) {
   const iconProps = { size: 14, className: css({ flexShrink: 0 }) };
 
   switch (type) {
@@ -34,8 +35,10 @@ function OperationIcon({ type }: { type: PriorityOperationResult["operation_type
 export function EvaluatePrioritiesActionDisplay({
   action,
 }: EvaluatePrioritiesActionDisplayProps) {
-  const isStreaming = action.status.type === "streaming";
-  const hasOperations = action.operations && action.operations.length > 0;
+  const isStreaming = isStreamingResult(action.result);
+  const operations =
+    action.result.type === "success" ? action.result.content.operation_results : [];
+  const hasOperations = operations.length > 0;
 
   return (
     <div
@@ -69,17 +72,17 @@ export function EvaluatePrioritiesActionDisplay({
           <div className={css({ color: "purple.300", fontWeight: "medium" })}>
             {isStreaming
               ? "Evaluating priorities..."
-              : action.status.type === "error"
+              : action.result.type === "failure"
                 ? "Evaluation failed"
                 : hasOperations
-                  ? `Applied ${action.operations.length} operation${action.operations.length === 1 ? "" : "s"}`
+                  ? `Applied ${operations.length} operation${operations.length === 1 ? "" : "s"}`
                   : "No changes needed"}
           </div>
         </div>
       </div>
 
       {/* Operations list */}
-      {hasOperations && !isStreaming && action.status.type !== "error" && (
+      {hasOperations && !isStreaming && action.result.type !== "failure" && (
         <div
           className={css({
             display: "flex",
@@ -88,7 +91,7 @@ export function EvaluatePrioritiesActionDisplay({
             pl: 2,
           })}
         >
-          {action.operations.map((op, index) => (
+          {operations.map((op, index) => (
             <div
               key={index}
               className={css({
@@ -119,7 +122,7 @@ export function EvaluatePrioritiesActionDisplay({
       )}
 
       {/* Error message */}
-      {action.status.type === "error" && (
+      {action.result.type === "failure" && (
         <div
           className={css({
             color: "red.300",
@@ -131,7 +134,7 @@ export function EvaluatePrioritiesActionDisplay({
             rounded: "sm",
           })}
         >
-          {action.status.error}
+          {action.result.error}
         </div>
       )}
     </div>

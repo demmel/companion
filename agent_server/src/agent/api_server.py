@@ -9,7 +9,7 @@ from agent.logging_config import setup_logging
 setup_logging()
 
 import logging
-from typing import Callable, Literal
+from typing import Annotated, Callable, Literal
 import uuid
 import shutil
 from pathlib import Path
@@ -42,6 +42,7 @@ from fastapi import (
     UploadFile,
     File,
     HTTPException,
+    Depends,
     Request,
     Response,
 )
@@ -140,6 +141,13 @@ def _get_agent_manager(app: FastAPI) -> AgentEventManager:
             detail = f"{detail}: {startup_error}"
         raise HTTPException(status_code=503, detail=detail)
     return manager
+
+
+def get_manager(request: Request) -> AgentEventManager:
+    return _get_agent_manager(request.app)
+
+
+ManagerDep = Annotated[AgentEventManager, Depends(get_manager)]
 
 
 def _configure_static_routes(app: FastAPI) -> None:
@@ -320,9 +328,8 @@ app.add_middleware(
 
 
 @app.get("/api/context")
-async def get_context_info(request: Request):
+async def get_context_info(manager: ManagerDep):
     """Get current context information"""
-    manager = _get_agent_manager(request.app)
     context_info = manager.get_context_info()
     return {
         "message_count": context_info.message_count,
@@ -336,6 +343,7 @@ async def get_context_info(request: Request):
 
 @app.get("/api/timeline", response_model=TimelineResponse)
 async def get_timeline(
+    manager: ManagerDep,
     page_size: int = 20,
     after: Optional[str] = None,
     before: Optional[str] = None,
@@ -343,7 +351,6 @@ async def get_timeline(
     """Get paginated timeline in chronological order, defaulting to most recent page"""
     from agent.api_types.timeline import build_timeline_page
 
-    manager = _get_agent_manager(app)
     trigger_history = manager.get_trigger_history()
 
     # Parse cursor indices
@@ -630,9 +637,8 @@ async def websocket_chat(websocket: WebSocket):
 
 
 @app.get("/api/auto-wakeup", response_model=AutoWakeupStatusResponse)
-async def get_auto_wakeup_status():
+async def get_auto_wakeup_status(manager: ManagerDep):
     """Get current auto-wakeup status"""
-    manager = _get_agent_manager(app)
     return AutoWakeupStatusResponse(
         enabled=manager.get_auto_wakeup_enabled(),
         delay_seconds=manager.wakeup_delay_seconds,
@@ -640,9 +646,8 @@ async def get_auto_wakeup_status():
 
 
 @app.post("/api/auto-wakeup", response_model=AutoWakeupSetResponse)
-async def set_auto_wakeup_status(request: AutoWakeupSetRequest):
+async def set_auto_wakeup_status(request: AutoWakeupSetRequest, manager: ManagerDep):
     """Set auto-wakeup enabled state"""
-    manager = _get_agent_manager(app)
     manager.set_auto_wakeup_enabled(request.enabled)
 
     return AutoWakeupSetResponse(
@@ -743,7 +748,7 @@ async def get_model_config():
 
 
 @app.post("/api/model-config", response_model=ModelConfigUpdateResponse)
-async def update_model_config(request: ModelConfigUpdateRequest):
+async def update_model_config(request: ModelConfigUpdateRequest, manager: ManagerDep):
     """Update model configuration for all action types"""
     try:
         new_config = ModelConfig(
@@ -765,7 +770,7 @@ async def update_model_config(request: ModelConfigUpdateRequest):
 
         # Save the configuration
         Config.set_model_config(new_config)
-        agent: Agent = _get_agent_manager(app).agent
+        agent: Agent = manager.agent
         if agent:
             agent.model_config = new_config
 
@@ -836,10 +841,9 @@ async def upload_image(file: UploadFile = File(...)):
 
 
 @app.post("/api/regenerate-image", response_model=RegenerateImageResponse)
-async def regenerate_image(request: RegenerateImageRequest):
+async def regenerate_image(request: RegenerateImageRequest, manager: ManagerDep):
     """Regenerate an image using existing prompt with new random seed"""
 
-    manager = _get_agent_manager(app)
     trigger_history = manager.get_trigger_history()
 
     # Find the trigger entry
@@ -999,7 +1003,9 @@ def _try_queue_tts_render(agent: Agent, trigger_id: str, action_index: int) -> b
 
 
 @app.get("/api/audio/{trigger_id}/{action_index}")
-async def get_audio(trigger_id: str, action_index: int) -> Response:
+async def get_audio(
+    trigger_id: str, action_index: int, manager: ManagerDep
+) -> Response:
     """Fetch rendered audio for a speak or think action.
 
     Returns:
@@ -1008,7 +1014,6 @@ async def get_audio(trigger_id: str, action_index: int) -> Response:
         - 404 if not found or not a speak/think action
         - 503 if TTS service not available
     """
-    manager = _get_agent_manager(app)
     agent: Agent = manager.agent
 
     if agent.tts_service is None:

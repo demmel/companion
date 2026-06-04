@@ -13,15 +13,6 @@ from agent.llm.models import ModelConfig
 from agent.memory.memory import IMemory
 from pydantic import BaseModel
 
-from agent.api_types.actions import (
-    convert_action_to_dto,
-)
-from agent.api_types.triggers import (
-    convert_trigger_to_dto,
-)
-from agent.api_types.timeline import (
-    convert_trigger_history_entry_to_dto,
-)
 from agent.chain_of_action.action.action_data import (
     ActionData,
 )
@@ -457,7 +448,7 @@ class Agent:
 
         self.emit_event(
             TriggerStartedEvent(
-                trigger=convert_trigger_to_dto(self.initial_exchange.trigger),
+                trigger=self.initial_exchange.trigger,
                 entry_id=entry_id,
                 timestamp=self.initial_exchange.timestamp.isoformat(),
             ),
@@ -469,7 +460,6 @@ class Agent:
                 ActionStartedEvent(
                     entry_id=entry_id,
                     action_type="think",
-                    context_given="Deriving initial state from character definition",
                     reasoning="Deriving initial state from character definition",
                     timestamp=datetime.now().isoformat(),
                     sequence_number=1,
@@ -540,7 +530,7 @@ class Agent:
             self.emit_event(
                 ActionCompletedEvent(
                     entry_id=entry_id,
-                    action=convert_action_to_dto(think_action_result),
+                    action=think_action_result,
                     sequence_number=1,
                     action_number=1,
                     timestamp=datetime.now().isoformat(),
@@ -554,7 +544,6 @@ class Agent:
                     ActionStartedEvent(
                         entry_id=entry_id,
                         action_type="update_appearance",
-                        context_given=self.state.current_appearance,
                         reasoning="Initial appearance image",
                         timestamp=datetime.now().isoformat(),
                         sequence_number=1,
@@ -641,7 +630,7 @@ class Agent:
                     self.emit_event(
                         ActionCompletedEvent(
                             entry_id=entry_id,
-                            action=convert_action_to_dto(appearance_action_result),
+                            action=appearance_action_result,
                             sequence_number=1,
                             action_number=2,
                             timestamp=datetime.now().isoformat(),
@@ -668,7 +657,7 @@ class Agent:
                     self.emit_event(
                         ActionCompletedEvent(
                             entry_id=entry_id,
-                            action=convert_action_to_dto(error_action_result),
+                            action=error_action_result,
                             sequence_number=1,
                             action_number=2,
                             timestamp=datetime.now().isoformat(),
@@ -711,7 +700,7 @@ class Agent:
         context_info = self.get_context_info()
         self.emit_event(
             TriggerCompletedEvent(
-                entry=convert_trigger_history_entry_to_dto(self.initial_exchange),
+                entry=self.initial_exchange,
                 estimated_tokens=context_info.estimated_tokens,
                 context_limit=context_info.context_limit,
                 usage_percentage=context_info.usage_percentage,
@@ -734,7 +723,7 @@ class Agent:
 
                 self.agent.emit_event(
                     TriggerStartedEvent(
-                        trigger=convert_trigger_to_dto(trigger),
+                        trigger=trigger,
                         entry_id=entry_id,
                         timestamp=datetime.now().isoformat(),
                     ),
@@ -745,7 +734,7 @@ class Agent:
                 context_info = self.agent.get_context_info()
                 self.agent.emit_event(
                     TriggerCompletedEvent(
-                        entry=convert_trigger_history_entry_to_dto(entry),
+                        entry=entry,
                         estimated_tokens=context_info.estimated_tokens,
                         context_limit=context_info.context_limit,
                         usage_percentage=context_info.usage_percentage,
@@ -774,7 +763,6 @@ class Agent:
                     ActionStartedEvent(
                         entry_id=entry_id,
                         action_type=action_type.value,
-                        context_given=context,
                         reasoning=reasoning,
                         sequence_number=sequence_number,
                         action_number=action_number,
@@ -831,14 +819,11 @@ class Agent:
                     SpeakActionData,
                 )
 
-                # Convert ActionResult to ActionDTO
                 try:
-                    action_dto = convert_action_to_dto(result)
-
                     self.agent.emit_event(
                         ActionCompletedEvent(
                             entry_id=entry_id,
-                            action=action_dto,
+                            action=result,
                             sequence_number=sequence_number,
                             action_number=action_number,
                             timestamp=datetime.now().isoformat(),
@@ -880,10 +865,10 @@ class Agent:
                         logger.debug(f"Queued TTS render for think action {action_id}")
 
                 except Exception as e:
-                    # If DTO conversion fails (e.g., for failed visual actions),
+                    # If event emission fails,
                     # emit an error event instead to ensure buffer clearing
                     logger.error(
-                        f"Failed to convert action to DTO: {e}. Action type: {action_type}, Result type: {result.result.type}"
+                        f"Failed to emit action result: {e}. Action type: {action_type}, Result type: {result.result.type}"
                     )
                     self.agent.emit_event(
                         AgentErrorEvent(

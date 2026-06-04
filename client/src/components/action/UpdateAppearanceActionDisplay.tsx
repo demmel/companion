@@ -1,8 +1,9 @@
 import { css } from "@styled-system/css";
 import { Loader2, Image as ImageIcon } from "lucide-react";
-import { UpdateAppearanceAction, Action } from "@/types";
+import { UpdateAppearanceAction, Action, ActionData } from "@/types";
 import { ImageDisplay } from "../common/ImageDisplay";
 import { useState } from "react";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface UpdateAppearanceActionDisplayProps {
   action: UpdateAppearanceAction;
@@ -17,6 +18,29 @@ interface UpdateAppearanceActionDisplayProps {
   ) => void;
 }
 
+type CompletedUpdateAppearanceAction = Extract<
+  ActionData,
+  { type: "update_appearance" }
+>;
+type SuccessfulUpdateAppearanceAction = CompletedUpdateAppearanceAction & {
+  result: Extract<
+    CompletedUpdateAppearanceAction["result"],
+    { type: "success" }
+  >;
+};
+
+interface RegenerateImageResponse {
+  success: boolean;
+  new_image_url?: string;
+  error?: string;
+}
+
+function isCompletedUpdateAppearanceAction(
+  action: UpdateAppearanceAction,
+): action is SuccessfulUpdateAppearanceAction {
+  return "input" in action && action.result.type === "success";
+}
+
 export function UpdateAppearanceActionDisplay({
   action,
   triggerId,
@@ -24,11 +48,18 @@ export function UpdateAppearanceActionDisplay({
   updateAction,
 }: UpdateAppearanceActionDisplayProps) {
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(
+    action.result,
+    (content) =>
+      `Appearance updated: ${content.new_appearance} (reason: ${content.reason})`,
+  );
+  const image =
+    action.result.type === "success" ? action.result.content.image_result : null;
+  const imageDescription =
+    action.result.type === "success"
+      ? action.result.content.image_description
+      : "";
 
   const handleRegenerate = async () => {
     setIsRegenerating(true);
@@ -44,16 +75,29 @@ export function UpdateAppearanceActionDisplay({
         }),
       });
 
-      const data = await response.json();
+      const data: RegenerateImageResponse = await response.json();
 
       if (!data.success) {
         console.error("Failed to regenerate image:", data.error);
         // TODO: Show error toast/notification
       } else {
         // Update the action with the new image URL
-        updateAction(triggerId, actionIndex, {
-          image_url: data.new_image_url,
-        });
+        if (data.new_image_url && isCompletedUpdateAppearanceAction(action)) {
+          const updatedAction: SuccessfulUpdateAppearanceAction = {
+            ...action,
+            result: {
+              ...action.result,
+              content: {
+                ...action.result.content,
+                image_result: {
+                  ...action.result.content.image_result,
+                  image_url: data.new_image_url,
+                },
+              },
+            },
+          };
+          updateAction(triggerId, actionIndex, updatedAction);
+        }
       }
     } catch (error) {
       console.error("Error regenerating image:", error);
@@ -105,7 +149,7 @@ export function UpdateAppearanceActionDisplay({
       </div>
 
       {/* Show image if available */}
-      {action.image_url ? (
+      {image?.image_url ? (
         <div className={css({ mb: 3, position: "relative" })}>
           {isRegenerating && (
             <div
@@ -130,8 +174,8 @@ export function UpdateAppearanceActionDisplay({
             </div>
           )}
           <ImageDisplay
-            src={action.image_url}
-            alt={action.image_description || "Agent appearance"}
+            src={image.image_url}
+            alt={imageDescription || "Agent appearance"}
             maxWidth="100%"
             maxHeight="300px"
             onRegenerate={handleRegenerate}
@@ -175,7 +219,7 @@ export function UpdateAppearanceActionDisplay({
       >
         {isStreaming && !result ? (
           <div className={css({ fontStyle: "italic" })}>
-            {action.context_given || "Generating new appearance..."}
+            Generating new appearance...
           </div>
         ) : (
           result

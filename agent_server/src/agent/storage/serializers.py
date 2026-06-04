@@ -31,7 +31,9 @@ def compress_json(obj: BaseModel) -> bytes:
     Uses compression level 6 (good balance of speed and compression).
     Typically achieves 60-70% compression on JSON data.
     """
-    json_bytes = obj.model_dump_json().encode("utf-8")
+    # context={"storage": True} keeps storage-faithful field forms (e.g. real image
+    # file paths) distinct from the client wire form (served URLs).
+    json_bytes = obj.model_dump_json(context={"storage": True}).encode("utf-8")
     return zlib.compress(json_bytes, level=6)
 
 

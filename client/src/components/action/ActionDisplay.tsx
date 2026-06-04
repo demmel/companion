@@ -87,11 +87,8 @@ export function ActionDisplay({
       case "search_web":
         return <SearchWebActionDisplay action={action} />;
       default:
-        return (
-          <div className={css({ p: 2, color: "gray.500", fontSize: "sm" })}>
-            Unknown action type: {(action as any).action_type}
-          </div>
-        );
+        action satisfies never;
+        return null;
     }
   };
 
@@ -134,7 +131,7 @@ export function ActionDisplay({
               fontStyle: "italic",
             })}
           >
-            {action.context_given}
+            {action.reasoning}
           </div>
         )}
       </div>

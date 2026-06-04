@@ -36,10 +36,10 @@ function TimelineEntryView({
 }: TimelineEntryProps) {
   const hasActions = entry.actions_taken.length > 0;
   const streamingCount = entry.actions_taken.filter(
-    (action) => action.status.type === "streaming",
+    (action) => action.result.type === "streaming",
   ).length;
   const completedCount = entry.actions_taken.filter(
-    (action) => action.status.type !== "streaming",
+    (action) => action.result.type !== "streaming",
   ).length;
 
   return (
@@ -172,6 +172,10 @@ function TimelineItem({
   onToggleExpanded,
   updateAction,
 }: TimelineItemProps) {
+  if (timelineEntry.type === "summary") {
+    return null;
+  }
+
   return (
     <TimelineEntryView
       entry={timelineEntry.entry}
@@ -233,6 +237,10 @@ export function Timeline({
             isActive = triggerIndex === activeEntryIndex;
             isExpanded = !collapsedEntries.has(entry.entry_id);
             onToggleExpanded = () => toggleExpanded(entry.entry_id);
+          }
+
+          if (timelineEntry.type === "summary") {
+            return null;
           }
 
           return (

@@ -1,6 +1,7 @@
 import { css } from "@styled-system/css";
 import { Loader2, Plus } from "lucide-react";
 import { AddPriorityAction } from "@/types";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface AddPriorityActionDisplayProps {
   action: AddPriorityAction;
@@ -9,11 +10,12 @@ interface AddPriorityActionDisplayProps {
 export function AddPriorityActionDisplay({
   action,
 }: AddPriorityActionDisplayProps) {
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(action.result, (content) =>
+    content.result.type === "success"
+      ? `Added new priority: "${content.content}"`
+      : `Priority "${content.content}" is similar to an existing priority`,
+  );
 
   return (
     <div
@@ -44,7 +46,7 @@ export function AddPriorityActionDisplay({
       <div className={css({ flex: 1, color: "green.300" })}>
         {isStreaming ? (
           <span className={css({ fontStyle: "italic" })}>
-            {action.context_given || "Adding priority..."}
+            Adding priority...
           </span>
         ) : (
           <span>{result}</span>

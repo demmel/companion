@@ -1,7 +1,7 @@
 # Streaming event types for real-time updates
-from agent.api_types.actions import Action
-from agent.api_types.triggers import Trigger
 from agent.api_types.timeline import TimelineEntry, PaginationInfo, TriggerHistoryEntry
+from agent.chain_of_action.action.action_data import ActionData
+from agent.chain_of_action.trigger import Trigger
 from pydantic import BaseModel
 from typing_extensions import Literal
 
@@ -21,7 +21,6 @@ class ActionStartedEvent(BaseModel):
     type: Literal["action_started"] = "action_started"
     entry_id: str
     action_type: str
-    context_given: str
     reasoning: str
     sequence_number: int
     action_number: int
@@ -32,7 +31,7 @@ class ActionCompletedEvent(BaseModel):
     """Event emitted when an action completes within a trigger"""
 
     type: Literal["action_completed"] = "action_completed"
-    action: Action
+    action: ActionData
     entry_id: str
     sequence_number: int
     action_number: int

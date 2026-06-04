@@ -5,7 +5,8 @@ Trigger system for initiating action sequences.
 from __future__ import annotations
 
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pathlib import Path
+from pydantic import BaseModel, Field, field_serializer, SerializationInfo
 from typing import Union, Literal, Optional, List, NewType, assert_never
 
 from agent.state import State
@@ -19,6 +20,18 @@ class BaseTrigger(BaseModel):
     """Base class for all trigger events"""
 
     timestamp: datetime = Field(default_factory=datetime.now)
+
+    @field_serializer("image_paths", check_fields=False, when_used="json")
+    def serialize_image_paths(
+        self, image_paths: ImageFilePaths, info: SerializationInfo
+    ) -> list[str] | None:
+        if not image_paths:
+            return None
+        # Storage must round-trip the real file paths; only the client wire form is
+        # rewritten to served URLs. compress_json() passes context={"storage": True}.
+        if info.context and info.context.get("storage"):
+            return [str(path) for path in image_paths]
+        return [f"/uploaded_images/{Path(path).name}" for path in image_paths]
 
     def get_images(self) -> ImageFilePaths:
         """Get image file paths associated with this trigger, if any"""

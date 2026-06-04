@@ -76,6 +76,9 @@ export function useTimeline(
     // Combine and sort by timestamp
     const combined = [...historyData.entries, ...streamingTimelineEntries];
     combined.sort((a, b) => {
+      if (a.type === "summary" || b.type === "summary") {
+        return 0;
+      }
       const aTime = new Date(a.entry.timestamp).getTime();
       const bTime = new Date(b.entry.timestamp).getTime();
       return aTime - bTime;

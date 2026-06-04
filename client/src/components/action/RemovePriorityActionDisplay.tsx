@@ -1,6 +1,7 @@
 import { css } from "@styled-system/css";
 import { Loader2, Minus } from "lucide-react";
 import { RemovePriorityAction } from "@/types";
+import { isStreamingResult, resultText } from "./actionResult";
 
 interface RemovePriorityActionDisplayProps {
   action: RemovePriorityAction;
@@ -9,11 +10,11 @@ interface RemovePriorityActionDisplayProps {
 export function RemovePriorityActionDisplay({
   action,
 }: RemovePriorityActionDisplayProps) {
-  const isStreaming = action.status.type === "streaming";
-  const result =
-    action.status.type === "error"
-      ? `Error: ${action.status.error}`
-      : action.status.result;
+  const isStreaming = isStreamingResult(action.result);
+  const result = resultText(
+    action.result,
+    (content) => `Removed priority "${content.priority.content}": ${content.reason}`,
+  );
 
   return (
     <div
@@ -44,7 +45,7 @@ export function RemovePriorityActionDisplay({
       <div className={css({ flex: 1, color: "red.300" })}>
         {isStreaming ? (
           <span className={css({ fontStyle: "italic" })}>
-            {action.context_given || "Removing priority..."}
+            Removing priority...
           </span>
         ) : (
           <span>{result}</span>

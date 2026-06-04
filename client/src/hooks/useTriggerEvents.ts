@@ -3,27 +3,18 @@ import { ClientAgentEvent } from "./useWebSocket";
 import {
   TriggerHistoryEntry,
   Action,
-  UpdateAppearanceAction,
-  UpdateEnvironmentAction,
-  FetchUrlAction,
-  SearchWebAction,
+  ActionStreamingData,
   Trigger,
   ContextInfo,
-  BaseAction,
 } from "../types";
 import { debug } from "@/utils/debug";
 
-// Helper to build action objects from streaming events
-interface BaseActionBuilder extends BaseAction {
+interface ActionBuilder {
+  action: Action;
   sequence_number: number;
   action_number: number;
   partial_results: string[];
 }
-
-type PartialAction = Partial<Action>;
-type ActionBuilder = PartialAction & {
-  type: Action["type"];
-} & BaseActionBuilder;
 
 // Single active trigger builder (only one trigger can be active at a time)
 interface ActiveTriggerBuilder {
@@ -47,57 +38,17 @@ export interface UseTriggerEventsReturn {
   ) => void;
 }
 
-/**
- * Converts an ActionBuilder to a proper Action object for display
- */
-function convertActionBuilderToAction(actionBuilder: ActionBuilder): Action {
-  const baseAction = {
-    ...actionBuilder,
+function createStreamingAction(
+  actionType: Action["type"],
+  reasoning: string,
+): ActionStreamingData {
+  return {
+    type: actionType,
+    reasoning,
+    result: { type: "streaming" as const, result: "" },
+    duration_ms: 0,
+    start_timestamp: new Date().toISOString(),
   };
-
-  switch (actionBuilder.type) {
-    case "think":
-    case "speak":
-    case "update_mood":
-    case "wait":
-    case "get_creative_inspiration":
-    case "add_priority":
-    case "remove_priority":
-    case "evaluate_priorities":
-      return {
-        ...baseAction,
-      } as Action;
-    case "update_appearance":
-      return {
-        ...baseAction,
-        image_description: actionBuilder.image_description,
-        image_url: actionBuilder.image_url,
-      } as UpdateAppearanceAction;
-    case "update_environment":
-      return {
-        ...baseAction,
-        image_description: actionBuilder.image_description,
-        image_url: actionBuilder.image_url,
-      } as UpdateEnvironmentAction;
-    case "fetch_url":
-      return {
-        ...baseAction,
-        url: actionBuilder.url || "",
-        looking_for: actionBuilder.looking_for || "",
-      } as FetchUrlAction;
-    case "search_web":
-      return {
-        ...baseAction,
-        query: actionBuilder.query || "",
-        purpose: actionBuilder.purpose || "",
-        search_results: actionBuilder.search_results || [],
-      } as SearchWebAction;
-    default:
-      const exhaustiveCheck: never = actionBuilder;
-      throw new Error(
-        `Unknown action type: ${(exhaustiveCheck as ActionBuilder).type}`,
-      );
-  }
 }
 
 /**
@@ -179,15 +130,11 @@ export function useTriggerEvents(
           currentTrigger.actions.push({
             sequence_number: event.sequence_number,
             action_number: event.action_number,
-            status: {
-              type: "streaming",
-              result: "",
-            },
-            type: event.action_type as ActionBuilder["type"],
-            context_given: event.context_given,
-            duration_ms: 0, // Duration will be updated later
             partial_results: [],
-            reasoning: event.reasoning,
+            action: createStreamingAction(
+              event.action_type as Action["type"],
+              event.reasoning,
+            ),
           });
 
           currentTrigger.actionMap.set(actionKey, actionIndex);
@@ -212,7 +159,7 @@ export function useTriggerEvents(
           if (actionIndex !== undefined) {
             const targetAction = currentTrigger.actions[actionIndex];
             targetAction.partial_results.push(event.partial_result);
-            targetAction.status = {
+            targetAction.action.result = {
               type: "streaming",
               result: targetAction.partial_results.join(""),
             };
@@ -240,12 +187,7 @@ export function useTriggerEvents(
           const actionIndex = currentTrigger.actionMap.get(actionKey);
 
           if (actionIndex !== undefined) {
-            const targetAction = {
-              ...currentTrigger.actions[actionIndex],
-              ...event.action,
-            };
-
-            currentTrigger.actions[actionIndex] = targetAction;
+            currentTrigger.actions[actionIndex].action = event.action;
           } else {
             debug.warn(
               `Received action_completed for unknown action: ${actionKey} in entry ${event.entry_id}`,
@@ -299,14 +241,11 @@ export function useTriggerEvents(
       }
     }
 
-    console.log(
-      `[${new Date().toISOString()}] Setting activeTrigger and isStreamActive`,
-      {
-        currentTriggerEntryId: currentTrigger?.entry_id,
-        hasActiveStreaming,
-        actionsCount: currentTrigger?.actions.length || 0,
-      },
-    );
+    debug.log("Setting activeTrigger and isStreamActive", {
+      currentTriggerEntryId: currentTrigger?.entry_id,
+      hasActiveStreaming,
+      actionsCount: currentTrigger?.actions.length || 0,
+    });
 
     setActiveTrigger(currentTrigger);
     setIsStreamActive(hasActiveStreaming);
@@ -319,7 +258,7 @@ export function useTriggerEvents(
     if (activeTrigger) {
       // Convert active trigger to TriggerHistoryEntry
       const activeActions: Action[] = activeTrigger.actions.map(
-        convertActionBuilderToAction,
+        (builder) => builder.action,
       );
 
       const activeTriggerEntry: TriggerHistoryEntry = {
@@ -328,7 +267,8 @@ export function useTriggerEvents(
         timestamp: activeTrigger.trigger.timestamp,
         entry_id: activeTrigger.entry_id,
         situational_context: "", // Not available yet for active triggers
-        compressed_summary: undefined,
+        compressed_summary: null,
+        end_timestamp: null,
       };
 
       entries.push(activeTriggerEntry);
