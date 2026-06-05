@@ -176,6 +176,10 @@ class AgentEventManager:
         """Get information about current context usage"""
         return self.agent.get_context_info()
 
+    def close_when_idle(self) -> None:
+        """Reclaim the underlying agent's resources once it is no longer processing"""
+        self.agent.close_when_idle()
+
     def set_auto_wakeup_enabled(self, enabled: bool) -> None:
         """Enable or disable auto-wakeup timer"""
         self.agent.set_auto_wakeup_enabled(enabled)

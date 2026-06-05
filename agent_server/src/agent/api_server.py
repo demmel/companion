@@ -403,8 +403,11 @@ async def reset_agent():
             # Clear the old manager's queue reference so it stops pushing events
             old_manager.current_client_queue = None
 
-        # Close old agent to release file handles before creating new one
-        old_manager.agent.close()
+        # Reclaim the old agent's resources (LLM worker thread, TTS, SQLite /
+        # ChromaDB handles). Done off the event loop once any in-flight run has
+        # finished so llm.close()'s blocking join doesn't stall the server and
+        # we don't tear down the trigger history under a running reasoning loop.
+        old_manager.close_when_idle()
 
     # Reinitialize the agent manager
     new_manager = initialize_agent(
@@ -494,6 +497,12 @@ async def websocket_chat(websocket: WebSocket):
                     data = await websocket.receive_text()
                     client_request = ClientRequestAdapter.validate_json(data)
 
+                    # Resolve the current manager fresh for every request so that
+                    # a reset (which swaps the manager in app.state) routes new
+                    # work to the live manager instead of the stale one captured
+                    # when this socket connected.
+                    current_manager = _get_agent_manager(app)
+
                     match client_request:
                         case ClientHydrationRequest():
                             # Handle hydration request
@@ -502,7 +511,7 @@ async def websocket_chat(websocket: WebSocket):
                             )
 
                             # Get hydration events (returns List[AgentServerEvent])
-                            server_events = manager.get_hydration_events(
+                            server_events = current_manager.get_hydration_events(
                                 last_trigger_id=client_request.last_trigger_id,
                                 last_event_sequence=client_request.last_event_sequence,
                             )
@@ -566,14 +575,18 @@ async def websocket_chat(websocket: WebSocket):
                             )
 
                             def process_message():
+                                # Resolve the manager again inside the thread so a
+                                # reset racing the thread start still routes to the
+                                # live manager (and emits to the attached queue).
+                                msg_manager = _get_agent_manager(app)
                                 try:
-                                    manager.chat_stream(trigger=trigger)
+                                    msg_manager.chat_stream(trigger=trigger)
                                 except Exception as e:
                                     # Put error event in queue
                                     error_event = AgentErrorEvent(
                                         message=f"Internal error: {str(e)}"
                                     )
-                                    manager.emit(error_event)
+                                    msg_manager.emit(error_event)
 
                             # Run agent processing in background thread
                             thread = threading.Thread(target=process_message)
@@ -631,8 +644,12 @@ async def websocket_chat(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
-        # Clear our queue from the manager (only if it's still ours)
-        manager.clear_client_queue(client_queue)
+        # Clear our queue from whichever manager currently holds it. After a
+        # reset the queue is transferred to the new manager, so clearing the
+        # manager captured at connect would leak the queue (the new manager
+        # would keep emitting into this dead client's queue).
+        cleanup_manager = app.state.agent_manager or manager
+        cleanup_manager.clear_client_queue(client_queue)
         logger.info("WebSocket client disconnected, queue cleared")
 
 

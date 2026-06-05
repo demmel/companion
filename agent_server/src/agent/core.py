@@ -209,14 +209,36 @@ class Agent:
         return self.trigger_history
 
     def close(self) -> None:
-        """Close agent resources to release file handles."""
+        """Close agent resources to release file handles and threads."""
         # Stop TTS service if running
         if self.tts_service is not None:
             self.tts_service.stop()
             self.tts_service = None
 
+        # Stop the LLM's serialized worker thread. Without this every reset
+        # leaks a SerializedOllamaLLM worker (and its queue) for the life of
+        # the process.
+        self.llm.close()
+
         # Close trigger history (releases SQLite and ChromaDB handles)
         self.trigger_history.close()
+
+    def close_when_idle(self) -> None:
+        """Reclaim agent resources once it is no longer processing.
+
+        Used on reset to release the old agent's resources (LLM worker thread,
+        TTS, SQLite/ChromaDB handles). Closing happens in a background thread so
+        it never blocks the caller (llm.close() joins the worker) and never
+        tears down the trigger history underneath an in-flight run.
+        """
+        def wait_then_close() -> None:
+            with self.processing_condition:
+                while self.is_processing:
+                    self.processing_condition.wait()
+            logger.info("Old agent idle; reclaiming its resources")
+            self.close()
+
+        threading.Thread(target=wait_then_close, daemon=True).start()
 
     def _init_tts_service(self) -> None:
         """Initialize the TTS service for audio generation."""
