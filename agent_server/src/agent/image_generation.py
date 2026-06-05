@@ -384,6 +384,14 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
         try:
             import torch
 
+            # Pin the whole manual encoding to one device. With
+            # enable_model_cpu_offload the text encoders are driven by accelerate
+            # hooks; feeding them CPU inputs makes some outputs come back on CPU
+            # and others on GPU, so a later torch.cat across chunks mixes devices.
+            # Forcing inputs, outputs, and padding onto a single device keeps every
+            # concatenation consistent regardless of the offload mode.
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
             logger.debug(
                 f"Encoding {len(chunks)} chunks with SDXL dual encoders: {chunks}"
             )
@@ -423,15 +431,15 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
 
                     # Encode with both text encoders
                     embeds_1 = self._pipeline.text_encoder(
-                        tokens_1.input_ids, output_hidden_states=True
+                        tokens_1.input_ids.to(device), output_hidden_states=True
                     )
                     embeds_2 = self._pipeline.text_encoder_2(
-                        tokens_2.input_ids, output_hidden_states=True
+                        tokens_2.input_ids.to(device), output_hidden_states=True
                     )
 
                     # Get hidden states (penultimate layer)
-                    chunk_embed_1 = embeds_1.hidden_states[-2]
-                    chunk_embed_2 = embeds_2.hidden_states[-2]
+                    chunk_embed_1 = embeds_1.hidden_states[-2].to(device)
+                    chunk_embed_2 = embeds_2.hidden_states[-2].to(device)
 
                     chunk_embeds_1.append(chunk_embed_1)
                     chunk_embeds_2.append(chunk_embed_2)
@@ -458,9 +466,9 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                     return_tensors="pt",
                 )
                 pooled_output = self._pipeline.text_encoder_2(
-                    pooled_tokens.input_ids, output_hidden_states=True
+                    pooled_tokens.input_ids.to(device), output_hidden_states=True
                 )
-                pooled_prompt_embeds = pooled_output[0]  # pooled output
+                pooled_prompt_embeds = pooled_output[0].to(device)  # pooled output
 
             logger.debug(f"Concatenated encoder 1: {concat_embeds_1.shape}")
             logger.debug(f"Concatenated encoder 2: {concat_embeds_2.shape}")
@@ -485,15 +493,15 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                 )
 
                 neg_embeds_1 = self._pipeline.text_encoder(
-                    neg_tokens_1.input_ids, output_hidden_states=True
+                    neg_tokens_1.input_ids.to(device), output_hidden_states=True
                 )
                 neg_embeds_2 = self._pipeline.text_encoder_2(
-                    neg_tokens_2.input_ids, output_hidden_states=True
+                    neg_tokens_2.input_ids.to(device), output_hidden_states=True
                 )
 
-                negative_embeds_1 = neg_embeds_1.hidden_states[-2]
-                negative_embeds_2 = neg_embeds_2.hidden_states[-2]
-                pooled_negative_embeds = neg_embeds_2[0]
+                negative_embeds_1 = neg_embeds_1.hidden_states[-2].to(device)
+                negative_embeds_2 = neg_embeds_2.hidden_states[-2].to(device)
+                pooled_negative_embeds = neg_embeds_2[0].to(device)
 
                 # Pad negative embeddings to match positive embeddings shape
                 pos_seq_length = positive_embeds.shape[1]
@@ -506,11 +514,15 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
                         negative_embeds_1.shape[0],
                         pad_length,
                         negative_embeds_1.shape[2],
+                        device=device,
+                        dtype=negative_embeds_1.dtype,
                     )
                     padding_2 = torch.zeros(
                         negative_embeds_2.shape[0],
                         pad_length,
                         negative_embeds_2.shape[2],
+                        device=device,
+                        dtype=negative_embeds_2.dtype,
                     )
 
                     negative_embeds_1 = torch.cat([negative_embeds_1, padding_1], dim=1)
