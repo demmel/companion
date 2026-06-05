@@ -12,6 +12,7 @@ import { RemovePriorityActionDisplay } from "./RemovePriorityActionDisplay";
 import { EvaluatePrioritiesActionDisplay } from "./EvaluatePrioritiesActionDisplay";
 import { FetchUrlActionDisplay } from "./FetchUrlActionDisplay";
 import { SearchWebActionDisplay } from "./SearchWebActionDisplay";
+import { RememberActionDisplay } from "./RememberActionDisplay";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
@@ -86,6 +87,8 @@ export function ActionDisplay({
         return <FetchUrlActionDisplay action={action} />;
       case "search_web":
         return <SearchWebActionDisplay action={action} />;
+      case "remember":
+        return <RememberActionDisplay action={action} />;
       default:
         action satisfies never;
         return null;

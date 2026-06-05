@@ -506,7 +506,7 @@ class Agent:
             # Store initial state on birth trigger for replay support
             birth_trigger.initial_state = self.state
 
-            from agent.memory.dag import (
+            from agent.memory.dag.dag_memory_manager import (
                 DagMemoryManager,
             )
 

@@ -81,6 +81,8 @@ from agent.chain_of_action.action.actions.evaluate_priorities_action import (
 from agent.chain_of_action.action.actions.creative_inspiration_action import (
     CreativeInspirationInput,
 )
+from agent.chain_of_action.action.actions.remember_action import RememberInput
+from agent.memory.queries import MemoryQuery, QueryType
 
 
 # Every ActionType, with the exact discriminator string persisted in existing DBs.
@@ -98,6 +100,7 @@ EXPECTED_DISCRIMINATORS: dict[ActionType, str] = {
     ActionType.SEARCH_WEB: "search_web",
     ActionType.WAIT: "wait",
     ActionType.GET_CREATIVE_INSPIRATION: "get_creative_inspiration",
+    ActionType.REMEMBER: "remember",
 }
 
 # A valid input instance for every action type, so we can exercise serialization of
@@ -123,6 +126,17 @@ INPUTS_BY_TYPE: dict[ActionType, BaseModel] = {
     ActionType.SEARCH_WEB: SearchWebInput(purpose="learn", query="python asyncio"),
     ActionType.WAIT: WaitInput(reason="done for now"),
     ActionType.GET_CREATIVE_INSPIRATION: CreativeInspirationInput(),
+    ActionType.REMEMBER: RememberInput(
+        reason="ground myself",
+        queries=[
+            MemoryQuery(
+                reasoning="need past context",
+                query_type=QueryType.RELATIONSHIP,
+                query_text="what David does for work",
+                importance=0.9,
+            )
+        ],
+    ),
 }
 
 
@@ -269,7 +283,8 @@ class TestCreateActionData:
 
     def test_result_summary_uses_error_on_failure(self) -> None:
         data = _make(
-            ActionType.THINK, INPUTS_BY_TYPE[ActionType.THINK],
+            ActionType.THINK,
+            INPUTS_BY_TYPE[ActionType.THINK],
             ActionFailureResult(error="boom"),
         )
         assert create_result_summary(data) == "boom"
@@ -296,9 +311,7 @@ class TestSerializationRoundTrip:
             ThinkInput(focus="x"),
             ActionSuccessResult(content=ThinkOutput(thoughts="deep thought")),
         )
-        restored = ActionSerializer.from_row(
-            ActionSerializer.to_row(action, "t", 0)
-        )
+        restored = ActionSerializer.from_row(ActionSerializer.to_row(action, "t", 0))
         assert isinstance(restored, ThinkActionData)
         assert restored.result.type == "success"
         assert restored.result.content.thoughts == "deep thought"
@@ -310,7 +323,9 @@ class TestSerializationRoundTrip:
             ActionSuccessResult(
                 content=SearchWebOutput(
                     query_used="q",
-                    search_results=[SearchResult(title="T", url="https://x", snippet="s")],
+                    search_results=[
+                        SearchResult(title="T", url="https://x", snippet="s")
+                    ],
                     total_results_found=1,
                 )
             ),
@@ -350,7 +365,9 @@ class TestBackwardCompatibility:
         )
         payload = json.loads(action.model_dump_json())
         payload["legacy_extra_field"] = "should be ignored"
-        restored = _ACTION_DATA_ADAPTER.validate_json(json.dumps(payload).encode("utf-8"))
+        restored = _ACTION_DATA_ADAPTER.validate_json(
+            json.dumps(payload).encode("utf-8")
+        )
         assert restored.type == ActionType.UPDATE_MOOD
         assert restored.result.content.new_mood == "happy"
 

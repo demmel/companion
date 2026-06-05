@@ -8,6 +8,7 @@ authoritative.
 """
 
 from .think_action import ThinkAction
+from .remember_action import RememberAction
 from .wait_action import WaitAction
 from .speak_action import SpeakAction
 from .update_mood_action import UpdateMoodAction
@@ -20,6 +21,7 @@ from .creative_inspiration_action import CreativeInspirationAction
 
 __all__ = [
     "ThinkAction",
+    "RememberAction",
     "WaitAction",
     "SpeakAction",
     "UpdateMoodAction",

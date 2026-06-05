@@ -10,8 +10,7 @@ from agent.chain_of_action.action.action_data import (
     create_result_summary,
 )
 from agent.chain_of_action.action.actions.wait_action import WaitActionData
-from agent.memory.query_extraction import extract_memory_queries
-from agent.memory.memory import IMemory, MemoryQueries
+from agent.memory.memory import IMemory
 
 from .action_registry import ActionRegistry
 from .action_planner import ActionPlanner
@@ -80,22 +79,17 @@ class ActionBasedReasoningLoop:
         # Notify callback about trigger start
         callback.on_trigger_started(entry_id, trigger)
 
-        memory_queries = extract_memory_queries(
-            trigger=trigger,
-            state=state,
-            context=previous_memory_context,
-            llm=llm,
-            model=model_config.memory_retrieval_model,
-            max_queries=6,
-        )
-        memory_context = memory.query(
-            MemoryQueries(
-                queries=memory_queries.queries,
-                max_tokens=token_budget,
-            ),
+        # Per-turn context maintenance (token decay + prune to budget). Retrieval is no
+        # longer automatic — the agent recalls deliberately via the REMEMBER action.
+        memory.prune(
+            budget=token_budget,
             llm=llm,
             model=model_config.memory_retrieval_model,
         )
+
+        # Situational analysis sees the already-accumulated working context (no fresh
+        # retrieval). Any deliberate recall this turn happens later, inside the action loop.
+        memory_context = memory.get_formatted_context()
 
         # Perform situational analysis once before action planning loop
         from .prompts import build_situational_analysis_prompt
@@ -131,6 +125,10 @@ class ActionBasedReasoningLoop:
             session_id=str(uuid.uuid4()),
             situation_analysis=situational_analysis,
             agent_capabilities_knowledge_prompt=self.registry.get_system_knowledge_for_context(),
+            # Memory access for deliberate recall (REMEMBER action)
+            memory=memory,
+            memory_token_budget=token_budget,
+            memory_retrieval_model=model_config.memory_retrieval_model,
             # Pass action-specific models from config
             think_action_model=model_config.think_action_model,
             speak_action_model=model_config.speak_action_model,
@@ -237,7 +235,8 @@ class ActionBasedReasoningLoop:
             f"Executed {len(context.completed_actions)} total actions across {sequence_num} sequences"
         )
 
-        return trigger_entry, memory_context
+        # Return the current working context (reflects any deliberate recall this turn)
+        return trigger_entry, memory.get_formatted_context()
 
 
 def _detect_llm_refusal(text: str) -> bool:

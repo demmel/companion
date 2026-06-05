@@ -8,65 +8,26 @@ import requests
 import re
 from urllib.parse import quote_plus
 
-from pydantic import BaseModel, Field
-
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
 from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
-    ActionOutput,
     ActionResult,
     ActionSuccessResult,
-    BaseActionData,
+)
+from ..data.search_web_data import (
+    SearchResult,
+    SearchWebInput,
+    SearchWebOutput,
+    SearchWebActionData,
 )
 
 from agent.state import State
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
-
-
-class SearchResult(BaseModel):
-    """Individual search result"""
-
-    title: str
-    url: str
-    snippet: str
-
-
-class SearchWebInput(BaseModel):
-    """Input for SEARCH_WEB action"""
-
-    purpose: str = Field(
-        description="What specific information I'm hoping to find or learn from this search"
-    )
-    query: str = Field(
-        description="Search query string. For best results: use specific keywords rather than questions (e.g., 'Python asyncio tutorial' not 'How do I use asyncio in Python?'), include relevant context terms, avoid overly broad searches, use quotes for exact phrases when needed"
-    )
-
-
-class SearchWebOutput(ActionOutput):
-    """Output for SEARCH_WEB action"""
-
-    query_used: str
-    search_results: List[SearchResult]
-    total_results_found: int
-
-    def result_summary(self) -> str:
-        if not self.search_results:
-            return f"No results found for query: '{self.query_used}'"
-
-        results_summary = (
-            f"Found {self.total_results_found} results for '{self.query_used}':\n"
-        )
-        for i, result in enumerate(self.search_results, 1):
-            results_summary += (
-                f"{i}. {result.title} ({result.url})\n   {result.snippet}\n"
-            )
-
-        return results_summary
 
 
 @register_action(ActionType.SEARCH_WEB)
@@ -194,7 +155,3 @@ class SearchWebAction(BaseAction[SearchWebInput, SearchWebOutput]):
             error_msg = f"Unexpected error during web search: {str(e)}"
             logger.error(error_msg)
             return ActionFailureResult(error=error_msg)
-
-
-class SearchWebActionData(BaseActionData[SearchWebInput, SearchWebOutput]):
-    type: Literal[ActionType.SEARCH_WEB] = ActionType.SEARCH_WEB

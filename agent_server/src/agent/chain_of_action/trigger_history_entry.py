@@ -10,7 +10,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 
 from agent.chain_of_action.action.action_data import ActionData
-from agent.chain_of_action.action.actions.think_action import ThinkActionData
+from agent.chain_of_action.action.data.think_data import ThinkActionData
 from agent.chain_of_action.trigger import Trigger, BirthTrigger
 from agent.state import State, Priority, Value
 

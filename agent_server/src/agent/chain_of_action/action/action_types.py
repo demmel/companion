@@ -10,6 +10,7 @@ class ActionType(str, Enum):
 
     # Cognitive Actions
     THINK = "think"  # Process emotional reactions and analyze situation
+    REMEMBER = "remember"  # Deliberately recall relevant memories from long-term memory
 
     # State Management Actions
     UPDATE_MOOD = "update_mood"  # Change mood

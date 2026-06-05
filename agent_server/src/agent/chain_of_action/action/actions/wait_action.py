@@ -3,41 +3,20 @@ WAIT action implementation.
 """
 
 import logging
-from typing import Literal
-
-from pydantic import BaseModel, Field
 
 from ..action_types import ActionType
 from ..base_action import BaseAction, register_action
 from ..base_action_data import (
-    ActionOutput,
     ActionResult,
     ActionSuccessResult,
-    BaseActionData,
 )
+from ..data.wait_data import WaitInput, WaitOutput, WaitActionData
 from agent.chain_of_action.context import ExecutionContext
 
 from agent.state import State
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
-
-
-class WaitInput(BaseModel):
-    """Input for WAIT action"""
-
-    reason: str = Field(
-        description="Brief reflection on what I've accomplished and why I'm ready for whatever comes next"
-    )
-
-
-class WaitOutput(ActionOutput):
-    """Output for WAIT action"""
-
-    reason: str
-
-    def result_summary(self) -> str:
-        return f"Waiting for something else to happen. Reason: {self.reason}"
 
 
 @register_action(ActionType.WAIT)
@@ -61,7 +40,3 @@ class WaitAction(BaseAction[WaitInput, WaitOutput]):
         logger.debug("Agent has signaled completion")
 
         return ActionSuccessResult(content=WaitOutput(reason=action_input.reason))
-
-
-class WaitActionData(BaseActionData[WaitInput, WaitOutput]):
-    type: Literal[ActionType.WAIT] = ActionType.WAIT

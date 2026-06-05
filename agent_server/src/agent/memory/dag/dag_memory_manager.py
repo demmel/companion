@@ -7,7 +7,7 @@ debugging and complete replay of memory graph evolution.
 
 import logging
 from agent.memory.dag.context_formatting import format_context
-from agent.memory.memory import IMemory, MemoryQueries
+from agent.memory.memory import IMemory, MemoryQueries, RetrievedMemories
 from agent.timeit import timeit
 from typing import Sequence
 
@@ -21,7 +21,12 @@ from agent.state import State
 from pydantic import BaseModel
 
 from .models import ContextElement, ContextGraph, MemoryGraph
-from .actions import ApplyTokenDecayAction, MemoryAction, CheckpointAction
+from .actions import (
+    AddToContextAction,
+    ApplyTokenDecayAction,
+    MemoryAction,
+    CheckpointAction,
+)
 from .action_log import MemoryActionLog
 from .context_management import (
     prune_context_to_budget_as_actions,
@@ -102,12 +107,122 @@ class DagMemoryManager(IMemory):
         memory_queries: MemoryQueries,
         llm: LLM,
         model: SupportedModel,
-    ) -> str:
-        self.preprocess_trigger(
-            queries=memory_queries,
-            llm=llm,
-            model=model,
+    ) -> RetrievedMemories:
+        """
+        Retrieve memories relevant to the given queries.
+
+        Pure read: scores/expands candidates and returns the retrieved memories (formatted
+        for prompts, plus the context actions retrieval produced). Does NOT mutate the
+        working context — folding the recall into context is a separate, deliberate step
+        (`reinforce`). Returns empty `RetrievedMemories` if nothing matched.
+        """
+        from .retrieval_integration import retrieve_relevant_memories_as_actions
+
+        with timeit("Memory Retrieval"):
+            retrieval_actions = retrieve_relevant_memories_as_actions(
+                queries=memory_queries.queries,
+                memory_graph=self.memory_graph,
+                context_graph=self.context_graph,
+                max_retrieved_memories=5,
+                min_similarity_threshold=0.4,
+            )
+
+        if not retrieval_actions:
+            return RetrievedMemories()
+
+        elements = [
+            self.memory_graph.elements[action.memory_id]
+            for action in retrieval_actions
+            if isinstance(action, AddToContextAction)
+            and action.memory_id in self.memory_graph.elements
+        ]
+        return RetrievedMemories(elements=elements, actions=list(retrieval_actions))
+
+    def reinforce(
+        self,
+        retrieved: RetrievedMemories,
+        budget: int,
+        llm: LLM,
+        model: SupportedModel,
+    ) -> None:
+        """
+        Fold a recall's results into the persistent working context, then prune to budget.
+
+        The deliberate mutation half of recall: dispatches the retrieval actions (recorded in
+        the memory action log) and prunes so a recall can't push the context over budget.
+        """
+        if not retrieved.actions:
+            return
+
+        self.dispatch_actions(retrieved.actions)
+        self.add_checkpoint(
+            label="memories_reinforced",
+            description=f"Reinforced {len(retrieved.actions)} retrieved memory actions into context",
         )
+        self._prune_to_budget(budget, llm, model)
+
+    def prune(
+        self,
+        budget: int,
+        llm: LLM,
+        model: SupportedModel,
+    ) -> None:
+        """
+        Per-turn context maintenance: apply token decay, then prune to budget.
+
+        Runs the decay + prune housekeeping that used to live in the now-removed
+        preprocess step, with no retrieval. Called once per trigger before reasoning so
+        the working context stays within budget even when the agent never recalls.
+        """
+        logger.info("Pruning working context (decay + prune to budget)")
+        self.add_checkpoint(
+            label="prune_start",
+            description="Starting per-turn context maintenance (decay + prune)",
+        )
+
+        # STEP 1: Apply token decay to existing context memories
+        self._apply_token_decay()
+
+        # STEP 2: Prune context to budget
+        self._prune_to_budget(budget, llm, model)
+
+        logger.info(
+            f"Prune complete - Context: {len(self.context_graph.elements)} elements, "
+            f"{len(self.context_graph.edges)} edges"
+        )
+
+    def _prune_to_budget(
+        self,
+        budget: int,
+        llm: LLM,
+        model: SupportedModel,
+    ) -> None:
+        """Prune the working context to fit within the given token budget."""
+        with timeit("Context Pruning"):
+            pruning_actions = prune_context_to_budget_as_actions(
+                graph=self.memory_graph,
+                context=self.context_graph,
+                budget=budget,
+                use_individual_formatting=self.use_individual_formatting,
+                llm=llm,
+                model=model,
+            )
+
+        if pruning_actions:
+            self.dispatch_actions(pruning_actions)
+            self.add_checkpoint(
+                label="context_pruned",
+                description=f"Pruned context to fit budget of {budget} tokens",
+            )
+
+    def get_formatted_context(self) -> str:
+        """
+        Return the current working context formatted for prompts.
+
+        Pure read: no retrieval, no decay, no mutation. Used by the reasoning loop to feed
+        the already-accumulated context into situational analysis and as the per-turn
+        return value.
+        """
         return format_context(
             self.context_graph, self.memory_graph, self.use_individual_formatting
         )
@@ -142,83 +257,6 @@ class DagMemoryManager(IMemory):
     def add_checkpoint(self, label: str, description: str) -> CheckpointAction:
         """Add a checkpoint to the action log."""
         return self.action_log.add_checkpoint(label, description)
-
-    def preprocess_trigger(
-        self,
-        queries: MemoryQueries,
-        llm: LLM,
-        model: SupportedModel,
-    ) -> None:
-        """
-        Preprocess trigger by retrieving relevant memories and pruning context.
-
-        This is called BEFORE the reasoning loop to ensure the agent has access
-        to relevant retrieved memories during its reasoning process.
-
-        Args:
-            queries: Memory queries for retrieval
-            llm: LLM instance for token estimation
-            model: Model to use for token estimation
-        """
-        logger.info(f"Preprocessing trigger for memory retrieval")
-
-        # Checkpoint: Start of preprocessing
-        self.add_checkpoint(
-            label=f"preprocess_start",
-            description=f"Starting preprocessing for incoming trigger",
-        )
-
-        # STEP 1: Apply token decay to existing context memories
-        self._apply_token_decay()
-
-        # STEP 2: Memory retrieval based on incoming trigger
-        from .retrieval_integration import (
-            retrieve_relevant_memories_as_actions,
-        )
-
-        with timeit("Memory Retrieval"):
-            retrieval_actions = retrieve_relevant_memories_as_actions(
-                queries=queries.queries,
-                memory_graph=self.memory_graph,
-                context_graph=self.context_graph,
-                max_retrieved_memories=5,
-                min_similarity_threshold=0.4,
-            )
-
-        if retrieval_actions:
-            self.dispatch_actions(retrieval_actions)
-
-            # Checkpoint: Memories retrieved
-            self.add_checkpoint(
-                label=f"memories_retrieved_preprocess",
-                description=f"Retrieved {len(retrieval_actions)} relevant memories during preprocessing",
-            )
-
-        # STEP 3: Prune context to budget BEFORE reasoning
-        with timeit("Context Pruning"):
-            context_budget = queries.max_tokens
-            pruning_actions = prune_context_to_budget_as_actions(
-                graph=self.memory_graph,
-                context=self.context_graph,
-                budget=context_budget,
-                use_individual_formatting=self.use_individual_formatting,
-                llm=llm,
-                model=model,
-            )
-
-        if pruning_actions:
-            self.dispatch_actions(pruning_actions)
-
-            # Checkpoint: Context pruned
-            self.add_checkpoint(
-                label=f"context_pruned_preprocess",
-                description=f"Pruned context to fit budget of {context_budget} tokens",
-            )
-
-        logger.info(
-            f"Preprocessing complete - Context: {len(self.context_graph.elements)} elements, "
-            f"{len(self.context_graph.edges)} edges"
-        )
 
     def postprocess_trigger(
         self,

@@ -158,6 +158,15 @@ export interface CreativeInspirationOutput {
   words: string[];
 }
 
+export interface RememberInput {
+  reason: string;
+  queries: MemoryQuery[];
+}
+
+export interface RememberOutput {
+  memories: RetrievedMemoryItem[];
+}
+
 export interface UserInputTrigger {
   timestamp: string;
   type: "user_input";
@@ -249,7 +258,7 @@ export interface ActionProgressEvent {
 
 export interface ActionCompletedEvent {
   type: "action_completed";
-  action: ThinkActionData | WaitActionData | SpeakActionData | UpdateMoodActionData | UpdateAppearanceActionData | UpdateEnvironmentActionData | FetchUrlActionData | SearchWebActionData | AddPriorityActionData | RemovePriorityActionData | EvaluatePrioritiesActionData | CreativeInspirationActionData;
+  action: ThinkActionData | WaitActionData | SpeakActionData | UpdateMoodActionData | UpdateAppearanceActionData | UpdateEnvironmentActionData | FetchUrlActionData | SearchWebActionData | AddPriorityActionData | RemovePriorityActionData | EvaluatePrioritiesActionData | CreativeInspirationActionData | RememberActionData;
   entry_id: string;
   sequence_number: number;
   action_number: number;
@@ -478,6 +487,20 @@ export interface OperationResult {
   new_content: string | null;
 }
 
+export interface MemoryQuery {
+  reasoning: string;
+  query_type: "factual" | "emotional" | "causal" | "temporal" | "relationship" | "decision" | "pattern";
+  query_text: string;
+  importance: number;
+}
+
+export interface RetrievedMemoryItem {
+  memory_id: string;
+  content: string;
+  timestamp: string;
+  confidence: string;
+}
+
 export interface State {
   name: string;
   role: string;
@@ -612,7 +635,16 @@ export interface CreativeInspirationActionData {
   start_timestamp: string;
 }
 
-export type ActionData = ThinkActionData | WaitActionData | SpeakActionData | UpdateMoodActionData | UpdateAppearanceActionData | UpdateEnvironmentActionData | FetchUrlActionData | SearchWebActionData | AddPriorityActionData | RemovePriorityActionData | EvaluatePrioritiesActionData | CreativeInspirationActionData;
+export interface RememberActionData {
+  type: "remember";
+  reasoning: string;
+  input: RememberInput;
+  result: WireActionResult<RememberOutput>;
+  duration_ms: number;
+  start_timestamp: string;
+}
+
+export type ActionData = ThinkActionData | WaitActionData | SpeakActionData | UpdateMoodActionData | UpdateAppearanceActionData | UpdateEnvironmentActionData | FetchUrlActionData | SearchWebActionData | AddPriorityActionData | RemovePriorityActionData | EvaluatePrioritiesActionData | CreativeInspirationActionData | RememberActionData;
 export type ActionStreamingData = {
   [TType in ActionData["type"]]: {
   type: TType;
@@ -650,3 +682,4 @@ export type AddPriorityAction = Extract<Action, { type: "add_priority" }>;
 export type RemovePriorityAction = Extract<Action, { type: "remove_priority" }>;
 export type EvaluatePrioritiesAction = Extract<Action, { type: "evaluate_priorities" }>;
 export type CreativeInspirationAction = Extract<Action, { type: "get_creative_inspiration" }>;
+export type RememberAction = Extract<Action, { type: "remember" }>;

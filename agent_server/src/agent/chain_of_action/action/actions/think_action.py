@@ -13,34 +13,18 @@ from ..action_types import ActionType
 from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
-    ActionOutput,
     ActionResult,
     ActionSuccessResult,
-    BaseActionData,
 )
 
+# Data types live in the data-only layer (see action/data) so the ActionData union can be
+# assembled without importing action execution. Re-exported here for existing consumers.
+from ..data.think_data import ThinkInput, ThinkOutput, ThinkActionData
 
 from agent.state import State, build_agent_state_description
 from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
-
-
-class ThinkInput(BaseModel):
-    """Input for THINK action"""
-
-    focus: str = Field(
-        description="Specific topic or question to think through (e.g., 'How to best support them during their stressful week', 'Whether to share my creative idea or wait', 'What this change means for my priorities') - NOT generic like 'emotional elements'"
-    )
-
-
-class ThinkOutput(ActionOutput):
-    """Output for THINK action"""
-
-    thoughts: str
-
-    def result_summary(self) -> str:
-        return self.thoughts
 
 
 class ThinkProgressData(BaseModel):
@@ -206,7 +190,3 @@ When something happens, I process it through my own unique perspective, drawing 
             return ActionFailureResult(
                 error=f"Unexpected error during THINK action: {str(e)}"
             )
-
-
-class ThinkActionData(BaseActionData[ThinkInput, ThinkOutput]):
-    type: Literal[ActionType.THINK] = ActionType.THINK

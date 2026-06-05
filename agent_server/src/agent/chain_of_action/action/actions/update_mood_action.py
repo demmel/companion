@@ -3,48 +3,25 @@ UPDATE_MOOD action implementation.
 """
 
 import logging
-from typing import Literal
-
-from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ExecutionContext
 
 from ..action_types import ActionType
 from ..base_action import BaseAction, register_action
 from ..base_action_data import (
-    ActionOutput,
     ActionResult,
     ActionSuccessResult,
-    BaseActionData,
+)
+from ..data.update_mood_data import (
+    UpdateMoodInput,
+    UpdateMoodOutput,
+    UpdateMoodActionData,
 )
 
 from agent.state import State
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
-
-
-class UpdateMoodInput(BaseModel):
-    """Input for UPDATE_MOOD action"""
-
-    reason: str = Field(description="Why I'm feeling this way")
-    new_mood: str = Field(
-        description="My new mood described as an absolute state (not comparative)"
-    )
-    intensity: str = Field(description="Intensity of the new mood")
-
-
-class UpdateMoodOutput(ActionOutput):
-    """Output for UPDATE_MOOD action"""
-
-    old_mood: str
-    old_intensity: str
-    new_mood: str
-    new_intensity: str
-    reason: str
-
-    def result_summary(self):
-        return f"Updated mood from '{self.old_mood} ({self.old_intensity})' to '{self.new_mood} ({self.new_intensity})' because {self.reason}"
 
 
 @register_action(ActionType.UPDATE_MOOD)
@@ -88,7 +65,3 @@ class UpdateMoodAction(BaseAction[UpdateMoodInput, UpdateMoodOutput]):
         """Apply mood changes from the output."""
         state.current_mood = output.new_mood
         state.mood_intensity = output.new_intensity
-
-
-class UpdateMoodActionData(BaseActionData[UpdateMoodInput, UpdateMoodOutput]):
-    type: Literal[ActionType.UPDATE_MOOD] = ActionType.UPDATE_MOOD

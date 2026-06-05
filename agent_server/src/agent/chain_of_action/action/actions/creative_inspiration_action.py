@@ -3,9 +3,6 @@ GET_CREATIVE_INSPIRATION action implementation.
 """
 
 import logging
-from typing import Literal, Optional, List
-
-from pydantic import BaseModel, Field
 
 from agent.chain_of_action.context import ExecutionContext
 
@@ -13,37 +10,19 @@ from ..action_types import ActionType
 from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
-    ActionOutput,
     ActionResult,
     ActionSuccessResult,
-    BaseActionData,
+)
+from ..data.creative_inspiration_data import (
+    CreativeInspirationInput,
+    CreativeInspirationOutput,
+    CreativeInspirationActionData,
 )
 
 from agent.state import State
-from agent.llm import LLM, SupportedModel
+from agent.llm import LLM
 
 logger = logging.getLogger(__name__)
-
-
-class CreativeInspirationInput(BaseModel):
-    """Input for GET_CREATIVE_INSPIRATION action"""
-
-    count: int = Field(
-        default=10,
-        description="Number of random words to generate for inspiration",
-    )
-    seed: Optional[int] = Field(
-        default=None, description="Optional seed for reproducible randomness"
-    )
-
-
-class CreativeInspirationOutput(ActionOutput):
-    """Output for GET_CREATIVE_INSPIRATION action"""
-
-    words: List[str]
-
-    def result_summary(self) -> str:
-        return f"Creative inspiration words: {', '.join(self.words)}"
 
 
 @register_action(ActionType.GET_CREATIVE_INSPIRATION)
@@ -78,11 +57,3 @@ class CreativeInspirationAction(
             return ActionFailureResult(
                 error=f"Unexpected error during GET_CREATIVE_INSPIRATION action: {str(e)}"
             )
-
-
-class CreativeInspirationActionData(
-    BaseActionData[CreativeInspirationInput, CreativeInspirationOutput]
-):
-    type: Literal[ActionType.GET_CREATIVE_INSPIRATION] = (
-        ActionType.GET_CREATIVE_INSPIRATION
-    )

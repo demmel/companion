@@ -14,10 +14,10 @@ from typing import Any, TypeGuard
 
 from agent.chain_of_action.action.action_types import ActionType
 
-# Importing the actions package runs every action module, which (a) registers each
-# action via @register_action and (b) defines each FooActionData, collecting it into
-# _ACTION_DATA_TYPES.
-import agent.chain_of_action.action.actions  # noqa: F401
+# Importing the data package runs every per-action data module, whose FooActionData classes
+# collect into _ACTION_DATA_TYPES. The data layer is execution-free, so this does NOT import
+# ExecutionContext / the actions package — that's what keeps memory <-> context cycle-free.
+import agent.chain_of_action.action.data  # noqa: F401
 
 from .base_action_data import BaseActionData, _ACTION_DATA_TYPES
 

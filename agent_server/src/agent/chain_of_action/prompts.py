@@ -332,13 +332,20 @@ def build_situational_analysis_prompt(
         )
     )
 
-    if formatted_memory_context:
-        sections.append(
-            format_section(
-                "MY MEMORIES AND CONTEXT",
-                formatted_memory_context,
-            )
+    recall_hint = (
+        "This is only what is currently in my working memory — my memories are NOT retrieved "
+        "automatically. If I need to recall anything beyond this (past interactions, facts, "
+        "decisions, relationship history), I must deliberately use the `remember` action to pull "
+        "it from my long-term memory before relying on it."
+    )
+    sections.append(
+        format_section(
+            "MY MEMORIES AND CONTEXT",
+            f"{formatted_memory_context}\n\n{recall_hint}"
+            if formatted_memory_context
+            else f"My working memory is currently empty. {recall_hint}",
         )
+    )
 
     sections.append(
         format_section(

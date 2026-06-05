@@ -14,10 +14,16 @@ from ..action_types import ActionType
 from ..base_action import BaseAction, register_action
 from ..base_action_data import (
     ActionFailureResult,
-    ActionOutput,
     ActionResult,
     ActionSuccessResult,
-    BaseActionData,
+)
+from ..data.visual_data import (
+    UpdateAppearanceInput,
+    UpdateEnvironmentInput,
+    UpdateAppearanceOutput,
+    UpdateEnvironmentOutput,
+    UpdateAppearanceActionData,
+    UpdateEnvironmentActionData,
 )
 
 from agent.state import State
@@ -27,51 +33,6 @@ from agent.structured_llm import direct_structured_llm_call
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
-
-
-# Shared input/output models
-class UpdateAppearanceInput(BaseModel):
-    """Input for UPDATE_APPEARANCE action"""
-
-    reason: str = Field(description="Why I'm changing my appearance")
-    change_description: str = Field(
-        description="What specific aspects of my appearance should change and how. These should be specific and detailed."
-    )
-
-
-class UpdateEnvironmentInput(BaseModel):
-    """Input for UPDATE_ENVIRONMENT action"""
-
-    reason: str = Field(description="Why I'm changing my environment")
-    change_description: str = Field(
-        description="What specific aspects of my environment should change and how. These should be specific and detailed."
-    )
-
-
-class UpdateAppearanceOutput(ActionOutput):
-    """Output for UPDATE_APPEARANCE action"""
-
-    image_description: str
-    old_appearance: str
-    new_appearance: str
-    reason: str
-    image_result: ImageGenerationToolContent
-
-    def result_summary(self) -> str:
-        return f"Appearance updated: {self.new_appearance} (reason: {self.reason})"
-
-
-class UpdateEnvironmentOutput(ActionOutput):
-    """Output for UPDATE_ENVIRONMENT action"""
-
-    image_description: str
-    old_environment: str
-    new_environment: str
-    reason: str
-    image_result: ImageGenerationToolContent
-
-    def result_summary(self) -> str:
-        return f"Environment updated: {self.new_environment} (reason: {self.reason})"
 
 
 # Shared LLM response models
@@ -458,15 +419,3 @@ The result should be a natural evolution of my current environment with the requ
     except Exception as e:
         logger.error(f"Failed to update environment: {e}")
         return ActionFailureResult(error=f"Failed to update environment: {str(e)}")
-
-
-class UpdateAppearanceActionData(
-    BaseActionData[UpdateAppearanceInput, UpdateAppearanceOutput]
-):
-    type: Literal[ActionType.UPDATE_APPEARANCE] = ActionType.UPDATE_APPEARANCE
-
-
-class UpdateEnvironmentActionData(
-    BaseActionData[UpdateEnvironmentInput, UpdateEnvironmentOutput]
-):
-    type: Literal[ActionType.UPDATE_ENVIRONMENT] = ActionType.UPDATE_ENVIRONMENT
