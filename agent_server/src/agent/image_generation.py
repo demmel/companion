@@ -23,6 +23,7 @@ from agent.types import (
 )
 from agent.structured_llm import structured_llm_call, StructuredLLMError
 from agent.paths import agent_paths
+from agent.gpu_coordinator import get_gpu_coordinator
 
 
 class SDXLModel(str, Enum):
@@ -163,15 +164,17 @@ class ImageGenerationService:
                 )
 
             progress_callback({"stage": "moving_to_device", "progress": 0.8})
-            self._pipeline = self._pipeline.to(device)
 
-            # Enable memory efficient attention if on CUDA
+            # On CUDA, keep the pipeline on CPU between generations and let
+            # accelerate move the active submodule to GPU only during the forward
+            # pass (enable_model_cpu_offload). This frees VRAM for the resident LLM
+            # while idle and is far faster than sequential offload. Do NOT call
+            # .to("cuda") here — that pins everything to GPU and defeats the hooks.
             if device == "cuda":
-                try:
-                    self._pipeline.enable_attention_slicing()
-                    self._pipeline.enable_sequential_cpu_offload()
-                except:
-                    pass  # These optimizations are optional
+                self._pipeline.enable_attention_slicing()
+                self._pipeline.enable_model_cpu_offload()
+            else:
+                self._pipeline = self._pipeline.to(device)
 
             progress_callback({"stage": "model_ready", "progress": 1.0})
             self._model_loaded = True
@@ -555,48 +558,53 @@ Focus on MAXIMUM ATTENTION for critical elements through strategic first-positio
 
             logger.debug(f"Starting image generation with {len(chunks)} chunks")
 
-            # Encode chunks to embeddings with pooled embeddings
-            result = self._encode_chunked_prompts(
-                chunks, negative_prompt, progress_callback
-            )
-
-            if result is None or len(result) != 4:
-                logger.error(f"Failed to encode chunks, returning None")
-                return None
-
-            (
-                positive_embeds,
-                negative_embeds,
-                pooled_positive_embeds,
-                pooled_negative_embeds,
-            ) = result
-
-            progress_callback({"stage": "generating", "progress": 0.6})
-
-            if layout == ImageLayout.PORTRAIT:
-                width = 768
-                height = 1344
-            elif layout == ImageLayout.LANDSCAPE:
-                width = 1344
-                height = 768
-            else:  # SQUARE
-                width = 1024
-                height = 1024
-
-            # Generate the image using embeddings and pooled embeddings
-            logger.debug(f"Generating image with dimensions: {width}x{height}")
-            logger.debug(f"Pipeline type: {type(self._pipeline)}")
-            with torch.inference_mode():
-                result = self._pipeline(
-                    prompt_embeds=positive_embeds,
-                    negative_prompt_embeds=negative_embeds,
-                    pooled_prompt_embeds=pooled_positive_embeds,
-                    negative_pooled_prompt_embeds=pooled_negative_embeds,
-                    width=width,
-                    height=height,
-                    num_inference_steps=sdxl_model_config.num_inference_steps,
-                    guidance_scale=sdxl_model_config.guidance_scale,
+            # Hold the global GPU lock across the whole GPU section (text-encoder
+            # passes + diffusion) so SDXL compute never overlaps with the LLM or
+            # TTS. With enable_model_cpu_offload the pipeline lives on CPU between
+            # leases; accelerate moves the active submodule to GPU on demand here.
+            with get_gpu_coordinator().lease("sdxl"):
+                # Encode chunks to embeddings with pooled embeddings
+                result = self._encode_chunked_prompts(
+                    chunks, negative_prompt, progress_callback
                 )
+
+                if result is None or len(result) != 4:
+                    logger.error(f"Failed to encode chunks, returning None")
+                    return None
+
+                (
+                    positive_embeds,
+                    negative_embeds,
+                    pooled_positive_embeds,
+                    pooled_negative_embeds,
+                ) = result
+
+                progress_callback({"stage": "generating", "progress": 0.6})
+
+                if layout == ImageLayout.PORTRAIT:
+                    width = 768
+                    height = 1344
+                elif layout == ImageLayout.LANDSCAPE:
+                    width = 1344
+                    height = 768
+                else:  # SQUARE
+                    width = 1024
+                    height = 1024
+
+                # Generate the image using embeddings and pooled embeddings
+                logger.debug(f"Generating image with dimensions: {width}x{height}")
+                logger.debug(f"Pipeline type: {type(self._pipeline)}")
+                with torch.inference_mode():
+                    result = self._pipeline(
+                        prompt_embeds=positive_embeds,
+                        negative_prompt_embeds=negative_embeds,
+                        pooled_prompt_embeds=pooled_positive_embeds,
+                        negative_pooled_prompt_embeds=pooled_negative_embeds,
+                        width=width,
+                        height=height,
+                        num_inference_steps=sdxl_model_config.num_inference_steps,
+                        guidance_scale=sdxl_model_config.guidance_scale,
+                    )
             logger.debug(f"Image generation completed successfully")
 
             progress_callback({"stage": "image_generated", "progress": 0.8})

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from chatterbox.tts_turbo import ChatterboxTurboTTS
 
+from agent.gpu_coordinator import get_gpu_coordinator
 from ..base import TTSProvider, TTSResult
 
 
@@ -48,6 +49,26 @@ class ChatterboxProvider(TTSProvider):
 
             self._model.norm_loudness = patched_norm
 
+    def _to_device(self, device: str) -> None:
+        """Move all model submodules between CPU and GPU.
+
+        ChatterboxTurboTTS has no .to(); it holds the nn.Module submodels plus a
+        Conditionals object and a device attr that generate() reads to place input
+        tensors. Move all of them together so the model is fully on one device.
+        """
+        assert self._model is not None
+        self._model.t3.to(device)
+        self._model.s3gen.to(device)
+        self._model.ve.to(device)
+        if self._model.conds is not None:
+            self._model.conds.to(device)
+        self._model.device = device
+
+    def _offload_to_cpu(self) -> None:
+        """Move the model to CPU if it is loaded (safe to call on the error path)."""
+        if self._model is not None:
+            self._to_device("cpu")
+
     @property
     def name(self) -> str:
         return "chatterbox"
@@ -66,14 +87,20 @@ class ChatterboxProvider(TTSProvider):
         Returns:
             TTSResult containing the generated audio.
         """
-        self._ensure_model()
-        assert self._model is not None
+        # Hold the global GPU lock for the whole synth so TTS compute never
+        # overlaps with the LLM or SDXL. Load (first call) and move the weights to
+        # GPU inside the lock; the to_cpu callback offloads back to CPU on the way
+        # out (even on error) so the model does not crowd VRAM while idle.
+        with get_gpu_coordinator().lease("tts", to_cpu=self._offload_to_cpu):
+            self._ensure_model()
+            assert self._model is not None
+            self._to_device(self.device)
 
-        # Text already has paralinguistic tags from LLM rewriting
-        wav = self._model.generate(
-            text=text,
-            audio_prompt_path=str(reference_audio) if reference_audio else None,
-        )
+            # Text already has paralinguistic tags from LLM rewriting
+            wav = self._model.generate(
+                text=text,
+                audio_prompt_path=str(reference_audio) if reference_audio else None,
+            )
 
         # Convert tensor to WAV bytes and calculate duration
         audio_data, num_samples = self._tensor_to_wav_bytes(wav, sample_rate=24000)

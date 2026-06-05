@@ -8,6 +8,7 @@ import threading
 import queue
 from typing import Callable, Iterator, List, Dict, Optional, TypeVar, Union, cast
 
+from agent.gpu_coordinator import get_gpu_coordinator
 from agent.llm.interface import ILLM, Message, ImagesInput
 from agent.llm.models import (
     OllamaModelConfig,
@@ -173,11 +174,16 @@ class SerializedOllamaLLM(ILLM):
         self._worker.start()
 
     def _worker_loop(self) -> None:
+        coordinator = get_gpu_coordinator()
         while True:
             fn = self._queue.get()
             if fn is None:
                 break
-            fn()
+            # Hold the global GPU lock for the whole request (streaming included,
+            # since the full token loop runs inside fn()) so LLM compute never
+            # overlaps with TTS/SDXL. The model stays resident; no device move.
+            with coordinator.lease("llm"):
+                fn()
 
     def stop(self) -> None:
         self._queue.put(None)
